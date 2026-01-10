@@ -1,0 +1,59 @@
+# Local/dev
+.env
+.env.*.local
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.log
+logs/
+
+# IDE/editor
+.idea/
+.vscode/
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node/Next
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Python build
+dist/
+build/
+*.egg-info/
+*.so
+.Python
+
+# Docker volumes (if created locally)
+postgres_data/
+redis_data/
+
+# Docker override
+docker-compose.override.yml
+
+# Alembic
+alembic/versions/*.pyc
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Windows oddities
+nul
+
+# Backup files
+*.bak
+*.swp
+*.swo
+*~
