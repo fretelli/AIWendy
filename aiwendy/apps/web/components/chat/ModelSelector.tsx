@@ -548,7 +548,7 @@ export function ModelSelector({ config, onConfigChange }: ModelSelectorProps) {
                 <div className="grid gap-0.5">
                   <Label htmlFor="stream">Stream Response</Label>
                   <p className="text-xs text-muted-foreground">
-                    Show response as it's generated
+                    Show response as it&apos;s generated
                   </p>
                 </div>
                 <Switch

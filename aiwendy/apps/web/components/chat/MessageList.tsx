@@ -33,18 +33,18 @@ export function MessageList({
           <div className="space-y-2">
             <h3 className="text-lg font-medium">Start a conversation with Wendy</h3>
             <p className="text-sm text-muted-foreground">
-              I'm here to help you with trading psychology, mindset optimization, and performance improvement.
+              I&apos;m here to help you with trading psychology, mindset optimization, and performance improvement.
             </p>
           </div>
           <div className="grid gap-2 text-sm">
             <div className="px-4 py-2 rounded-lg border bg-muted/50 text-left">
-              💭 "How can I manage my emotions after a losing trade?"
+              💭 &quot;How can I manage my emotions after a losing trade?&quot;
             </div>
             <div className="px-4 py-2 rounded-lg border bg-muted/50 text-left">
-              📊 "Analyze my recent trading patterns for me"
+              📊 &quot;Analyze my recent trading patterns for me&quot;
             </div>
             <div className="px-4 py-2 rounded-lg border bg-muted/50 text-left">
-              🎯 "Help me create a pre-market routine"
+              🎯 &quot;Help me create a pre-market routine&quot;
             </div>
           </div>
         </div>
