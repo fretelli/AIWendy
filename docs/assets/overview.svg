@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1220"/>
+      <stop offset="100%" stop-color="#101b34"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#111c36"/>
+      <stop offset="100%" stop-color="#0f1830"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="70" y="70" width="1060" height="490" rx="20" fill="url(#card)" stroke="#26345c" stroke-width="2"/>
+  </g>
+
+  <rect x="90" y="92" width="1020" height="8" rx="4" fill="url(#accent)"/>
+
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial">
+    <text x="120" y="160" font-size="54" font-weight="800" fill="#e6edf7">AIWendy</text>
+    <text x="120" y="205" font-size="22" fill="#a9b6d6">AI-powered trading psychology coach · Next.js + FastAPI</text>
+
+    <g>
+      <rect x="120" y="250" width="960" height="1" fill="#223055"/>
+    </g>
+
+    <g>
+      <rect x="120" y="280" width="310" height="120" rx="14" fill="#0d1730" stroke="#24345f"/>
+      <text x="145" y="320" font-size="18" font-weight="700" fill="#d9e4ff">Chat</text>
+      <text x="145" y="350" font-size="15" fill="#9fb0d6">Projects · History · SSE streaming</text>
+    </g>
+
+    <g>
+      <rect x="445" y="280" width="310" height="120" rx="14" fill="#0d1730" stroke="#24345f"/>
+      <text x="470" y="320" font-size="18" font-weight="700" fill="#d9e4ff">Knowledge Base</text>
+      <text x="470" y="350" font-size="15" fill="#9fb0d6">RAG · pgvector · Import docs</text>
+    </g>
+
+    <g>
+      <rect x="770" y="280" width="310" height="120" rx="14" fill="#0d1730" stroke="#24345f"/>
+      <text x="795" y="320" font-size="18" font-weight="700" fill="#d9e4ff">Roundtable</text>
+      <text x="795" y="350" font-size="15" fill="#9fb0d6">Multi-coach discussion · Settings</text>
+    </g>
+
+    <g>
+      <rect x="120" y="420" width="960" height="110" rx="14" fill="#0b142a" stroke="#24345f"/>
+      <text x="145" y="460" font-size="18" font-weight="700" fill="#d9e4ff">Self-host friendly</text>
+      <text x="145" y="490" font-size="15" fill="#9fb0d6">Docker Compose · Guest mode by default · Optional cloud features</text>
+    </g>
+
+    <text x="120" y="590" font-size="14" fill="#6f83b8">docs/assets/overview.svg (placeholder) — replace with real screenshots/GIFs.</text>
+  </g>
+</svg>
+

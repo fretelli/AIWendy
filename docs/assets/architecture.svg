@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b1220"/>
+      <stop offset="100%" stop-color="#101b34"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+
+  <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial">
+    <text x="90" y="110" font-size="44" font-weight="800" fill="#e6edf7">Architecture (high level)</text>
+    <text x="90" y="145" font-size="18" fill="#a9b6d6">Next.js web · FastAPI API · Postgres (pgvector) · Redis · Celery</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="90" y="190" width="340" height="170" rx="18" fill="#0d1730" stroke="#24345f" stroke-width="2"/>
+    <text x="120" y="240" font-size="18" font-weight="700" fill="#d9e4ff">Web (Next.js)</text>
+    <text x="120" y="272" font-size="14" fill="#9fb0d6">UI · SSE client · uploads</text>
+    <text x="120" y="300" font-size="14" fill="#9fb0d6">Guest detection via /users/me</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="470" y="190" width="360" height="170" rx="18" fill="#0d1730" stroke="#24345f" stroke-width="2"/>
+    <text x="500" y="240" font-size="18" font-weight="700" fill="#d9e4ff">API (FastAPI)</text>
+    <text x="500" y="272" font-size="14" fill="#9fb0d6">REST + SSE · auth (JWT/guest)</text>
+    <text x="500" y="300" font-size="14" fill="#9fb0d6">RAG · roundtable · files</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="870" y="190" width="240" height="170" rx="18" fill="#0d1730" stroke="#24345f" stroke-width="2"/>
+    <text x="900" y="240" font-size="18" font-weight="700" fill="#d9e4ff">LLM providers</text>
+    <text x="900" y="272" font-size="14" fill="#9fb0d6">OpenAI/Anthropic/</text>
+    <text x="900" y="300" font-size="14" fill="#9fb0d6">Ollama/Custom</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="90" y="410" width="340" height="150" rx="18" fill="#0b142a" stroke="#24345f" stroke-width="2"/>
+    <text x="120" y="455" font-size="18" font-weight="700" fill="#d9e4ff">Postgres</text>
+    <text x="120" y="485" font-size="14" fill="#9fb0d6">Core data + pgvector</text>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="470" y="410" width="360" height="150" rx="18" fill="#0b142a" stroke="#24345f" stroke-width="2"/>
+    <text x="500" y="455" font-size="18" font-weight="700" fill="#d9e4ff">Redis + Celery</text>
+    <text x="500" y="485" font-size="14" fill="#9fb0d6">Queues · scheduled reports</text>
+  </g>
+
+  <g stroke="#5b6ea8" stroke-width="3" fill="none" opacity="0.9">
+    <path d="M430 275 L470 275"/>
+    <path d="M830 275 L870 275"/>
+    <path d="M650 360 L650 410"/>
+    <path d="M430 485 L470 485"/>
+  </g>
+
+  <g fill="#5b6ea8">
+    <circle cx="470" cy="275" r="5"/>
+    <circle cx="870" cy="275" r="5"/>
+    <circle cx="650" cy="410" r="5"/>
+    <circle cx="470" cy="485" r="5"/>
+  </g>
+
+  <text x="90" y="605" font-size="14" fill="#6f83b8" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial">
+    docs/assets/architecture.svg (placeholder) — replace with a real diagram if desired.
+  </text>
+</svg>
+

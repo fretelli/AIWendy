@@ -1,0 +1,115 @@
+version: "3.9"
+
+services:
+  db:
+    image: docker.1ms.run/pgvector/pgvector:pg16
+    container_name: aiwendy-db
+    environment:
+      POSTGRES_USER: aiwendy
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: aiwendy
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiwendy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: docker.1ms.run/library/redis:7.2-alpine
+    container_name: aiwendy-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: aiwendy-api
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://aiwendy:${DB_PASSWORD}@db:5432/aiwendy
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - AIWENDY_AUTH_REQUIRED=${AIWENDY_AUTH_REQUIRED:-0}
+      - AIWENDY_AUTO_INIT_DB=${AIWENDY_AUTO_INIT_DB:-1}
+      - AIWENDY_AUTO_INIT_TEST_USERS=${AIWENDY_AUTO_INIT_TEST_USERS:-0}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/api:/app
+      - uploads_data:/app/uploads
+    command: sh scripts/docker_start.sh
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://api:8000
+        NEXT_PUBLIC_AUTH_REQUIRED: "0"
+    container_name: aiwendy-web
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://api:8000
+      - NEXT_PUBLIC_AUTH_REQUIRED=0
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-change-me}
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_started
+
+  worker:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: aiwendy-worker
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://aiwendy:${DB_PASSWORD}@db:5432/aiwendy
+      - REDIS_URL=redis://redis:6379
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A workers.celery_app worker --loglevel=info
+
+  beat:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: aiwendy-beat
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://aiwendy:${DB_PASSWORD}@db:5432/aiwendy
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A workers.celery_app beat --loglevel=info
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:
