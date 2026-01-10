@@ -18,12 +18,6 @@
 - 部署模式对比：`DEPLOYMENT_MODES.md`
 - 项目状态（以代码为准）：`PROJECT_STATUS.md`
 
-## 方案与历史
-
-- 完整方案/设计文档（较长）：`aiwendy-full-spec.md`
-- 开源 + 托管 SaaS 改造总结：`SAAS_MIGRATION_SUMMARY.md`
-- 历史归档：`legacy/`
-
 ## 素材
 
 - `assets/`：README 用的截图/动图/架构图（当前为占位 SVG，可替换为真实截图/GIF）
