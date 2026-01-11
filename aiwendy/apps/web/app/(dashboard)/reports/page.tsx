@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  Calendar, Clock, FileText, TrendingUp, TrendingDown,
-  ChevronRight, Download, Mail, Settings, BarChart3,
+  Calendar, FileText, TrendingUp, TrendingDown,
+  ChevronRight, Settings, BarChart3,
   CalendarDays, CalendarRange, RefreshCw, AlertCircle
 } from "lucide-react"
 import { toast } from "sonner"
@@ -37,23 +37,6 @@ interface Report {
   created_at: string
 }
 
-interface ReportSchedule {
-  daily_enabled: boolean
-  daily_time: string
-  weekly_enabled: boolean
-  weekly_day: number
-  weekly_time: string
-  monthly_enabled: boolean
-  monthly_day: number
-  monthly_time: string
-}
-
-const reportTypeNames: Record<string, string> = {
-  daily: "日报",
-  weekly: "周报",
-  monthly: "月报"
-}
-
 const reportTypeIcons: Record<string, any> = {
   daily: Calendar,
   weekly: CalendarDays,
@@ -68,14 +51,6 @@ const statusColors: Record<string, string> = {
   sent: "bg-purple-100 text-purple-800"
 }
 
-const statusNames: Record<string, string> = {
-  pending: "待生成",
-  generating: "生成中",
-  completed: "已完成",
-  failed: "失败",
-  sent: "已发送"
-}
-
 export default function ReportsPage() {
   const router = useRouter()
   const { t, locale } = useI18n()
@@ -84,12 +59,27 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState<string | null>(null)
   const [selectedType, setSelectedType] = useState<string>("all")
-  const [schedule, setSchedule] = useState<ReportSchedule | null>(null)
+  const dateFnsLocale = locale === "zh" ? zhCN : undefined
+
+  const reportTypeLabel = (type: string): string => {
+    if (type === "daily") return t("reports.type.daily")
+    if (type === "weekly") return t("reports.type.weekly")
+    if (type === "monthly") return t("reports.type.monthly")
+    return type
+  }
+
+  const statusLabel = (status: string): string => {
+    if (status === "pending") return t("reports.status.pending")
+    if (status === "generating") return t("reports.status.generating")
+    if (status === "completed") return t("reports.status.completed")
+    if (status === "failed") return t("reports.status.failed")
+    if (status === "sent") return t("reports.status.sent")
+    return status
+  }
 
   useEffect(() => {
     if (!ready) return
     fetchReports()
-    fetchSchedule()
   }, [ready, projectId])
 
   const fetchReports = async () => {
@@ -112,29 +102,9 @@ export default function ReportsPage() {
       setReports(data)
     } catch (error) {
       console.error("Error fetching reports:", error)
-      toast.error(locale === 'zh' ? "无法加载报告列表" : "Failed to load reports")
+      toast.error(t("reports.errors.loadReports"))
     } finally {
       setLoading(false)
-    }
-  }
-
-  const fetchSchedule = async () => {
-    try {
-      const token = localStorage.getItem("aiwendy_access_token")
-      const response = await fetch(`${API_V1_PREFIX}/reports/schedule/current`, {
-        headers: {
-          "Authorization": token ? `Bearer ${token}` : ""
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch schedule")
-      }
-
-      const data = await response.json()
-      setSchedule(data)
-    } catch (error) {
-      console.error("Error fetching schedule:", error)
     }
   }
 
@@ -165,36 +135,33 @@ export default function ReportsPage() {
 
       if (!response.ok) {
         const data = await response.json().catch(() => null)
-        const detail = typeof data?.detail === "string" ? data.detail : "Failed to queue report task"
+        const detail = typeof data?.detail === "string" ? data.detail : t("reports.errors.queueReportTask")
         throw new Error(detail)
       }
 
       const queued = await response.json()
       if (!queued?.task_id) {
-        throw new Error(locale === "zh" ? "任务返回缺少 task_id" : "Missing task_id")
+        throw new Error(t("reports.errors.missingTaskId"))
       }
 
-      toast.info(locale === "zh" ? "已加入队列，生成中…" : "Queued, generating…")
+      toast.info(t("reports.toasts.queuedGenerating"))
       const result = await tasksAPI.waitForCompletion(queued.task_id, {
         timeoutMs: 8 * 60 * 1000,
       })
 
       const reportId = result?.report_id
       if (!reportId) {
-        throw new Error(result?.error || (locale === "zh" ? "生成失败" : "Generation failed"))
+        throw new Error(result?.error || t("reports.status.failed"))
       }
 
-      toast.success(`${reportTypeNames[reportType]}生成成功`)
+      toast.success(t("reports.toasts.generateSuccess", { type: reportTypeLabel(reportType) }))
 
       await fetchReports()
       router.push(`/reports/${reportId}`)
     } catch (error) {
       console.error("Error generating report:", error)
-      toast.error(
-        locale === "zh"
-          ? `生成${reportTypeNames[reportType]}失败：${(error as any)?.message || ""}`
-          : `Failed to generate ${reportType}: ${(error as any)?.message || ""}`
-      )
+      const message = (error as any)?.message || ""
+      toast.error(t("reports.toasts.generateFailed", { type: reportTypeLabel(reportType), message }))
     } finally {
       setGenerating(null)
     }
@@ -229,7 +196,7 @@ export default function ReportsPage() {
           <div>
             <h1 className="text-3xl font-bold mb-2">{t('reports.title')}</h1>
             <p className="text-muted-foreground">
-              {locale === 'zh' ? '查看和生成您的交易分析报告' : 'View and generate your trading analysis reports'}
+              {t("reports.list.subtitle")}
             </p>
           </div>
           <Button
@@ -237,7 +204,7 @@ export default function ReportsPage() {
             onClick={() => router.push("/reports/schedule")}
           >
             <Settings className="w-4 h-4 mr-2" />
-            {locale === 'zh' ? '定时设置' : 'Schedule Settings'}
+            {t("reports.list.scheduleSettings")}
           </Button>
         </div>
 
@@ -248,7 +215,7 @@ export default function ReportsPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Calendar className="w-5 h-5 text-primary" />
-                  <CardTitle>日报</CardTitle>
+                  <CardTitle>{reportTypeLabel("daily")}</CardTitle>
                 </div>
                 <Button
                   size="sm"
@@ -258,12 +225,12 @@ export default function ReportsPage() {
                   {generating === "daily" ? (
                     <>
                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      生成中
+                      {t("reports.actions.generating")}
                     </>
                   ) : (
                     <>
                       <BarChart3 className="w-4 h-4 mr-2" />
-                      生成
+                      {t("reports.actions.generate")}
                     </>
                   )}
                 </Button>
@@ -272,106 +239,114 @@ export default function ReportsPage() {
             <CardContent>
               {getRecentReports("daily") ? (
                 <div>
-                  <p className="text-sm text-muted-foreground mb-2">最新报告</p>
+                  <p className="text-sm text-muted-foreground mb-2">{t("reports.list.latestReport")}</p>
                   <p className="font-medium">
-                    {format(parseISO(getRecentReports("daily").created_at), "MM月dd日", { locale: zhCN })}
+                    {format(
+                      parseISO(getRecentReports("daily").created_at),
+                      locale === "zh" ? "MM月dd日" : "MMM dd",
+                      { locale: dateFnsLocale }
+                    )}
                   </p>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">暂无日报</p>
+                <p className="text-sm text-muted-foreground">{t("reports.list.noDaily")}</p>
               )}
             </CardContent>
           </Card>
 
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CalendarDays className="w-5 h-5 text-primary" />
-                  <CardTitle>周报</CardTitle>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="w-5 h-5 text-primary" />
+                    <CardTitle>{reportTypeLabel("weekly")}</CardTitle>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={generating === "weekly"}
+                    onClick={() => generateReport("weekly")}
+                  >
+                    {generating === "weekly" ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        {t("reports.actions.generating")}
+                      </>
+                    ) : (
+                      <>
+                        <BarChart3 className="w-4 h-4 mr-2" />
+                        {t("reports.actions.generate")}
+                      </>
+                    )}
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  disabled={generating === "weekly"}
-                  onClick={() => generateReport("weekly")}
-                >
-                  {generating === "weekly" ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      生成中
-                    </>
-                  ) : (
-                    <>
-                      <BarChart3 className="w-4 h-4 mr-2" />
-                      生成
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {getRecentReports("weekly") ? (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">最新报告</p>
-                  <p className="font-medium">
-                    第{new Date(getRecentReports("weekly").period_start).getWeek()}周
-                  </p>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">暂无周报</p>
-              )}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                {getRecentReports("weekly") ? (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">{t("reports.list.latestReport")}</p>
+                    <p className="font-medium">
+                      {t("reports.list.weekOfYear", { week: new Date(getRecentReports("weekly").period_start).getWeek() })}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t("reports.list.noWeekly")}</p>
+                )}
+              </CardContent>
+            </Card>
 
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CalendarRange className="w-5 h-5 text-primary" />
-                  <CardTitle>月报</CardTitle>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CalendarRange className="w-5 h-5 text-primary" />
+                    <CardTitle>{reportTypeLabel("monthly")}</CardTitle>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={generating === "monthly"}
+                    onClick={() => generateReport("monthly")}
+                  >
+                    {generating === "monthly" ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        {t("reports.actions.generating")}
+                      </>
+                    ) : (
+                      <>
+                        <BarChart3 className="w-4 h-4 mr-2" />
+                        {t("reports.actions.generate")}
+                      </>
+                    )}
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  disabled={generating === "monthly"}
-                  onClick={() => generateReport("monthly")}
-                >
-                  {generating === "monthly" ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                      生成中
-                    </>
-                  ) : (
-                    <>
-                      <BarChart3 className="w-4 h-4 mr-2" />
-                      生成
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {getRecentReports("monthly") ? (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">最新报告</p>
-                  <p className="font-medium">
-                    {format(parseISO(getRecentReports("monthly").period_start), "yyyy年MM月", { locale: zhCN })}
-                  </p>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">暂无月报</p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+              </CardHeader>
+              <CardContent>
+                {getRecentReports("monthly") ? (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">{t("reports.list.latestReport")}</p>
+                    <p className="font-medium">
+                      {format(
+                        parseISO(getRecentReports("monthly").period_start),
+                        locale === "zh" ? "yyyy年MM月" : "MMM yyyy",
+                        { locale: dateFnsLocale }
+                      )}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t("reports.list.noMonthly")}</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
 
-        {/* Report List */}
-        <Tabs value={selectedType} onValueChange={setSelectedType}>
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="all">全部</TabsTrigger>
-            <TabsTrigger value="daily">日报</TabsTrigger>
-            <TabsTrigger value="weekly">周报</TabsTrigger>
-            <TabsTrigger value="monthly">月报</TabsTrigger>
-          </TabsList>
+          {/* Report List */}
+          <Tabs value={selectedType} onValueChange={setSelectedType}>
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="all">{t("common.all")}</TabsTrigger>
+              <TabsTrigger value="daily">{reportTypeLabel("daily")}</TabsTrigger>
+              <TabsTrigger value="weekly">{reportTypeLabel("weekly")}</TabsTrigger>
+              <TabsTrigger value="monthly">{reportTypeLabel("monthly")}</TabsTrigger>
+            </TabsList>
 
           <TabsContent value={selectedType} className="mt-6 space-y-4">
             {filteredReports.length > 0 ? (
@@ -392,7 +367,7 @@ export default function ReportsPage() {
                           <div className="flex items-center gap-2 mb-1">
                             <h3 className="font-semibold text-lg">{report.title}</h3>
                             <Badge className={statusColors[report.status]}>
-                              {statusNames[report.status]}
+                              {statusLabel(report.status)}
                             </Badge>
                           </div>
                           <p className="text-sm text-muted-foreground mb-2">
@@ -401,7 +376,7 @@ export default function ReportsPage() {
                           <div className="flex items-center gap-4 text-sm">
                             <div className="flex items-center gap-1">
                               <FileText className="w-4 h-4" />
-                              {report.total_trades} 笔交易
+                              {t("reports.list.tradesCount", { count: report.total_trades })}
                             </div>
                             <div className="flex items-center gap-1">
                               {report.total_pnl >= 0 ? (
@@ -415,7 +390,7 @@ export default function ReportsPage() {
                             </div>
                             {report.win_rate && (
                               <div>
-                                胜率 {report.win_rate.toFixed(1)}%
+                                {t("reports.detail.winRate")} {report.win_rate.toFixed(1)}%
                               </div>
                             )}
                           </div>
@@ -423,7 +398,7 @@ export default function ReportsPage() {
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <p className="text-sm text-muted-foreground">
-                          {format(parseISO(report.created_at), "yyyy-MM-dd HH:mm", { locale: zhCN })}
+                          {format(parseISO(report.created_at), "yyyy-MM-dd HH:mm", { locale: dateFnsLocale })}
                         </p>
                         <ChevronRight className="w-5 h-5 text-muted-foreground" />
                       </div>
@@ -436,7 +411,9 @@ export default function ReportsPage() {
                 <CardContent>
                   <AlertCircle className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                   <p className="text-muted-foreground mb-4">
-                    暂无{selectedType === "all" ? "" : reportTypeNames[selectedType]}报告
+                    {selectedType === "all"
+                      ? t("reports.list.emptyAll")
+                      : t("reports.list.emptyType", { type: reportTypeLabel(selectedType) })}
                   </p>
                   <Button
                     onClick={() => {
@@ -447,7 +424,7 @@ export default function ReportsPage() {
                       }
                     }}
                   >
-                    生成第一份报告
+                    {t("reports.generateFirst")}
                   </Button>
                 </CardContent>
               </Card>

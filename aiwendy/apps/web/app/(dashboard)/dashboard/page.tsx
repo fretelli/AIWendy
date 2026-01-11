@@ -42,7 +42,7 @@ export default function DashboardPage() {
   const { projectId, ready } = useActiveProjectId();
   const [statsByPeriod, setStatsByPeriod] = useState<Record<string, JournalStatistics> | null>(null);
 
-  const userName = locale === 'zh' ? '张三' : 'John';
+  const userName = t('dashboard.sampleUserName');
 
   useEffect(() => {
     if (!ready) return;
@@ -67,7 +67,7 @@ export default function DashboardPage() {
         setStatsByPeriod(Object.fromEntries(entries));
       } catch (error) {
         console.error('Error fetching stats:', error);
-        toast.error(locale === 'zh' ? '无法加载统计数据' : 'Failed to load stats');
+        toast.error(t('dashboard.errors.loadStats'));
       }
     };
 
@@ -92,10 +92,10 @@ export default function DashboardPage() {
 
   const emotionalState = (() => {
     const stress = statsForPeriod?.average_stress;
-    if (stress == null || stress === 0) return locale === 'zh' ? '冷静' : 'Calm';
-    if (stress <= 2) return locale === 'zh' ? '冷静' : 'Calm';
-    if (stress <= 3.5) return locale === 'zh' ? '一般' : 'Neutral';
-    return locale === 'zh' ? '紧张' : 'Stressed';
+    if (stress == null || stress === 0) return t('dashboard.emotions.calm');
+    if (stress <= 2) return t('dashboard.emotions.calm');
+    if (stress <= 3.5) return t('dashboard.emotions.neutral');
+    return t('dashboard.emotions.stressed');
   })();
 
   return (
@@ -199,9 +199,7 @@ export default function DashboardPage() {
         <CardHeader>
           <CardTitle>{t('dashboard.performance')}</CardTitle>
           <CardDescription>
-            {locale === 'zh'
-              ? `最后更新: ${formatDate(new Date(), 'long')}`
-              : `Last updated: ${formatDate(new Date(), 'long')}`}
+            {t('dashboard.lastUpdated', { date: formatDate(new Date(), 'long') })}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -297,17 +295,17 @@ export default function DashboardPage() {
           <CardContent>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Percentage</span>
+                <span className="text-sm text-muted-foreground">{t('dashboard.percentage')}</span>
                 <span className="font-medium text-red-600">
                   {formatNumber(mockStats.maxDrawdown * 100)}%
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">
-                  {locale === 'zh' ? '恢复时间' : 'Recovery Time'}
+                  {t('dashboard.recoveryTime')}
                 </span>
                 <span className="font-medium">
-                  {locale === 'zh' ? '12天' : '12 days'}
+                  {t('dashboard.recoveryDays', { days: 12 })}
                 </span>
               </div>
             </div>
@@ -320,18 +318,16 @@ export default function DashboardPage() {
         <CardHeader>
           <CardTitle>{t('dashboard.suggestions')}</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              {locale === 'zh'
-                ? '基于您最近的交易表现，AI教练建议：'
-                : 'Based on your recent trading performance, the AI coach suggests:'}
-            </p>
-            <ul className="list-disc list-inside space-y-1 text-sm">
-              <li>{locale === 'zh' ? '继续保持当前的风险管理策略' : 'Continue with your current risk management strategy'}</li>
-              <li>{locale === 'zh' ? '考虑在盈利交易中设置追踪止损' : 'Consider using trailing stops on winning trades'}</li>
-              <li>{locale === 'zh' ? '复习您的交易日志以识别成功模式' : 'Review your journal to identify successful patterns'}</li>
-            </ul>
+          <CardContent>
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                {t('dashboard.suggestionsIntro')}
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-sm">
+                <li>{t('dashboard.suggestionsItems.keepStrategy')}</li>
+                <li>{t('dashboard.suggestionsItems.trailingStops')}</li>
+                <li>{t('dashboard.suggestionsItems.reviewJournal')}</li>
+              </ul>
             <div className="flex gap-2 pt-4">
               <Button>
                 <BarChart3 className="mr-2 h-4 w-4" />

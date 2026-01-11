@@ -1,5 +1,8 @@
 # AIWendy 部署模式指南
 
+<a id="zh-cn"></a>
+[中文](#zh-cn) | [English](#en)
+
 AIWendy 支持两种部署模式：
 
 1. **自托管模式（Self-Hosted）** - 开源社区版，适合个人和小团队
@@ -371,3 +374,378 @@ A: 可以。我们提供迁移工具和文档，帮助你导出数据并部署�
 ### Q: 两种模式的功能差异大吗？
 
 A: 核心功能（AI 对话、知识库、交易日志、报告）在两种模式下完全相同。云模式主要增加了多租户、计费、企业 SSO 等 SaaS 运营所需的功能。
+
+---
+
+<a id="en"></a>
+## English
+
+AIWendy supports two deployment modes:
+
+1. **Self-hosted** (Self-Hosted) — open-source Community edition, best for individuals and small teams
+2. **Cloud-hosted** (Cloud/SaaS) — hosted service edition with multi-tenancy, billing, enterprise SSO, and more
+
+### Mode comparison
+
+| Feature | Self-hosted | Cloud-hosted |
+|---|---|---|
+| Deployment | Docker Compose / K8s | Managed cloud service |
+| User management | Single-tenant | Multi-tenant isolation |
+| Auth | Email/password / optional disabled | Email/password + enterprise SSO |
+| Billing | None | Stripe integration |
+| Analytics | Optional (local) | PostHog/Mixpanel |
+| Data isolation | Single instance | Strict tenant isolation |
+| Resource limits | None | Plan-based quotas |
+| Updates | Manual | Automatic |
+| Support | Community | Professional support |
+
+## Self-hosted (default)
+
+### Configuration
+
+Set in `.env`:
+
+```bash
+DEPLOYMENT_MODE=self-hosted
+```
+
+Or leave it unset (default is `self-hosted`).
+
+### Characteristics
+
+- Fully open-source (Apache 2.0)
+- Full data control
+- No usage limits
+- Optional “no-login” guest mode (`AIWENDY_AUTH_REQUIRED=0`)
+- Supports custom LLM APIs
+- No billing system
+- No multi-tenant isolation
+- No enterprise SSO
+
+### Quick start
+
+```bash
+cd aiwendy
+cp .env.example .env
+# edit .env and fill required settings
+docker compose up -d --build
+```
+
+Visit `http://localhost:3000`
+
+### Best for
+
+- Personal use
+- Internal use by small teams
+- When you need full data control
+- When you don’t need billing
+- When you want to customize/extend
+
+## Cloud-hosted (SaaS)
+
+### Configuration
+
+Set in `.env`:
+
+```bash
+DEPLOYMENT_MODE=cloud
+```
+
+And configure additional env vars required for cloud mode (see `.env.cloud.example`).
+
+### Characteristics
+
+- Multi-tenant architecture with strict data isolation
+- Stripe billing integration
+- Analytics (PostHog/Mixpanel)
+- Enterprise SSO (SAML/OAuth)
+- Resource quota management
+- Automatic scaling and updates
+- Professional technical support
+
+### Required configuration
+
+#### 1. Multi-tenancy
+
+```bash
+MULTI_TENANCY_ENABLED=true
+TENANT_ISOLATION_STRICT=true
+```
+
+#### 2. Analytics
+
+```bash
+ANALYTICS_PROVIDER=posthog
+POSTHOG_API_KEY=phc_your_key
+POSTHOG_HOST=https://app.posthog.com
+```
+
+Or Mixpanel:
+
+```bash
+ANALYTICS_PROVIDER=mixpanel
+MIXPANEL_TOKEN=your_token
+```
+
+#### 3. Enterprise SSO (optional)
+
+SAML 2.0:
+
+```bash
+ENTERPRISE_SSO_ENABLED=true
+SAML_ENABLED=true
+SAML_ENTITY_ID=https://api.yourdomain.com/saml/metadata
+SAML_SSO_URL=https://api.yourdomain.com/saml/sso
+SAML_X509_CERT=your_certificate
+```
+
+OAuth 2.0:
+
+```bash
+ENTERPRISE_SSO_ENABLED=true
+OAUTH_PROVIDERS=["google", "github", "azure", "okta"]
+```
+
+#### 4. Billing (Stripe)
+
+```bash
+BILLING_ENABLED=true
+STRIPE_API_KEY=sk_live_your_key
+STRIPE_WEBHOOK_SECRET=whsec_your_secret
+STRIPE_PRICE_ID_FREE=price_xxx
+STRIPE_PRICE_ID_PRO=price_xxx
+STRIPE_PRICE_ID_ENTERPRISE=price_xxx
+```
+
+### Database migrations
+
+Cloud mode requires additional tables:
+
+```bash
+# run migrations to create tenant tables
+docker exec aiwendy-api alembic upgrade head
+```
+
+### Best for
+
+- Operating a SaaS product
+- Needing strict multi-tenant isolation
+- Requiring billing
+- Enterprise customers needing SSO
+- Wanting analytics and monitoring
+
+## Migrating from self-hosted to cloud-hosted
+
+If you’re already running the self-hosted version and want to migrate to cloud mode:
+
+### 1. Back up data
+
+```bash
+docker exec aiwendy-postgres pg_dump -U aiwendy aiwendy > backup.sql
+```
+
+### 2. Update configuration
+
+Copy `.env.cloud.example` to `.env` and configure all required cloud services.
+
+### 3. Run migrations
+
+```bash
+# stop services
+docker compose down
+
+# update code
+git pull
+
+# start services (migrations may run automatically depending on your setup)
+docker compose up -d --build
+
+# or run migrations manually
+docker exec aiwendy-api alembic upgrade head
+```
+
+### 4. Create tenants
+
+Create tenants for existing users:
+
+```bash
+docker exec aiwendy-api python scripts/migrate_to_multi_tenant.py
+```
+
+### 5. Configure external services
+
+- Set up Stripe webhooks
+- Configure PostHog/Mixpanel
+- Configure SSO providers
+
+## Feature flags
+
+Regardless of mode, features can be toggled via env vars:
+
+```bash
+# feature flags
+FEATURE_ANALYTICS_ENABLED=true
+FEATURE_MULTI_COACH_ENABLED=true
+FEATURE_VOICE_ENABLED=false
+FEATURE_KNOWLEDGE_BASE_ENABLED=true
+
+# rate limits
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_FREE_CHAT_HOURLY=10
+RATE_LIMIT_FREE_JOURNAL_DAILY=3
+RATE_LIMIT_PRO_CHAT_HOURLY=100
+RATE_LIMIT_PRO_JOURNAL_DAILY=999
+```
+
+## Checking deployment mode in code
+
+```python
+from config import get_settings
+
+settings = get_settings()
+
+# cloud mode?
+if settings.is_cloud_mode():
+    # cloud-specific logic
+    pass
+
+# self-hosted mode?
+if settings.is_self_hosted():
+    # self-hosted-specific logic
+    pass
+
+# is multi-tenancy enabled?
+if settings.multi_tenancy_enabled:
+    # multi-tenant logic
+    pass
+```
+
+## Dependencies
+
+### Self-hosted
+
+Base dependencies are included in `requirements.txt`.
+
+### Additional dependencies for cloud mode
+
+```bash
+# analytics
+pip install posthog  # or mixpanel
+
+# enterprise SSO
+pip install python3-saml
+
+# billing
+pip install stripe
+```
+
+Or use a cloud-specific requirements file:
+
+```bash
+pip install -r requirements.cloud.txt
+```
+
+## Monitoring and logs
+
+### Self-hosted
+
+- Logs are written to `./logs`
+- Optional Sentry integration
+
+### Cloud-hosted
+
+- Sentry is required
+- PostHog/Mixpanel for analytics
+- Recommended: Datadog/New Relic for infrastructure monitoring
+
+## Security considerations
+
+### Self-hosted
+
+- Keep dependencies up to date
+- Use strong passwords and a strong JWT secret
+- Configure firewall rules
+- Enable HTTPS
+
+### Cloud-hosted
+
+- All self-hosted security practices
+- Strict tenant data isolation
+- Regular security audits
+- SOC 2 / ISO 27001 compliance
+- Encryption in transit and at rest
+- Regular backups and disaster recovery plans
+
+## Performance optimization
+
+### Self-hosted
+
+- Tune `DATABASE_POOL_SIZE` based on load
+- Configure Redis caching
+- Use a CDN for static assets
+
+### Cloud-hosted
+
+- Use managed databases (RDS/Cloud SQL)
+- Use managed Redis (ElastiCache/MemoryStore)
+- Configure autoscaling
+- Use load balancers
+- Enable CDN
+
+## Cost estimation
+
+### Self-hosted
+
+- Server cost (VPS/cloud VM)
+- Domain and SSL certificate
+- Backup storage
+- Maintenance time
+
+### Cloud-hosted
+
+- Infrastructure (compute/storage/network)
+- Third-party services (Stripe/PostHog/Sentry)
+- People cost (engineering/ops/support)
+- Marketing and sales
+
+## Support
+
+### Self-hosted
+
+- GitHub Issues: use your fork’s Issues page
+- Community forum
+- Docs: `../aiwendy/docs/`
+
+### Cloud-hosted
+
+- Professional support
+- SLA guarantees
+- Priority issue handling
+- Custom development support
+
+## License
+
+- **Self-hosted**: Apache 2.0 open-source license
+- **Cloud-hosted**: commercial license (contact us for details)
+
+## FAQ
+
+### Q: Can I use cloud features in self-hosted mode?
+
+A: Technically yes, but you need to integrate and operate the third-party services yourself (Stripe, PostHog, etc.). Cloud mode is designed for managed SaaS operation.
+
+### Q: Can I export data from cloud mode?
+
+A: Yes. Data export APIs/tools can be provided to ensure portability.
+
+### Q: Will the self-hosted version keep getting updates?
+
+A: Yes. Core features will continue to be updated in the open-source version, while some advanced features may be available only in cloud mode.
+
+### Q: Can I migrate from cloud back to self-hosted?
+
+A: Yes. Migration tools and docs can be provided to help you export data and deploy to your own servers.
+
+### Q: Is the feature gap large between the two modes?
+
+A: Core features (AI chat, knowledge base, trading log, reports) are the same in both modes. Cloud mode mainly adds multi-tenancy, billing, enterprise SSO, and other SaaS-operational capabilities.

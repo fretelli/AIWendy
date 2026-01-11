@@ -23,7 +23,7 @@ interface APIKeysData {
 
 export default function SettingsPage() {
   const router = useRouter()
-  const { t, locale } = useI18n()
+  const { t } = useI18n()
   const { user, isLoading: authLoading } = useAuth()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -68,8 +68,8 @@ export default function SettingsPage() {
       console.error("Failed to fetch API keys:", error)
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Failed to load API keys. Please try again.",
+        title: t("common.error"),
+        description: t("settings.page.toasts.loadError"),
       })
     } finally {
       setLoading(false)
@@ -98,8 +98,8 @@ export default function SettingsPage() {
       }
 
       toast({
-        title: "Success",
-        description: "API keys updated successfully",
+        title: t("common.success"),
+        description: t("settings.page.toasts.updateSuccess"),
       })
 
       // Clear input fields
@@ -114,8 +114,8 @@ export default function SettingsPage() {
       console.error("Failed to update API keys:", error)
       toast({
         variant: "destructive",
-        title: "Error",
-        description: error.message || "Failed to update API keys. Please try again.",
+        title: t("common.error"),
+        description: error.message || t("settings.page.toasts.updateError"),
       })
     } finally {
       setSaving(false)
@@ -123,6 +123,7 @@ export default function SettingsPage() {
   }
 
   const deleteAPIKey = async (provider: string) => {
+    const providerLabel = provider === "openai" ? "OpenAI" : "Anthropic"
     try {
       const token = localStorage.getItem("aiwendy_access_token")
       const response = await fetch(`${API_V1_PREFIX}/users/me/api-keys/${provider}`, {
@@ -137,8 +138,8 @@ export default function SettingsPage() {
       }
 
       toast({
-        title: "Success",
-        description: `${provider} API key deleted successfully`,
+        title: t("common.success"),
+        description: t("settings.page.toasts.deleteSuccess", { provider: providerLabel }),
       })
 
       // Refresh API keys display
@@ -147,8 +148,8 @@ export default function SettingsPage() {
       console.error(`Failed to delete ${provider} API key:`, error)
       toast({
         variant: "destructive",
-        title: "Error",
-        description: `Failed to delete ${provider} API key. Please try again.`,
+        title: t("common.error"),
+        description: t("settings.page.toasts.deleteError", { provider: providerLabel }),
       })
     }
   }
@@ -166,40 +167,40 @@ export default function SettingsPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold">{t('settings.title')}</h1>
         <p className="text-muted-foreground mt-2">
-          {locale === 'zh' ? '管理您的账户设置和偏好' : 'Manage your account settings and preferences'}
+          {t('settings.page.subtitle')}
         </p>
       </div>
 
       <Tabs defaultValue="api-keys" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="api-keys">API Keys</TabsTrigger>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="preferences">Preferences</TabsTrigger>
+          <TabsTrigger value="api-keys">{t('settings.page.tabs.apiKeys')}</TabsTrigger>
+          <TabsTrigger value="profile">{t('settings.page.tabs.profile')}</TabsTrigger>
+          <TabsTrigger value="preferences">{t('settings.page.tabs.preferences')}</TabsTrigger>
           <TabsTrigger value="llm" onClick={() => router.push('/settings/llm')}>
-            {locale === 'zh' ? 'LLM 配置' : 'LLM Configuration'}
+            {t('settings.page.tabs.llm')}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="api-keys" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>API Keys Configuration</CardTitle>
+              <CardTitle>{t('settings.page.apiKeys.title')}</CardTitle>
               <CardDescription>
-                Configure your own API keys to use AI features. Your keys are encrypted and stored securely.
+                {t('settings.page.apiKeys.description')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <Alert>
                 <Icons.alertCircle className="h-4 w-4" />
                 <AlertDescription>
-                  <strong>Bring Your Own Keys (BYOK):</strong> You can use your own OpenAI or Anthropic API keys for AI features.
-                  Your keys are encrypted before storage and never shared.
+                  <strong>{t('settings.page.apiKeys.byokTitle')} </strong>
+                  {t('settings.page.apiKeys.byokDescription')}
                 </AlertDescription>
               </Alert>
 
               {/* OpenAI API Key */}
               <div className="space-y-2">
-                <Label htmlFor="openai-key">OpenAI API Key</Label>
+                <Label htmlFor="openai-key">{t('settings.page.apiKeys.openai')}</Label>
                 {apiKeys.has_openai ? (
                   <div className="flex items-center gap-2">
                     <Input
@@ -212,7 +213,7 @@ export default function SettingsPage() {
                       size="sm"
                       onClick={() => deleteAPIKey("openai")}
                     >
-                      Remove
+                      {t('settings.page.apiKeys.remove')}
                     </Button>
                   </div>
                 ) : (
@@ -230,26 +231,26 @@ export default function SettingsPage() {
                       size="sm"
                       onClick={() => setShowOpenAIKey(!showOpenAIKey)}
                     >
-                      {showOpenAIKey ? "Hide" : "Show"}
+                      {showOpenAIKey ? t('settings.page.apiKeys.hide') : t('settings.page.apiKeys.show')}
                     </Button>
                   </div>
                 )}
                 <p className="text-sm text-muted-foreground">
-                  Get your API key from{" "}
+                  {t('settings.page.apiKeys.getOpenai')}{" "}
                   <a
                     href="https://platform.openai.com/api-keys"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary hover:underline"
                   >
-                    OpenAI Dashboard
+                    {t('settings.page.apiKeys.openaiDashboard')}
                   </a>
                 </p>
               </div>
 
               {/* Anthropic API Key */}
               <div className="space-y-2">
-                <Label htmlFor="anthropic-key">Anthropic API Key</Label>
+                <Label htmlFor="anthropic-key">{t('settings.page.apiKeys.anthropic')}</Label>
                 {apiKeys.has_anthropic ? (
                   <div className="flex items-center gap-2">
                     <Input
@@ -262,7 +263,7 @@ export default function SettingsPage() {
                       size="sm"
                       onClick={() => deleteAPIKey("anthropic")}
                     >
-                      Remove
+                      {t('settings.page.apiKeys.remove')}
                     </Button>
                   </div>
                 ) : (
@@ -280,19 +281,19 @@ export default function SettingsPage() {
                       size="sm"
                       onClick={() => setShowAnthropicKey(!showAnthropicKey)}
                     >
-                      {showAnthropicKey ? "Hide" : "Show"}
+                      {showAnthropicKey ? t('settings.page.apiKeys.hide') : t('settings.page.apiKeys.show')}
                     </Button>
                   </div>
                 )}
                 <p className="text-sm text-muted-foreground">
-                  Get your API key from{" "}
+                  {t('settings.page.apiKeys.getAnthropic')}{" "}
                   <a
                     href="https://console.anthropic.com/account/keys"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary hover:underline"
                   >
-                    Anthropic Console
+                    {t('settings.page.apiKeys.anthropicConsole')}
                   </a>
                 </p>
               </div>
@@ -302,7 +303,7 @@ export default function SettingsPage() {
                 <div className="flex justify-end">
                   <Button onClick={updateAPIKeys} disabled={saving}>
                     {saving && <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />}
-                    Save API Keys
+                    {t('settings.page.apiKeys.save')}
                   </Button>
                 </div>
               )}
@@ -311,9 +312,9 @@ export default function SettingsPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>API Key Status</CardTitle>
+              <CardTitle>{t('settings.page.apiKeys.statusTitle')}</CardTitle>
               <CardDescription>
-                Current status of your configured API keys
+                {t('settings.page.apiKeys.statusDescription')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -321,13 +322,13 @@ export default function SettingsPage() {
                 <div className="flex items-center justify-between">
                   <span className="font-medium">OpenAI</span>
                   <span className={apiKeys.has_openai ? "text-green-600" : "text-muted-foreground"}>
-                    {apiKeys.has_openai ? "Configured ✓" : "Not configured"}
+                    {apiKeys.has_openai ? t('settings.page.apiKeys.configured') : t('settings.page.apiKeys.notConfigured')}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="font-medium">Anthropic</span>
                   <span className={apiKeys.has_anthropic ? "text-green-600" : "text-muted-foreground"}>
-                    {apiKeys.has_anthropic ? "Configured ✓" : "Not configured"}
+                    {apiKeys.has_anthropic ? t('settings.page.apiKeys.configured') : t('settings.page.apiKeys.notConfigured')}
                   </span>
                 </div>
               </div>
@@ -338,9 +339,9 @@ export default function SettingsPage() {
         <TabsContent value="profile" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Profile Settings</CardTitle>
+              <CardTitle>{t('settings.page.profile.title')}</CardTitle>
               <CardDescription>
-                Manage your profile information
+                {t('settings.page.profile.description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -350,11 +351,11 @@ export default function SettingsPage() {
                   <Input value={user?.email || ""} disabled />
                 </div>
                 <div className="space-y-2">
-                  <Label>Subscription</Label>
+                  <Label>{t('settings.page.profile.subscription')}</Label>
                   <Input value="free" disabled />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  Profile editing coming soon...
+                  {t('settings.page.profile.comingSoon')}
                 </p>
               </div>
             </CardContent>
@@ -364,14 +365,14 @@ export default function SettingsPage() {
         <TabsContent value="preferences" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Preferences</CardTitle>
+              <CardTitle>{t('settings.page.preferences.title')}</CardTitle>
               <CardDescription>
-                Manage your application preferences
+                {t('settings.page.preferences.description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                Preferences management coming soon...
+                {t('settings.page.preferences.comingSoon')}
               </p>
             </CardContent>
           </Card>

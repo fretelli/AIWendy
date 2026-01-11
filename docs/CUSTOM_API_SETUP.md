@@ -1,5 +1,8 @@
 # 自定义第三方 LLM / OpenAI 兼容 API 配置指南
 
+<a id="zh-cn"></a>
+[中文](#zh-cn) | [English](#en)
+
 AIWendy 支持为每个用户配置 LLM 提供商（含 OpenAI 兼容网关与本地模型），并在聊天/分析等能力中使用。
 
 更多文档见：`README.md`。
@@ -112,4 +115,122 @@ Content-Type: application/json
 - 连接超时：检查 `base_url`、代理/防火墙、目标服务是否可达
 - 认证失败：确认 `auth_type` 与 Header 名称是否正确
 - 模型不可用：先用 `/api/v1/llm-config/models` 拉取模型列表，再设置 `default_model`
+
+---
+
+<a id="en"></a>
+## English
+
+AIWendy lets each user configure their own LLM provider (including OpenAI-compatible gateways and local models), and use it in chat/analysis features.
+
+More docs: `README.md`.
+
+### Recommended: configure in the UI
+
+Go to: `/settings/llm` (Settings → LLM)
+
+Typical workflow:
+
+1. Create a config (choose provider, fill `api_key` / `base_url`, etc.)
+2. Click “Test” (the backend calls on your behalf to avoid browser CORS issues)
+3. Set as default (future chats use it by default)
+
+### API approach (for scripts/automation)
+
+#### 1) List supported providers
+
+```http
+GET /api/v1/llm-config/providers
+```
+
+#### 2) Create a user config
+
+```http
+POST /api/v1/llm-config/user-configs
+Content-Type: application/json
+
+{
+  "name": "My Provider",
+  "provider_type": "custom",
+  "api_key": "your-api-key",
+  "base_url": "https://api.example.com",
+  "default_model": "gpt-4o-mini",
+  "api_format": "openai",
+  "auth_type": "bearer",
+  "chat_endpoint": "/v1/chat/completions",
+  "supports_streaming": true
+}
+```
+
+#### 3) Test a saved config
+
+```http
+POST /api/v1/llm-config/test
+Content-Type: application/json
+
+{
+  "config_id": "CONFIG_ID",
+  "message": "Hello, can you hear me?",
+  "temperature": 0.7,
+  "max_tokens": 200
+}
+```
+
+#### 4) Quick test (no save)
+
+```http
+POST /api/v1/llm-config/quick-test
+Content-Type: application/json
+
+{
+  "provider_type": "groq",
+  "api_key": "gsk_xxx",
+  "model": "mixtral-8x7b-32768"
+}
+```
+
+### Field notes (most common)
+
+- `provider_type`: built-in provider type, or `"custom"`
+- `api_key`: API key (stored encrypted by the backend)
+- `base_url`: API base URL for custom/private deployments (e.g. `http://localhost:11434`)
+- `default_model`: default model name
+- `api_format` (for `custom`): `openai` / `anthropic` / `google` / `custom`
+- `auth_type` (for `custom`): `bearer` / `api_key` / `basic` / `none`
+- `chat_endpoint` / `embeddings_endpoint` / `models_endpoint`: custom endpoint paths (optional)
+- `extra_headers` / `extra_body_params`: extra header/body fields (optional)
+
+### Common examples
+
+#### 1) Local Ollama
+
+```json
+{
+  "name": "Local Ollama",
+  "provider_type": "ollama",
+  "base_url": "http://localhost:11434",
+  "default_model": "llama3.2:latest"
+}
+```
+
+#### 2) Self-hosted / proxied OpenAI-compatible gateway
+
+```json
+{
+  "name": "OpenAI Compatible Gateway",
+  "provider_type": "custom",
+  "base_url": "https://your-gateway.example.com",
+  "api_key": "xxx",
+  "api_format": "openai",
+  "auth_type": "bearer",
+  "chat_endpoint": "/v1/chat/completions",
+  "embeddings_endpoint": "/v1/embeddings"
+}
+```
+
+### Troubleshooting
+
+- Timeouts: check `base_url`, proxy/firewall, and whether the target service is reachable
+- Auth failures: confirm `auth_type` and header naming
+- Model not available: fetch models via `/api/v1/llm-config/models`, then set `default_model`
 

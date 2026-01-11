@@ -1,7 +1,7 @@
 """Coach management endpoints."""
 
 from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 from uuid import UUID
@@ -10,6 +10,7 @@ import uuid
 
 from core.auth import get_current_user
 from core.database import get_session
+from core.i18n import Locale, get_request_locale, t
 from domain.user.models import User
 from domain.coach.models import Coach, ChatSession, ChatMessage, CoachStyle, LLMProvider
 from services.coach_service import CoachService
@@ -147,10 +148,54 @@ class CustomCoachResponse(BaseModel):
 
 router = APIRouter()
 
+_DEFAULT_COACH_TRAITS_EN: dict[str, list[str]] = {
+    "wendy": ["Warm", "Patient", "Empathetic", "Insightful", "Supportive"],
+    "marcus": ["Strict", "Direct", "Decisive", "High standards", "Results-driven"],
+    "sophia": ["Rational", "Precise", "Objective", "Systematic", "Data-driven"],
+    "alex": ["Passionate", "Optimistic", "Encouraging", "High energy", "Positive"],
+    "socrates": ["Wise", "Patient", "Deep", "Guiding", "Reflective"],
+}
+
+_DEFAULT_COACH_SPECIALTY_EN: dict[str, list[str]] = {
+    "wendy": ["Emotional regulation", "Mental resilience", "Confidence rebuilding", "Stress management", "Recovery after setbacks"],
+    "marcus": ["Risk management", "Discipline & execution", "Stop-loss rules", "Process design", "Habit building"],
+    "sophia": ["Performance analytics", "Pattern recognition", "Statistical optimization", "Backtesting", "Quant improvement"],
+    "alex": ["Confidence building", "Goal setting", "Motivation", "Winning mindset", "Breaking limiting beliefs"],
+    "socrates": ["Self-awareness", "Critical thinking", "Deep reflection", "Belief challenging", "Mental clarity"],
+}
+
+
+def _localize_default_coach_response(coach: Coach, locale: Locale) -> CoachResponse:
+    response = CoachResponse.from_orm(coach)
+    if not getattr(coach, "is_default", False):
+        return response
+
+    updates = {
+        "name": t(f"coaches.{coach.id}.name", locale),
+        "description": t(f"coaches.{coach.id}.description", locale),
+        "bio": t(f"coaches.{coach.id}.bio", locale),
+        "language": "zh" if locale == "zh" else "en",
+    }
+
+    if locale == "en":
+        traits = _DEFAULT_COACH_TRAITS_EN.get(coach.id)
+        specialty = _DEFAULT_COACH_SPECIALTY_EN.get(coach.id)
+        if traits is not None:
+            updates["personality_traits"] = traits
+        if specialty is not None:
+            updates["specialty"] = specialty
+
+    return response.copy(
+        update={
+            **updates,
+        }
+    )
+
 
 @router.get("", response_model=List[CoachResponse])
 @router.get("/", response_model=List[CoachResponse])
 async def list_coaches(
+    http_request: Request,
     style: Optional[CoachStyle] = Query(None, description="Filter by coach style"),
     is_premium: Optional[bool] = Query(None, description="Filter by premium status"),
     db: AsyncSession = Depends(get_session),
@@ -158,6 +203,8 @@ async def list_coaches(
 ):
     """List available coaches."""
     from sqlalchemy import select, or_
+
+    locale = get_request_locale(http_request)
 
     # Build query
     query = select(Coach).where(
@@ -180,16 +227,19 @@ async def list_coaches(
     # Filter based on user subscription
     # TODO: Check user subscription level and filter coaches
 
-    return coaches
+    return [_localize_default_coach_response(coach, locale) for coach in coaches]
 
 
 @router.get("/default", response_model=CoachResponse)
 async def get_default_coach(
+    http_request: Request,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """Get the default coach."""
     from sqlalchemy import select
+
+    locale = get_request_locale(http_request)
 
     # Query for default coach (wendy)
     query = select(Coach).where(Coach.id == "wendy", Coach.is_active == True)
@@ -197,19 +247,22 @@ async def get_default_coach(
     coach = result.scalar_one_or_none()
 
     if not coach:
-        raise HTTPException(status_code=404, detail="No default coach configured")
+        raise HTTPException(status_code=404, detail=t("errors.no_default_coach_configured", locale))
 
-    return coach
+    return _localize_default_coach_response(coach, locale)
 
 
 @router.get("/{coach_id}", response_model=CoachResponse)
 async def get_coach(
     coach_id: str,
+    http_request: Request,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """Get coach details."""
     from sqlalchemy import select
+
+    locale = get_request_locale(http_request)
 
     # Query for the coach
     query = select(Coach).where(Coach.id == coach_id, Coach.is_active == True)
@@ -217,13 +270,13 @@ async def get_coach(
     coach = result.scalar_one_or_none()
 
     if not coach:
-        raise HTTPException(status_code=404, detail="Coach not found")
+        raise HTTPException(status_code=404, detail=t("errors.coach_not_found", locale))
 
     # Access control: public coaches or the user's own custom coaches
     if not coach.is_public and coach.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
 
-    return coach
+    return _localize_default_coach_response(coach, locale)
 
 
 def _generate_custom_coach_id() -> str:
@@ -249,11 +302,14 @@ async def list_custom_coaches(
 @router.post("/custom", response_model=CustomCoachResponse)
 async def create_custom_coach(
     request: CreateCustomCoachRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """Create a new custom coach for the current user."""
     from sqlalchemy import select
+
+    locale = get_request_locale(http_request)
 
     coach_id: Optional[str] = None
     for _ in range(8):
@@ -263,7 +319,7 @@ async def create_custom_coach(
             coach_id = candidate
             break
     if not coach_id:
-        raise HTTPException(status_code=500, detail="Failed to allocate coach id")
+        raise HTTPException(status_code=500, detail=t("errors.failed_allocate_coach_id", locale))
 
     coach = Coach(
         id=coach_id,
@@ -300,18 +356,21 @@ async def create_custom_coach(
 async def update_custom_coach(
     coach_id: str,
     request: UpdateCustomCoachRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """Update one of the current user's custom coaches."""
     from sqlalchemy import select
 
+    locale = get_request_locale(http_request)
+
     result = await db.execute(select(Coach).where(Coach.id == coach_id))
     coach = result.scalar_one_or_none()
     if not coach:
-        raise HTTPException(status_code=404, detail="Coach not found")
+        raise HTTPException(status_code=404, detail=t("errors.coach_not_found", locale))
     if coach.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
 
     updates = request.dict(exclude_unset=True)
     for key, value in updates.items():
@@ -326,18 +385,21 @@ async def update_custom_coach(
 @router.delete("/custom/{coach_id}")
 async def delete_custom_coach(
     coach_id: str,
+    http_request: Request,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """Deactivate a custom coach."""
     from sqlalchemy import select
 
+    locale = get_request_locale(http_request)
+
     result = await db.execute(select(Coach).where(Coach.id == coach_id))
     coach = result.scalar_one_or_none()
     if not coach:
-        raise HTTPException(status_code=404, detail="Coach not found")
+        raise HTTPException(status_code=404, detail=t("errors.coach_not_found", locale))
     if coach.created_by != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
 
     coach.is_active = False
     coach.updated_at = datetime.utcnow()
@@ -350,6 +412,7 @@ async def delete_custom_coach(
 @router.post("/sessions", response_model=SessionResponse)
 async def create_session(
     request: CreateSessionRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -359,12 +422,15 @@ async def create_session(
     import uuid
     from datetime import datetime
 
+    locale = get_request_locale(http_request)
+
     # Create session directly
     session = ChatSession(
         id=uuid.uuid4(),
         user_id=current_user.id,
         coach_id=request.coach_id,
-        title=request.title or f"Chat - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        title=request.title
+        or t("chat.session_title_default", locale, ts=datetime.now().strftime("%Y-%m-%d %H:%M")),
         context=request.context,
         project_id=request.project_id,
         is_active=True,
@@ -416,11 +482,14 @@ async def get_user_sessions(
 @router.get("/sessions/{session_id}", response_model=SessionResponse)
 async def get_session_details(
     session_id: UUID,
+    http_request: Request,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """Get session details."""
     from sqlalchemy import select
+
+    locale = get_request_locale(http_request)
 
     # Query for the session
     query = select(ChatSession).where(ChatSession.id == session_id)
@@ -428,11 +497,11 @@ async def get_session_details(
     session = result.scalar_one_or_none()
 
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=t("errors.session_not_found", locale))
 
     # Verify user owns this session
     if session.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
 
     return session
 
@@ -440,6 +509,7 @@ async def get_session_details(
 @router.post("/sessions/{session_id}/end", response_model=SessionResponse)
 async def end_session(
     session_id: UUID,
+    http_request: Request,
     request: EndSessionRequest = Body(...),
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -447,13 +517,15 @@ async def end_session(
     """End a chat session."""
     from sqlalchemy import select
 
+    locale = get_request_locale(http_request)
+
     # Verify session ownership
     query = select(ChatSession).where(ChatSession.id == session_id)
     result = await db.execute(query)
     session = result.scalar_one_or_none()
 
     if not session or session.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=t("errors.session_not_found", locale))
 
     # End the session
     session.is_active = False
@@ -471,6 +543,7 @@ async def end_session(
 @router.get("/sessions/{session_id}/messages")
 async def get_session_messages(
     session_id: UUID,
+    http_request: Request,
     limit: Optional[int] = Query(None, le=1000),
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -480,6 +553,7 @@ async def get_session_messages(
     import logging
 
     logger = logging.getLogger(__name__)
+    locale = get_request_locale(http_request)
 
     try:
         # Verify session ownership
@@ -488,7 +562,7 @@ async def get_session_messages(
         session = session_result.scalar_one_or_none()
 
         if not session or session.user_id != current_user.id:
-            raise HTTPException(status_code=404, detail="Session not found")
+            raise HTTPException(status_code=404, detail=t("errors.session_not_found", locale))
 
         # Get messages
         messages_query = select(ChatMessage).where(
@@ -535,5 +609,5 @@ async def get_session_messages(
         logger.error(f"Error getting messages for session {session_id}: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to retrieve messages: {str(e)}"
+            detail=t("errors.failed_to_retrieve_messages", locale),
         )

@@ -1,7 +1,7 @@
 """Report management endpoints."""
 
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from uuid import UUID
@@ -9,6 +9,7 @@ from datetime import date, datetime
 
 from core.auth import get_current_user
 from core.database import get_db
+from core.i18n import get_request_locale, t
 from domain.user.models import User
 from domain.report.models import Report, ReportType, ReportStatus, ReportSchedule
 from services.report_service import ReportService
@@ -107,10 +108,12 @@ router = APIRouter()
 @router.post("/generate", response_model=ReportResponse)
 def generate_report(
     request: GenerateReportRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Generate a report for the current user."""
+    locale = get_request_locale(http_request)
     service = ReportService(db)
 
     try:
@@ -118,12 +121,14 @@ def generate_report(
             report = service.generate_daily_report(
                 user_id=current_user.id,
                 report_date=request.period_start,
+                locale=locale,
                 project_id=request.project_id,
             )
         elif request.report_type == ReportType.WEEKLY:
             report = service.generate_weekly_report(
                 user_id=current_user.id,
                 week_start=request.period_start,
+                locale=locale,
                 project_id=request.project_id,
             )
         elif request.report_type == ReportType.MONTHLY:
@@ -136,12 +141,13 @@ def generate_report(
                 user_id=current_user.id,
                 year=year,
                 month=month,
+                locale=locale,
                 project_id=request.project_id,
             )
         else:
-            raise HTTPException(status_code=400, detail="Unsupported report type")
+            raise HTTPException(status_code=400, detail=t("errors.unsupported_report_type", locale))
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=t("errors.report_generation_failed", locale))
 
     return report
 
@@ -150,6 +156,7 @@ def generate_report(
 @router.get("", response_model=List[ReportResponse])
 @router.get("/", response_model=List[ReportResponse])
 def get_reports(
+    http_request: Request,
     report_type: Optional[ReportType] = Query(None, description="Filter by report type"),
     project_id: Optional[UUID] = Query(None, description="Filter by project_id"),
     limit: int = Query(10, le=50, description="Maximum number of reports to return"),
@@ -157,6 +164,7 @@ def get_reports(
     current_user: User = Depends(get_current_user),
 ):
     """Get user's reports."""
+    locale = get_request_locale(http_request)
     service = ReportService(db)
     reports = service.get_user_reports(
         user_id=current_user.id,
@@ -170,11 +178,13 @@ def get_reports(
 @router.get("/latest/{report_type}", response_model=ReportResponse)
 def get_latest_report(
     report_type: ReportType,
+    http_request: Request,
     project_id: Optional[UUID] = Query(None, description="Optional project scope"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Get the latest report of a specific type."""
+    locale = get_request_locale(http_request)
     service = ReportService(db)
     report = service.get_latest_report(
         user_id=current_user.id,
@@ -185,7 +195,7 @@ def get_latest_report(
     if not report:
         raise HTTPException(
             status_code=404,
-            detail=f"No {report_type.value} report found for user"
+            detail=t("errors.no_report_found_for_user", locale, report_type=report_type.value),
         )
 
     return report
@@ -194,19 +204,21 @@ def get_latest_report(
 @router.get("/{report_id}", response_model=ReportResponse)
 def get_report(
     report_id: UUID,
+    http_request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Get a specific report."""
+    locale = get_request_locale(http_request)
     service = ReportService(db)
     report = service.get_report_by_id(report_id)
 
     if not report:
-        raise HTTPException(status_code=404, detail="Report not found")
+        raise HTTPException(status_code=404, detail=t("errors.report_not_found", locale))
 
     # Verify user owns this report
     if report.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
 
     return report
 
@@ -254,46 +266,52 @@ def update_schedule(
 # Quick Actions
 @router.post("/generate/daily", response_model=ReportResponse)
 def generate_daily_report(
+    http_request: Request,
     project_id: Optional[UUID] = Query(None, description="Optional project scope"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Generate yesterday's daily report."""
+    locale = get_request_locale(http_request)
     service = ReportService(db)
     try:
-        report = service.generate_daily_report(current_user.id, project_id=project_id)
+        report = service.generate_daily_report(current_user.id, locale=locale, project_id=project_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=t("errors.report_generation_failed", locale))
     return report
 
 
 @router.post("/generate/weekly", response_model=ReportResponse)
 def generate_weekly_report(
+    http_request: Request,
     project_id: Optional[UUID] = Query(None, description="Optional project scope"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Generate last week's weekly report."""
+    locale = get_request_locale(http_request)
     service = ReportService(db)
     try:
-        report = service.generate_weekly_report(current_user.id, project_id=project_id)
+        report = service.generate_weekly_report(current_user.id, locale=locale, project_id=project_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=t("errors.report_generation_failed", locale))
     return report
 
 
 @router.post("/generate/monthly", response_model=ReportResponse)
 def generate_monthly_report(
+    http_request: Request,
     project_id: Optional[UUID] = Query(None, description="Optional project scope"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Generate last month's monthly report."""
+    locale = get_request_locale(http_request)
     service = ReportService(db)
     try:
-        report = service.generate_monthly_report(current_user.id, project_id=project_id)
+        report = service.generate_monthly_report(current_user.id, locale=locale, project_id=project_id)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=t("errors.report_generation_failed", locale))
     return report
 
 

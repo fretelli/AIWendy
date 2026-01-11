@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -19,6 +19,7 @@ from core.auth import (
 )
 from core.database import get_session
 from core.exceptions import InvalidCredentialsError, DuplicateResourceError
+from core.i18n import get_request_locale, t
 from domain.user.models import User, UserSession
 from core.logging import get_logger
 
@@ -81,9 +82,11 @@ class UserResponse(BaseModel):
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     request: RegisterRequest,
+    http_request: Request,
     session: AsyncSession = Depends(get_session),
 ):
     """Register a new user."""
+    locale = get_request_locale(http_request)
     # Check if email already exists
     result = await session.execute(
         select(User).where(User.email == request.email)
@@ -110,8 +113,8 @@ async def register(
 
         default_project = Project(
             user_id=user.id,
-            name="默认项目",
-            description="系统自动创建的默认项目",
+            name=t("projects.default.name", locale),
+            description=t("projects.default.description", locale),
             is_default=True,
         )
         session.add(default_project)

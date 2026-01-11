@@ -39,19 +39,27 @@ interface ReportSchedule {
   is_active?: boolean
 }
 
-const weekDayNamesZh = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
-
 export default function ReportSchedulePage() {
   const router = useRouter()
-  const { locale } = useI18n()
+  const { t, locale } = useI18n()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [schedule, setSchedule] = useState<ReportSchedule | null>(null)
 
   const weekDayOptions = useMemo(() => {
+    const weekDayKeys = [
+      "reports.weekdays.mon",
+      "reports.weekdays.tue",
+      "reports.weekdays.wed",
+      "reports.weekdays.thu",
+      "reports.weekdays.fri",
+      "reports.weekdays.sat",
+      "reports.weekdays.sun",
+    ] as const
+
     return Array.from({ length: 7 }).map((_, idx) => ({
       value: String(idx),
-      label: locale === "zh" ? weekDayNamesZh[idx] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][idx],
+      label: t(weekDayKeys[idx]),
     }))
   }, [locale])
 
@@ -72,7 +80,7 @@ export default function ReportSchedulePage() {
         setSchedule(data)
       } catch (error) {
         console.error("Error fetching schedule:", error)
-        toast.error(locale === "zh" ? "无法加载定时设置" : "Failed to load schedule")
+        toast.error(t("reports.errors.loadSchedule"))
       } finally {
         setLoading(false)
       }
@@ -101,10 +109,10 @@ export default function ReportSchedulePage() {
       if (!res.ok) throw new Error("Failed to update schedule")
       const data = await res.json()
       setSchedule(data)
-      toast.success(locale === "zh" ? "已保存" : "Saved")
+      toast.success(t("reports.toasts.saved"))
     } catch (error) {
       console.error("Error updating schedule:", error)
-      toast.error(locale === "zh" ? "保存失败" : "Failed to save")
+      toast.error(t("reports.errors.saveSchedule"))
     } finally {
       setSaving(false)
     }
@@ -123,12 +131,12 @@ export default function ReportSchedulePage() {
       <div className="container mx-auto py-8 px-4">
         <Card className="max-w-3xl mx-auto">
           <CardHeader>
-            <CardTitle>{locale === "zh" ? "定时设置不可用" : "Schedule unavailable"}</CardTitle>
+            <CardTitle>{t("reports.schedulePage.unavailable")}</CardTitle>
           </CardHeader>
           <CardContent>
             <Button variant="outline" onClick={() => router.push("/reports")}>
               <ArrowLeft className="w-4 h-4 mr-2" />
-              {locale === "zh" ? "返回报告列表" : "Back to reports"}
+              {t("reports.actions.backToReports")}
             </Button>
           </CardContent>
         </Card>
@@ -141,25 +149,25 @@ export default function ReportSchedulePage() {
       <div className="flex items-center justify-between">
         <Button variant="outline" onClick={() => router.push("/reports")}>
           <ArrowLeft className="w-4 h-4 mr-2" />
-          {locale === "zh" ? "返回" : "Back"}
+          {t("common.back")}
         </Button>
         <Button onClick={save} disabled={saving}>
           <Save className="w-4 h-4 mr-2" />
-          {saving ? (locale === "zh" ? "保存中" : "Saving") : (locale === "zh" ? "保存" : "Save")}
+          {saving ? t("reports.schedulePage.saving") : t("common.save")}
         </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>{locale === "zh" ? "报告定时生成" : "Report schedule"}</CardTitle>
+          <CardTitle>{t("reports.schedulePage.title")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Daily */}
           <div className="flex items-center justify-between gap-4">
             <div className="space-y-1">
-              <Label className="text-base">{locale === "zh" ? "日报" : "Daily"}</Label>
+              <Label className="text-base">{t("reports.type.daily")}</Label>
               <div className="text-sm text-muted-foreground">
-                {locale === "zh" ? "每天固定时间生成昨日日报" : "Generate daily report at a fixed time"}
+                {t("reports.schedulePage.dailyDescription")}
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -181,9 +189,9 @@ export default function ReportSchedulePage() {
           <div className="flex flex-col gap-3 border-t pt-6">
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-1">
-                <Label className="text-base">{locale === "zh" ? "周报" : "Weekly"}</Label>
+                <Label className="text-base">{t("reports.type.weekly")}</Label>
                 <div className="text-sm text-muted-foreground">
-                  {locale === "zh" ? "每周生成上一周周报" : "Generate weekly report"}
+                  {t("reports.schedulePage.weeklyDescription")}
                 </div>
               </div>
               <Switch
@@ -193,7 +201,7 @@ export default function ReportSchedulePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>{locale === "zh" ? "星期" : "Day"}</Label>
+                <Label>{t("reports.schedulePage.day")}</Label>
                 <Select
                   value={String(schedule.weekly_day)}
                   onValueChange={(v) => update({ weekly_day: Number(v) })}
@@ -212,7 +220,7 @@ export default function ReportSchedulePage() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label>{locale === "zh" ? "时间" : "Time"}</Label>
+                <Label>{t("reports.schedulePage.time")}</Label>
                 <Input
                   type="time"
                   value={schedule.weekly_time}
@@ -227,9 +235,9 @@ export default function ReportSchedulePage() {
           <div className="flex flex-col gap-3 border-t pt-6">
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-1">
-                <Label className="text-base">{locale === "zh" ? "月报" : "Monthly"}</Label>
+                <Label className="text-base">{t("reports.type.monthly")}</Label>
                 <div className="text-sm text-muted-foreground">
-                  {locale === "zh" ? "每月生成上个月月报" : "Generate monthly report"}
+                  {t("reports.schedulePage.monthlyDescription")}
                 </div>
               </div>
               <Switch
@@ -239,7 +247,7 @@ export default function ReportSchedulePage() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>{locale === "zh" ? "每月第几天" : "Day of month"}</Label>
+                <Label>{t("reports.schedulePage.dayOfMonth")}</Label>
                 <Select
                   value={String(schedule.monthly_day)}
                   onValueChange={(v) => update({ monthly_day: Number(v) })}
@@ -258,7 +266,7 @@ export default function ReportSchedulePage() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label>{locale === "zh" ? "时间" : "Time"}</Label>
+                <Label>{t("reports.schedulePage.time")}</Label>
                 <Input
                   type="time"
                   value={schedule.monthly_time}

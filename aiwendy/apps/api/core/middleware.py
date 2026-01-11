@@ -12,7 +12,7 @@ from jose import JWTError, jwt
 from sqlalchemy import select
 
 from config import get_settings
-from core.exceptions import RateLimitExceededError
+from core.i18n import get_request_locale, t
 from core.ratelimit import RateLimiter, get_rate_limiter
 from core.database import async_session
 from domain.user.models import User
@@ -170,6 +170,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         if not allowed:
+            locale = get_request_locale(request)
             # Calculate retry after
             try:
                 retry_after = await rate_limiter.get_retry_after(key, window)
@@ -182,7 +183,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 content={
                     "error": {
                         "code": "RATE_LIMIT_EXCEEDED",
-                        "message": f"Rate limit of {limit} per {window}s exceeded",
+                        "message": t("errors.rate_limit_exceeded", locale, limit=limit, window=window),
                         "details": {
                             "limit": limit,
                             "window": window,

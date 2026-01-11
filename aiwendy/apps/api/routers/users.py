@@ -1,6 +1,6 @@
 """User management endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Optional
@@ -9,6 +9,7 @@ import re
 from core.auth import get_current_user
 from core.database import get_session
 from core.encryption import get_encryption_service
+from core.i18n import get_request_locale, t
 from core.logging import get_logger
 from domain.user.models import User
 
@@ -92,10 +93,12 @@ def validate_anthropic_key(key: str) -> bool:
 @router.put("/me/api-keys")
 async def update_api_keys(
     keys: APIKeysUpdate,
+    http_request: Request,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, str]:
     """Update user's API keys."""
+    locale = get_request_locale(http_request)
     try:
         # Validate and encrypt OpenAI key if provided
         if keys.openai_api_key is not None:
@@ -108,7 +111,7 @@ async def update_api_keys(
                 if not validate_openai_key(keys.openai_api_key):
                     raise HTTPException(
                         status_code=400,
-                        detail="Invalid OpenAI API key format. Must start with 'sk-'"
+                        detail=t("errors.invalid_openai_api_key_format", locale),
                     )
                 # Encrypt and save
                 current_user.openai_api_key = encryption.encrypt(keys.openai_api_key)
@@ -125,7 +128,7 @@ async def update_api_keys(
                 if not validate_anthropic_key(keys.anthropic_api_key):
                     raise HTTPException(
                         status_code=400,
-                        detail="Invalid Anthropic API key format. Must start with 'sk-ant-'"
+                        detail=t("errors.invalid_anthropic_api_key_format", locale),
                     )
                 # Encrypt and save
                 current_user.anthropic_api_key = encryption.encrypt(keys.anthropic_api_key)
@@ -135,23 +138,25 @@ async def update_api_keys(
         session.add(current_user)
         await session.commit()
 
-        return {"message": "API keys updated successfully"}
+        return {"message": t("messages.api_keys_updated", locale)}
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Error updating API keys: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update API keys")
+        raise HTTPException(status_code=500, detail=t("errors.failed_update_api_keys", locale))
 
 
 @router.delete("/me/api-keys/{provider}")
 async def delete_api_key(
     provider: str,
+    http_request: Request,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, str]:
     """Delete a specific API key."""
     provider = provider.lower()
+    locale = get_request_locale(http_request)
 
     if provider == "openai":
         current_user.openai_api_key = None
@@ -162,10 +167,10 @@ async def delete_api_key(
     else:
         raise HTTPException(
             status_code=400,
-            detail=f"Unknown provider: {provider}. Supported: openai, anthropic"
+            detail=t("errors.unknown_api_key_provider", locale, provider=provider),
         )
 
     session.add(current_user)
     await session.commit()
 
-    return {"message": f"Deleted {provider} API key successfully"}
+    return {"message": t("messages.api_key_deleted", locale, provider=provider)}

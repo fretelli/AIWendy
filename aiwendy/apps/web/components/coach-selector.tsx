@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Brain, Heart, Trophy, BarChart3, Zap, HelpCircle } from "lucide-react"
 import { toast } from "sonner"
 import { API_V1_PREFIX } from "@/lib/config"
+import { useI18n } from "@/lib/i18n/provider"
 
 interface Coach {
   id: string
@@ -37,12 +38,22 @@ const styleIcons: Record<string, any> = {
   socratic: HelpCircle
 }
 
-const styleNames: Record<string, string> = {
-  empathetic: "温和共情",
-  disciplined: "严厉纪律",
-  analytical: "数据分析",
-  motivational: "激励鼓舞",
-  socratic: "苏格拉底"
+function getStyleName(style: string, isZh: boolean): string {
+  const zh: Record<string, string> = {
+    empathetic: "温和共情",
+    disciplined: "严厉纪律",
+    analytical: "数据分析",
+    motivational: "激励鼓舞",
+    socratic: "苏格拉底",
+  }
+  const en: Record<string, string> = {
+    empathetic: "Empathetic",
+    disciplined: "Disciplined",
+    analytical: "Analytical",
+    motivational: "Motivational",
+    socratic: "Socratic",
+  }
+  return (isZh ? zh : en)[style] || style
 }
 
 export function CoachSelector({
@@ -50,6 +61,8 @@ export function CoachSelector({
   onCoachChange,
   className
 }: CoachSelectorProps) {
+  const { locale } = useI18n()
+  const isZh = locale === "zh"
   const [coaches, setCoaches] = useState<Coach[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null)
@@ -88,7 +101,7 @@ export function CoachSelector({
       }
     } catch (error) {
       console.error("Error fetching coaches:", error)
-      toast.error("无法加载教练列表")
+      toast.error(isZh ? "无法加载教练列表" : "Failed to load coach list")
     } finally {
       setLoading(false)
     }
@@ -106,7 +119,7 @@ export function CoachSelector({
     return (
       <Select disabled>
         <SelectTrigger className={className}>
-          <SelectValue placeholder="加载中..." />
+          <SelectValue placeholder={isZh ? "加载中..." : "Loading..."} />
         </SelectTrigger>
       </Select>
     )
@@ -116,7 +129,7 @@ export function CoachSelector({
     return (
       <Select disabled>
         <SelectTrigger className={className}>
-          <SelectValue placeholder="暂无可用教练" />
+          <SelectValue placeholder={isZh ? "暂无可用教练" : "No coaches available"} />
         </SelectTrigger>
       </Select>
     )
@@ -137,7 +150,7 @@ export function CoachSelector({
             </Avatar>
             <span className="font-medium">{selectedCoach.name}</span>
             <Badge variant="secondary" className="text-xs">
-              {styleNames[selectedCoach.style]}
+              {getStyleName(selectedCoach.style, isZh)}
             </Badge>
             {selectedCoach.is_premium && (
               <Badge variant="outline" className="text-xs">
@@ -163,7 +176,7 @@ export function CoachSelector({
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium">{coach.name}</span>
                     <Badge variant="secondary" className="text-xs">
-                      {styleNames[coach.style]}
+                      {getStyleName(coach.style, isZh)}
                     </Badge>
                     {coach.is_premium && (
                       <Badge variant="outline" className="text-xs">

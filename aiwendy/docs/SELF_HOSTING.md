@@ -1,5 +1,8 @@
 # 自托管（Docker Compose）
 
+<a id="zh-cn"></a>
+[中文](#zh-cn) | [English](#en)
+
 ## 前置条件
 
 - Docker Desktop（含 Docker Compose v2）
@@ -105,3 +108,114 @@ docker compose --profile workers up -d --build
 
 - Web 跑在宿主机（`npm run dev`）：用 `NEXT_PUBLIC_API_URL=http://localhost:8000`
 - Web 跑在 Docker Compose：用 `NEXT_PUBLIC_API_URL=http://api:8000`（服务名）
+
+---
+
+<a id="en"></a>
+## English
+
+## Prerequisites
+
+- Docker Desktop (with Docker Compose v2)
+
+> If Windows PowerShell shows garbled characters when using `Get-Content`, try `Get-Content -Encoding utf8`, or open this file in your editor/browser (GitHub renders it correctly).
+
+## Quick start
+
+1. Copy env vars:
+   - PowerShell: `Copy-Item .env.example .env`
+   - macOS/Linux: `cp .env.example .env`
+
+2. Edit `.env` and set at least:
+   - `DB_PASSWORD`
+   - `JWT_SECRET` (recommended: ≥ 32 chars)
+   - `NEXTAUTH_SECRET` (recommended)
+   - `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` (needed for AI features)
+
+3. Start services (db + redis + api + web):
+
+   ```bash
+   docker compose up -d --build
+   ```
+
+## Guest mode (no login, default)
+
+The default config enables a no-login experience:
+
+- API: `AIWENDY_AUTH_REQUIRED=0` in `.env`
+- Web: auto-detects whether the backend supports guest (no longer relies on a front-end flag)
+
+How to verify (call without a token):
+
+- `http://localhost:8000/api/v1/users/me` should return `guest@local.aiwendy`
+
+If you want to enforce login in public/production:
+
+- Set `AIWENDY_AUTH_REQUIRED=1` in `.env` and restart: `docker compose up -d --build`
+
+## Optional: auto-init DB and test accounts
+
+On container startup you can run init scripts automatically (recommended for local dev only):
+
+- `AIWENDY_AUTO_INIT_DB=1`: auto-initialize DB schema (enabled by default)
+- `AIWENDY_AUTO_INIT_TEST_USERS=1`: auto-create test accounts (disabled by default)
+
+Manual run (optional):
+
+```bash
+docker exec aiwendy-api python scripts/init_db_simple.py
+docker exec aiwendy-api python scripts/init_user_simple.py
+```
+
+If `AIWENDY_AUTO_INIT_TEST_USERS=1` is enabled, default test accounts are:
+
+| Type | Email | Password | Access |
+|------|-------|----------|--------|
+| User | test@example.com | Test@1234 | Free |
+| Admin | admin@aiwendy.com | Admin@123 | Elite + Admin |
+
+## URLs
+
+- Web: `http://localhost:3000`
+- API health: `http://localhost:8000/api/health`
+- API docs: `http://localhost:8000/docs`
+
+## Optional: background jobs (worker/beat)
+
+Disabled by default; when needed:
+
+```bash
+docker compose --profile workers up -d --build
+```
+
+## Common commands
+
+- Status: `docker compose ps`
+- Tail logs: `docker compose logs -f web api`
+- Stop: `docker compose down`
+- Stop and wipe data: `docker compose down -v`
+- Enter API container: `docker exec -it aiwendy-api sh`
+- Enter DB: `docker exec -it aiwendy-db psql -U aiwendy`
+
+## FAQ
+
+### Still being asked to log in / redirected to login
+
+1. Confirm guest is allowed by backend: visit `http://localhost:8000/api/v1/users/me`
+2. If it returns 401:
+   - Check `.env` has `AIWENDY_AUTH_REQUIRED=0`
+   - Rebuild and restart: `docker compose up -d --build`
+3. If you logged in before, clear LocalStorage keys `aiwendy_access_token` / `aiwendy_refresh_token` and refresh
+
+### “Network error: unable to reach the API server”
+
+Usually means the browser cannot reach the API (API not running, wrong `NEXT_PUBLIC_API_URL`, or the web→api proxy is not working):
+
+- API: `http://localhost:8000/api/health`
+- Web proxy: `http://localhost:3000/api/proxy/health`
+- Service status: `docker compose ps`
+
+If `Web proxy` returns `502`, the API address configured on the web side is likely unreachable:
+
+- When running Web on the host (`npm run dev`): use `NEXT_PUBLIC_API_URL=http://localhost:8000`
+- When running Web in Docker Compose: use `NEXT_PUBLIC_API_URL=http://api:8000` (service name)

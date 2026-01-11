@@ -4,7 +4,7 @@ import json
 import asyncio
 from datetime import datetime
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,7 @@ from typing import List, Optional, AsyncIterator
 
 from core.auth import get_current_user
 from core.database import get_session
+from core.i18n import Locale, get_request_locale, t
 from core.logging import get_logger
 from core.encryption import get_encryption_service
 from domain.coach.models import Coach, ChatSession, ChatMessage as ChatMessageDB
@@ -266,7 +267,8 @@ async def stream_llm_response(
     messages: List[LLMMessage],
     config: LLMConfig,
     user: Optional[User] = None,
-    provider: Optional[str] = None
+    provider: Optional[str] = None,
+    locale: Locale = "en",
 ) -> AsyncIterator[str]:
     """Stream LLM response with SSE format."""
     try:
@@ -297,11 +299,7 @@ async def stream_llm_response(
             f"Type: {type(e).__name__}\n"
             f"Traceback:\n{error_traceback}"
         )
-        # Return more detailed error information
-        error_detail = str(e) if str(e) else "Unknown error"
-        error_msg = {
-            "error": f"An error occurred while generating response: {error_detail}"
-        }
+        error_msg = {"error": t("errors.internal", locale)}
         yield f"data: {json.dumps(error_msg)}\n\n"
 
 
@@ -309,10 +307,12 @@ async def stream_llm_response(
 @router.post("/")
 async def chat_with_coach(
     request: ChatRequest,
+    http_request: Request,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """Chat with a coach."""
+    locale: Locale = get_request_locale(http_request)
     try:
         chat_session: Optional[ChatSession] = None
         if request.session_id:
@@ -324,11 +324,11 @@ async def chat_with_coach(
             )
             chat_session = result.scalar_one_or_none()
             if not chat_session:
-                raise HTTPException(status_code=404, detail="Chat session not found")
+                raise HTTPException(status_code=404, detail=t("errors.chat_session_not_found", locale))
             if chat_session.coach_id != request.coach_id:
                 raise HTTPException(
                     status_code=400,
-                    detail="coach_id does not match the chat session coach",
+                    detail=t("errors.chat_coach_mismatch", locale),
                 )
 
         selected_provider = None
@@ -340,12 +340,12 @@ async def chat_with_coach(
             if not cfg:
                 raise HTTPException(
                     status_code=404,
-                    detail="LLM configuration not found"
+                    detail=t("errors.llm_configuration_not_found", locale),
                 )
             if cfg.get("is_active") is False:
                 raise HTTPException(
                     status_code=400,
-                    detail="LLM configuration is not active"
+                    detail=t("errors.llm_configuration_inactive", locale),
                 )
             try:
                 selected_provider, selected_provider_type, selected_cfg = _build_provider_from_llm_config(cfg)
@@ -355,7 +355,7 @@ async def chat_with_coach(
                 logger.error(f"Failed to build provider from config: {e}", exc_info=True)
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Failed to use selected LLM configuration: {str(e)}"
+                    detail=t("errors.llm_configuration_use_failed", locale, detail=str(e)),
                 )
 
         # Create user-specific router
@@ -367,7 +367,7 @@ async def chat_with_coach(
             logger.error(f"No LLM providers configured for user {current_user.email}")
             raise HTTPException(
                 status_code=500,
-                detail="No LLM providers configured. Please configure at least one LLM provider in Settings → LLM Configuration."
+                detail=t("errors.no_llm_providers_configured", locale),
             )
 
         # Convert messages to LLM format (with multimodal support)
@@ -392,25 +392,30 @@ async def chat_with_coach(
                         ))
                     elif att.extractedText:
                         # Add extracted document text as context
-                        extra_context.append(f"[文件: {att.fileName}]\n{att.extractedText}")
+                        extra_context.append(
+                            f"[{t('attachments.file', locale)}: {att.fileName}]\n{att.extractedText}"
+                        )
                     elif att.transcription:
                         # Add audio transcription as context
-                        extra_context.append(f"[语音转写: {att.fileName}]\n{att.transcription}")
+                        extra_context.append(
+                            f"[{t('attachments.audio_transcript', locale)}: {att.fileName}]\n{att.transcription}"
+                        )
 
                 # If there's extra context from documents/audio, add it as text
                 if extra_context:
                     context_text = "\n\n---\n\n".join(extra_context)
+                    section = t("attachments.section", locale)
                     if content_parts and content_parts[0].type == "text":
                         # Append to existing text content
                         content_parts[0] = MessageContent(
                             type="text",
-                            text=f"{content_parts[0].text}\n\n附件内容:\n{context_text}"
+                            text=f"{content_parts[0].text}\n\n{section}:\n{context_text}"
                         )
                     else:
                         # Insert text content at beginning
                         content_parts.insert(0, MessageContent(
                             type="text",
-                            text=f"附件内容:\n{context_text}"
+                            text=f"{section}:\n{context_text}"
                         ))
 
                 # If we have multimodal content, use content list
@@ -435,7 +440,7 @@ async def chat_with_coach(
         coach = coach_result.scalar_one_or_none()
 
         if coach and not coach.is_public and coach.created_by != current_user.id:
-            raise HTTPException(status_code=403, detail="Access denied")
+            raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
 
         default_prompt = (
             "You are Wendy, an AI trading psychology performance coach inspired by "
@@ -447,6 +452,10 @@ async def chat_with_coach(
         system_message = LLMMessage(
             role="system",
             content=((coach.system_prompt or "").strip() if coach else default_prompt),
+        )
+        language_message = LLMMessage(
+            role="system",
+            content=t("chat.language_instruction", locale),
         )
 
         # Optional: Knowledge base context (per project)
@@ -470,7 +479,8 @@ async def chat_with_coach(
             if kb_hits:
                 context_lines = []
                 for i, hit in enumerate(kb_hits, start=1):
-                    title = hit.get("document_title") or "Document"
+                    title_default = "Document" if locale == "en" else "文档"
+                    title = hit.get("document_title") or title_default
                     content = (hit.get("content") or "").strip()
                     if len(content) > 1200:
                         content = content[:1200] + "…"
@@ -479,16 +489,14 @@ async def chat_with_coach(
                 kb_message = LLMMessage(
                     role="system",
                     content=(
-                        "以下是与当前问题最相关的「项目知识库」片段（仅供参考）。\n"
-                        "如果与问题无关，请忽略；如果相关，请优先依据这些内容作答：\n\n"
-                        + "\n\n".join(context_lines)
+                        t("kb.chat_intro", locale) + "\n\n".join(context_lines)
                     ),
                 )
-                llm_messages = [system_message, kb_message] + llm_messages
+                llm_messages = [system_message, kb_message, language_message] + llm_messages
             else:
-                llm_messages = [system_message] + llm_messages
+                llm_messages = [system_message, language_message] + llm_messages
         else:
-            llm_messages = [system_message] + llm_messages
+            llm_messages = [system_message, language_message] + llm_messages
 
         # Configure LLM settings with request parameters
         requested_model = _clean_str(request.model)
@@ -537,7 +545,7 @@ async def chat_with_coach(
         if not model:
             raise HTTPException(
                 status_code=400,
-                detail="No model specified. Please set a default model or fetch models first."
+                detail=t("errors.no_model_specified", locale),
             )
 
         config = LLMConfig(
@@ -585,11 +593,7 @@ async def chat_with_coach(
                             f"Provider: {selected_provider.__class__.__name__ if selected_provider else 'None'}\n"
                             f"Traceback:\n{error_traceback}"
                         )
-                        # Return more detailed error information
-                        error_detail = str(e) if str(e) else "Unknown error"
-                        error_msg = {
-                            "error": f"An error occurred while generating response: {error_detail}"
-                        }
+                        error_msg = {"error": t("errors.internal", locale)}
                         yield f"data: {json.dumps(error_msg)}\n\n"
                     finally:
                         # Persist assistant message when streaming finishes
@@ -637,7 +641,11 @@ async def chat_with_coach(
                             await session.commit()
 
                     async for event in stream_llm_response(
-                        llm_messages, config, user=current_user, provider=request.provider
+                        llm_messages,
+                        config,
+                        user=current_user,
+                        provider=request.provider,
+                        locale=locale,
                     ):
                         # Capture assistant content from SSE events
                         try:
@@ -729,7 +737,7 @@ async def chat_with_coach(
         logger.error(f"Chat error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
-            detail="An error occurred during chat"
+            detail=t("errors.internal", locale)
         )
 
 

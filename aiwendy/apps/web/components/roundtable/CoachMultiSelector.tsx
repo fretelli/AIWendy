@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import type { Coach } from "@/lib/api/coaches"
+import { useI18n } from "@/lib/i18n/provider"
 
 interface CoachMultiSelectorProps {
   coaches: Coach[]
@@ -24,6 +25,8 @@ export function CoachMultiSelector({
   maxCount = 5,
   className,
 }: CoachMultiSelectorProps) {
+  const { locale } = useI18n()
+  const isZh = locale === "zh"
   const handleToggle = (coachId: string) => {
     if (selectedIds.includes(coachId)) {
       // Remove if already selected
@@ -42,10 +45,12 @@ export function CoachMultiSelector({
     <div className={cn("space-y-4", className)}>
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          选择 {minCount}-{maxCount} 位教练参与讨论
+          {isZh
+            ? `选择 ${minCount}-${maxCount} 位教练参与讨论`
+            : `Select ${minCount}-${maxCount} coaches to join`}
         </p>
         <Badge variant={isValid ? "default" : "secondary"}>
-          已选择 {selectedIds.length}/{maxCount}
+          {isZh ? "已选择" : "Selected"} {selectedIds.length}/{maxCount}
         </Badge>
       </div>
 
@@ -83,7 +88,7 @@ export function CoachMultiSelector({
                       {coach.name}
                     </CardTitle>
                     <Badge variant="outline" className="mt-1 text-xs">
-                      {getStyleLabel(coach.style)}
+                      {getStyleLabel(coach.style, isZh)}
                     </Badge>
                     <CardDescription className="text-xs mt-1 line-clamp-2">
                       {coach.description}
@@ -98,20 +103,27 @@ export function CoachMultiSelector({
 
       {!isValid && selectedIds.length > 0 && (
         <p className="text-sm text-destructive">
-          请至少选择 {minCount} 位教练
+          {isZh ? `请至少选择 ${minCount} 位教练` : `Please select at least ${minCount} coaches`}
         </p>
       )}
     </div>
   )
 }
 
-function getStyleLabel(style: string): string {
-  const labels: Record<string, string> = {
+function getStyleLabel(style: string, isZh: boolean): string {
+  const zh: Record<string, string> = {
     empathetic: "温和共情",
     disciplined: "严厉纪律",
     analytical: "数据分析",
     motivational: "激励鼓舞",
     socratic: "苏格拉底",
   }
-  return labels[style] || style
+  const en: Record<string, string> = {
+    empathetic: "Empathetic",
+    disciplined: "Disciplined",
+    analytical: "Analytical",
+    motivational: "Motivational",
+    socratic: "Socratic",
+  }
+  return (isZh ? zh : en)[style] || style
 }

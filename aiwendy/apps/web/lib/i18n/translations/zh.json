@@ -26,7 +26,7 @@
     "yes": "是",
     "no": "否",
     "all": "全部",
-    "none": "无",
+    "none": "暂无",
     "select": "选择",
     "selected": "已选择",
     "actions": "操作",
@@ -66,6 +66,81 @@
     "organization": "组织",
     "billing": "账单",
     "subscription": "订阅"
+  },
+  "projects": {
+    "title": "项目",
+    "subtitle": "用项目对聊天、知识库、日志等数据进行分组。",
+    "currentLabel": "当前：",
+    "createTitle": "新建项目",
+    "listTitle": "项目列表",
+    "empty": "暂无项目",
+    "fields": {
+      "name": "名称",
+      "description": "描述"
+    },
+    "placeholders": {
+      "name": "例如：期货账户A",
+      "description": "可选"
+    },
+    "badges": {
+      "default": "默认",
+      "current": "当前",
+      "archived": "已归档"
+    },
+    "selector": {
+      "label": "当前项目",
+      "loading": "加载中…",
+      "placeholder": "选择项目"
+    },
+    "actions": {
+      "create": "创建",
+      "working": "处理中…",
+      "setActive": "设为当前",
+      "makeDefault": "设为默认",
+      "archive": "归档",
+      "unarchive": "取消归档",
+      "delete": "删除"
+    },
+    "confirmDelete": "确定删除项目「{name}」吗？",
+    "errors": {
+      "load": "加载项目失败",
+      "create": "创建项目失败",
+      "setDefault": "设置默认项目失败",
+      "update": "更新项目失败",
+      "delete": "删除项目失败"
+    }
+  },
+  "knowledge": {
+    "title": "知识库",
+    "subtitle": "把你的规则、策略、复盘要点等放进知识库，聊天时可按项目检索并注入上下文。",
+    "currentProjectLabel": "当前项目：",
+    "addDocumentTitle": "添加文档",
+    "searchTitle": "检索",
+    "documentsTitle": "文档",
+    "fields": {
+      "title": "标题",
+      "content": "内容"
+    },
+    "placeholders": {
+      "query": "输入问题…"
+    },
+    "actions": {
+      "import": "导入",
+      "working": "处理中…",
+      "search": "搜索",
+      "delete": "删除"
+    },
+    "chunks": "{count} 片段",
+    "emptyDocuments": "暂无文档",
+    "confirmDelete": "确定删除「{title}」吗？",
+    "errors": {
+      "load": "加载知识库失败",
+      "queueTask": "创建任务失败",
+      "missingTaskId": "任务返回缺少 task_id",
+      "createDocument": "创建文档失败",
+      "deleteDocument": "删除文档失败",
+      "search": "检索失败"
+    }
   },
   "auth": {
     "welcomeBack": "欢迎回来",
@@ -122,7 +197,26 @@
     "monthPnL": "本月盈亏",
     "yearPnL": "本年盈亏",
     "noDataYet": "暂无交易数据",
-    "startJournal": "开始您的交易日志"
+    "startJournal": "开始您的交易日志",
+    "lastUpdated": "最后更新: {date}",
+    "errors": {
+      "loadStats": "无法加载统计数据"
+    },
+    "emotions": {
+      "calm": "冷静",
+      "neutral": "一般",
+      "stressed": "紧张"
+    },
+    "sampleUserName": "??",
+    "percentage": "???",
+    "recoveryTime": "????",
+    "recoveryDays": "{days} ?",
+    "suggestionsIntro": "???????????AI ?????",
+    "suggestionsItems": {
+      "keepStrategy": "?????????????",
+      "trailingStops": "??????????????",
+      "reviewJournal": "???????????????"
+    }
   },
   "journal": {
     "title": "交易日志",
@@ -170,7 +264,30 @@
     "import": "导入交易",
     "statistics": "统计",
     "noEntries": "暂无日志记录",
-    "addFirstEntry": "添加您的第一笔交易记录"
+    "addFirstEntry": "添加您的第一笔交易记录",
+    "importPage": {
+      "fields": {
+        "dateTime": "??/??"
+      },
+      "errors": {
+        "requiredFields": "??????????????????"
+      },
+      "toasts": {
+        "imported": "???????{created}???{skipped}"
+      },
+      "uploadTitle": "????",
+      "uploadHelp": "?? CSV / XLSX??????????????????????",
+      "strictMode": "??????????????",
+      "dryRun": "???????????",
+      "columnMapping": "???",
+      "selectColumn": "???",
+      "skipColumn": "???",
+      "validate": "??",
+      "startImport": "????",
+      "resultSummary": "?????{created}???{skipped}",
+      "viewJournal": "??????",
+      "previewTitle": "???????"
+    }
   },
   "coaches": {
     "title": "AI教练",
@@ -180,6 +297,17 @@
     "customCoach": "自定义教练",
     "createCustom": "创建自定义教练",
     "marketplace": "教练市场",
+    "marketplaceSubtitle": "选择适合您交易风格的AI教练，开始个性化的心理辅导",
+    "customCoaches": "自定义教练",
+    "tabs": {
+      "all": "全部教练"
+    },
+    "errors": {
+      "load": "无法加载教练列表",
+      "startChat": "无法开始对话"
+    },
+    "sessionTitle": "与{name}的对话",
+    "noCoachesOfType": "暂无该类型的教练",
     "yourCoaches": "我的教练",
     "teamCoaches": "团队教练",
     "publicCoaches": "公共教练",
@@ -243,6 +371,50 @@
       "inactive": "未激活",
       "training": "训练中",
       "updating": "更新中"
+    },
+    "custom": {
+      "title": "自定义教练",
+      "subtitle": "为自托管环境开放：创建只属于你的教练，并直接用于聊天。",
+      "createTitle": "创建自定义教练",
+      "listTitle": "我的自定义教练",
+      "loading": "加载中…",
+      "empty": "暂无自定义教练",
+      "editTitle": "编辑自定义教练",
+      "editHelp": "修改风格与系统提示词会立即影响后续聊天。",
+      "fields": {
+        "name": "名称",
+        "style": "风格",
+        "descriptionOptional": "简介（可选）",
+        "systemPrompt": "系统提示词（System Prompt）"
+      },
+      "placeholders": {
+        "name": "例如：冷静纪律教练",
+        "style": "选择风格",
+        "description": "一句话描述教练特点",
+        "systemPrompt": "描述教练人设、规则、输出格式..."
+      },
+      "actions": {
+        "create": "创建",
+        "creating": "创建中…",
+        "chat": "开始对话",
+        "edit": "编辑",
+        "delete": "删除",
+        "resetDefault": "重置为默认",
+        "cancel": "取消",
+        "save": "保存",
+        "saving": "保存中…"
+      },
+      "toasts": {
+        "loadFailed": "无法加载自定义教练",
+        "createSuccess": "已创建自定义教练",
+        "createFailed": "创建失败",
+        "startChatFailed": "无法开始对话",
+        "deleted": "已删除",
+        "deleteFailed": "删除失败",
+        "saved": "已保存",
+        "saveFailed": "保存失败"
+      },
+      "chatSessionTitle": "与教练对话 - {datetime}"
     }
   },
   "chat": {
@@ -327,13 +499,95 @@
     "viewReport": "查看报告",
     "previousReports": "历史报告",
     "noReports": "暂无生成的报告",
-    "generateFirst": "生成您的第一份报告"
+    "generateFirst": "生成您的第一份报告",
+    "type": {
+      "daily": "日报",
+      "weekly": "周报",
+      "monthly": "月报"
+    },
+    "status": {
+      "pending": "待生成",
+      "generating": "生成中",
+      "completed": "已完成",
+      "failed": "失败",
+      "sent": "已发送"
+    },
+    "weekdays": {
+      "mon": "周一",
+      "tue": "周二",
+      "wed": "周三",
+      "thu": "周四",
+      "fri": "周五",
+      "sat": "周六",
+      "sun": "周日"
+    },
+    "actions": {
+      "generate": "生成",
+      "generating": "生成中",
+      "backToReports": "返回报告列表"
+    },
+    "errors": {
+      "loadReports": "无法加载报告列表",
+      "loadSchedule": "无法加载定时设置",
+      "loadReport": "无法加载报告详情",
+      "saveSchedule": "保存失败",
+      "queueReportTask": "无法加入队列",
+      "missingTaskId": "任务返回缺少 task_id"
+    },
+    "toasts": {
+      "queuedGenerating": "已加入队列，生成中…",
+      "generateSuccess": "{type}生成成功",
+      "generateFailed": "生成{type}失败：{message}",
+      "saved": "已保存"
+    },
+    "list": {
+      "subtitle": "查看和生成您的交易分析报告",
+      "scheduleSettings": "定时设置",
+      "latestReport": "最新报告",
+      "noDaily": "暂无日报",
+      "noWeekly": "暂无周报",
+      "noMonthly": "暂无月报",
+      "weekOfYear": "第{week}周",
+      "tradesCount": "{count} 笔交易",
+      "emptyAll": "暂无报告",
+      "emptyType": "暂无{type}报告"
+    },
+    "schedulePage": {
+      "title": "报告定时生成",
+      "unavailable": "定时设置不可用",
+      "dailyDescription": "每天固定时间生成昨日日报",
+      "weeklyDescription": "每周生成上一周周报",
+      "monthlyDescription": "每月生成上个月月报",
+      "day": "星期",
+      "time": "时间",
+      "dayOfMonth": "每月第几天",
+      "saving": "保存中…"
+    },
+    "detail": {
+      "notFound": "报告不存在",
+      "trades": "交易次数",
+      "winRate": "胜率",
+      "totalPnl": "总盈亏",
+      "avgPnl": "平均盈亏",
+      "keyInsights": "关键洞察",
+      "actionItems": "行动项",
+      "recommendations": "改进建议",
+      "topMistakes": "常见错误",
+      "none": "暂无"
+    }
   },
   "settings": {
     "title": "设置",
     "account": "账户设置",
     "trading": "交易设置",
-    "notifications": "通知",
+    "notifications": {
+      "email": "邮件通知",
+      "push": "推送通知",
+      "sms": "短信提醒",
+      "tradingAlerts": "交易提醒",
+      "reportAlerts": "报告提醒",
+      "systemAlerts": "系统提醒"
+    },
     "privacy": "隐私与安全",
     "api": "API密钥",
     "integrations": "集成",
@@ -352,14 +606,6 @@
     "maxLossPerDay": "每日最大亏损",
     "maxLossPerTrade": "单笔最大亏损",
     "positionSizing": "仓位管理",
-    "notifications": {
-      "email": "邮件通知",
-      "push": "推送通知",
-      "sms": "短信提醒",
-      "tradingAlerts": "交易提醒",
-      "reportAlerts": "报告提醒",
-      "systemAlerts": "系统提醒"
-    },
     "twoFactor": "双重认证",
     "changePassword": "修改密码",
     "sessions": "活动会话",
@@ -369,7 +615,54 @@
     "webhooks": "Webhooks",
     "connectedAccounts": "关联账户",
     "brokers": "券商连接",
-    "dataFeeds": "数据源"
+    "dataFeeds": "数据源",
+    "page": {
+      "subtitle": "管理您的账户设置和偏好",
+      "tabs": {
+        "apiKeys": "API 密钥",
+        "profile": "个人资料",
+        "preferences": "偏好设置",
+        "llm": "LLM 配置"
+      },
+      "apiKeys": {
+        "title": "API 密钥配置",
+        "description": "配置您自己的 API 密钥以使用 AI 功能。您的密钥会被加密安全存储。",
+        "byokTitle": "自带密钥（BYOK）：",
+        "byokDescription": "您可以使用自己的 OpenAI 或 Anthropic API 密钥。密钥将加密后存储，不会被共享。",
+        "openai": "OpenAI API 密钥",
+        "anthropic": "Anthropic API 密钥",
+        "openaiDashboard": "OpenAI 控制台",
+        "anthropicConsole": "Anthropic 控制台",
+        "getOpenai": "获取 API 密钥：",
+        "getAnthropic": "获取 API 密钥：",
+        "show": "显示",
+        "hide": "隐藏",
+        "remove": "移除",
+        "save": "保存 API 密钥",
+        "statusTitle": "API 密钥状态",
+        "statusDescription": "当前已配置的 API 密钥状态",
+        "configured": "已配置",
+        "notConfigured": "未配置"
+      },
+      "profile": {
+        "title": "个人资料设置",
+        "description": "管理您的个人信息",
+        "subscription": "订阅",
+        "comingSoon": "个人资料编辑即将推出……"
+      },
+      "preferences": {
+        "title": "偏好设置",
+        "description": "管理您的应用偏好",
+        "comingSoon": "偏好设置即将推出……"
+      },
+      "toasts": {
+        "loadError": "加载 API 密钥失败，请重试。",
+        "updateSuccess": "API 密钥更新成功",
+        "updateError": "更新 API 密钥失败，请重试。",
+        "deleteSuccess": "{provider} API 密钥已删除",
+        "deleteError": "删除 {provider} API 密钥失败，请重试。"
+      }
+    }
   },
   "subscription": {
     "title": "订阅",

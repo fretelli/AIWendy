@@ -17,7 +17,7 @@ import { Icons } from "@/components/icons"
 import { API_V1_PREFIX } from "@/lib/config"
 
 export default function KnowledgePage() {
-  const { locale } = useI18n()
+  const { t } = useI18n()
   const { user, isLoading } = useAuth()
   const router = useRouter()
   const { projectId, ready } = useActiveProjectId()
@@ -63,7 +63,7 @@ export default function KnowledgePage() {
       const docs = await knowledgeAPI.listDocuments(projectId)
       setDocuments(docs)
     } catch (e: any) {
-      setError(e?.message || (locale === "zh" ? "加载知识库失败" : "Failed to load knowledge base"))
+      setError(e?.message || t("knowledge.errors.load"))
     } finally {
       setLoading(false)
     }
@@ -86,9 +86,9 @@ export default function KnowledgePage() {
   if (!user) return null
 
   const handleCreate = async () => {
-    const t = title.trim()
-    const c = content.trim()
-    if (!t || !c) return
+    const docTitle = title.trim()
+    const docContent = content.trim()
+    if (!docTitle || !docContent) return
     setLoading(true)
     setError(null)
     try {
@@ -101,19 +101,19 @@ export default function KnowledgePage() {
         },
         body: JSON.stringify({
           project_id: projectId,
-          title: t,
-          content: c,
+          title: docTitle,
+          content: docContent,
           source_type: "text",
         })
       })
       if (!response.ok) {
         const data = await response.json().catch(() => null)
-        const detail = typeof data?.detail === "string" ? data.detail : (locale === "zh" ? "创建任务失败" : "Failed to queue task")
+        const detail = typeof data?.detail === "string" ? data.detail : t("knowledge.errors.queueTask")
         throw new Error(detail)
       }
       const queued = await response.json()
       if (!queued?.task_id) {
-        throw new Error(locale === "zh" ? "任务返回缺少 task_id" : "Missing task_id")
+        throw new Error(t("knowledge.errors.missingTaskId"))
       }
 
       setTitle("")
@@ -125,21 +125,21 @@ export default function KnowledgePage() {
       })
       await loadDocuments()
     } catch (e: any) {
-      setError(e?.message || (locale === "zh" ? "创建文档失败" : "Failed to create document"))
+      setError(e?.message || t("knowledge.errors.createDocument"))
     } finally {
       setLoading(false)
     }
   }
 
   const handleDelete = async (doc: KnowledgeDocument) => {
-    if (!confirm(locale === "zh" ? `确定删除「${doc.title}」吗？` : `Delete "${doc.title}"?`)) return
+    if (!confirm(t("knowledge.confirmDelete", { title: doc.title }))) return
     setLoading(true)
     setError(null)
     try {
       await knowledgeAPI.deleteDocument(doc.id, false)
       await loadDocuments()
     } catch (e: any) {
-      setError(e?.message || (locale === "zh" ? "删除文档失败" : "Failed to delete document"))
+      setError(e?.message || t("knowledge.errors.deleteDocument"))
     } finally {
       setLoading(false)
     }
@@ -154,7 +154,7 @@ export default function KnowledgePage() {
       const res = await knowledgeAPI.search(query, projectId, 5)
       setResults(res)
     } catch (e: any) {
-      setError(e?.message || (locale === "zh" ? "检索失败" : "Search failed"))
+      setError(e?.message || t("knowledge.errors.search"))
     } finally {
       setLoading(false)
     }
@@ -163,15 +163,13 @@ export default function KnowledgePage() {
   return (
     <div className="container mx-auto py-8 px-4 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">{locale === "zh" ? "知识库" : "Knowledge Base"}</h1>
+        <h1 className="text-2xl font-semibold">{t("knowledge.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          {locale === "zh"
-            ? "把你的规则、策略、复盘要点等放进知识库，聊天时可按项目检索并注入上下文。"
-            : "Store your rules/strategies/notes. Chat can retrieve and inject context per project."}
+          {t("knowledge.subtitle")}
         </p>
         {activeProject && (
           <div className="mt-2 text-sm">
-            <span className="text-muted-foreground">{locale === "zh" ? "当前项目：" : "Project: "}</span>
+            <span className="text-muted-foreground">{t("knowledge.currentProjectLabel")} </span>
             <span className="font-medium">{activeProject.name}</span>
           </div>
         )}
@@ -179,21 +177,21 @@ export default function KnowledgePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{locale === "zh" ? "添加文档" : "Add Document"}</CardTitle>
+          <CardTitle>{t("knowledge.addDocumentTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <div className="text-sm font-medium">{locale === "zh" ? "标题" : "Title"}</div>
+              <div className="text-sm font-medium">{t("knowledge.fields.title")}</div>
               <Input value={title} onChange={(e) => setTitle(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium">{locale === "zh" ? "内容" : "Content"}</div>
+              <div className="text-sm font-medium">{t("knowledge.fields.content")}</div>
               <Textarea value={content} onChange={(e) => setContent(e.target.value)} rows={4} />
             </div>
           </div>
           <Button onClick={handleCreate} disabled={loading || !title.trim() || !content.trim()}>
-            {loading ? (locale === "zh" ? "处理中…" : "Working…") : (locale === "zh" ? "导入" : "Import")}
+            {loading ? t("knowledge.actions.working") : t("knowledge.actions.import")}
           </Button>
           {error && <div className="text-sm text-destructive">{error}</div>}
         </CardContent>
@@ -201,13 +199,13 @@ export default function KnowledgePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{locale === "zh" ? "检索" : "Search"}</CardTitle>
+          <CardTitle>{t("knowledge.searchTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-col gap-2 md:flex-row">
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={locale === "zh" ? "输入问题…" : "Ask something…"} />
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("knowledge.placeholders.query")} />
             <Button onClick={handleSearch} disabled={loading || !q.trim()}>
-              {locale === "zh" ? "搜索" : "Search"}
+              {t("knowledge.actions.search")}
             </Button>
           </div>
 
@@ -229,12 +227,12 @@ export default function KnowledgePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{locale === "zh" ? "文档" : "Documents"}</CardTitle>
+          <CardTitle>{t("knowledge.documentsTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {documents.length === 0 && (
             <div className="text-sm text-muted-foreground">
-              {locale === "zh" ? "暂无文档" : "No documents"}
+              {t("knowledge.emptyDocuments")}
             </div>
           )}
 
@@ -243,11 +241,11 @@ export default function KnowledgePage() {
               <div className="min-w-0">
                 <div className="font-medium truncate">{doc.title}</div>
                 <div className="text-xs text-muted-foreground">
-                  {doc.chunk_count} {locale === "zh" ? "片段" : "chunks"}
+                  {t("knowledge.chunks", { count: doc.chunk_count })}
                 </div>
               </div>
               <Button variant="destructive" size="sm" onClick={() => handleDelete(doc)} disabled={loading}>
-                {locale === "zh" ? "删除" : "Delete"}
+                {t("knowledge.actions.delete")}
               </Button>
             </div>
           ))}

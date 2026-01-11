@@ -1,5 +1,8 @@
 # AIWendy 项目状态（以代码为准）
 
+<a id="zh-cn"></a>
+[中文](#zh-cn) | [English](#en)
+
 更新时间：2026-01-09
 
 ## 结论
@@ -48,3 +51,59 @@ Community 版可用（自托管/本地可跑通主链路）。
 - 自托管：`../aiwendy/docs/SELF_HOSTING.md`
 - 部署：`../aiwendy/docs/DEPLOYMENT.md`
 - LLM 配置：`CUSTOM_API_SETUP.md`
+
+---
+
+<a id="en"></a>
+## English
+
+Updated: 2026-01-09
+
+### Conclusion
+
+The Community edition is usable (self-hosted / local runs cover the main end-to-end flows).
+
+**New:** dual deployment modes are now supported: open-source + hosted SaaS.
+
+> Note: deployment mode is controlled via the `DEPLOYMENT_MODE` env var. Default is `self-hosted` (open-source community edition). Set it to `cloud` to enable hosted SaaS mode.
+
+### Deployment modes
+
+#### Self-hosted (default)
+
+- Fully open-source (Apache 2.0)
+- Core features available
+- No usage limits
+- Community support
+
+#### Cloud-hosted
+
+- Multi-tenant architecture
+- Analytics (PostHog/Mixpanel)
+- Enterprise SSO (SAML/OAuth)
+- Stripe billing integration
+- Resource quota management
+
+See: `DEPLOYMENT_MODES.md` and `SAAS_MIGRATION_SUMMARY.md`
+
+### Main user flows available
+
+Login → pick a project → chat / knowledge base / trading log / reports (all support `project_id` scoping) → view history and stats
+
+### Major capabilities implemented
+
+- User system: signup/login/JWT, session tracking (`user_sessions`)
+- Projects: `/api/v1/projects` + web `/projects`
+- Chat: SSE streaming, session history (`chat_sessions` / `chat_messages`)
+- Knowledge base: `/api/v1/knowledge` document import, pgvector semantic search (optional RAG injection)
+- Trading log: CRUD + stats + AI analysis (supports `project_id` filtering)
+- Reports: `/api/v1/reports` + web `/reports` (list/detail/scheduling)
+- Async jobs: Celery worker/beat + `/api/v1/tasks` (report generation, KB import queue/status)
+- Redis: rate limiting + short TTL caching (analysis/retrieval)
+- Self-hosting: Docker Compose (db/redis/api/web/worker/beat)
+
+### Related docs
+
+- Self-hosted: `../aiwendy/docs/SELF_HOSTING.md`
+- Deployment: `../aiwendy/docs/DEPLOYMENT.md`
+- LLM config: `CUSTOM_API_SETUP.md`

@@ -5,7 +5,7 @@ import asyncio
 from datetime import datetime
 from uuid import UUID
 from typing import List, Optional, AsyncIterator
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,7 @@ from sqlalchemy import select, desc, and_
 
 from core.auth import get_current_user
 from core.database import get_session
+from core.i18n import Locale, get_request_locale, join_names, t
 from core.logging import get_logger
 from core.encryption import get_encryption_service
 from domain.coach.models import (
@@ -308,12 +309,13 @@ async def _retrieve_kb_context(
     return []
 
 
-def _format_kb_context(chunks: list[dict]) -> str:
+def _format_kb_context(chunks: list[dict], locale: Locale) -> str:
     if not chunks:
         return ""
     lines: list[str] = []
     for idx, item in enumerate(chunks, 1):
-        title = str(item.get("document_title") or "Document")
+        title_default = "Document" if locale == "en" else "文档"
+        title = str(item.get("document_title") or title_default)
         content = str(item.get("content") or "").strip()
         if not content:
             continue
@@ -321,8 +323,7 @@ def _format_kb_context(chunks: list[dict]) -> str:
     if not lines:
         return ""
     return (
-        "以下为知识库检索到的参考内容（仅在相关时使用，不要编造引用）：\n\n"
-        + "\n\n---\n\n".join(lines)
+        t("kb.roundtable_intro", locale) + "\n\n---\n\n".join(lines)
     )
 
 
@@ -349,6 +350,7 @@ def _sanitize_attachments_for_storage(attachments: Optional[List[MessageAttachme
 def _build_user_llm_message(
     content: str,
     attachments: Optional[List[MessageAttachment]],
+    locale: Locale,
 ) -> LLMMessage:
     if not attachments:
         return LLMMessage(role="user", content=content)
@@ -365,27 +367,30 @@ def _build_user_llm_message(
             )
             continue
         if att.extractedText:
-            extra_context.append(f"[文件: {att.fileName}]\n{att.extractedText}")
+            extra_context.append(f"[{t('attachments.file', locale)}: {att.fileName}]\n{att.extractedText}")
             continue
         if att.transcription:
-            extra_context.append(f"[语音转写: {att.fileName}]\n{att.transcription}")
+            extra_context.append(
+                f"[{t('attachments.audio_transcript', locale)}: {att.fileName}]\n{att.transcription}"
+            )
             continue
         if att.type == "image":
-            extra_context.append(f"[图片: {att.fileName}]\n{att.url}")
+            extra_context.append(f"[{t('attachments.image', locale)}: {att.fileName}]\n{att.url}")
         else:
-            extra_context.append(f"[附件: {att.fileName}]\n{att.url}")
+            extra_context.append(f"[{t('attachments.attachment', locale)}: {att.fileName}]\n{att.url}")
 
     if extra_context:
         context_text = "\n\n---\n\n".join(extra_context)
+        section = t("attachments.section", locale)
         if content_parts and content_parts[0].type == "text":
             content_parts[0] = MessageContent(
                 type="text",
-                text=f"{content_parts[0].text}\n\n附件内容:\n{context_text}",
+                text=f"{content_parts[0].text}\n\n{section}:\n{context_text}",
             )
         else:
             content_parts.insert(
                 0,
-                MessageContent(type="text", text=f"附件内容:\n{context_text}"),
+                MessageContent(type="text", text=f"{section}:\n{context_text}"),
             )
 
     if len(content_parts) > 1 or (len(content_parts) == 1 and content_parts[0].type == "image_url"):
@@ -395,85 +400,68 @@ def _build_user_llm_message(
     return LLMMessage(role="user", content=content)
 
 
-def _build_roundtable_system_prompt(coach: Coach, all_coaches: List[Coach]) -> str:
+def _build_roundtable_system_prompt(coach: Coach, all_coaches: List[Coach], locale: Locale) -> str:
     """Build system prompt for roundtable discussion."""
     coach_names = [c.name for c in all_coaches]
     other_coaches = [c for c in all_coaches if c.id != coach.id]
-    other_names = ", ".join([c.name for c in other_coaches])
+    other_names = join_names([c.name for c in other_coaches], locale)
 
     base_prompt = coach.system_prompt or ""
 
-    roundtable_context = f"""
-
-你正在参与一场关于交易心理的圆桌讨论。
-参与者：{', '.join(coach_names)}
-你的角色是 {coach.name}（{coach.style.value if coach.style else '教练'}风格）。
-
-讨论规则：
-1. 保持你独特的个性和沟通风格
-2. 可以回应、补充或友好地质疑其他教练的观点
-3. 每次发言保持简洁，2-4句话即可
-4. 关注用户的具体问题，给出有价值的建议
-5. 如果其他教练已经给出了好的建议，可以补充而不是重复
-
-其他教练：{other_names}
-"""
-    return base_prompt + roundtable_context
+    return base_prompt + t(
+        "roundtable.system_context",
+        locale,
+        participants=join_names(coach_names, locale),
+        coach_name=coach.name,
+        coach_style=(coach.style.value if coach.style else t("generic.coach", locale)),
+        other_coaches=other_names,
+    )
 
 
-def _build_debate_round_instruction(round_num: int, debate_style: str) -> str:
+def _build_debate_round_instruction(round_num: int, debate_style: str, locale: Locale) -> str:
     """Build per-round instruction to encourage multi-round cross-coach debate in free mode."""
     if round_num <= 1:
-        return (
-            "你正在进行第 1 轮讨论：请给出你从自己风格出发的核心判断与建议。\n"
-            "要求：2-4 句，尽量具体可执行；不要复述其他人（因为还没开始互辩）。"
-        )
+        return t("roundtable.debate.round1", locale)
 
     debate_style = (debate_style or "converge").strip().lower()
     if debate_style == "clash":
-        return (
-            f"你正在进行第 {round_num} 轮互辩（对立辩论风格）：你必须点名引用至少 1 位其他教练的观点，\n"
-            "并指出其建议的潜在风险/盲点（可以不同意），然后给出你的替代方案或更严格的边界条件。\n"
-            "最后输出 1 条你认为最关键、最可执行的动作建议。\n"
-            "要求：2-5 句；避免重复上一轮自己的话；保持专业但允许有建设性的反驳。"
-        )
+        return t("roundtable.debate.clash", locale, round_num=round_num)
 
-    return (
-        f"你正在进行第 {round_num} 轮互辩（收敛纠错风格）：你必须点名引用至少 1 位其他教练的观点，\n"
-        "说明你同意/补充/纠错的点，并把各方观点合并成更清晰的执行方案（明确优先级或适用条件）。\n"
-        "最后输出 1-2 条更具体、可执行的建议。\n"
-        "要求：2-5 句；避免重复上一轮自己的话；保持专业、聚焦可执行。"
-    )
+    return t("roundtable.debate.converge", locale, round_num=round_num)
 
 
 # ============= Moderator Helper Functions =============
 
-def _build_moderator_opening_prompt(moderator: Coach, coaches: List[Coach], user_question: str) -> str:
+def _build_moderator_opening_prompt(
+    moderator: Coach,
+    coaches: List[Coach],
+    user_question: str,
+    locale: Locale,
+) -> str:
     """Build opening prompt for moderator."""
-    coach_names = [c.name for c in coaches]
-    coach_styles = [f"{c.name}（{c.style.value if c.style else '教练'}风格）" for c in coaches]
+    coach_styles = [
+        f"{c.name} ({c.style.value if c.style else t('generic.coach', locale)} style)"
+        if locale == "en"
+        else f"{c.name}（{c.style.value if c.style else t('generic.coach', locale)}风格）"
+        for c in coaches
+    ]
 
     base_prompt = moderator.system_prompt or ""
 
-    opening_context = f"""
-
-你是本次圆桌讨论的主持人。
-参与教练：{', '.join(coach_styles)}
-用户问题：{user_question}
-
-请用 2-3 句话开场：
-1. 简要破题，说明这是个什么类型的问题
-2. 预告将邀请哪些教练从哪些角度来分析这个问题
-
-注意：
-- 保持简洁专业
-- 不要重复用户的问题原文
-- 让用户知道接下来会发生什么
-"""
-    return base_prompt + opening_context
+    return base_prompt + t(
+        "roundtable.moderator.opening",
+        locale,
+        coach_styles=join_names(coach_styles, locale),
+        user_question=user_question,
+    )
 
 
-def _build_moderator_summary_prompt(moderator: Coach, coaches: List[Coach], round_messages: List[dict]) -> str:
+def _build_moderator_summary_prompt(
+    moderator: Coach,
+    coaches: List[Coach],
+    round_messages: List[dict],
+    locale: Locale,
+) -> str:
     """Build summary prompt for moderator after a round of discussion."""
     base_prompt = moderator.system_prompt or ""
 
@@ -483,27 +471,19 @@ def _build_moderator_summary_prompt(moderator: Coach, coaches: List[Coach], roun
         if msg.get("coach_name"):
             formatted_messages.append(f"【{msg['coach_name']}】: {msg['content']}")
 
-    summary_context = f"""
-
-你是主持人，请总结本轮讨论。
-
-各教练观点：
-{chr(10).join(formatted_messages)}
-
-请用 3-4 句话：
-1. 总结各教练的核心观点和建议
-2. 指出他们观点中的共识和分歧（如果有）
-3. 提出一个深化问题供用户思考或追问
-
-注意：
-- 保持中立客观
-- 突出要点，不要重复全部内容
-- 深化问题要有启发性
-"""
-    return base_prompt + summary_context
+    return base_prompt + t(
+        "roundtable.moderator.summary",
+        locale,
+        messages=chr(10).join(formatted_messages),
+    )
 
 
-def _build_moderator_closing_prompt(moderator: Coach, coaches: List[Coach], all_messages: List[dict]) -> str:
+def _build_moderator_closing_prompt(
+    moderator: Coach,
+    coaches: List[Coach],
+    all_messages: List[dict],
+    locale: Locale,
+) -> str:
     """Build closing prompt for moderator."""
     base_prompt = moderator.system_prompt or ""
 
@@ -516,29 +496,17 @@ def _build_moderator_closing_prompt(moderator: Coach, coaches: List[Coach], all_
                 coach_contributions[name] = []
             coach_contributions[name].append(msg["content"])
 
-    contributions_summary = []
+    contributions_summary: list[str] = []
     for name, contents in coach_contributions.items():
-        contributions_summary.append(f"【{name}】共发言 {len(contents)} 次")
+        contributions_summary.append(
+            f"[{name}] spoke {len(contents)} times" if locale == "en" else f"【{name}】共发言 {len(contents)} 次"
+        )
 
-    closing_context = f"""
-
-你是主持人，讨论即将结束，请给出结语。
-
-讨论概况：
-{chr(10).join(contributions_summary)}
-
-请用 4-5 句话：
-1. 感谢各位教练的精彩分享
-2. 综合各教练观点，给出 2-3 条核心建议
-3. 鼓励用户将建议付诸实践
-4. 欢迎用户随时开启新的讨论
-
-注意：
-- 总结要有综合性，不是简单罗列
-- 建议要具体可执行
-- 语气温和专业
-"""
-    return base_prompt + closing_context
+    return base_prompt + t(
+        "roundtable.moderator.closing",
+        locale,
+        contrib=chr(10).join(contributions_summary),
+    )
 
 
 async def _get_coaches_by_ids(db: AsyncSession, coach_ids: List[str]) -> List[Coach]:
@@ -596,17 +564,19 @@ async def list_presets(
 @router.get("/presets/{preset_id}", response_model=PresetResponse)
 async def get_preset(
     preset_id: str,
+    http_request: Request,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """Get a specific preset with coach details."""
+    locale = get_request_locale(http_request)
     result = await db.execute(
         select(CoachPreset).where(CoachPreset.id == preset_id)
     )
     preset = result.scalar_one_or_none()
 
     if not preset:
-        raise HTTPException(status_code=404, detail="Preset not found")
+        raise HTTPException(status_code=404, detail=t("errors.preset_not_found", locale))
 
     coaches = await _get_coaches_by_ids(db, preset.coach_ids or [])
 
@@ -636,11 +606,13 @@ async def get_preset(
 @router.post("/sessions", response_model=SessionResponse)
 async def create_session(
     request: CreateSessionRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """Create a new roundtable session."""
     import uuid
+    locale = get_request_locale(http_request)
 
     coach_ids: List[str] = []
 
@@ -651,26 +623,26 @@ async def create_session(
         )
         preset = result.scalar_one_or_none()
         if not preset:
-            raise HTTPException(status_code=404, detail="Preset not found")
+            raise HTTPException(status_code=404, detail=t("errors.preset_not_found", locale))
         coach_ids = preset.coach_ids or []
     elif request.coach_ids:
         coach_ids = request.coach_ids
     else:
         raise HTTPException(
             status_code=400,
-            detail="Either preset_id or coach_ids is required"
+            detail=t("errors.preset_or_coaches_required", locale),
         )
 
     # Validate coach count
     if len(coach_ids) < 2:
-        raise HTTPException(status_code=400, detail="At least 2 coaches are required")
+        raise HTTPException(status_code=400, detail=t("errors.min_coaches", locale))
     if len(coach_ids) > 5:
-        raise HTTPException(status_code=400, detail="Maximum 5 coaches allowed")
+        raise HTTPException(status_code=400, detail=t("errors.max_coaches", locale))
 
     # Verify all coaches exist
     coaches = await _get_coaches_by_ids(db, coach_ids)
     if len(coaches) != len(coach_ids):
-        raise HTTPException(status_code=400, detail="Some coaches not found")
+        raise HTTPException(status_code=400, detail=t("errors.some_coaches_not_found", locale))
 
     # Validate moderator if in moderated mode
     moderator = None
@@ -683,15 +655,19 @@ async def create_session(
         )
         moderator = result.scalar_one_or_none()
         if not moderator:
-            raise HTTPException(status_code=400, detail=f"Moderator '{moderator_id}' not found")
+            raise HTTPException(
+                status_code=400,
+                detail=t("errors.moderator_not_found_with_id", locale, moderator_id=moderator_id),
+            )
 
     # Create session
+    now = datetime.now()
     session = RoundtableSession(
         id=uuid.uuid4(),
         user_id=current_user.id,
         project_id=request.project_id,
         preset_id=request.preset_id,
-        title=request.title or f"圆桌讨论 - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        title=request.title or t("roundtable.title_default", locale, ts=now.strftime("%Y-%m-%d %H:%M")),
         coach_ids=coach_ids,
         turn_order=coach_ids,
         current_turn=0,
@@ -845,19 +821,21 @@ async def list_sessions(
 @router.get("/sessions/{session_id}", response_model=SessionDetailResponse)
 async def get_session_detail(
     session_id: UUID,
+    http_request: Request,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """Get session details with messages."""
+    locale = get_request_locale(http_request)
     result = await db.execute(
         select(RoundtableSession).where(RoundtableSession.id == session_id)
     )
     session = result.scalar_one_or_none()
 
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=t("errors.session_not_found", locale))
     if session.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
 
     # Get coaches
     coaches = await _get_coaches_by_ids(db, session.coach_ids or [])
@@ -957,17 +935,19 @@ async def get_session_detail(
 async def update_session_settings(
     session_id: UUID,
     request: UpdateSessionSettingsRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """Update session-level settings (persisted)."""
+    locale = get_request_locale(http_request)
     result = await db.execute(select(RoundtableSession).where(RoundtableSession.id == session_id))
     session = result.scalar_one_or_none()
 
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=t("errors.session_not_found", locale))
     if session.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
 
     if request.config_id is not None:
         session.llm_config_id = (request.config_id or "").strip() or None
@@ -1046,19 +1026,21 @@ async def update_session_settings(
 @router.post("/sessions/{session_id}/end")
 async def end_session(
     session_id: UUID,
+    http_request: Request,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """End a roundtable session."""
+    locale = get_request_locale(http_request)
     result = await db.execute(
         select(RoundtableSession).where(RoundtableSession.id == session_id)
     )
     session = result.scalar_one_or_none()
 
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=t("errors.session_not_found", locale))
     if session.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
 
     session.is_active = False
     session.ended_at = datetime.utcnow()
@@ -1066,14 +1048,15 @@ async def end_session(
 
     await db.commit()
 
-    return {"status": "ok", "message": "Session ended"}
+    return {"status": "ok", "message": t("messages.session_ended", locale)}
 
 
 # ============= Chat Endpoint =============
 
 @router.post("/chat")
 async def roundtable_chat(
-    request: RoundtableChatRequest,
+    payload: RoundtableChatRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
@@ -1090,23 +1073,24 @@ async def roundtable_chat(
     - done: {type}
     - error: {type, message}
     """
+    locale = get_request_locale(http_request)
     # Validate session
     result = await db.execute(
-        select(RoundtableSession).where(RoundtableSession.id == request.session_id)
+        select(RoundtableSession).where(RoundtableSession.id == payload.session_id)
     )
     session = result.scalar_one_or_none()
 
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise HTTPException(status_code=404, detail=t("errors.session_not_found", locale))
     if session.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
     if not session.is_active:
-        raise HTTPException(status_code=400, detail="Session is not active")
+        raise HTTPException(status_code=400, detail=t("errors.session_not_active", locale))
 
     # Get coaches
     coaches = await _get_coaches_by_ids(db, session.coach_ids or [])
     if not coaches:
-        raise HTTPException(status_code=400, detail="No valid coaches in session")
+        raise HTTPException(status_code=400, detail=t("errors.no_valid_coaches", locale))
 
     # Get moderator if in moderated mode
     moderator = None
@@ -1117,19 +1101,19 @@ async def roundtable_chat(
         )
         moderator = mod_result.scalar_one_or_none()
         if not moderator:
-            raise HTTPException(status_code=400, detail="Moderator not found")
+            raise HTTPException(status_code=400, detail=t("errors.moderator_not_found", locale))
 
     # Resolve session-level defaults + request-level overrides
-    preferred_provider = (request.provider or session.llm_provider or "").strip() or None
-    effective_config_id = (request.config_id or session.llm_config_id or "").strip() or None
-    temperature_override = request.temperature if request.temperature is not None else session.llm_temperature
-    max_tokens_override = request.max_tokens if request.max_tokens is not None else session.llm_max_tokens
+    preferred_provider = (payload.provider or session.llm_provider or "").strip() or None
+    effective_config_id = (payload.config_id or session.llm_config_id or "").strip() or None
+    temperature_override = payload.temperature if payload.temperature is not None else session.llm_temperature
+    max_tokens_override = payload.max_tokens if payload.max_tokens is not None else session.llm_max_tokens
 
-    kb_timing = (request.kb_timing or session.kb_timing or "off").strip()
-    kb_top_k = request.kb_top_k if request.kb_top_k is not None else (session.kb_top_k or 5)
+    kb_timing = (payload.kb_timing or session.kb_timing or "off").strip()
+    kb_top_k = payload.kb_top_k if payload.kb_top_k is not None else (session.kb_top_k or 5)
     kb_max_candidates = (
-        request.kb_max_candidates
-        if request.kb_max_candidates is not None
+        payload.kb_max_candidates
+        if payload.kb_max_candidates is not None
         else (session.kb_max_candidates or 400)
     )
     use_kb = kb_timing != "off" and (kb_top_k or 0) > 0
@@ -1141,25 +1125,28 @@ async def roundtable_chat(
     if effective_config_id:
         cfg = _get_user_llm_config(current_user, effective_config_id)
         if not cfg:
-            raise HTTPException(status_code=404, detail="LLM config not found")
+            raise HTTPException(status_code=404, detail=t("errors.llm_config_not_found", locale))
         if cfg.get("is_active") is False:
-            raise HTTPException(status_code=400, detail="LLM config is not active")
+            raise HTTPException(status_code=400, detail=t("errors.llm_config_inactive", locale))
         try:
             selected_provider, _, selected_cfg = _build_provider_from_llm_config(cfg)
         except Exception as e:
             logger.error(f"Failed to build provider: {e}")
-            raise HTTPException(status_code=400, detail=str(e))
+            raise HTTPException(
+                status_code=400,
+                detail=t("errors.llm_configuration_use_failed", locale, detail=str(e)),
+            )
 
     llm_router = get_llm_router(user=current_user)
 
     if not selected_provider and not llm_router.providers:
         raise HTTPException(
             status_code=400,
-            detail="No LLM provider configured. Please set up API keys."
+            detail=t("errors.no_llm_provider", locale),
         )
 
     # Determine model
-    model: Optional[str] = (request.model or "").strip() or None
+    model: Optional[str] = (payload.model or "").strip() or None
     if not model:
         model = (session.llm_model or "").strip() or None
     if not model and selected_cfg:
@@ -1195,8 +1182,8 @@ async def roundtable_chat(
                 session_id=session.id,
                 coach_id=None,
                 role="user",
-                content=request.content.strip(),
-                attachments=_sanitize_attachments_for_storage(request.attachments),
+                content=payload.content.strip(),
+                attachments=_sanitize_attachments_for_storage(payload.attachments),
                 message_type="response",
                 turn_number=session.round_count + 1,
                 sequence_in_turn=0,
@@ -1214,14 +1201,18 @@ async def roundtable_chat(
             )
             history_messages = list(history_result.scalars().all())
 
-            kb_query_base = request.content.strip()
-            if request.attachments:
+            kb_query_base = payload.content.strip()
+            if payload.attachments:
                 extra: list[str] = []
-                for att in request.attachments:
+                for att in payload.attachments:
                     if att.extractedText:
-                        extra.append(f"[文件: {att.fileName}]\n{att.extractedText}")
+                        extra.append(
+                            f"[{t('attachments.file', locale)}: {att.fileName}]\n{att.extractedText}"
+                        )
                     elif att.transcription:
-                        extra.append(f"[语音转写: {att.fileName}]\n{att.transcription}")
+                        extra.append(
+                            f"[{t('attachments.audio_transcript', locale)}: {att.fileName}]\n{att.transcription}"
+                        )
                 if extra:
                     kb_query_base = f"{kb_query_base}\n\n" + "\n\n---\n\n".join(extra)
 
@@ -1256,7 +1247,7 @@ async def roundtable_chat(
                     top_k=kb_top_k,
                     max_candidates=kb_max_candidates,
                 )
-                kb_text = _format_kb_context(chunks)
+                kb_text = _format_kb_context(chunks, locale)
                 kb_cache[cache_key] = kb_text
                 return kb_text
 
@@ -1268,7 +1259,7 @@ async def roundtable_chat(
             if is_moderated and moderator and is_first_message:
                 yield f"data: {json.dumps({'type': 'moderator_start', 'message_type': 'opening', 'coach_id': moderator.id, 'coach_name': moderator.name, 'coach_avatar': moderator.avatar_url})}\n\n"
 
-                opening_prompt = _build_moderator_opening_prompt(moderator, coaches, request.content)
+                opening_prompt = _build_moderator_opening_prompt(moderator, coaches, payload.content, locale)
                 if kb_timing in ("message", "round", "moderator"):
                     kb_text = kb_message_text
                     if kb_timing == "round":
@@ -1292,7 +1283,7 @@ async def roundtable_chat(
                         await asyncio.sleep(0.01)
                 except Exception as e:
                     logger.error(f"Error streaming moderator opening: {e}")
-                    accumulated = "欢迎来到本次圆桌讨论。让我们请各位教练就这个问题分享自己的见解。"
+                    accumulated = t("roundtable.fallback.opening", locale)
                     yield f"data: {json.dumps({'type': 'content', 'coach_id': moderator.id, 'content': accumulated})}\n\n"
 
                 # Save moderator opening message
@@ -1314,7 +1305,7 @@ async def roundtable_chat(
                 yield f"data: {json.dumps({'type': 'moderator_end', 'message_type': 'opening', 'coach_id': moderator.id})}\n\n"
 
             # ========== PROCESS EACH ROUND ==========
-            for round_num in range(1, request.max_rounds + 1):
+            for round_num in range(1, payload.max_rounds + 1):
                 yield f"data: {json.dumps({'type': 'round_start', 'round': round_num})}\n\n"
 
                 # Track this round's messages for moderator summary
@@ -1329,17 +1320,17 @@ async def roundtable_chat(
                     yield f"data: {json.dumps({'type': 'coach_start', 'coach_id': coach.id, 'coach_name': coach.name, 'coach_avatar': coach.avatar_url})}\n\n"
 
                     # Build messages for this coach
-                    system_prompt = _build_roundtable_system_prompt(coach, coaches)
+                    system_prompt = _build_roundtable_system_prompt(coach, coaches, locale)
                     llm_messages = [LLMMessage(role="system", content=system_prompt)]
 
                     # In free mode, encourage cross-coach multi-round debate automatically.
                     if not is_moderated:
                         llm_messages.append(
-                            LLMMessage(
-                                role="system",
-                                content=_build_debate_round_instruction(round_num, request.debate_style),
+                                LLMMessage(
+                                    role="system",
+                                    content=_build_debate_round_instruction(round_num, payload.debate_style, locale),
+                                )
                             )
-                        )
 
                     # Inject knowledge base context according to timing policy
                     if kb_timing == "message" and kb_message_text:
@@ -1358,7 +1349,7 @@ async def roundtable_chat(
                     for msg in history_messages:
                         if msg.role == "user":
                             if msg.id == user_message.id:
-                                llm_messages.append(_build_user_llm_message(msg.content, request.attachments))
+                                llm_messages.append(_build_user_llm_message(msg.content, payload.attachments, locale))
                             else:
                                 stored_attachments = None
                                 if msg.attachments:
@@ -1367,16 +1358,16 @@ async def roundtable_chat(
                                         for item in (msg.attachments or [])
                                         if isinstance(item, dict)
                                     ]
-                                llm_messages.append(_build_user_llm_message(msg.content, stored_attachments))
+                                llm_messages.append(_build_user_llm_message(msg.content, stored_attachments, locale))
                         else:
                             # Coach/moderator message - indicate who said it
-                            msg_coach_name = "教练"
+                            msg_coach_name = t("generic.coach", locale)
                             if msg.coach_id == moderator.id if moderator else False:
                                 msg_coach_name = moderator.name
                             else:
                                 msg_coach_name = next(
                                     (c.name for c in coaches if c.id == msg.coach_id),
-                                    "教练"
+                                    t("generic.coach", locale)
                                 )
                             llm_messages.append(
                                 LLMMessage(
@@ -1411,7 +1402,7 @@ async def roundtable_chat(
 
                     except Exception as e:
                         logger.error(f"Error streaming coach {coach.id}: {e}")
-                        accumulated = f"抱歉，我暂时无法回应。请稍后再试。"
+                        accumulated = t("roundtable.fallback.coach_error", locale)
                         yield f"data: {json.dumps({'type': 'content', 'coach_id': coach.id, 'content': accumulated})}\n\n"
 
                     # Save coach message
@@ -1446,7 +1437,7 @@ async def roundtable_chat(
                 if is_moderated and moderator:
                     yield f"data: {json.dumps({'type': 'moderator_start', 'message_type': 'summary', 'coach_id': moderator.id, 'coach_name': moderator.name, 'coach_avatar': moderator.avatar_url})}\n\n"
 
-                    summary_prompt = _build_moderator_summary_prompt(moderator, coaches, round_messages)
+                    summary_prompt = _build_moderator_summary_prompt(moderator, coaches, round_messages, locale)
                     if kb_timing in ("message", "round", "moderator"):
                         kb_text = kb_message_text
                         if kb_timing == "round":
@@ -1473,7 +1464,7 @@ async def roundtable_chat(
                             await asyncio.sleep(0.01)
                     except Exception as e:
                         logger.error(f"Error streaming moderator summary: {e}")
-                        accumulated = "感谢各位教练的精彩分享。让我们继续深入探讨这个问题。"
+                        accumulated = t("roundtable.fallback.summary", locale)
                         yield f"data: {json.dumps({'type': 'content', 'coach_id': moderator.id, 'content': accumulated})}\n\n"
 
                     # Save moderator summary message
@@ -1495,21 +1486,24 @@ async def roundtable_chat(
                     yield f"data: {json.dumps({'type': 'moderator_end', 'message_type': 'summary', 'coach_id': moderator.id})}\n\n"
 
             # ========== MODERATOR CLOSING (if requested) ==========
-            if is_moderated and moderator and request.should_end:
+            if is_moderated and moderator and payload.should_end:
                 yield f"data: {json.dumps({'type': 'moderator_start', 'message_type': 'closing', 'coach_id': moderator.id, 'coach_name': moderator.name, 'coach_avatar': moderator.avatar_url})}\n\n"
 
                 # Prepare all messages for closing
                 all_messages = [
                     {
                         "coach_id": msg.coach_id,
-                        "coach_name": next((c.name for c in coaches if c.id == msg.coach_id), moderator.name if msg.coach_id == moderator.id else "教练"),
+                        "coach_name": next(
+                            (c.name for c in coaches if c.id == msg.coach_id),
+                            moderator.name if msg.coach_id == moderator.id else t("generic.coach", locale),
+                        ),
                         "content": msg.content,
                         "role": msg.role,
                     }
                     for msg in history_messages
                 ]
 
-                closing_prompt = _build_moderator_closing_prompt(moderator, coaches, all_messages)
+                closing_prompt = _build_moderator_closing_prompt(moderator, coaches, all_messages, locale)
                 if kb_timing in ("message", "moderator"):
                     kb_text = kb_message_text
                     if kb_timing == "moderator":
@@ -1531,7 +1525,7 @@ async def roundtable_chat(
                         await asyncio.sleep(0.01)
                 except Exception as e:
                     logger.error(f"Error streaming moderator closing: {e}")
-                    accumulated = "感谢各位教练的精彩分享和用户的积极参与。希望今天的讨论对您有所帮助，欢迎随时开启新的讨论！"
+                    accumulated = t("roundtable.fallback.closing", locale)
                     yield f"data: {json.dumps({'type': 'content', 'coach_id': moderator.id, 'content': accumulated})}\n\n"
 
                 # Save moderator closing message
@@ -1542,7 +1536,7 @@ async def roundtable_chat(
                     role="assistant",
                     content=accumulated,
                     message_type="closing",
-                    turn_number=session.round_count + request.max_rounds,
+                    turn_number=session.round_count + payload.max_rounds,
                     sequence_in_turn=999,
                     created_at=datetime.utcnow(),
                 )
@@ -1552,7 +1546,7 @@ async def roundtable_chat(
                 yield f"data: {json.dumps({'type': 'moderator_end', 'message_type': 'closing', 'coach_id': moderator.id})}\n\n"
 
             # Update session
-            session.round_count = (session.round_count or 0) + request.max_rounds
+            session.round_count = (session.round_count or 0) + payload.max_rounds
             session.updated_at = datetime.utcnow()
             await db.commit()
 

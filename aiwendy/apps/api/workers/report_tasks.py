@@ -44,6 +44,7 @@ def generate_daily_report(
     user_id: str,
     report_date: Optional[str] = None,
     project_id: Optional[str] = None,
+    locale: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Generate a daily report."""
     task_id = self.request.id
@@ -63,6 +64,7 @@ def generate_daily_report(
         report = service.generate_daily_report(
             user_id=user_uuid,
             report_date=parsed_date,
+            locale=locale,
             project_id=project_uuid,
         )
 
@@ -96,6 +98,7 @@ def generate_weekly_report(
     user_id: str,
     week_start: Optional[str] = None,
     project_id: Optional[str] = None,
+    locale: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Generate a weekly report."""
     task_id = self.request.id
@@ -117,6 +120,7 @@ def generate_weekly_report(
         report = service.generate_weekly_report(
             user_id=user_uuid,
             week_start=parsed_date,
+            locale=locale,
             project_id=project_uuid,
         )
 
@@ -151,6 +155,7 @@ def generate_monthly_report(
     year: Optional[int] = None,
     month: Optional[int] = None,
     project_id: Optional[str] = None,
+    locale: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Generate a monthly report."""
     task_id = self.request.id
@@ -175,6 +180,7 @@ def generate_monthly_report(
             user_id=user_uuid,
             year=year,
             month=month,
+            locale=locale,
             project_id=project_uuid,
         )
 
@@ -218,7 +224,11 @@ def generate_scheduled_reports(self) -> Dict[str, Any]:
             should, for_date = service.should_generate_report(UUID(uid), ReportType.DAILY)
             if should:
                 try:
-                    generate_daily_report.delay(uid, report_date=(for_date.isoformat() if for_date else None))
+                    generate_daily_report.delay(
+                        uid,
+                        report_date=(for_date.isoformat() if for_date else None),
+                        locale=schedule.language,
+                    )
                     generated["daily"] += 1
                 except Exception as e:
                     generated["errors"].append(f"daily:{uid}:{str(e)}")
@@ -226,7 +236,11 @@ def generate_scheduled_reports(self) -> Dict[str, Any]:
             should, for_date = service.should_generate_report(UUID(uid), ReportType.WEEKLY)
             if should:
                 try:
-                    generate_weekly_report.delay(uid, week_start=(for_date.isoformat() if for_date else None))
+                    generate_weekly_report.delay(
+                        uid,
+                        week_start=(for_date.isoformat() if for_date else None),
+                        locale=schedule.language,
+                    )
                     generated["weekly"] += 1
                 except Exception as e:
                     generated["errors"].append(f"weekly:{uid}:{str(e)}")
@@ -234,7 +248,7 @@ def generate_scheduled_reports(self) -> Dict[str, Any]:
             should, _ = service.should_generate_report(UUID(uid), ReportType.MONTHLY)
             if should:
                 try:
-                    generate_monthly_report.delay(uid)
+                    generate_monthly_report.delay(uid, locale=schedule.language)
                     generated["monthly"] += 1
                 except Exception as e:
                     generated["errors"].append(f"monthly:{uid}:{str(e)}")

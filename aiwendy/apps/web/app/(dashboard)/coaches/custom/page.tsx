@@ -30,6 +30,11 @@ export default function CustomCoachesPage() {
   const [saving, setSaving] = useState(false)
   const [coaches, setCoaches] = useState<CustomCoach[]>([])
 
+  const styleLabel = (style: string): string => {
+    const opt = styleOptions.find((o) => o.value === (style as any))
+    return opt ? t(opt.labelKey as any) : style
+  }
+
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [style, setStyle] = useState<(typeof styleOptions)[number]["value"]>("empathetic")
@@ -77,7 +82,7 @@ export default function CustomCoachesPage() {
       setCoaches(list.filter((c) => c.is_active))
     } catch (e: any) {
       setCoaches([])
-      toast.error(locale === "zh" ? "无法加载自定义教练" : "Failed to load custom coaches")
+      toast.error(t("coaches.custom.toasts.loadFailed"))
     } finally {
       setLoading(false)
     }
@@ -104,14 +109,14 @@ export default function CustomCoachesPage() {
         language: locale === "zh" ? "zh" : "en",
         is_public: false,
       })
-      toast.success(locale === "zh" ? "已创建自定义教练" : "Custom coach created")
+      toast.success(t("coaches.custom.toasts.createSuccess"))
       setName("")
       setDescription("")
       setStyle("empathetic")
       setSystemPrompt(defaultPrompt)
       setCoaches((prev) => [created, ...prev])
     } catch (e: any) {
-      toast.error(locale === "zh" ? "创建失败" : "Failed to create")
+      toast.error(t("coaches.custom.toasts.createFailed"))
     } finally {
       setSaving(false)
     }
@@ -123,14 +128,11 @@ export default function CustomCoachesPage() {
       const created = await coachesAPI.createSession({
         coach_id: coachId,
         project_id: projectId || undefined,
-        title:
-          locale === "zh"
-            ? `与教练对话 - ${new Date().toLocaleString()}`
-            : `Chat - ${new Date().toLocaleString()}`,
+        title: t("coaches.custom.chatSessionTitle", { datetime: new Date().toLocaleString() }),
       })
       router.push(`/chat?session=${created.id}&coach=${coachId}`)
     } catch {
-      toast.error(locale === "zh" ? "无法开始对话" : "Failed to start chat")
+      toast.error(t("coaches.custom.toasts.startChatFailed"))
     }
   }
 
@@ -138,9 +140,9 @@ export default function CustomCoachesPage() {
     try {
       await coachesAPI.deleteCustomCoach(coachId)
       setCoaches((prev) => prev.filter((c) => c.id !== coachId))
-      toast.success(locale === "zh" ? "已删除" : "Deleted")
+      toast.success(t("coaches.custom.toasts.deleted"))
     } catch {
-      toast.error(locale === "zh" ? "删除失败" : "Failed to delete")
+      toast.error(t("coaches.custom.toasts.deleteFailed"))
     }
   }
 
@@ -165,11 +167,11 @@ export default function CustomCoachesPage() {
         system_prompt: editSystemPrompt.trim(),
       })
       setCoaches((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
-      toast.success(locale === "zh" ? "已保存" : "Saved")
+      toast.success(t("coaches.custom.toasts.saved"))
       setEditOpen(false)
       setEditing(null)
     } catch {
-      toast.error(locale === "zh" ? "保存失败" : "Failed to save")
+      toast.error(t("coaches.custom.toasts.saveFailed"))
     } finally {
       setEditSaving(false)
     }
@@ -178,29 +180,27 @@ export default function CustomCoachesPage() {
   return (
     <div className="container mx-auto py-8 px-4 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">{locale === "zh" ? "自定义教练" : "Custom Coaches"}</h1>
+        <h1 className="text-2xl font-semibold">{t("coaches.custom.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          {locale === "zh"
-            ? "为自托管环境开放：创建只属于你的教练，并直接用于聊天。"
-            : "Self-hosted friendly: create your own coaches and use them in chat."}
+          {t("coaches.custom.subtitle")}
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>{locale === "zh" ? "创建自定义教练" : "Create Custom Coach"}</CardTitle>
+          <CardTitle>{t("coaches.custom.createTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <div className="text-sm font-medium">{locale === "zh" ? "名称" : "Name"}</div>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={locale === "zh" ? "例如：冷静纪律教练" : "e.g. Calm Discipline Coach"} />
+              <div className="text-sm font-medium">{t("coaches.custom.fields.name")}</div>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("coaches.custom.placeholders.name")} />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium">{locale === "zh" ? "风格" : "Style"}</div>
+              <div className="text-sm font-medium">{t("coaches.custom.fields.style")}</div>
               <Select value={style} onValueChange={(v) => setStyle(v as any)}>
                 <SelectTrigger>
-                  <SelectValue placeholder={locale === "zh" ? "选择风格" : "Select a style"} />
+                  <SelectValue placeholder={t("coaches.custom.placeholders.style")} />
                 </SelectTrigger>
                 <SelectContent>
                   {styleOptions.map((opt) => (
@@ -214,40 +214,40 @@ export default function CustomCoachesPage() {
           </div>
 
           <div className="space-y-2">
-            <div className="text-sm font-medium">{locale === "zh" ? "简介（可选）" : "Description (optional)"}</div>
-            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={locale === "zh" ? "一句话描述教练特点" : "One-line description"} />
+            <div className="text-sm font-medium">{t("coaches.custom.fields.descriptionOptional")}</div>
+            <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("coaches.custom.placeholders.description")} />
           </div>
 
           <div className="space-y-2">
-            <div className="text-sm font-medium">{locale === "zh" ? "系统提示词（System Prompt）" : "System Prompt"}</div>
+            <div className="text-sm font-medium">{t("coaches.custom.fields.systemPrompt")}</div>
             <Textarea
               value={systemPrompt}
               onChange={(e) => setSystemPrompt(e.target.value)}
               rows={10}
-              placeholder={locale === "zh" ? "描述教练人设、规则、输出格式..." : "Describe persona, rules, output format..."}
+              placeholder={t("coaches.custom.placeholders.systemPrompt")}
             />
           </div>
 
           <Button onClick={handleCreate} disabled={saving || !name.trim() || !systemPrompt.trim()}>
-            {saving ? (locale === "zh" ? "创建中…" : "Creating…") : (locale === "zh" ? "创建" : "Create")}
+            {saving ? t("coaches.custom.actions.creating") : t("coaches.custom.actions.create")}
           </Button>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>{locale === "zh" ? "我的自定义教练" : "My Custom Coaches"}</CardTitle>
+          <CardTitle>{t("coaches.custom.listTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {loading && (
             <div className="text-sm text-muted-foreground">
-              {locale === "zh" ? "加载中…" : "Loading…"}
+              {t("coaches.custom.loading")}
             </div>
           )}
 
           {!loading && coaches.length === 0 && (
             <div className="text-sm text-muted-foreground">
-              {locale === "zh" ? "暂无自定义教练" : "No custom coaches yet"}
+              {t("coaches.custom.empty")}
             </div>
           )}
 
@@ -259,19 +259,19 @@ export default function CustomCoachesPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <div className="font-medium truncate">{c.name}</div>
-                  <Badge variant="outline" className="capitalize">{c.style}</Badge>
+                  <Badge variant="outline" className="capitalize">{styleLabel(c.style)}</Badge>
                 </div>
                 {c.description && <div className="text-sm text-muted-foreground truncate">{c.description}</div>}
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button size="sm" variant="outline" onClick={() => startChat(c.id)}>
-                  {locale === "zh" ? "开始对话" : "Chat"}
+                  {t("coaches.custom.actions.chat")}
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => openEdit(c)}>
-                  {locale === "zh" ? "编辑" : "Edit"}
+                  {t("coaches.custom.actions.edit")}
                 </Button>
                 <Button size="sm" variant="destructive" onClick={() => remove(c.id)}>
-                  {locale === "zh" ? "删除" : "Delete"}
+                  {t("coaches.custom.actions.delete")}
                 </Button>
               </div>
             </div>
@@ -285,24 +285,22 @@ export default function CustomCoachesPage() {
       }}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{locale === "zh" ? "编辑自定义教练" : "Edit Custom Coach"}</DialogTitle>
+            <DialogTitle>{t("coaches.custom.editTitle")}</DialogTitle>
             <DialogDescription>
-              {locale === "zh"
-                ? "修改风格与系统提示词会立即影响后续聊天。"
-                : "Changes to style and system prompt will affect subsequent chats."}
+              {t("coaches.custom.editHelp")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <div className="text-sm font-medium">{locale === "zh" ? "名称" : "Name"}</div>
+              <div className="text-sm font-medium">{t("coaches.custom.fields.name")}</div>
               <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium">{locale === "zh" ? "风格" : "Style"}</div>
+              <div className="text-sm font-medium">{t("coaches.custom.fields.style")}</div>
               <Select value={editStyle} onValueChange={(v) => setEditStyle(v as any)}>
                 <SelectTrigger>
-                  <SelectValue placeholder={locale === "zh" ? "选择风格" : "Select a style"} />
+                  <SelectValue placeholder={t("coaches.custom.placeholders.style")} />
                 </SelectTrigger>
                 <SelectContent>
                   {styleOptions.map((opt) => (
@@ -316,15 +314,15 @@ export default function CustomCoachesPage() {
           </div>
 
           <div className="space-y-2">
-            <div className="text-sm font-medium">{locale === "zh" ? "简介（可选）" : "Description (optional)"}</div>
+            <div className="text-sm font-medium">{t("coaches.custom.fields.descriptionOptional")}</div>
             <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <div className="text-sm font-medium">{locale === "zh" ? "系统提示词（System Prompt）" : "System Prompt"}</div>
+              <div className="text-sm font-medium">{t("coaches.custom.fields.systemPrompt")}</div>
               <Button type="button" variant="outline" size="sm" onClick={() => setEditSystemPrompt(defaultPrompt)}>
-                {locale === "zh" ? "重置为默认" : "Reset"}
+                {t("coaches.custom.actions.resetDefault")}
               </Button>
             </div>
             <Textarea
@@ -341,14 +339,14 @@ export default function CustomCoachesPage() {
               onClick={() => setEditOpen(false)}
               disabled={editSaving}
             >
-              {locale === "zh" ? "取消" : "Cancel"}
+              {t("coaches.custom.actions.cancel")}
             </Button>
             <Button
               type="button"
               onClick={handleEditSave}
               disabled={editSaving || !editName.trim() || !editSystemPrompt.trim()}
             >
-              {editSaving ? (locale === "zh" ? "保存中…" : "Saving…") : (locale === "zh" ? "保存" : "Save")}
+              {editSaving ? t("coaches.custom.actions.saving") : t("coaches.custom.actions.save")}
             </Button>
           </DialogFooter>
         </DialogContent>

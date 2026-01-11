@@ -1,5 +1,8 @@
 # 系统架构（以代码为准）
 
+<a id="zh-cn"></a>
+[中文](#zh-cn) | [English](#en)
+
 AIWendy 采用前后端分离架构：Next.js 负责 Web UI，FastAPI 提供业务 API；PostgreSQL（pgvector）存储结构化数据与向量；Redis 用于缓存/限流与 Celery 队列。
 
 ## 组件关系
@@ -52,4 +55,62 @@ FastAPI (apps/api)                │
 
 1. 文档导入：分段 → 生成向量 → 写入 pgvector
 2. 对话时：对用户输入向量化 → 相似检索 → 将命中文本拼入 prompt → 生成回答
+
+---
+
+<a id="en"></a>
+## English
+
+AIWendy uses a decoupled web/API architecture: Next.js provides the Web UI, FastAPI provides business APIs; PostgreSQL (pgvector) stores structured data and embeddings; Redis is used for caching/rate limiting and Celery queues.
+
+### Component relationships
+
+```
+Browser
+  │  HTTP(S)
+  ▼
+Next.js (apps/web) ───────────────┐
+  │  API proxy / fetch            │
+  ▼                               │
+FastAPI (apps/api)                │
+  │                               │
+  ├─ PostgreSQL + pgvector (db)   │
+  └─ Redis (redis) ── Celery worker/beat (optional)
+```
+
+### Code structure (core)
+
+- `apps/web/`: Next.js 14 App Router frontend
+- `apps/api/`: FastAPI backend
+- `migrations/`: Alembic migrations
+- `docker-compose.yml`: self-hosting orchestration
+
+### Core business modules
+
+- Projects: project grouping and data isolation (`project_id` filtering supported end-to-end)
+- Chat: SSE streaming chat, persisted sessions/messages
+- Knowledge Base: document import, embedding, retrieval; chat can inject retrieval results into prompts (RAG)
+- Trading Log: CRUD + stats + AI analysis
+- Reports: daily/weekly/monthly generation, list/detail, scheduling (can run via async tasks)
+
+### Data & async jobs
+
+- PostgreSQL: primary datastore; KB vectors use pgvector columns + vector indexes
+- Redis:
+  - Rate limiting / short-lived cache (e.g. analysis/retrieval results)
+  - Celery broker/result backend (when worker/beat is enabled)
+- Celery worker/beat: report generation, KB import, and other long-running tasks (optional)
+
+### Key request flows (examples)
+
+#### Chat (SSE)
+
+1. Web sends a request (session/model/config params)
+2. API generates/continues content and streams chunks via SSE
+3. Sessions and messages are stored for history
+
+#### Knowledge retrieval (RAG)
+
+1. Import: chunk → embed → write to pgvector
+2. During chat: embed user input → similarity search → inject matched text into prompt → generate response
 

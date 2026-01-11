@@ -6,11 +6,12 @@ from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from core.auth import get_current_user
+from core.i18n import get_request_locale, t
 from core.logging import get_logger
 from domain.user.models import User
 from services.storage_service import get_storage_provider, StorageProvider
@@ -55,6 +56,7 @@ class TranscriptionResponse(BaseModel):
 
 @router.post("/upload", response_model=FileUploadResponse)
 async def upload_file(
+    http_request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     storage: StorageProvider = Depends(get_storage_provider),
@@ -69,8 +71,10 @@ async def upload_file(
     - Text/Code: TXT, MD, JSON, PY, JS, etc. (max 10MB)
     - Other: Any file (max 100MB)
     """
+    locale = get_request_locale(http_request)
+
     if not file.filename:
-        raise HTTPException(status_code=400, detail="Filename is required")
+        raise HTTPException(status_code=400, detail=t("errors.filename_required", locale))
 
     # Get file category and size limit
     file_category = get_file_category(file.filename)
@@ -85,14 +89,14 @@ async def upload_file(
         max_mb = max_size // (1024 * 1024)
         raise HTTPException(
             status_code=400,
-            detail=f"File too large. Maximum size for {file_category} files is {max_mb}MB"
+            detail=t("errors.file_too_large", locale, file_category=file_category, max_mb=max_mb),
         )
 
     # Validate content type for images (security check)
     content_type = file.content_type or "application/octet-stream"
     if file_category == 'image':
         if not content_type.startswith('image/'):
-            raise HTTPException(status_code=400, detail="Invalid image file")
+            raise HTTPException(status_code=400, detail=t("errors.invalid_image_file", locale))
 
     # Generate thumbnail for images
     thumbnail_base64 = None
@@ -138,6 +142,7 @@ async def upload_file(
 
 @router.post("/extract", response_model=TextExtractionResponse)
 async def extract_file_text(
+    http_request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     storage: StorageProvider = Depends(get_storage_provider),
@@ -147,15 +152,17 @@ async def extract_file_text(
 
     Supports: PDF, DOCX, XLSX, PPTX, TXT, MD, JSON, CSV, and code files.
     """
+    locale = get_request_locale(http_request)
+
     if not file.filename:
-        raise HTTPException(status_code=400, detail="Filename is required")
+        raise HTTPException(status_code=400, detail=t("errors.filename_required", locale))
 
     # Check if text can be extracted
     if not can_extract_text(file.filename):
         file_category = get_file_category(file.filename)
         return TextExtractionResponse(
             success=False,
-            error=f"Cannot extract text from {file_category} files",
+            error=t("errors.cannot_extract_text_from_category", locale, file_category=file_category),
             fileType=file_category,
         )
 
@@ -170,7 +177,7 @@ async def extract_file_text(
     if not file_path:
         return TextExtractionResponse(
             success=False,
-            error="Failed to process file",
+            error=t("errors.failed_to_process_file", locale),
         )
 
     # Extract text
@@ -190,6 +197,7 @@ async def extract_file_text(
 
 @router.post("/transcribe", response_model=TranscriptionResponse)
 async def transcribe_audio(
+    http_request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
 ):
@@ -198,15 +206,17 @@ async def transcribe_audio(
 
     Supports: WAV, MP3, WebM, OGG, M4A (max 25MB)
     """
+    locale = get_request_locale(http_request)
+
     if not file.filename:
-        raise HTTPException(status_code=400, detail="Filename is required")
+        raise HTTPException(status_code=400, detail=t("errors.filename_required", locale))
 
     # Validate file type
     file_category = get_file_category(file.filename)
     if file_category != 'audio':
         raise HTTPException(
             status_code=400,
-            detail="Only audio files are supported for transcription"
+            detail=t("errors.only_audio_supported_for_transcription", locale),
         )
 
     # Check file size
@@ -215,7 +225,7 @@ async def transcribe_audio(
     if len(content) > max_size:
         raise HTTPException(
             status_code=400,
-            detail="Audio file too large. Maximum size is 25MB"
+            detail=t("errors.audio_file_too_large", locale, max_mb=25),
         )
 
     # Use OpenAI Whisper API
@@ -227,7 +237,7 @@ async def transcribe_audio(
         if not settings.openai_api_key:
             raise HTTPException(
                 status_code=503,
-                detail="OpenAI API key not configured. Cannot transcribe audio."
+                detail=t("errors.openai_api_key_not_configured", locale),
             )
 
         client = AsyncOpenAI(api_key=settings.openai_api_key)
@@ -256,12 +266,13 @@ async def transcribe_audio(
         logger.error(f"Transcription failed: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Transcription failed: {str(e)}"
+            detail=t("errors.transcription_failed", locale),
         )
 
 
 @router.get("/download/{path:path}")
 async def download_file(
+    http_request: Request,
     path: str,
     current_user: User = Depends(get_current_user),
     storage: StorageProvider = Depends(get_storage_provider),
@@ -269,10 +280,11 @@ async def download_file(
     """
     Download a file by its storage path.
     """
+    locale = get_request_locale(http_request)
     file_path = await storage.get_file_path(path)
 
     if not file_path or not file_path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(status_code=404, detail=t("errors.file_not_found", locale))
 
     # Get filename from path
     filename = file_path.name
@@ -291,6 +303,7 @@ async def download_file(
 
 @router.delete("/{path:path}")
 async def delete_file(
+    http_request: Request,
     path: str,
     current_user: User = Depends(get_current_user),
     storage: StorageProvider = Depends(get_storage_provider),
@@ -298,11 +311,12 @@ async def delete_file(
     """
     Delete a file by its storage path.
     """
+    locale = get_request_locale(http_request)
     success = await storage.delete(path)
 
     if not success:
-        raise HTTPException(status_code=404, detail="File not found or already deleted")
+        raise HTTPException(status_code=404, detail=t("errors.file_not_found_or_deleted", locale))
 
     logger.info(f"File deleted by user {current_user.id}: {path}")
 
-    return {"success": True, "message": "File deleted"}
+    return {"success": True, "message": t("messages.file_deleted", locale)}

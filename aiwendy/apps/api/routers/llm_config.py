@@ -6,7 +6,7 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field, validator
 from sqlalchemy import select, and_, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,6 +16,7 @@ from core.database import get_session
 from core.auth import get_current_user
 from core.encryption import get_encryption_service
 from core.exceptions import AppException
+from core.i18n import get_request_locale, t
 from domain.user.models import User
 
 # Create encryption helper functions
@@ -340,14 +341,16 @@ async def get_user_configs(
 @router.get("/user-configs/{config_id}/models", response_model=ModelsResponse)
 async def get_models_for_user_config(
     config_id: str,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
 ) -> ModelsResponse:
     """Fetch models for a saved user configuration (uses encrypted key server-side)."""
+    locale = get_request_locale(http_request)
 
     if not current_user.api_keys_encrypted or "llm_configs" not in current_user.api_keys_encrypted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No configurations found"
+            detail=t("errors.no_llm_configurations_found", locale),
         )
 
     config = next(
@@ -357,7 +360,7 @@ async def get_models_for_user_config(
     if not config:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Configuration not found"
+            detail=t("errors.llm_configuration_not_found", locale),
         )
 
     # Decrypt API key
@@ -381,7 +384,7 @@ async def get_models_for_user_config(
             if not base_url:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="base_url is required for custom provider"
+                    detail=t("errors.base_url_required_for_custom_provider", locale),
                 )
             config_dict = config.copy()
             config_dict["api_key"] = api_key
@@ -401,7 +404,11 @@ async def get_models_for_user_config(
         unwrapped = _unwrap_retry_error(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch models: {_mask_secrets(str(unwrapped))}"
+            detail=t(
+                "errors.fetch_models_failed",
+                locale,
+                detail=_mask_secrets(str(unwrapped)),
+            ),
         )
 
     # Deduplicate + drop empties, preserve order, then apply best-effort fallbacks
@@ -418,9 +425,11 @@ async def get_models_for_user_config(
 @router.post("/models", response_model=ModelsResponse)
 async def fetch_models_server_side(
     request: FetchModelsRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
 ) -> ModelsResponse:
     """Fetch models for a provider server-side (avoids browser CORS limits)."""
+    locale = get_request_locale(http_request)
 
     provider_type = request.provider_type
     base_url = _clean_base_url(request.base_url)
@@ -434,7 +443,7 @@ async def fetch_models_server_side(
             if not base_url:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="base_url is required for custom provider"
+                    detail=t("errors.base_url_required_for_custom_provider", locale),
                 )
 
             from infrastructure.llm.custom_api_provider import CustomAPIProvider
@@ -468,17 +477,23 @@ async def fetch_models_server_side(
         unwrapped = _unwrap_retry_error(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch models: {_mask_secrets(str(unwrapped))}"
+            detail=t(
+                "errors.fetch_models_failed",
+                locale,
+                detail=_mask_secrets(str(unwrapped)),
+            ),
         )
 
 
 @router.post("/user-configs")
 async def create_user_config(
     config: LLMProviderConfig,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
 ) -> Dict[str, Any]:
     """Create a new LLM configuration for the user."""
+    locale = get_request_locale(http_request)
 
     # Initialize api_keys_encrypted if not exists
     if not current_user.api_keys_encrypted:
@@ -528,7 +543,7 @@ async def create_user_config(
 
     return {
         "status": "success",
-        "message": "LLM configuration created successfully",
+        "message": t("messages.llm_configuration_created", locale),
         "config_id": config_dict["id"]
     }
 
@@ -537,15 +552,17 @@ async def create_user_config(
 async def update_user_config(
     config_id: str,
     config: LLMProviderConfig,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
 ) -> Dict[str, Any]:
     """Update an existing LLM configuration."""
+    locale = get_request_locale(http_request)
 
     if not current_user.api_keys_encrypted or "llm_configs" not in current_user.api_keys_encrypted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No configurations found"
+            detail=t("errors.no_llm_configurations_found", locale),
         )
 
     # Find the config
@@ -558,7 +575,7 @@ async def update_user_config(
     if config_index is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Configuration not found"
+            detail=t("errors.llm_configuration_not_found", locale),
         )
 
     # Update config
@@ -603,22 +620,24 @@ async def update_user_config(
 
     return {
         "status": "success",
-        "message": "Configuration updated successfully"
+        "message": t("messages.llm_configuration_updated", locale),
     }
 
 
 @router.delete("/user-configs/{config_id}")
 async def delete_user_config(
     config_id: str,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
 ) -> Dict[str, Any]:
     """Delete an LLM configuration."""
+    locale = get_request_locale(http_request)
 
     if not current_user.api_keys_encrypted or "llm_configs" not in current_user.api_keys_encrypted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No configurations found"
+            detail=t("errors.no_llm_configurations_found", locale),
         )
 
     # Find and remove the config
@@ -631,7 +650,7 @@ async def delete_user_config(
     if len(current_user.api_keys_encrypted["llm_configs"]) == original_length:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Configuration not found"
+            detail=t("errors.llm_configuration_not_found", locale),
         )
 
     # Mark api_keys_encrypted as modified
@@ -642,22 +661,24 @@ async def delete_user_config(
 
     return {
         "status": "success",
-        "message": "Configuration deleted successfully"
+        "message": t("messages.llm_configuration_deleted", locale),
     }
 
 
 @router.post("/test")
 async def test_llm_config(
     request: TestLLMRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
 ) -> Dict[str, Any]:
     """Test an LLM configuration with a sample message."""
+    locale = get_request_locale(http_request)
 
     if not current_user.api_keys_encrypted or "llm_configs" not in current_user.api_keys_encrypted:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No configurations found"
+            detail=t("errors.no_llm_configurations_found", locale),
         )
 
     # Find the config
@@ -670,7 +691,7 @@ async def test_llm_config(
     if not config:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Configuration not found"
+            detail=t("errors.llm_configuration_not_found", locale),
         )
 
     # Decrypt API key
@@ -681,7 +702,7 @@ async def test_llm_config(
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to decrypt API key: {str(e)}"
+                detail=t("errors.failed_to_decrypt_api_key", locale),
             )
 
     # Create provider
@@ -756,14 +777,14 @@ async def test_llm_config(
         if not model_to_use:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No model specified. Please set a default model or fetch models first."
+                detail=t("errors.no_model_specified", locale),
             )
 
         # Test the provider
         messages = [
             Message(
                 role="system",
-                content="You are a helpful AI assistant. Keep your response brief and friendly."
+                content=t("llm_test.system_prompt", locale),
             ),
             Message(
                 role="user",
@@ -795,7 +816,7 @@ async def test_llm_config(
     except asyncio.TimeoutError:
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
-            detail="Request timed out after 30 seconds"
+            detail=t("errors.request_timed_out", locale, seconds=30),
         )
     except Exception as e:
         unwrapped = _unwrap_retry_error(e)
@@ -806,15 +827,17 @@ async def test_llm_config(
             )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Test failed: {_mask_secrets(str(unwrapped))}"
+            detail=t("errors.llm_test_failed", locale, detail=_mask_secrets(str(unwrapped))),
         )
 
 
 @router.post("/quick-test")
 async def quick_test_provider(
-    request: QuickTestRequest
+    request: QuickTestRequest,
+    http_request: Request,
 ) -> Dict[str, Any]:
     """Quick test a provider without saving configuration."""
+    locale = get_request_locale(http_request)
 
     try:
         requested_model = _clean_str(request.model)
@@ -850,7 +873,7 @@ async def quick_test_provider(
             return {
                 "status": "error",
                 "connected": False,
-                "error": "No model specified. Please set a model or fetch models first.",
+                "error": t("errors.no_model_specified", locale),
                 "provider": request.provider_type
             }
 
@@ -887,7 +910,7 @@ async def quick_test_provider(
         return {
             "status": "error",
             "connected": False,
-            "error": "Connection timeout (15s)",
+            "error": t("errors.connection_timed_out", locale, seconds=15),
             "provider": request.provider_type
         }
     except Exception as e:

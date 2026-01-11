@@ -8,6 +8,7 @@ import type { CoachBrief, RoundtableMessage, MessageType } from "@/lib/types/rou
 import { ImagePreview } from "@/components/chat/ImagePreview"
 import { FileAttachment } from "@/components/chat/FileAttachment"
 import type { AttachmentType } from "@/types/chat"
+import { useI18n } from "@/lib/i18n/provider"
 
 interface CoachResponseCardProps {
   message: RoundtableMessage
@@ -22,6 +23,8 @@ export function CoachResponseCard({
   isStreaming = false,
   className,
 }: CoachResponseCardProps) {
+  const { locale } = useI18n()
+  const isZh = locale === "zh"
   const isUser = message.role === "user"
   const isModerator = message.message_type && message.message_type !== "response"
 
@@ -101,16 +104,16 @@ export function CoachResponseCard({
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex items-center gap-2">
               <span className="font-medium text-sm">
-                {coachInfo?.name || "教练"}
+                {coachInfo?.name || (isZh ? "教练" : "Coach")}
               </span>
               {coachInfo?.style && (
                 <Badge variant="outline" className="text-xs">
-                  {getStyleLabel(coachInfo.style)}
+                  {getStyleLabel(coachInfo.style, isZh)}
                 </Badge>
               )}
               {isStreaming && (
                 <Badge variant="secondary" className="text-xs animate-pulse">
-                  输入中...
+                  {isZh ? "输入中..." : "Typing..."}
                 </Badge>
               )}
             </div>
@@ -140,7 +143,9 @@ function ModeratorCard({
   className,
 }: ModeratorCardProps) {
   const messageType = message.message_type || "response"
-  const typeLabel = getModeratorTypeLabel(messageType)
+  const { locale } = useI18n()
+  const isZh = locale === "zh"
+  const typeLabel = getModeratorTypeLabel(messageType, isZh)
   const typeColor = getModeratorTypeColor(messageType)
 
   return (
@@ -164,14 +169,14 @@ function ModeratorCard({
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex items-center gap-2">
               <span className="font-medium text-sm">
-                {coach?.name || "主持人"}
+                {coach?.name || (isZh ? "主持人" : "Moderator")}
               </span>
               <Badge className={cn("text-xs", typeColor)}>
                 {typeLabel}
               </Badge>
               {isStreaming && (
                 <Badge variant="secondary" className="text-xs animate-pulse">
-                  输入中...
+                  {isZh ? "输入中..." : "Typing..."}
                 </Badge>
               )}
             </div>
@@ -186,14 +191,20 @@ function ModeratorCard({
   )
 }
 
-function getModeratorTypeLabel(type: MessageType): string {
-  const labels: Record<MessageType, string> = {
+function getModeratorTypeLabel(type: MessageType, isZh: boolean): string {
+  const zh: Record<MessageType, string> = {
     response: "回复",
     opening: "开场",
     summary: "本轮总结",
     closing: "讨论总结",
   }
-  return labels[type] || type
+  const en: Record<MessageType, string> = {
+    response: "Response",
+    opening: "Opening",
+    summary: "Round Summary",
+    closing: "Closing Summary",
+  }
+  return (isZh ? zh : en)[type] || type
 }
 
 function getModeratorTypeColor(type: MessageType): string {
@@ -217,15 +228,22 @@ function getCoachBorderColor(style?: string): string {
   return colors[style || ""] || "border-l-gray-500"
 }
 
-function getStyleLabel(style: string): string {
-  const labels: Record<string, string> = {
+function getStyleLabel(style: string, isZh: boolean): string {
+  const zh: Record<string, string> = {
     empathetic: "温和共情",
     disciplined: "严厉纪律",
     analytical: "数据分析",
     motivational: "激励鼓舞",
     socratic: "苏格拉底",
   }
-  return labels[style] || style
+  const en: Record<string, string> = {
+    empathetic: "Empathetic",
+    disciplined: "Disciplined",
+    analytical: "Analytical",
+    motivational: "Motivational",
+    socratic: "Socratic",
+  }
+  return (isZh ? zh : en)[style] || style
 }
 
 // Round indicator component
@@ -235,12 +253,14 @@ interface RoundIndicatorProps {
 }
 
 export function RoundIndicator({ round, className }: RoundIndicatorProps) {
+  const { locale } = useI18n()
+  const isZh = locale === "zh"
   return (
     <div className={cn("flex items-center justify-center py-4", className)}>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span className="h-px flex-1 bg-border min-w-[40px]" />
         <span className="px-3 py-1 bg-muted rounded-full">
-          第 {round} 轮讨论
+          {isZh ? `第 ${round} 轮讨论` : `Round ${round}`}
         </span>
         <span className="h-px flex-1 bg-border min-w-[40px]" />
       </div>

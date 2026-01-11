@@ -7,7 +7,7 @@ from uuid import UUID
 import asyncio
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from celery.result import AsyncResult
 from celery import states
 from pydantic import BaseModel, Field
@@ -17,6 +17,7 @@ from fastapi.responses import StreamingResponse
 from core.auth import get_current_user
 from core.cache_service import get_cache_service
 from core.database import get_session
+from core.i18n import get_request_locale, t
 from core.logging import get_logger
 from core.task_events import record_task_owner, task_event_channel
 from domain.knowledge.models import KnowledgeDocument
@@ -50,17 +51,19 @@ class IngestKnowledgeRequest(BaseModel):
 @router.get("/status/{task_id}")
 async def get_task_status(
     task_id: str,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
     Get the status of a background task.
     """
+    locale = get_request_locale(http_request)
     try:
         cache = get_cache_service()
         redis_client = await cache.async_client
         owner = await redis_client.get(f"task:owner:{task_id}")
         if owner and (str(owner) != str(current_user.id)) and (not current_user.is_admin):
-            raise HTTPException(status_code=403, detail="Access denied")
+            raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
 
         result = AsyncResult(task_id, app=celery_app)
 
@@ -82,9 +85,9 @@ async def get_task_status(
 
         # Add progress info for running tasks
         elif result.state == states.PENDING:
-            response["info"] = "Task is waiting to be processed"
+            response["info"] = t("messages.task_waiting", locale)
         elif result.state == states.STARTED:
-            response["info"] = "Task has started processing"
+            response["info"] = t("messages.task_started", locale)
         elif result.state != states.FAILURE:
             # Custom state with progress info
             response["info"] = result.info
@@ -93,12 +96,13 @@ async def get_task_status(
 
     except Exception as e:
         logger.error(f"Failed to get task status: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=t("errors.internal", locale))
 
 
 @router.get("/stream/{task_id}")
 async def stream_task_status(
     task_id: str,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
 ):
     """
@@ -106,13 +110,14 @@ async def stream_task_status(
 
     This uses Redis pub/sub for push, with a best-effort AsyncResult state snapshot/heartbeat.
     """
+    locale = get_request_locale(http_request)
     cache = get_cache_service()
     redis_client = await cache.async_client
 
     owner_key = f"task:owner:{task_id}"
     owner = await redis_client.get(owner_key)
     if owner and (str(owner) != str(current_user.id)) and (not current_user.is_admin):
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
 
     channel = task_event_channel(task_id)
     result = AsyncResult(task_id, app=celery_app)
@@ -193,6 +198,7 @@ async def stream_task_status(
 
 @router.post("/reports/generate-daily")
 async def trigger_daily_report(
+    http_request: Request,
     report_date: Optional[str] = None,
     project_id: Optional[UUID] = None,
     current_user: User = Depends(get_current_user),
@@ -205,10 +211,12 @@ async def trigger_daily_report(
         project_id: Optional project ID to scope the report
     """
     try:
+        locale = get_request_locale(http_request)
         task = generate_daily_report.delay(
             user_id=str(current_user.id),
             report_date=report_date,
-            project_id=str(project_id) if project_id else None
+            project_id=str(project_id) if project_id else None,
+            locale=locale,
         )
         record_task_owner(task.id, str(current_user.id))
 
@@ -217,17 +225,18 @@ async def trigger_daily_report(
         return {
             "task_id": task.id,
             "status": "queued",
-            "message": "Daily report generation has been queued",
+            "message": t("messages.daily_report_queued", locale),
             "check_status_url": f"/api/v1/tasks/status/{task.id}"
         }
 
     except Exception as e:
         logger.error(f"Failed to trigger daily report: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=t("errors.internal", get_request_locale(http_request)))
 
 
 @router.post("/reports/generate-weekly")
 async def trigger_weekly_report(
+    http_request: Request,
     week_start: Optional[str] = None,
     project_id: Optional[UUID] = None,
     current_user: User = Depends(get_current_user),
@@ -240,10 +249,12 @@ async def trigger_weekly_report(
         project_id: Optional project ID to scope the report
     """
     try:
+        locale = get_request_locale(http_request)
         task = generate_weekly_report.delay(
             user_id=str(current_user.id),
             week_start=week_start,
-            project_id=str(project_id) if project_id else None
+            project_id=str(project_id) if project_id else None,
+            locale=locale,
         )
         record_task_owner(task.id, str(current_user.id))
 
@@ -252,17 +263,18 @@ async def trigger_weekly_report(
         return {
             "task_id": task.id,
             "status": "queued",
-            "message": "Weekly report generation has been queued",
+            "message": t("messages.weekly_report_queued", locale),
             "check_status_url": f"/api/v1/tasks/status/{task.id}"
         }
 
     except Exception as e:
         logger.error(f"Failed to trigger weekly report: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=t("errors.internal", get_request_locale(http_request)))
 
 
 @router.post("/reports/generate-monthly")
 async def trigger_monthly_report(
+    http_request: Request,
     year: Optional[int] = None,
     month: Optional[int] = None,
     project_id: Optional[UUID] = None,
@@ -277,11 +289,13 @@ async def trigger_monthly_report(
         project_id: Optional project ID to scope the report
     """
     try:
+        locale = get_request_locale(http_request)
         task = generate_monthly_report.delay(
             user_id=str(current_user.id),
             year=year,
             month=month,
-            project_id=str(project_id) if project_id else None
+            project_id=str(project_id) if project_id else None,
+            locale=locale,
         )
         record_task_owner(task.id, str(current_user.id))
 
@@ -290,27 +304,29 @@ async def trigger_monthly_report(
         return {
             "task_id": task.id,
             "status": "queued",
-            "message": "Monthly report generation has been queued",
+            "message": t("messages.monthly_report_queued", locale),
             "check_status_url": f"/api/v1/tasks/status/{task.id}"
         }
 
     except Exception as e:
         logger.error(f"Failed to trigger monthly report: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=t("errors.internal", get_request_locale(http_request)))
 
 
 @router.post("/knowledge/ingest")
 async def trigger_knowledge_ingest(
     request: IngestKnowledgeRequest,
+    http_request: Request,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Create a knowledge document and ingest it asynchronously."""
+    locale = get_request_locale(http_request)
     try:
         title = request.title.strip()
         content = request.content.strip()
         if not title or not content:
-            raise HTTPException(status_code=400, detail="title and content are required")
+            raise HTTPException(status_code=400, detail=t("errors.title_and_content_required", locale))
 
         doc = KnowledgeDocument(
             user_id=current_user.id,
@@ -341,18 +357,19 @@ async def trigger_knowledge_ingest(
             "task_id": task.id,
             "document_id": str(doc.id),
             "status": "queued",
-            "message": "Knowledge ingestion has been queued",
+            "message": t("messages.knowledge_ingestion_queued", locale),
             "check_status_url": f"/api/v1/tasks/status/{task.id}"
         }
 
     except Exception as e:
         logger.error(f"Failed to trigger knowledge ingest: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=t("errors.internal", locale))
 
 
 @router.post("/knowledge/search")
 async def trigger_semantic_search(
     query: str,
+    http_request: Request,
     top_k: int = Query(5, ge=1, le=20),
     project_id: Optional[UUID] = None,
     current_user: User = Depends(get_current_user),
@@ -365,6 +382,7 @@ async def trigger_semantic_search(
         top_k: Number of results to return (1-20)
         project_id: Optional project ID to scope the search
     """
+    locale = get_request_locale(http_request)
     try:
         task = semantic_search.delay(
             query=query,
@@ -379,17 +397,18 @@ async def trigger_semantic_search(
         return {
             "task_id": task.id,
             "status": "queued",
-            "message": "Semantic search has been queued",
+            "message": t("messages.semantic_search_queued", locale),
             "check_status_url": f"/api/v1/tasks/status/{task.id}"
         }
 
     except Exception as e:
         logger.error(f"Failed to trigger semantic search: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=t("errors.internal", locale))
 
 
 @router.get("/active")
 async def get_active_tasks(
+    http_request: Request,
     limit: int = Query(10, ge=1, le=100),
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -397,6 +416,7 @@ async def get_active_tasks(
     Get list of active tasks for the current user.
     Admin users can see all tasks.
     """
+    locale = get_request_locale(http_request)
     try:
         # Get active tasks from Celery
         inspect = celery_app.control.inspect()
@@ -448,21 +468,23 @@ async def get_active_tasks(
         return {
             "tasks": [],
             "total": 0,
-            "error": str(e),
+            "error": t("errors.internal", locale),
             "timestamp": datetime.utcnow().isoformat()
         }
 
 
 @router.get("/scheduled")
 async def get_scheduled_tasks(
+    http_request: Request,
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
     Get list of scheduled periodic tasks.
     Admin only endpoint.
     """
+    locale = get_request_locale(http_request)
     if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise HTTPException(status_code=403, detail=t("errors.admin_access_required", locale))
 
     try:
         # Get scheduled tasks from Celery Beat
@@ -485,18 +507,20 @@ async def get_scheduled_tasks(
 
     except Exception as e:
         logger.error(f"Failed to get scheduled tasks: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=t("errors.internal", locale))
 
 
 @router.post("/cancel/{task_id}")
 async def cancel_task(
     task_id: str,
+    http_request: Request,
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, str]:
     """
     Cancel a running task.
     Users can only cancel their own tasks unless they are admin.
     """
+    locale = get_request_locale(http_request)
     try:
         # Get task result
         result = AsyncResult(task_id, app=celery_app)
@@ -505,7 +529,7 @@ async def cancel_task(
         if result.state in [states.SUCCESS, states.FAILURE]:
             raise HTTPException(
                 status_code=400,
-                detail=f"Task {task_id} has already completed"
+                detail=t("errors.task_already_completed", locale, task_id=task_id),
             )
 
         # TODO: Add user validation (check if task belongs to user)
@@ -519,7 +543,7 @@ async def cancel_task(
         return {
             "task_id": task_id,
             "status": "cancelled",
-            "message": "Task has been cancelled",
+            "message": t("messages.task_cancelled", locale),
             "timestamp": datetime.utcnow().isoformat()
         }
 
@@ -527,19 +551,21 @@ async def cancel_task(
         raise
     except Exception as e:
         logger.error(f"Failed to cancel task: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=t("errors.internal", locale))
 
 
 @router.get("/stats")
 async def get_task_stats(
+    http_request: Request,
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
     Get task queue statistics.
     Admin only endpoint.
     """
+    locale = get_request_locale(http_request)
     if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail="Admin access required")
+        raise HTTPException(status_code=403, detail=t("errors.admin_access_required", locale))
 
     try:
         inspect = celery_app.control.inspect()
@@ -586,6 +612,6 @@ async def get_task_stats(
                 "reserved_tasks": 0,
             },
             "workers": [],
-            "error": str(e),
+            "error": t("errors.internal", locale),
             "timestamp": datetime.utcnow().isoformat()
         }

@@ -1,12 +1,13 @@
 """API routes for Ollama model management."""
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse
 from typing import List, Dict, Any
 from pydantic import BaseModel
 import json
 
 from core.auth import get_current_user
+from core.i18n import get_request_locale, t
 from core.logging import get_logger
 from domain.user.models import User
 from infrastructure.llm.ollama_provider import OllamaProvider
@@ -41,14 +42,17 @@ class ListModelsResponse(BaseModel):
 
 
 @router.get("/health", response_model=OllamaHealthResponse)
-async def check_ollama_health():
+async def check_ollama_health(http_request: Request):
     """Check if Ollama service is running."""
     provider = OllamaProvider()
     is_healthy = await provider.check_health()
+    locale = get_request_locale(http_request)
 
     return OllamaHealthResponse(
         healthy=is_healthy,
-        message="Ollama service is running" if is_healthy else "Ollama service is not available"
+        message=t("messages.ollama_service_running", locale)
+        if is_healthy
+        else t("errors.ollama_not_available", locale),
     )
 
 
@@ -75,6 +79,7 @@ async def list_models():
 @router.post("/models/pull")
 async def pull_model(
     request: PullModelRequest,
+    http_request: Request,
     current_user: User = Depends(get_current_user)
 ):
     """Pull a model from Ollama registry."""
@@ -85,7 +90,7 @@ async def pull_model(
     if not is_healthy:
         raise HTTPException(
             status_code=503,
-            detail="Ollama service is not available"
+            detail=t("errors.ollama_not_available", get_request_locale(http_request)),
         )
 
     async def generate():
@@ -164,17 +169,19 @@ async def get_recommended_models():
 async def test_ollama_chat(
     model: str,
     message: str,
+    http_request: Request,
     current_user: User = Depends(get_current_user)
 ):
     """Test chat with a specific Ollama model."""
     provider = OllamaProvider()
+    locale = get_request_locale(http_request)
 
     # Check if service is running
     is_healthy = await provider.check_health()
     if not is_healthy:
         raise HTTPException(
             status_code=503,
-            detail="Ollama service is not available"
+            detail=t("errors.ollama_not_available", locale),
         )
 
     # Check if model is available
@@ -182,7 +189,7 @@ async def test_ollama_chat(
     if model not in models:
         raise HTTPException(
             status_code=404,
-            detail=f"Model {model} is not available. Please pull it first."
+            detail=t("errors.ollama_model_not_available", locale, model=model),
         )
 
     # Create test messages
@@ -191,7 +198,7 @@ async def test_ollama_chat(
     messages = [
         Message(
             role="system",
-            content="You are a trading psychology coach. Provide helpful and concise responses."
+            content=t("ollama.test_chat_system_prompt", locale),
         ),
         Message(
             role="user",

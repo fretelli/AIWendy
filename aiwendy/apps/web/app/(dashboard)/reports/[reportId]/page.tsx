@@ -55,11 +55,21 @@ const statusColors: Record<string, string> = {
 export default function ReportDetailPage() {
   const router = useRouter()
   const params = useParams<{ reportId: string }>()
-  const { locale } = useI18n()
+  const { t, locale } = useI18n()
   const reportId = params?.reportId
 
   const [loading, setLoading] = useState(true)
   const [report, setReport] = useState<ReportDetail | null>(null)
+  const dateFnsLocale = locale === "zh" ? zhCN : undefined
+
+  const statusLabel = (status: string): string => {
+    if (status === "pending") return t("reports.status.pending")
+    if (status === "generating") return t("reports.status.generating")
+    if (status === "completed") return t("reports.status.completed")
+    if (status === "failed") return t("reports.status.failed")
+    if (status === "sent") return t("reports.status.sent")
+    return status
+  }
 
   useEffect(() => {
     if (!reportId) return
@@ -79,7 +89,7 @@ export default function ReportDetailPage() {
         setReport(data)
       } catch (error) {
         console.error("Error fetching report:", error)
-        toast.error(locale === "zh" ? "无法加载报告详情" : "Failed to load report")
+        toast.error(t("reports.errors.loadReport"))
       } finally {
         setLoading(false)
       }
@@ -91,9 +101,9 @@ export default function ReportDetailPage() {
   const createdAt = useMemo(() => {
     if (!report?.created_at) return null
     return format(parseISO(report.created_at), "yyyy-MM-dd HH:mm", {
-      locale: locale === "zh" ? zhCN : undefined,
+      locale: dateFnsLocale,
     })
-  }, [report?.created_at, locale])
+  }, [report?.created_at, dateFnsLocale])
 
   if (loading) {
     return (
@@ -108,12 +118,12 @@ export default function ReportDetailPage() {
       <div className="container mx-auto py-8 px-4">
         <Card className="max-w-3xl mx-auto">
           <CardHeader>
-            <CardTitle>{locale === "zh" ? "报告不存在" : "Report not found"}</CardTitle>
+            <CardTitle>{t("reports.detail.notFound")}</CardTitle>
           </CardHeader>
           <CardContent>
             <Button variant="outline" onClick={() => router.push("/reports")}>
               <ArrowLeft className="w-4 h-4 mr-2" />
-              {locale === "zh" ? "返回报告列表" : "Back to reports"}
+              {t("reports.actions.backToReports")}
             </Button>
           </CardContent>
         </Card>
@@ -126,10 +136,10 @@ export default function ReportDetailPage() {
       <div className="flex items-center justify-between">
         <Button variant="outline" onClick={() => router.push("/reports")}>
           <ArrowLeft className="w-4 h-4 mr-2" />
-          {locale === "zh" ? "返回" : "Back"}
+          {t("common.back")}
         </Button>
         <Badge className={statusColors[report.status] || "bg-gray-100 text-gray-800"}>
-          {report.status}
+          {statusLabel(report.status)}
         </Badge>
       </div>
 
@@ -159,13 +169,13 @@ export default function ReportDetailPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card className="shadow-none border">
               <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground">{locale === "zh" ? "交易次数" : "Trades"}</div>
+                <div className="text-xs text-muted-foreground">{t("reports.detail.trades")}</div>
                 <div className="text-xl font-semibold">{report.total_trades}</div>
               </CardContent>
             </Card>
             <Card className="shadow-none border">
               <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground">{locale === "zh" ? "胜率" : "Win rate"}</div>
+                <div className="text-xs text-muted-foreground">{t("reports.detail.winRate")}</div>
                 <div className="text-xl font-semibold">
                   {report.win_rate != null ? `${report.win_rate}%` : "-"}
                 </div>
@@ -173,7 +183,7 @@ export default function ReportDetailPage() {
             </Card>
             <Card className="shadow-none border">
               <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground">{locale === "zh" ? "总盈亏" : "Total PnL"}</div>
+                <div className="text-xs text-muted-foreground">{t("reports.detail.totalPnl")}</div>
                 <div className={`text-xl font-semibold ${report.total_pnl >= 0 ? "text-green-600" : "text-red-600"}`}>
                   {report.total_pnl}
                 </div>
@@ -181,7 +191,7 @@ export default function ReportDetailPage() {
             </Card>
             <Card className="shadow-none border">
               <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground">{locale === "zh" ? "平均盈亏" : "Avg PnL"}</div>
+                <div className="text-xs text-muted-foreground">{t("reports.detail.avgPnl")}</div>
                 <div className="text-xl font-semibold">{report.avg_pnl != null ? report.avg_pnl : "-"}</div>
               </CardContent>
             </Card>
@@ -192,7 +202,7 @@ export default function ReportDetailPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">{locale === "zh" ? "关键洞察" : "Key insights"}</CardTitle>
+            <CardTitle className="text-base">{t("reports.detail.keyInsights")}</CardTitle>
           </CardHeader>
           <CardContent>
             {report.key_insights?.length ? (
@@ -202,14 +212,14 @@ export default function ReportDetailPage() {
                 ))}
               </ul>
             ) : (
-              <div className="text-sm text-muted-foreground">{locale === "zh" ? "暂无" : "None"}</div>
+              <div className="text-sm text-muted-foreground">{t("reports.detail.none")}</div>
             )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">{locale === "zh" ? "行动项" : "Action items"}</CardTitle>
+            <CardTitle className="text-base">{t("reports.detail.actionItems")}</CardTitle>
           </CardHeader>
           <CardContent>
             {report.action_items?.length ? (
@@ -219,7 +229,7 @@ export default function ReportDetailPage() {
                 ))}
               </ul>
             ) : (
-              <div className="text-sm text-muted-foreground">{locale === "zh" ? "暂无" : "None"}</div>
+              <div className="text-sm text-muted-foreground">{t("reports.detail.none")}</div>
             )}
           </CardContent>
         </Card>
@@ -227,7 +237,7 @@ export default function ReportDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{locale === "zh" ? "改进建议" : "Recommendations"}</CardTitle>
+          <CardTitle className="text-base">{t("reports.detail.recommendations")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {report.ai_analysis ? (
@@ -247,14 +257,14 @@ export default function ReportDetailPage() {
               ))}
             </ul>
           ) : (
-            <div className="text-sm text-muted-foreground">{locale === "zh" ? "暂无" : "None"}</div>
+            <div className="text-sm text-muted-foreground">{t("reports.detail.none")}</div>
           )}
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{locale === "zh" ? "常见错误" : "Top mistakes"}</CardTitle>
+          <CardTitle className="text-base">{t("reports.detail.topMistakes")}</CardTitle>
         </CardHeader>
         <CardContent>
           {report.top_mistakes?.length ? (
@@ -267,7 +277,7 @@ export default function ReportDetailPage() {
               ))}
             </div>
           ) : (
-            <div className="text-sm text-muted-foreground">{locale === "zh" ? "暂无" : "None"}</div>
+            <div className="text-sm text-muted-foreground">{t("reports.detail.none")}</div>
           )}
         </CardContent>
       </Card>

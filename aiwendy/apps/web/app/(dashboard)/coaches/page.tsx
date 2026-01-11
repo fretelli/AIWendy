@@ -48,10 +48,19 @@ const styleColors: Record<string, string> = {
 
 export default function CoachesPage() {
   const router = useRouter()
-  const { t, locale } = useI18n()
+  const { t } = useI18n()
   const [coaches, setCoaches] = useState<Coach[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedStyle, setSelectedStyle] = useState<string>("all")
+
+  const styleLabel = (style: string): string => {
+    if (style === "empathetic") return t("coaches.coachStyles.empathetic")
+    if (style === "disciplined") return t("coaches.coachStyles.disciplined")
+    if (style === "analytical") return t("coaches.coachStyles.analytical")
+    if (style === "motivational") return t("coaches.coachStyles.motivational")
+    if (style === "socratic") return t("coaches.coachStyles.socratic")
+    return style
+  }
 
   useEffect(() => {
     fetchCoaches()
@@ -74,7 +83,7 @@ export default function CoachesPage() {
       setCoaches(data)
     } catch (error) {
       console.error("Error fetching coaches:", error)
-      toast.error(locale === 'zh' ? "无法加载教练列表" : "Failed to load coaches")
+      toast.error(t("coaches.errors.load"))
     } finally {
       setLoading(false)
     }
@@ -93,9 +102,7 @@ export default function CoachesPage() {
         body: JSON.stringify({
           coach_id: coachId,
           project_id: projectId,
-          title: locale === 'zh'
-            ? `与${coaches.find(c => c.id === coachId)?.name}的对话`
-            : `Chat with ${coaches.find(c => c.id === coachId)?.name}`
+          title: t("coaches.sessionTitle", { name: coaches.find(c => c.id === coachId)?.name || "" })
         })
       })
 
@@ -107,7 +114,7 @@ export default function CoachesPage() {
       router.push(`/chat?session=${session.id}&coach=${coachId}`)
     } catch (error) {
       console.error("Error starting session:", error)
-      toast.error(locale === 'zh' ? "无法开始对话" : "Failed to start chat")
+      toast.error(t("coaches.errors.startChat"))
     }
   }
 
@@ -138,19 +145,17 @@ export default function CoachesPage() {
         <h1 className="text-3xl font-bold mb-2">{t('coaches.marketplace')}</h1>
         <div className="mb-3 flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => router.push("/coaches/custom")}>
-            {locale === "zh" ? "自定义教练" : "Custom Coaches"}
+            {t("coaches.customCoaches")}
           </Button>
         </div>
         <p className="text-muted-foreground">
-          {locale === 'zh'
-            ? '选择适合您交易风格的AI教练，开始个性化的心理辅导'
-            : 'Choose an AI coach that fits your trading style for personalized psychological guidance'}
+          {t("coaches.marketplaceSubtitle")}
         </p>
       </div>
 
       <Tabs value={selectedStyle} onValueChange={setSelectedStyle} className="mb-8">
         <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="all">{locale === 'zh' ? '全部教练' : 'All Coaches'}</TabsTrigger>
+          <TabsTrigger value="all">{t("coaches.tabs.all")}</TabsTrigger>
           <TabsTrigger value="empathetic">{t('coaches.coachStyles.empathetic')}</TabsTrigger>
           <TabsTrigger value="disciplined">{t('coaches.coachStyles.disciplined')}</TabsTrigger>
           <TabsTrigger value="analytical">{t('coaches.coachStyles.analytical')}</TabsTrigger>
@@ -174,23 +179,13 @@ export default function CoachesPage() {
                   </Avatar>
                   {coach.is_premium && (
                     <Badge variant="secondary" className="bg-gradient-to-r from-yellow-400 to-yellow-600 text-white">
-                      Premium
+                      {t("coaches.premium")}
                     </Badge>
                   )}
                 </div>
                 <CardTitle className="text-xl mb-2">{coach.name}</CardTitle>
                 <Badge className={styleColors[coach.style]}>
-                  {locale === 'zh'
-                    ? (coach.style === 'empathetic' ? '同理心型' :
-                       coach.style === 'disciplined' ? '纪律型' :
-                       coach.style === 'analytical' ? '分析型' :
-                       coach.style === 'motivational' ? '激励型' :
-                       coach.style === 'socratic' ? '苏格拉底式' : coach.style)
-                    : (coach.style === 'empathetic' ? 'Empathetic' :
-                       coach.style === 'disciplined' ? 'Disciplined' :
-                       coach.style === 'analytical' ? 'Analytical' :
-                       coach.style === 'motivational' ? 'Motivational' :
-                       coach.style === 'socratic' ? 'Socratic' : coach.style)}
+                  {styleLabel(coach.style)}
                 </Badge>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -243,7 +238,7 @@ export default function CoachesPage() {
         <Card className="text-center py-12">
           <CardContent>
             <p className="text-muted-foreground">
-              {locale === 'zh' ? '暂无该类型的教练' : 'No coaches of this type available'}
+              {t("coaches.noCoachesOfType")}
             </p>
           </CardContent>
         </Card>

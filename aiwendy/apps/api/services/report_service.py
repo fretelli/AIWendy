@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from datetime import datetime, date, timedelta
 
+from core.i18n import DEFAULT_LOCALE, Locale, normalize_locale, t
 from domain.report.models import Report, ReportType, ReportStatus, ReportSchedule, ReportTemplate
 from domain.journal.models import Journal
 from domain.coach.models import ChatSession
@@ -36,15 +37,44 @@ class ReportService:
             raise ValueError("Project not found")
         return project.name
 
+    def _resolve_report_locale(self, user_id: UUID, override: Optional[str] = None) -> Locale:
+        if override:
+            return normalize_locale(override)
+
+        schedule = self.db.query(ReportSchedule).filter(ReportSchedule.user_id == user_id).first()
+        if schedule and schedule.language:
+            return normalize_locale(schedule.language)
+
+        user = self.db.query(User).filter(User.id == user_id).first()
+        if user and getattr(user, "language", None):
+            return normalize_locale(getattr(user, "language"))
+
+        return DEFAULT_LOCALE
+
+    def _format_date(self, locale: Locale, value: date) -> str:
+        if locale == "zh":
+            return value.strftime("%Y年%m月%d日")
+        return value.strftime("%Y-%m-%d")
+
+    def _format_month(self, locale: Locale, year: int, month: int) -> str:
+        if locale == "zh":
+            return f"{year}年{month}月"
+        return f"{year}-{month:02d}"
+
+    def _report_type_label(self, locale: Locale, report_type: ReportType) -> str:
+        return t(f"reports.type.{report_type.value}", locale)
+
     # Report Generation
     def generate_daily_report(
         self,
         user_id: UUID,
         report_date: Optional[date] = None,
+        locale: Optional[str] = None,
         *,
         project_id: Optional[UUID] = None,
     ) -> Report:
         """Generate daily report for a user."""
+        resolved_locale = self._resolve_report_locale(user_id, locale)
         if not report_date:
             report_date = date.today() - timedelta(days=1)  # Yesterday's report
 
@@ -52,9 +82,13 @@ class ReportService:
         period_end = report_date
 
         project_name = self._get_project_name(user_id, project_id) if project_id else None
-        title = f"交易日报 - {report_date.strftime('%Y年%m月%d日')}"
+        title = t(
+            "reports.title.daily",
+            resolved_locale,
+            date=self._format_date(resolved_locale, report_date),
+        )
         if project_name:
-            title = f"{title}（{project_name}）"
+            title = t("reports.title.with_project", resolved_locale, title=title, project=project_name)
 
         return self._generate_report(
             user_id=user_id,
@@ -63,16 +97,19 @@ class ReportService:
             period_end=period_end,
             title=title,
             project_id=project_id,
+            locale=resolved_locale,
         )
 
     def generate_weekly_report(
         self,
         user_id: UUID,
         week_start: Optional[date] = None,
+        locale: Optional[str] = None,
         *,
         project_id: Optional[UUID] = None,
     ) -> Report:
         """Generate weekly report for a user."""
+        resolved_locale = self._resolve_report_locale(user_id, locale)
         if not week_start:
             # Default to last week's Monday
             today = date.today()
@@ -84,9 +121,13 @@ class ReportService:
         period_end = week_start + timedelta(days=6)
 
         project_name = self._get_project_name(user_id, project_id) if project_id else None
-        title = f"交易周报 - 第{week_start.isocalendar()[1]}周"
+        title = t(
+            "reports.title.weekly",
+            resolved_locale,
+            week=week_start.isocalendar()[1],
+        )
         if project_name:
-            title = f"{title}（{project_name}）"
+            title = t("reports.title.with_project", resolved_locale, title=title, project=project_name)
 
         return self._generate_report(
             user_id=user_id,
@@ -95,11 +136,20 @@ class ReportService:
             period_end=period_end,
             title=title,
             project_id=project_id,
+            locale=resolved_locale,
         )
 
-    def generate_monthly_report(self, user_id: UUID, year: Optional[int] = None,
-                               month: Optional[int] = None, *, project_id: Optional[UUID] = None) -> Report:
+    def generate_monthly_report(
+        self,
+        user_id: UUID,
+        year: Optional[int] = None,
+        month: Optional[int] = None,
+        locale: Optional[str] = None,
+        *,
+        project_id: Optional[UUID] = None,
+    ) -> Report:
         """Generate monthly report for a user."""
+        resolved_locale = self._resolve_report_locale(user_id, locale)
         if not year or not month:
             # Default to last month
             today = date.today()
@@ -118,9 +168,15 @@ class ReportService:
             period_end = date(year, month + 1, 1) - timedelta(days=1)
 
         project_name = self._get_project_name(user_id, project_id) if project_id else None
-        title = f"交易月报 - {year}年{month}月"
+        title = t(
+            "reports.title.monthly",
+            resolved_locale,
+            year=year,
+            month=month,
+            month_label=self._format_month(resolved_locale, year, month),
+        )
         if project_name:
-            title = f"{title}（{project_name}）"
+            title = t("reports.title.with_project", resolved_locale, title=title, project=project_name)
 
         return self._generate_report(
             user_id=user_id,
@@ -129,10 +185,11 @@ class ReportService:
             period_end=period_end,
             title=title,
             project_id=project_id,
+            locale=resolved_locale,
         )
 
     def _generate_report(self, user_id: UUID, report_type: ReportType,
-                        period_start: date, period_end: date, title: str, project_id: Optional[UUID] = None) -> Report:
+                        period_start: date, period_end: date, title: str, project_id: Optional[UUID] = None, *, locale: Locale = DEFAULT_LOCALE) -> Report:
         """Generate a report for the specified period."""
         start_time = datetime.now()
 
@@ -142,7 +199,12 @@ class ReportService:
             project_id=project_id,
             report_type=report_type,
             title=title,
-            subtitle=f"{period_start.strftime('%Y-%m-%d')} 至 {period_end.strftime('%Y-%m-%d')}",
+            subtitle=t(
+                "reports.subtitle.period",
+                locale,
+                start=self._format_date(locale, period_start),
+                end=self._format_date(locale, period_end),
+            ),
             period_start=period_start,
             period_end=period_end,
             status=ReportStatus.GENERATING
@@ -166,20 +228,20 @@ class ReportService:
             report.max_loss = stats["max_loss"]
 
             # Calculate psychological metrics
-            psych_metrics = self._calculate_psychological_metrics(journals)
+            psych_metrics = self._calculate_psychological_metrics(journals, locale)
             report.avg_mood_before = psych_metrics["avg_mood_before"]
             report.avg_mood_after = psych_metrics["avg_mood_after"]
             report.mood_improvement = psych_metrics["mood_improvement"]
 
             # Analyze trading patterns
-            patterns = self._analyze_patterns(journals)
+            patterns = self._analyze_patterns(journals, locale)
             report.top_mistakes = patterns["top_mistakes"]
             report.top_successes = patterns["top_successes"]
             report.improvements = patterns["improvements"]
 
             # Generate AI analysis and insights
             ai_insights = self._generate_ai_insights(
-                user_id, journals, stats, psych_metrics, patterns, report_type
+                user_id, journals, stats, psych_metrics, patterns, report_type, locale
             )
             report.ai_analysis = ai_insights["analysis"]
             report.ai_recommendations = ai_insights["recommendations"]
@@ -187,7 +249,7 @@ class ReportService:
             report.action_items = ai_insights["action_items"]
 
             # Get coach insights
-            coach_insights = self._get_coach_insights(user_id, period_start, period_end, project_id)
+            coach_insights = self._get_coach_insights(user_id, period_start, period_end, locale, project_id)
             report.coach_notes = coach_insights["notes"]
             report.primary_coach_id = coach_insights["primary_coach"]
 
@@ -197,6 +259,7 @@ class ReportService:
                 "psychological": psych_metrics,
                 "patterns": patterns,
                 "journals_analyzed": len(journals),
+                "locale": locale,
                 "period": {
                     "start": period_start.isoformat(),
                     "end": period_end.isoformat()
@@ -204,7 +267,7 @@ class ReportService:
             }
 
             # Generate summary
-            report.summary = self._generate_summary(report)
+            report.summary = self._generate_summary(report, locale)
 
             # Update status
             report.status = ReportStatus.COMPLETED
@@ -276,7 +339,7 @@ class ReportService:
             "max_loss": round(max_loss, 2)
         }
 
-    def _calculate_psychological_metrics(self, journals: List[Journal]) -> Dict[str, Any]:
+    def _calculate_psychological_metrics(self, journals: List[Journal], locale: Locale) -> Dict[str, Any]:
         """Calculate psychological metrics from journals."""
         if not journals:
             return {
@@ -301,11 +364,11 @@ class ReportService:
         if mood_befores:
             from collections import Counter
             labels = {
-                1: "很紧张",
-                2: "紧张",
-                3: "一般",
-                4: "平静",
-                5: "很平静",
+                1: t("reports.mood.1", locale),
+                2: t("reports.mood.2", locale),
+                3: t("reports.mood.3", locale),
+                4: t("reports.mood.4", locale),
+                5: t("reports.mood.5", locale),
             }
             emotion_counts = Counter(labels.get(v, str(v)) for v in mood_befores)
             emotional_patterns = [
@@ -320,7 +383,7 @@ class ReportService:
             "emotional_patterns": emotional_patterns
         }
 
-    def _analyze_patterns(self, journals: List[Journal]) -> Dict[str, Any]:
+    def _analyze_patterns(self, journals: List[Journal], locale: Locale) -> Dict[str, Any]:
         """Analyze trading patterns from journals."""
         top_mistakes = []
         top_successes = []
@@ -366,20 +429,27 @@ class ReportService:
             # Generate improvement suggestions based on mistakes
             if top_mistakes:
                 suggestions = {
-                    "early_exit": "提前退出：提前制定止盈/止损规则并严格执行",
-                    "late_exit": "晚止损/止盈：设置条件单或提醒，避免犹豫",
-                    "no_stop_loss": "未设止损：每笔交易必须先定义风险",
-                    "over_leverage": "杠杆过高：降低杠杆与仓位，优先保证生存",
-                    "revenge_trade": "报复性交易：亏损后强制冷静期，避免情绪决策",
-                    "fomo": "FOMO：只做符合系统条件的机会，避免追涨杀跌",
-                    "position_size": "仓位过大：用固定风险模型计算仓位",
-                    "other": "其他：记录触发场景，针对性制定规则",
+                    "early_exit": t("reports.improvement.early_exit", locale),
+                    "late_exit": t("reports.improvement.late_exit", locale),
+                    "no_stop_loss": t("reports.improvement.no_stop_loss", locale),
+                    "over_leverage": t("reports.improvement.over_leverage", locale),
+                    "revenge_trade": t("reports.improvement.revenge_trade", locale),
+                    "fomo": t("reports.improvement.fomo", locale),
+                    "position_size": t("reports.improvement.position_size", locale),
+                    "other": t("reports.improvement.other", locale),
                 }
                 improvements = []
                 for m in top_mistakes[:3]:
                     key = m.get("mistake")
-                    tip = suggestions.get(str(key), f"减少 {key} 的发生频率")
-                    improvements.append(f"{tip}（当前：{m.get('frequency')} 次）")
+                    tip = suggestions.get(str(key), t("reports.improvement.generic", locale, key=str(key)))
+                    improvements.append(
+                        t(
+                            "reports.improvement.with_frequency",
+                            locale,
+                            tip=tip,
+                            count=m.get("frequency"),
+                        )
+                    )
 
         return {
             "top_mistakes": top_mistakes,
@@ -388,12 +458,12 @@ class ReportService:
         }
 
     def _generate_ai_insights(self, user_id: UUID, journals: List[Journal],
-                             stats: Dict, psych_metrics: Dict, patterns: Dict,
-                             report_type: ReportType) -> Dict[str, Any]:
+                              stats: Dict, psych_metrics: Dict, patterns: Dict,
+                              report_type: ReportType, locale: Locale) -> Dict[str, Any]:
         """Generate AI insights for the report."""
         if not journals:
             return {
-                "analysis": "本期无交易记录。",
+                "analysis": t("reports.ai.no_trades", locale),
                 "recommendations": [],
                 "key_insights": [],
                 "action_items": []
@@ -408,34 +478,24 @@ class ReportService:
             "total_journals": len(journals)
         }
 
-        # Generate analysis using LLM
-        prompt = f"""
-        作为专业的交易心理教练，请分析以下{report_type.value}交易报告数据：
-
-        统计数据：
-        - 总交易次数：{stats['total_trades']}
-        - 胜率：{stats['win_rate']}%
-        - 总盈亏：{stats['total_pnl']}
-        - 平均盈亏：{stats['avg_pnl']}
-
-        心理指标：
-        - 交易前平均情绪：{psych_metrics['avg_mood_before']}
-        - 交易后平均情绪：{psych_metrics['avg_mood_after']}
-        - 情绪改善：{psych_metrics['mood_improvement']}
-
-        请提供：
-        1. 深度分析（200字以内）
-        2. 3个关键洞察
-        3. 3个具体的改进建议
-        4. 3个可执行的行动项
-
-        请用JSON格式返回。
-        """
+        report_type_label = self._report_type_label(locale, report_type)
+        prompt = t(
+            "reports.ai.prompt",
+            locale,
+            report_type=report_type_label,
+            total_trades=stats.get("total_trades"),
+            win_rate=stats.get("win_rate"),
+            total_pnl=stats.get("total_pnl"),
+            avg_pnl=stats.get("avg_pnl"),
+            avg_mood_before=psych_metrics.get("avg_mood_before"),
+            avg_mood_after=psych_metrics.get("avg_mood_after"),
+            mood_improvement=psych_metrics.get("mood_improvement"),
+        )
 
         try:
             user = self.db.query(User).filter(User.id == user_id).first()
             router = LLMRouter(user=user) if user else LLMRouter()
-            response = self._run_llm_chat(router, prompt)
+            response = self._run_llm_chat(router, prompt, locale)
             insights = self._parse_llm_json(response)
 
             return {
@@ -446,9 +506,9 @@ class ReportService:
             }
         except Exception as e:
             # Fallback to rule-based insights
-            return self._generate_rule_based_insights(stats, psych_metrics, patterns)
+            return self._generate_rule_based_insights(stats, psych_metrics, patterns, locale)
 
-    def _run_llm_chat(self, router: LLMRouter, prompt: str) -> str:
+    def _run_llm_chat(self, router: LLMRouter, prompt: str, locale: Locale) -> str:
         """Run an LLM chat call from sync code (best-effort)."""
         try:
             asyncio.get_running_loop()
@@ -456,7 +516,7 @@ class ReportService:
             return asyncio.run(
                 router.chat(
                     prompt,
-                    system="你是一位专业的交易心理教练，擅长总结交易表现、识别行为模式并给出改进建议。",
+                    system=t("reports.ai.system_prompt", locale),
                     model="gpt-4o-mini",
                     temperature=0.7,
                     max_tokens=1000,
@@ -484,38 +544,58 @@ class ReportService:
         raise ValueError("No JSON object found in LLM response")
 
     def _generate_rule_based_insights(self, stats: Dict, psych_metrics: Dict,
-                                     patterns: Dict) -> Dict[str, Any]:
+                                     patterns: Dict, locale: Locale) -> Dict[str, Any]:
         """Generate rule-based insights as fallback."""
-        analysis = f"本期共完成{stats['total_trades']}笔交易，胜率{stats['win_rate']}%，"
+        analysis = t(
+            "reports.fallback.analysis_header",
+            locale,
+            total_trades=stats.get("total_trades"),
+            win_rate=stats.get("win_rate"),
+        )
 
-        if stats['total_pnl'] > 0:
-            analysis += f"总体盈利{stats['total_pnl']}。"
+        if stats["total_pnl"] > 0:
+            analysis += t("reports.fallback.analysis_profit", locale, total_pnl=stats.get("total_pnl"))
         else:
-            analysis += f"总体亏损{abs(stats['total_pnl'])}。"
+            analysis += t(
+                "reports.fallback.analysis_loss",
+                locale,
+                total_loss=abs(stats.get("total_pnl") or 0),
+            )
 
         recommendations = []
-        if stats['win_rate'] < 50:
-            recommendations.append("提高选择交易机会的标准，减少低质量交易")
+        if stats["win_rate"] < 50:
+            recommendations.append(t("reports.fallback.rec.low_win_rate", locale))
 
-        if psych_metrics['mood_improvement'] and psych_metrics['mood_improvement'] < 0:
-            recommendations.append("关注交易对情绪的负面影响，考虑减小仓位或降低频率")
+        if psych_metrics.get("mood_improvement") and psych_metrics.get("mood_improvement") < 0:
+            recommendations.append(t("reports.fallback.rec.mood_negative", locale))
 
-        if patterns['top_mistakes']:
-            recommendations.append(f"重点解决最常见的错误：{patterns['top_mistakes'][0]['mistake']}")
+        if patterns.get("top_mistakes"):
+            recommendations.append(
+                t(
+                    "reports.fallback.rec.top_mistake",
+                    locale,
+                    mistake=patterns["top_mistakes"][0].get("mistake"),
+                )
+            )
 
         key_insights = []
-        if stats['win_rate'] > 60:
-            key_insights.append("交易系统表现良好，保持当前策略")
-        if stats['max_profit'] and stats['max_loss'] is not None and stats['max_loss'] < stats['max_profit'] * 0.5:
-            key_insights.append("风险控制得当，止损执行良好")
-        if psych_metrics['avg_mood_after'] and psych_metrics['avg_mood_before']:
-            if psych_metrics['avg_mood_after'] > psych_metrics['avg_mood_before']:
-                key_insights.append("交易过程对心理状态有积极影响")
+        if stats.get("win_rate") and stats.get("win_rate") > 60:
+            key_insights.append(t("reports.fallback.insight.system_good", locale))
+        if (
+            stats.get("max_profit") is not None
+            and stats.get("max_loss") is not None
+            and stats["max_profit"] != 0
+            and stats["max_loss"] < stats["max_profit"] * 0.5
+        ):
+            key_insights.append(t("reports.fallback.insight.risk_good", locale))
+        if psych_metrics.get("avg_mood_after") and psych_metrics.get("avg_mood_before"):
+            if psych_metrics["avg_mood_after"] > psych_metrics["avg_mood_before"]:
+                key_insights.append(t("reports.fallback.insight.mood_positive", locale))
 
         action_items = [
-            "回顾本期最大亏损交易，总结教训",
-            "分析最成功的交易，提炼可复制模式",
-            "制定下期交易计划和风险管理规则"
+            t("reports.fallback.action.review_max_loss", locale),
+            t("reports.fallback.action.analyze_best_trade", locale),
+            t("reports.fallback.action.plan_next_period", locale),
         ]
 
         return {
@@ -530,6 +610,7 @@ class ReportService:
         user_id: UUID,
         start_date: date,
         end_date: date,
+        locale: Locale,
         project_id: Optional[UUID] = None,
     ) -> Dict[str, Any]:
         """Get insights from coach interactions."""
@@ -565,33 +646,43 @@ class ReportService:
         # Generate notes (simplified version)
         notes = {}
         for coach_id, count in coach_sessions.items():
-            notes[coach_id] = f"共进行了{count}次对话"
+            notes[coach_id] = t("reports.coach.notes", locale, count=count)
 
         return {
             "notes": notes,
             "primary_coach": primary_coach
         }
 
-    def _generate_summary(self, report: Report) -> str:
+    def _generate_summary(self, report: Report, locale: Locale) -> str:
         """Generate a summary for the report."""
-        period_str = f"{report.period_start.strftime('%Y年%m月%d日')}至{report.period_end.strftime('%Y年%m月%d日')}"
+        period_str = t(
+            "reports.summary.period",
+            locale,
+            start=self._format_date(locale, report.period_start),
+            end=self._format_date(locale, report.period_end),
+        )
 
-        summary = f"在{period_str}期间，您共完成{report.total_trades}笔交易。"
+        summary = t(
+            "reports.summary.base",
+            locale,
+            period=period_str,
+            total_trades=report.total_trades,
+        )
 
-        if report.win_rate:
-            summary += f"胜率为{report.win_rate}%，"
+        if report.win_rate is not None and report.win_rate != 0:
+            summary += t("reports.summary.win_rate", locale, win_rate=report.win_rate)
 
-        if report.total_pnl:
+        if report.total_pnl is not None and report.total_pnl != 0:
             if report.total_pnl > 0:
-                summary += f"总体盈利{report.total_pnl:.2f}。"
+                summary += t("reports.summary.profit", locale, total_pnl=report.total_pnl)
             else:
-                summary += f"总体亏损{abs(report.total_pnl):.2f}。"
+                summary += t("reports.summary.loss", locale, total_loss=abs(report.total_pnl))
 
-        if report.mood_improvement:
+        if report.mood_improvement is not None and report.mood_improvement != 0:
             if report.mood_improvement > 0:
-                summary += "交易后情绪有所改善。"
+                summary += t("reports.summary.mood_improved", locale)
             else:
-                summary += "需要关注交易对情绪的影响。"
+                summary += t("reports.summary.mood_worsened", locale)
 
         return summary
 

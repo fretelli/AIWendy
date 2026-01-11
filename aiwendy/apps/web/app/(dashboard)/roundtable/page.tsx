@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { roundtableAPI } from "@/lib/api/roundtable"
 import { coachesAPI, type Coach } from "@/lib/api/coaches"
+import { useI18n } from "@/lib/i18n/provider"
 import type {
   CoachPreset,
   RoundtableSession,
@@ -31,6 +32,8 @@ export default function RoundtablePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { projectId } = useActiveProjectId()
+  const { locale } = useI18n()
+  const isZh = locale === "zh"
 
   const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -296,9 +299,11 @@ export default function RoundtablePage() {
       <div className="border-b bg-background px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold">圆桌讨论</h1>
+            <h1 className="text-xl font-semibold">{isZh ? "圆桌讨论" : "Roundtable"}</h1>
             <p className="text-sm text-muted-foreground">
-              多位 AI 教练共同为您分析问题，提供多角度建议
+              {isZh
+                ? "多位 AI 教练共同为您分析问题，提供多角度建议"
+                : "Multiple AI coaches analyze your question and provide perspectives."}
             </p>
           </div>
         </div>
@@ -309,19 +314,21 @@ export default function RoundtablePage() {
         {/* Sessions sidebar */}
         <aside className="hidden md:flex w-72 border-r bg-background flex-col">
           <div className="px-4 py-3 border-b">
-            <div className="text-sm font-medium">历史记录</div>
+            <div className="text-sm font-medium">{isZh ? "历史记录" : "History"}</div>
             <div className="text-xs text-muted-foreground">
-              {loading ? "加载中..." : `${sessions.length} 个讨论`}
+              {loading
+                ? (isZh ? "加载中..." : "Loading...")
+                : isZh
+                  ? `${sessions.length} 个讨论`
+                  : `${sessions.length} sessions`}
             </div>
           </div>
           <ScrollArea className="flex-1">
             <div className="p-2 space-y-1">
               {sessions.map((s) => {
-                const label =
-                  s.title ||
-                  `${s.coaches?.map((c) => c.name).join("、")} • ${new Date(
-                    s.created_at
-                  ).toLocaleDateString()}`
+                const coachNames = s.coaches?.map((c) => c.name).join(isZh ? "、" : ", ")
+                const dateLabel = new Date(s.created_at).toLocaleDateString(isZh ? "zh-CN" : "en-US")
+                const label = s.title || `${coachNames} • ${dateLabel}`
                 return (
                   <button
                     key={s.id}
@@ -333,15 +340,15 @@ export default function RoundtablePage() {
                   >
                     <div className="truncate">{label}</div>
                     <div className="text-xs text-muted-foreground truncate">
-                      {s.message_count} 条消息 •{" "}
-                      {s.is_active ? "进行中" : "已结束"}
+                      {isZh ? `${s.message_count} 条消息` : `${s.message_count} messages`} •{" "}
+                      {s.is_active ? (isZh ? "进行中" : "Active") : (isZh ? "已结束" : "Ended")}
                     </div>
                   </button>
                 )
               })}
               {sessions.length === 0 && !loading && (
                 <div className="px-3 py-2 text-sm text-muted-foreground">
-                  暂无讨论记录
+                  {isZh ? "暂无讨论记录" : "No discussions yet"}
                 </div>
               )}
             </div>
@@ -361,8 +368,8 @@ export default function RoundtablePage() {
                 onValueChange={(v) => setMode(v as SelectionMode)}
               >
                 <TabsList className="grid w-full grid-cols-2 max-w-md">
-                  <TabsTrigger value="preset">预设组合</TabsTrigger>
-                  <TabsTrigger value="custom">自定义选择</TabsTrigger>
+                  <TabsTrigger value="preset">{isZh ? "预设组合" : "Presets"}</TabsTrigger>
+                  <TabsTrigger value="custom">{isZh ? "自定义选择" : "Custom"}</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="preset" className="mt-6">
@@ -386,7 +393,7 @@ export default function RoundtablePage() {
               {selectedCoachIds.length >= 2 && (
                 <div className="mt-6 p-4 bg-muted/50 rounded-lg space-y-6">
                   <div>
-                    <div className="text-sm font-medium mb-3">讨论模式</div>
+                    <div className="text-sm font-medium mb-3">{isZh ? "讨论模式" : "Discussion mode"}</div>
                     <div className="grid grid-cols-2 gap-3">
                       <button
                         className={cn(
@@ -397,9 +404,9 @@ export default function RoundtablePage() {
                         )}
                         onClick={() => setDiscussionMode("free")}
                       >
-                        <div className="font-medium mb-1">自由讨论</div>
+                        <div className="font-medium mb-1">{isZh ? "自由讨论" : "Free discussion"}</div>
                         <div className="text-xs text-muted-foreground">
-                          教练们按顺序轮流发言，各抒己见
+                          {isZh ? "教练们按顺序轮流发言，各抒己见" : "Coaches take turns sharing their views."}
                         </div>
                       </button>
                       <button
@@ -411,9 +418,11 @@ export default function RoundtablePage() {
                         )}
                         onClick={() => setDiscussionMode("moderated")}
                       >
-                        <div className="font-medium mb-1">主持人模式</div>
+                        <div className="font-medium mb-1">{isZh ? "主持人模式" : "Moderator mode"}</div>
                         <div className="text-xs text-muted-foreground">
-                          由主持人控制节奏、总结要点、引导深入
+                          {isZh
+                            ? "由主持人控制节奏、总结要点、引导深入"
+                            : "A moderator manages pace, summarizes, and guides deeper."}
                         </div>
                       </button>
                     </div>
@@ -422,7 +431,7 @@ export default function RoundtablePage() {
                   {/* Moderator Selection (only in moderated mode) */}
                   {discussionMode === "moderated" && (
                     <div>
-                      <div className="text-sm font-medium mb-3">选择主持人</div>
+                      <div className="text-sm font-medium mb-3">{isZh ? "选择主持人" : "Choose moderator"}</div>
                       <div className="flex flex-wrap gap-2">
                         <button
                           className={cn(
@@ -433,7 +442,7 @@ export default function RoundtablePage() {
                           )}
                           onClick={() => setModeratorId("host")}
                         >
-                          专属主持人
+                          {isZh ? "专属主持人" : "Dedicated moderator"}
                         </button>
                         {coaches
                           .filter((c) => selectedCoachIds.includes(c.id))
@@ -454,8 +463,12 @@ export default function RoundtablePage() {
                       </div>
                       <div className="text-xs text-muted-foreground mt-2">
                         {moderatorId === "host"
-                          ? "专属主持人将保持中立，不参与具体建议"
-                          : "该教练将同时担任主持人和讨论者双重角色"}
+                          ? (isZh
+                            ? "专属主持人将保持中立，不参与具体建议"
+                            : "The dedicated moderator stays neutral and won’t provide specific advice.")
+                          : (isZh
+                            ? "该教练将同时担任主持人和讨论者双重角色"
+                            : "This coach will act as both moderator and participant.")}
                       </div>
                     </div>
                   )}
@@ -463,9 +476,11 @@ export default function RoundtablePage() {
                   <div className="pt-2 border-t">
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <div>
-                        <div className="text-sm font-medium">会话设置（可选）</div>
+                        <div className="text-sm font-medium">{isZh ? "会话设置（可选）" : "Session settings (optional)"}</div>
                         <div className="text-xs text-muted-foreground">
-                          创建时可选，进入会话后也可以随时修改
+                          {isZh
+                            ? "创建时可选，进入会话后也可以随时修改"
+                            : "Optional at creation; can be changed anytime in the session."}
                         </div>
                       </div>
                     </div>
@@ -478,11 +493,11 @@ export default function RoundtablePage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="off">Off</SelectItem>
-                            <SelectItem value="message">Per message</SelectItem>
-                            <SelectItem value="round">Per round</SelectItem>
-                            <SelectItem value="coach">Per coach</SelectItem>
-                            <SelectItem value="moderator">Moderator only</SelectItem>
+                            <SelectItem value="off">{isZh ? "关闭" : "Off"}</SelectItem>
+                            <SelectItem value="message">{isZh ? "按消息" : "Per message"}</SelectItem>
+                            <SelectItem value="round">{isZh ? "按轮次" : "Per round"}</SelectItem>
+                            <SelectItem value="coach">{isZh ? "按教练" : "Per coach"}</SelectItem>
+                            <SelectItem value="moderator">{isZh ? "仅主持人" : "Moderator only"}</SelectItem>
                           </SelectContent>
                         </Select>
                         <Input
@@ -521,9 +536,11 @@ export default function RoundtablePage() {
                   onClick={handleStartSession}
                   disabled={selectedCoachIds.length < 2}
                 >
-                  开始圆桌讨论
+                  {isZh ? "开始圆桌讨论" : "Start roundtable"}
                   {selectedCoachIds.length > 0 && (
-                    <span className="ml-2">({selectedCoachIds.length} 位教练)</span>
+                    <span className="ml-2">
+                      {isZh ? `(${selectedCoachIds.length} 位教练)` : `(${selectedCoachIds.length} coaches)`}
+                    </span>
                   )}
                 </Button>
               </div>

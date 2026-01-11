@@ -36,7 +36,7 @@ const NONE = '__none__';
 
 export default function JournalImportPage() {
   const { toast } = useToast();
-  const { t, locale } = useI18n();
+  const { t } = useI18n();
   const { projectId } = useActiveProjectId();
 
   const [file, setFile] = useState<File | null>(null);
@@ -51,14 +51,14 @@ export default function JournalImportPage() {
     () => [
       { key: 'symbol', label: t('journal.symbol'), required: true },
       { key: 'direction', label: t('journal.side'), required: true },
-      { key: 'trade_date', label: locale === 'zh' ? '日期/时间' : 'Date/Time', required: false },
+      { key: 'trade_date', label: t('journal.importPage.fields.dateTime'), required: false },
       { key: 'entry_price', label: t('journal.entryPrice'), required: false },
       { key: 'exit_price', label: t('journal.exitPrice'), required: false },
       { key: 'position_size', label: t('journal.quantity'), required: false },
       { key: 'pnl_amount', label: t('journal.pnl'), required: false },
       { key: 'notes', label: t('journal.notes'), required: false },
     ],
-    [locale, t]
+    [t]
   );
 
   const requiredOk = useMemo(() => {
@@ -99,7 +99,7 @@ export default function JournalImportPage() {
     if (!requiredOk) {
       toast({
         title: t('common.error'),
-        description: locale === 'zh' ? '请先完成必填字段映射（标的、方向）。' : 'Map required fields (symbol, side) first.',
+        description: t('journal.importPage.errors.requiredFields'),
         variant: 'destructive',
       });
       return;
@@ -117,10 +117,7 @@ export default function JournalImportPage() {
       setResult(res);
       toast({
         title: t('common.success'),
-        description:
-          locale === 'zh'
-            ? `导入完成：新增 ${res.created}，跳过 ${res.skipped}`
-            : `Imported: created ${res.created}, skipped ${res.skipped}`,
+        description: t('journal.importPage.toasts.imported', { created: res.created, skipped: res.skipped }),
       });
     } catch (e) {
       toast({
@@ -149,7 +146,7 @@ export default function JournalImportPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{locale === 'zh' ? '上传文件' : 'Upload file'}</CardTitle>
+          <CardTitle>{t('journal.importPage.uploadTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-2">
@@ -160,20 +157,18 @@ export default function JournalImportPage() {
               onChange={(e) => onPickFile(e.target.files?.[0] ?? null)}
             />
             <p className="text-sm text-muted-foreground">
-              {locale === 'zh'
-                ? '支持 CSV / XLSX。不同券商/平台格式可通过下方“列映射”适配。'
-                : 'CSV/XLSX supported. Use column mapping below for different broker formats.'}
+              {t('journal.importPage.uploadHelp')}
             </p>
           </div>
 
           <div className="flex items-center gap-6">
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={strict} onCheckedChange={(v) => setStrict(Boolean(v))} />
-              {locale === 'zh' ? '遇到错误立即停止（严格模式）' : 'Stop on first error (strict)'}
+              {t('journal.importPage.strictMode')}
             </label>
             <label className="flex items-center gap-2 text-sm">
               <Checkbox checked={dryRun} onCheckedChange={(v) => setDryRun(Boolean(v))} />
-              {locale === 'zh' ? '仅校验（不写入数据库）' : 'Dry-run (validate only)'}
+              {t('journal.importPage.dryRun')}
             </label>
           </div>
 
@@ -190,7 +185,7 @@ export default function JournalImportPage() {
       {preview ? (
         <Card>
           <CardHeader>
-            <CardTitle>{locale === 'zh' ? '列映射' : 'Column mapping'}</CardTitle>
+            <CardTitle>{t('journal.importPage.columnMapping')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -212,10 +207,10 @@ export default function JournalImportPage() {
                     }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder={locale === 'zh' ? '选择列' : 'Select column'} />
+                      <SelectValue placeholder={t('journal.importPage.selectColumn')} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value={NONE}>{locale === 'zh' ? '不导入' : 'Skip'}</SelectItem>
+                      <SelectItem value={NONE}>{t('journal.importPage.skipColumn')}</SelectItem>
                       {preview.columns.map((col) => (
                         <SelectItem key={col} value={col}>
                           {col}
@@ -230,21 +225,14 @@ export default function JournalImportPage() {
             <div className="flex justify-end">
               <Button onClick={onImport} disabled={isLoading || !requiredOk}>
                 <Upload className="mr-2 h-4 w-4" />
-                {dryRun ? (locale === 'zh' ? '校验' : 'Validate') : (locale === 'zh' ? '开始导入' : 'Import')}
+                {dryRun ? t('journal.importPage.validate') : t('journal.importPage.startImport')}
               </Button>
             </div>
 
             {result ? (
               <div className="rounded-md border p-3 text-sm space-y-2">
                 <div>
-                  {locale === 'zh'
-                    ? `结果：新增 ${result.created}，跳过 ${result.skipped}`
-                    : `Result: created ${result.created}, skipped ${result.skipped}`}
-                </div>
-                {!dryRun ? (
-                  <div>
-                    <Link href="/journal" className="underline">
-                      {locale === 'zh' ? '查看交易日志' : 'View journal'}
+                  {t('journal.importPage.viewJournal')}
                     </Link>
                   </div>
                 ) : null}
@@ -264,7 +252,7 @@ export default function JournalImportPage() {
       {preview?.sample_rows?.length ? (
         <Card>
           <CardHeader>
-            <CardTitle>{locale === 'zh' ? '预览（前几行）' : 'Preview (first rows)'}</CardTitle>
+            <CardTitle>{t('journal.importPage.previewTitle')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="rounded-md border overflow-auto">

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import type { CoachPreset } from "@/lib/types/roundtable"
 import { PRESET_ICONS } from "@/lib/types/roundtable"
+import { useI18n } from "@/lib/i18n/provider"
 
 interface PresetSelectorProps {
   presets: CoachPreset[]
@@ -20,6 +21,8 @@ export function PresetSelector({
   onSelect,
   className,
 }: PresetSelectorProps) {
+  const { locale } = useI18n()
+  const isZh = locale === "zh"
   return (
     <div className={cn("grid gap-4 md:grid-cols-2 lg:grid-cols-3", className)}>
       {presets.map((preset) => {
@@ -41,7 +44,7 @@ export function PresetSelector({
                 <div className="flex-1">
                   <CardTitle className="text-lg">{preset.name}</CardTitle>
                   <Badge variant="secondary" className="mt-1">
-                    {preset.coach_ids.length} 位教练
+                    {isZh ? `${preset.coach_ids.length} 位教练` : `${preset.coach_ids.length} coaches`}
                   </Badge>
                 </div>
               </div>

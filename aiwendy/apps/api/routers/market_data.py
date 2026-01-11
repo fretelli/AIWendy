@@ -3,9 +3,10 @@ Market data API endpoints for charts
 """
 from datetime import datetime
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
+from core.i18n import get_request_locale, t
 from services.market_data_service import MarketDataService
 
 router = APIRouter(prefix="/api/market-data", tags=["market-data"])
@@ -43,10 +44,11 @@ class IndicatorData(BaseModel):
 @router.get("/historical/{symbol}", response_model=List[PriceData])
 async def get_historical_data(
     symbol: str,
+    http_request: Request,
     interval: str = Query("1day", description="Time interval (1min, 5min, 15min, 30min, 1h, 1day, 1week, 1month)"),
     outputsize: int = Query(60, description="Number of data points", ge=1, le=500),
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
-    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)")
+    end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
 ):
     """
     Get historical price data for a symbol
@@ -61,6 +63,7 @@ async def get_historical_data(
     Returns:
         List of OHLCV data points
     """
+    locale = get_request_locale(http_request)
     try:
         # Parse dates if provided
         start_dt = datetime.fromisoformat(start_date) if start_date else None
@@ -76,17 +79,17 @@ async def get_historical_data(
         )
 
         if not data:
-            raise HTTPException(status_code=404, detail=f"No data found for symbol {symbol}")
+            raise HTTPException(status_code=404, detail=t("errors.market_data_not_found", locale, symbol=symbol.upper()))
 
         return data
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid date format: {e}")
+        raise HTTPException(status_code=400, detail=t("errors.invalid_date_format", locale, error=str(e)))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching historical data: {e}")
+        raise HTTPException(status_code=500, detail=t("errors.market_data_fetch_failed", locale))
 
 
 @router.get("/real-time/{symbol}", response_model=RealTimePrice)
-async def get_real_time_price(symbol: str):
+async def get_real_time_price(symbol: str, http_request: Request):
     """
     Get real-time price for a symbol
 
@@ -96,23 +99,25 @@ async def get_real_time_price(symbol: str):
     Returns:
         Current price data
     """
+    locale = get_request_locale(http_request)
     try:
         data = await market_data_service.get_real_time_price(symbol.upper())
 
         if not data:
-            raise HTTPException(status_code=404, detail=f"No data found for symbol {symbol}")
+            raise HTTPException(status_code=404, detail=t("errors.market_data_not_found", locale, symbol=symbol.upper()))
 
         return data
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching real-time price: {e}")
+        raise HTTPException(status_code=500, detail=t("errors.market_data_fetch_failed", locale))
 
 
 @router.get("/indicators/{symbol}/{indicator}", response_model=List[IndicatorData])
 async def get_technical_indicators(
     symbol: str,
     indicator: str,
+    http_request: Request,
     interval: str = Query("1day", description="Time interval"),
-    period: int = Query(20, description="Period for the indicator", ge=5, le=200)
+    period: int = Query(20, description="Period for the indicator", ge=5, le=200),
 ):
     """
     Get technical indicators for a symbol
@@ -126,12 +131,13 @@ async def get_technical_indicators(
     Returns:
         List of indicator values
     """
+    locale = get_request_locale(http_request)
     try:
         valid_indicators = ["sma", "ema", "rsi", "macd", "bbands"]
         if indicator not in valid_indicators:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid indicator. Must be one of: {', '.join(valid_indicators)}"
+                detail=t("errors.invalid_indicator", locale, valid=", ".join(valid_indicators)),
             )
 
         data = await market_data_service.get_technical_indicators(
@@ -142,17 +148,17 @@ async def get_technical_indicators(
         )
 
         if not data:
-            raise HTTPException(status_code=404, detail=f"No indicator data found for symbol {symbol}")
+            raise HTTPException(status_code=404, detail=t("errors.market_indicator_data_not_found", locale, symbol=symbol.upper()))
 
         return data
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error calculating indicators: {e}")
+        raise HTTPException(status_code=500, detail=t("errors.market_indicators_failed", locale))
 
 
 @router.get("/symbols/search")
-async def search_symbols(query: str = Query(..., description="Search query")):
+async def search_symbols(http_request: Request, query: str = Query(..., description="Search query")):
     """
     Search for symbols by name or ticker
 
@@ -162,6 +168,7 @@ async def search_symbols(query: str = Query(..., description="Search query")):
     Returns:
         List of matching symbols
     """
+    locale = get_request_locale(http_request)
     try:
         # For now, return common symbols
         # In production, integrate with a symbol search API
@@ -188,7 +195,7 @@ async def search_symbols(query: str = Query(..., description="Search query")):
 
         return results
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error searching symbols: {e}")
+        raise HTTPException(status_code=500, detail=t("errors.market_symbol_search_failed", locale))
 
 
 @router.on_event("shutdown")

@@ -67,6 +67,81 @@
     "billing": "Billing",
     "subscription": "Subscription"
   },
+  "projects": {
+    "title": "Projects",
+    "subtitle": "Group chats, knowledge base, journals, etc. by project.",
+    "currentLabel": "Current:",
+    "createTitle": "Create Project",
+    "listTitle": "Projects",
+    "empty": "No projects yet",
+    "fields": {
+      "name": "Name",
+      "description": "Description"
+    },
+    "placeholders": {
+      "name": "e.g. Futures Account A",
+      "description": "Optional"
+    },
+    "badges": {
+      "default": "Default",
+      "current": "Current",
+      "archived": "Archived"
+    },
+    "selector": {
+      "label": "Project",
+      "loading": "Loading…",
+      "placeholder": "Select a project"
+    },
+    "actions": {
+      "create": "Create",
+      "working": "Working…",
+      "setActive": "Set Active",
+      "makeDefault": "Make Default",
+      "archive": "Archive",
+      "unarchive": "Unarchive",
+      "delete": "Delete"
+    },
+    "confirmDelete": "Delete project \"{name}\"?",
+    "errors": {
+      "load": "Failed to load projects",
+      "create": "Failed to create project",
+      "setDefault": "Failed to set default",
+      "update": "Failed to update project",
+      "delete": "Failed to delete project"
+    }
+  },
+  "knowledge": {
+    "title": "Knowledge Base",
+    "subtitle": "Store your rules/strategies/notes. Chat can retrieve and inject context per project.",
+    "currentProjectLabel": "Project:",
+    "addDocumentTitle": "Add Document",
+    "searchTitle": "Search",
+    "documentsTitle": "Documents",
+    "fields": {
+      "title": "Title",
+      "content": "Content"
+    },
+    "placeholders": {
+      "query": "Ask something…"
+    },
+    "actions": {
+      "import": "Import",
+      "working": "Working…",
+      "search": "Search",
+      "delete": "Delete"
+    },
+    "chunks": "{count} chunks",
+    "emptyDocuments": "No documents",
+    "confirmDelete": "Delete \"{title}\"?",
+    "errors": {
+      "load": "Failed to load knowledge base",
+      "queueTask": "Failed to queue task",
+      "missingTaskId": "Missing task_id",
+      "createDocument": "Failed to create document",
+      "deleteDocument": "Failed to delete document",
+      "search": "Search failed"
+    }
+  },
   "auth": {
     "welcomeBack": "Welcome Back",
     "loginTitle": "Log in to your account",
@@ -117,12 +192,31 @@
     "emotionalState": "Emotional State",
     "riskScore": "Risk Score",
     "suggestions": "Suggestions",
+    "suggestionsIntro": "Based on your recent trading performance, the AI coach suggests:",
     "todaysPnL": "Today's P&L",
     "weekPnL": "Week P&L",
     "monthPnL": "Month P&L",
     "yearPnL": "Year P&L",
     "noDataYet": "No trading data yet",
-    "startJournal": "Start Your Trading Journal"
+    "startJournal": "Start Your Trading Journal",
+    "lastUpdated": "Last updated: {date}",
+    "sampleUserName": "John",
+    "percentage": "Percentage",
+    "recoveryTime": "Recovery Time",
+    "recoveryDays": "{days} days",
+    "errors": {
+      "loadStats": "Failed to load stats"
+    },
+    "emotions": {
+      "calm": "Calm",
+      "neutral": "Neutral",
+      "stressed": "Stressed"
+    },
+    "suggestionsItems": {
+      "keepStrategy": "Continue with your current risk management strategy",
+      "trailingStops": "Consider using trailing stops on winning trades",
+      "reviewJournal": "Review your journal to identify successful patterns"
+    }
   },
   "journal": {
     "title": "Trading Journal",
@@ -170,7 +264,56 @@
     "import": "Import Trades",
     "statistics": "Statistics",
     "noEntries": "No journal entries yet",
-    "addFirstEntry": "Add your first trade entry"
+    "addFirstEntry": "Add your first trade entry",
+    "columns": {
+      "date": "Date",
+      "direction": "Direction",
+      "result": "Result",
+      "rules": "Rules",
+      "confidence": "Confidence"
+    },
+    "results": {
+      "win": "Win",
+      "loss": "Loss",
+      "breakeven": "Breakeven",
+      "open": "Open"
+    },
+    "rulesStatus": {
+      "followed": "Followed",
+      "violated": "Violated"
+    },
+    "errors": {
+      "load": "Failed to load journal entries",
+      "delete": "Failed to delete journal entry"
+    },
+    "confirmDelete": {
+      "title": "Are you sure?",
+      "description": "This action cannot be undone. This will permanently delete your journal entry."
+    },
+    "pagination": "Page {current} of {total}",
+    "importPage": {
+      "fields": {
+        "dateTime": "Date/Time"
+      },
+      "errors": {
+        "requiredFields": "Map required fields (symbol, side) first."
+      },
+      "toasts": {
+        "imported": "Imported: created {created}, skipped {skipped}"
+      },
+      "uploadTitle": "Upload file",
+      "uploadHelp": "CSV/XLSX supported. Use column mapping below for different broker formats.",
+      "strictMode": "Stop on first error (strict)",
+      "dryRun": "Dry-run (validate only)",
+      "columnMapping": "Column mapping",
+      "selectColumn": "Select column",
+      "skipColumn": "Skip",
+      "validate": "Validate",
+      "startImport": "Import",
+      "resultSummary": "Result: created {created}, skipped {skipped}",
+      "viewJournal": "View journal",
+      "previewTitle": "Preview (first rows)"
+    }
   },
   "coaches": {
     "title": "AI Coaches",
@@ -180,6 +323,17 @@
     "customCoach": "Custom Coach",
     "createCustom": "Create Custom Coach",
     "marketplace": "Coach Marketplace",
+    "marketplaceSubtitle": "Choose an AI coach that fits your trading style for personalized psychological guidance",
+    "customCoaches": "Custom Coaches",
+    "tabs": {
+      "all": "All coaches"
+    },
+    "errors": {
+      "load": "Failed to load coaches",
+      "startChat": "Failed to start chat"
+    },
+    "sessionTitle": "Chat with {name}",
+    "noCoachesOfType": "No coaches of this type available",
     "yourCoaches": "Your Coaches",
     "myCoaches": "My Coaches",
     "teamCoaches": "Team Coaches",
@@ -251,6 +405,50 @@
       "sophia": "Analytical coach using data-driven insights and statistical analysis",
       "alex": "Motivational coach providing energy and confidence building",
       "socrates": "Philosophical coach using Socratic method for self-discovery"
+    },
+    "custom": {
+      "title": "Custom Coaches",
+      "subtitle": "Self-hosted friendly: create your own coaches and use them in chat.",
+      "createTitle": "Create Custom Coach",
+      "listTitle": "My Custom Coaches",
+      "loading": "Loading…",
+      "empty": "No custom coaches yet",
+      "editTitle": "Edit Custom Coach",
+      "editHelp": "Changes to style and system prompt will affect subsequent chats.",
+      "fields": {
+        "name": "Name",
+        "style": "Style",
+        "descriptionOptional": "Description (optional)",
+        "systemPrompt": "System Prompt"
+      },
+      "placeholders": {
+        "name": "e.g. Calm Discipline Coach",
+        "style": "Select a style",
+        "description": "One-line description",
+        "systemPrompt": "Describe persona, rules, output format..."
+      },
+      "actions": {
+        "create": "Create",
+        "creating": "Creating…",
+        "chat": "Chat",
+        "edit": "Edit",
+        "delete": "Delete",
+        "resetDefault": "Reset",
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving…"
+      },
+      "toasts": {
+        "loadFailed": "Failed to load custom coaches",
+        "createSuccess": "Custom coach created",
+        "createFailed": "Failed to create",
+        "startChatFailed": "Failed to start chat",
+        "deleted": "Deleted",
+        "deleteFailed": "Failed to delete",
+        "saved": "Saved",
+        "saveFailed": "Failed to save"
+      },
+      "chatSessionTitle": "Chat - {datetime}"
     }
   },
   "chat": {
@@ -335,7 +533,82 @@
     "viewReport": "View Report",
     "previousReports": "Previous Reports",
     "noReports": "No reports generated yet",
-    "generateFirst": "Generate your first report"
+    "generateFirst": "Generate your first report",
+    "type": {
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly"
+    },
+    "status": {
+      "pending": "Pending",
+      "generating": "Generating",
+      "completed": "Completed",
+      "failed": "Failed",
+      "sent": "Sent"
+    },
+    "weekdays": {
+      "mon": "Mon",
+      "tue": "Tue",
+      "wed": "Wed",
+      "thu": "Thu",
+      "fri": "Fri",
+      "sat": "Sat",
+      "sun": "Sun"
+    },
+    "actions": {
+      "generate": "Generate",
+      "generating": "Generating",
+      "backToReports": "Back to reports"
+    },
+    "errors": {
+      "loadReports": "Failed to load reports",
+      "loadSchedule": "Failed to load schedule",
+      "loadReport": "Failed to load report",
+      "saveSchedule": "Failed to save schedule",
+      "queueReportTask": "Failed to queue report task",
+      "missingTaskId": "Missing task_id"
+    },
+    "toasts": {
+      "queuedGenerating": "Queued, generating…",
+      "generateSuccess": "{type} generated",
+      "generateFailed": "Failed to generate {type}: {message}",
+      "saved": "Saved"
+    },
+    "list": {
+      "subtitle": "View and generate your trading analysis reports",
+      "scheduleSettings": "Schedule Settings",
+      "latestReport": "Latest report",
+      "noDaily": "No daily reports yet",
+      "noWeekly": "No weekly reports yet",
+      "noMonthly": "No monthly reports yet",
+      "weekOfYear": "Week {week}",
+      "tradesCount": "{count} trades",
+      "emptyAll": "No reports yet",
+      "emptyType": "No {type} reports yet"
+    },
+    "schedulePage": {
+      "title": "Report schedule",
+      "unavailable": "Schedule unavailable",
+      "dailyDescription": "Generate daily report at a fixed time",
+      "weeklyDescription": "Generate weekly report",
+      "monthlyDescription": "Generate monthly report",
+      "day": "Day",
+      "time": "Time",
+      "dayOfMonth": "Day of month",
+      "saving": "Saving…"
+    },
+    "detail": {
+      "notFound": "Report not found",
+      "trades": "Trades",
+      "winRate": "Win rate",
+      "totalPnl": "Total PnL",
+      "avgPnl": "Avg PnL",
+      "keyInsights": "Key insights",
+      "actionItems": "Action items",
+      "recommendations": "Recommendations",
+      "topMistakes": "Top mistakes",
+      "none": "None"
+    }
   },
   "settings": {
     "title": "Settings",
@@ -377,7 +650,54 @@
     "webhooks": "Webhooks",
     "connectedAccounts": "Connected Accounts",
     "brokers": "Broker Connections",
-    "dataFeeds": "Data Feeds"
+    "dataFeeds": "Data Feeds",
+    "page": {
+      "subtitle": "Manage your account settings and preferences",
+      "tabs": {
+        "apiKeys": "API Keys",
+        "profile": "Profile",
+        "preferences": "Preferences",
+        "llm": "LLM Configuration"
+      },
+      "apiKeys": {
+        "title": "API Keys Configuration",
+        "description": "Configure your own API keys to use AI features. Your keys are encrypted and stored securely.",
+        "byokTitle": "Bring Your Own Keys (BYOK):",
+        "byokDescription": "You can use your own OpenAI or Anthropic API keys for AI features. Your keys are encrypted before storage and never shared.",
+        "openai": "OpenAI API Key",
+        "anthropic": "Anthropic API Key",
+        "openaiDashboard": "OpenAI Dashboard",
+        "anthropicConsole": "Anthropic Console",
+        "getOpenai": "Get your API key from",
+        "getAnthropic": "Get your API key from",
+        "show": "Show",
+        "hide": "Hide",
+        "remove": "Remove",
+        "save": "Save API Keys",
+        "statusTitle": "API Key Status",
+        "statusDescription": "Current status of your configured API keys",
+        "configured": "Configured",
+        "notConfigured": "Not configured"
+      },
+      "profile": {
+        "title": "Profile Settings",
+        "description": "Manage your profile information",
+        "subscription": "Subscription",
+        "comingSoon": "Profile editing coming soon..."
+      },
+      "preferences": {
+        "title": "Preferences",
+        "description": "Manage your application preferences",
+        "comingSoon": "Preferences management coming soon..."
+      },
+      "toasts": {
+        "loadError": "Failed to load API keys. Please try again.",
+        "updateSuccess": "API keys updated successfully",
+        "updateError": "Failed to update API keys. Please try again.",
+        "deleteSuccess": "{provider} API key deleted successfully",
+        "deleteError": "Failed to delete {provider} API key. Please try again."
+      }
+    }
   },
   "subscription": {
     "title": "Subscription",

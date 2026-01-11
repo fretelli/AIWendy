@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Icons } from "@/components/icons"
 
 export default function ProjectsPage() {
-  const { locale } = useI18n()
+  const { t } = useI18n()
   const { user, isLoading } = useAuth()
   const router = useRouter()
   const { projectId, setProjectId } = useActiveProjectId()
@@ -45,7 +45,7 @@ export default function ProjectsPage() {
       const list = await projectsAPI.listProjects(false)
       setProjects(list)
     } catch (e: any) {
-      setError(e?.message || (locale === "zh" ? "加载项目失败" : "Failed to load projects"))
+      setError(e?.message || t("projects.errors.load"))
     } finally {
       setLoading(false)
     }
@@ -82,7 +82,7 @@ export default function ProjectsPage() {
       await loadProjects()
       setProjectId(created.id)
     } catch (e: any) {
-      setError(e?.message || (locale === "zh" ? "创建项目失败" : "Failed to create project"))
+      setError(e?.message || t("projects.errors.create"))
     } finally {
       setLoading(false)
     }
@@ -96,7 +96,7 @@ export default function ProjectsPage() {
       await loadProjects()
       setProjectId(p.id)
     } catch (e: any) {
-      setError(e?.message || (locale === "zh" ? "设置默认项目失败" : "Failed to set default"))
+      setError(e?.message || t("projects.errors.setDefault"))
     } finally {
       setLoading(false)
     }
@@ -110,14 +110,14 @@ export default function ProjectsPage() {
       await loadProjects()
       if (isArchived && projectId === p.id) setProjectId(null)
     } catch (e: any) {
-      setError(e?.message || (locale === "zh" ? "更新项目失败" : "Failed to update project"))
+      setError(e?.message || t("projects.errors.update"))
     } finally {
       setLoading(false)
     }
   }
 
   const remove = async (p: Project) => {
-    if (!confirm(locale === "zh" ? `确定删除项目「${p.name}」吗？` : `Delete project "${p.name}"?`)) return
+    if (!confirm(t("projects.confirmDelete", { name: p.name }))) return
     setLoading(true)
     setError(null)
     try {
@@ -125,7 +125,7 @@ export default function ProjectsPage() {
       await loadProjects()
       if (projectId === p.id) setProjectId(null)
     } catch (e: any) {
-      setError(e?.message || (locale === "zh" ? "删除项目失败" : "Failed to delete project"))
+      setError(e?.message || t("projects.errors.delete"))
     } finally {
       setLoading(false)
     }
@@ -134,15 +134,13 @@ export default function ProjectsPage() {
   return (
     <div className="container mx-auto py-8 px-4 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">{locale === "zh" ? "项目" : "Projects"}</h1>
+        <h1 className="text-2xl font-semibold">{t("projects.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          {locale === "zh"
-            ? "用项目对聊天、知识库、日志等数据进行分组。"
-            : "Group chats, knowledge base, journals, etc. by project."}
+          {t("projects.subtitle")}
         </p>
         {active && (
           <div className="mt-2 text-sm">
-            <span className="text-muted-foreground">{locale === "zh" ? "当前：" : "Current: "}</span>
+            <span className="text-muted-foreground">{t("projects.currentLabel")} </span>
             <span className="font-medium">{active.name}</span>
           </div>
         )}
@@ -150,21 +148,21 @@ export default function ProjectsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{locale === "zh" ? "新建项目" : "Create Project"}</CardTitle>
+          <CardTitle>{t("projects.createTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <div className="text-sm font-medium">{locale === "zh" ? "名称" : "Name"}</div>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={locale === "zh" ? "例如：期货账户A" : "e.g. Futures Account A"} />
+              <div className="text-sm font-medium">{t("projects.fields.name")}</div>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("projects.placeholders.name")} />
             </div>
             <div className="space-y-2">
-              <div className="text-sm font-medium">{locale === "zh" ? "描述" : "Description"}</div>
-              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={locale === "zh" ? "可选" : "Optional"} rows={2} />
+              <div className="text-sm font-medium">{t("projects.fields.description")}</div>
+              <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("projects.placeholders.description")} rows={2} />
             </div>
           </div>
           <Button onClick={handleCreate} disabled={loading || !name.trim()}>
-            {loading ? (locale === "zh" ? "处理中…" : "Working…") : (locale === "zh" ? "创建" : "Create")}
+            {loading ? t("projects.actions.working") : t("projects.actions.create")}
           </Button>
           {error && <div className="text-sm text-destructive">{error}</div>}
         </CardContent>
@@ -172,12 +170,12 @@ export default function ProjectsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{locale === "zh" ? "项目列表" : "Projects"}</CardTitle>
+          <CardTitle>{t("projects.listTitle")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           {projects.length === 0 && (
             <div className="text-sm text-muted-foreground">
-              {locale === "zh" ? "暂无项目" : "No projects yet"}
+              {t("projects.empty")}
             </div>
           )}
 
@@ -189,9 +187,9 @@ export default function ProjectsPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <div className="font-medium truncate">{p.name}</div>
-                  {p.is_default && <Badge variant="secondary">{locale === "zh" ? "默认" : "Default"}</Badge>}
-                  {projectId === p.id && <Badge>{locale === "zh" ? "当前" : "Current"}</Badge>}
-                  {p.is_archived && <Badge variant="outline">{locale === "zh" ? "已归档" : "Archived"}</Badge>}
+                  {p.is_default && <Badge variant="secondary">{t("projects.badges.default")}</Badge>}
+                  {projectId === p.id && <Badge>{t("projects.badges.current")}</Badge>}
+                  {p.is_archived && <Badge variant="outline">{t("projects.badges.archived")}</Badge>}
                 </div>
                 {p.description && (
                   <div className="text-sm text-muted-foreground truncate">{p.description}</div>
@@ -204,7 +202,7 @@ export default function ProjectsPage() {
                   onClick={() => setProjectId(p.id)}
                   disabled={projectId === p.id || p.is_archived}
                 >
-                  {locale === "zh" ? "设为当前" : "Set Active"}
+                  {t("projects.actions.setActive")}
                 </Button>
                 <Button
                   size="sm"
@@ -212,7 +210,7 @@ export default function ProjectsPage() {
                   onClick={() => setDefault(p)}
                   disabled={loading || p.is_default || p.is_archived}
                 >
-                  {locale === "zh" ? "设为默认" : "Make Default"}
+                  {t("projects.actions.makeDefault")}
                 </Button>
                 <Button
                   size="sm"
@@ -220,10 +218,10 @@ export default function ProjectsPage() {
                   onClick={() => archive(p, !p.is_archived)}
                   disabled={loading}
                 >
-                  {p.is_archived ? (locale === "zh" ? "取消归档" : "Unarchive") : (locale === "zh" ? "归档" : "Archive")}
+                  {p.is_archived ? t("projects.actions.unarchive") : t("projects.actions.archive")}
                 </Button>
                 <Button size="sm" variant="destructive" onClick={() => remove(p)} disabled={loading}>
-                  {locale === "zh" ? "删除" : "Delete"}
+                  {t("projects.actions.delete")}
                 </Button>
               </div>
             </div>

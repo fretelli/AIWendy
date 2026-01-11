@@ -15,6 +15,7 @@ from config import get_settings
 from core.database import init_database
 from core.db_bootstrap import maybe_auto_init_db
 from core.exceptions import AppException
+from core.i18n import get_request_locale, t
 from core.logging import setup_logging
 from core.middleware import AuthMiddleware, LoggingMiddleware, RateLimitMiddleware
 from routers import (
@@ -105,6 +106,8 @@ if settings.rate_limit_enabled:
 @app.exception_handler(AppException)
 async def app_exception_handler(request: Request, exc: AppException):
     """Handle application exceptions."""
+    locale = get_request_locale(request)
+
     logger.warning(
         "business_error",
         code=exc.code,
@@ -112,12 +115,21 @@ async def app_exception_handler(request: Request, exc: AppException):
         details=exc.details,
     )
 
+    message = exc.message
+    if exc.message_key:
+        params: dict = {}
+        if exc.details:
+            params.update(exc.details)
+        if exc.message_params:
+            params.update(exc.message_params)
+        message = t(exc.message_key, locale, **params)
+
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "error": {
                 "code": exc.code,
-                "message": exc.message,
+                "message": message,
                 "details": exc.details,
             }
         },
@@ -127,13 +139,15 @@ async def app_exception_handler(request: Request, exc: AppException):
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     """Handle unexpected exceptions."""
+    locale = get_request_locale(request)
+
     logger.error("unhandled_error", error=str(exc), exc_info=True)
 
     # Don't expose internal errors in production
     if settings.debug:
         error_message = str(exc)
     else:
-        error_message = "An internal error occurred"
+        error_message = t("errors.internal", locale)
 
     return JSONResponse(
         status_code=500,

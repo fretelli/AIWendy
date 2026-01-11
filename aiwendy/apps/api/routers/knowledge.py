@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,7 @@ from core.auth import get_current_user
 from core.cache_keys import knowledge_search_key
 from core.cache_service import get_cache_service
 from core.database import get_session
+from core.i18n import get_request_locale, t
 from core.logging import get_logger
 from domain.knowledge.chunking import chunk_text
 from domain.knowledge.models import KnowledgeChunk, KnowledgeDocument
@@ -79,17 +80,19 @@ async def list_documents(
 @router.post("/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 async def create_document(
     request: CreateDocumentRequest,
+    http_request: Request,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
+    locale = get_request_locale(http_request)
     title = request.title.strip()
     content = request.content.strip()
     if not title or not content:
-        raise HTTPException(status_code=400, detail="title and content are required")
+        raise HTTPException(status_code=400, detail=t("errors.title_and_content_required", locale))
 
     chunks = chunk_text(content)
     if not chunks:
-        raise HTTPException(status_code=400, detail="content is empty after cleaning")
+        raise HTTPException(status_code=400, detail=t("errors.content_empty_after_cleaning", locale))
 
     llm_router = get_llm_router(user=current_user)
     preferred_provider = (request.embedding_provider or "").strip().lower() or None
@@ -115,7 +118,7 @@ async def create_document(
                         break
 
     if provider is None or provider_name is None:
-        raise HTTPException(status_code=400, detail="No embedding provider available (configure OpenAI, Ollama, or a custom API with embedding support)")
+        raise HTTPException(status_code=400, detail=t("errors.no_embedding_provider", locale))
 
     # Create document
     doc = KnowledgeDocument(
@@ -137,7 +140,7 @@ async def create_document(
     for chunk in chunks:
         emb = await provider.embed(chunk, model=embedding_model)
         if not emb:
-            raise HTTPException(status_code=500, detail="Failed to generate embeddings")
+            raise HTTPException(status_code=500, detail=t("errors.failed_generate_embeddings", locale))
         embeddings.append(emb)
 
     # Persist chunks
@@ -168,10 +171,12 @@ async def create_document(
 @router.delete("/documents/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: UUID,
+    http_request: Request,
     hard_delete: bool = Query(False),
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
+    locale = get_request_locale(http_request)
     result = await session.execute(
         select(KnowledgeDocument).where(
             KnowledgeDocument.id == document_id,
@@ -180,7 +185,7 @@ async def delete_document(
     )
     doc = result.scalar_one_or_none()
     if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise HTTPException(status_code=404, detail=t("errors.document_not_found", locale))
 
     if hard_delete:
         await session.delete(doc)
@@ -194,6 +199,7 @@ async def delete_document(
 
 @router.get("/search", response_model=List[SearchResult])
 async def search_knowledge(
+    http_request: Request,
     q: str = Query(..., min_length=1),
     project_id: Optional[UUID] = Query(None),
     limit: int = Query(5, ge=1, le=20),
@@ -201,9 +207,10 @@ async def search_knowledge(
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
+    locale = get_request_locale(http_request)
     query_text = q.strip()
     if not query_text:
-        raise HTTPException(status_code=400, detail="q is required")
+        raise HTTPException(status_code=400, detail=t("errors.query_required", locale))
 
     cache = get_cache_service()
     cache_key = knowledge_search_key(
@@ -229,7 +236,7 @@ async def search_knowledge(
                 provider_order.append(name)
 
     if not provider_order:
-        raise HTTPException(status_code=400, detail="No embedding provider available (configure OpenAI, Ollama, or a custom API with embedding support)")
+        raise HTTPException(status_code=400, detail=t("errors.no_embedding_provider", locale))
 
     best_results: List[SearchResult] = []
 

@@ -41,7 +41,7 @@ import { useToast } from "@/hooks/use-toast"
 import { useActiveProjectId } from "@/lib/active-project"
 
 export default function JournalPage() {
-  const { t, locale } = useI18n()
+  const { t } = useI18n()
   const { toast } = useToast()
   const { projectId, ready } = useActiveProjectId()
   const [journals, setJournals] = useState<JournalResponse[]>([])
@@ -73,7 +73,7 @@ export default function JournalPage() {
     } catch (error) {
       toast({
         title: t('common.error'),
-        description: locale === 'zh' ? '加载日志失败' : 'Failed to load journal entries',
+        description: t('journal.errors.load'),
         variant: "destructive"
       })
     } finally {
@@ -99,7 +99,7 @@ export default function JournalPage() {
     } catch (error) {
       toast({
         title: t('common.error'),
-        description: locale === 'zh' ? '删除日志失败' : 'Failed to delete journal entry',
+        description: t('journal.errors.delete'),
         variant: "destructive"
       })
     } finally {
@@ -120,6 +120,20 @@ export default function JournalPage() {
     }
   }
 
+  const resultLabel = (result: TradeResult) => {
+    if (result === TradeResult.WIN) return t('journal.results.win')
+    if (result === TradeResult.LOSS) return t('journal.results.loss')
+    if (result === TradeResult.BREAKEVEN) return t('journal.results.breakeven')
+    if (result === TradeResult.OPEN) return t('journal.results.open')
+    return result
+  }
+
+  const directionLabel = (direction: TradeDirection) => {
+    if (direction === TradeDirection.LONG) return t('journal.long')
+    if (direction === TradeDirection.SHORT) return t('journal.short')
+    return direction
+  }
+
   const getResultBadge = (result: TradeResult) => {
     const variants: Record<TradeResult, "default" | "secondary" | "destructive" | "outline"> = {
       [TradeResult.WIN]: "default",
@@ -130,7 +144,7 @@ export default function JournalPage() {
 
     return (
       <Badge variant={variants[result]}>
-        {result.toUpperCase()}
+        {resultLabel(result)}
       </Badge>
     )
   }
@@ -180,8 +194,8 @@ export default function JournalPage() {
                 <SelectItem value="all">{t('common.all')}</SelectItem>
                 <SelectItem value="win">{t('journal.profitOnly')}</SelectItem>
                 <SelectItem value="loss">{t('journal.lossOnly')}</SelectItem>
-                <SelectItem value="breakeven">Breakeven</SelectItem>
-                <SelectItem value="open">Open</SelectItem>
+                <SelectItem value="breakeven">{resultLabel(TradeResult.BREAKEVEN)}</SelectItem>
+                <SelectItem value="open">{resultLabel(TradeResult.OPEN)}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -205,17 +219,17 @@ export default function JournalPage() {
             <>
               <Table>
                 <TableCaption>
-                  Page {currentPage} of {totalPages}
+                  {t('journal.pagination', { current: currentPage, total: totalPages })}
                 </TableCaption>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>{locale === 'zh' ? '日期' : 'Date'}</TableHead>
+                    <TableHead>{t('journal.columns.date')}</TableHead>
                     <TableHead>{t('journal.symbol')}</TableHead>
-                    <TableHead>{locale === 'zh' ? '方向' : 'Direction'}</TableHead>
-                    <TableHead>{locale === 'zh' ? '结果' : 'Result'}</TableHead>
+                    <TableHead>{t('journal.columns.direction')}</TableHead>
+                    <TableHead>{t('journal.columns.result')}</TableHead>
                     <TableHead className="text-right">{t('journal.pnl')}</TableHead>
-                    <TableHead>{locale === 'zh' ? '规则' : 'Rules'}</TableHead>
-                    <TableHead>{locale === 'zh' ? '信心' : 'Confidence'}</TableHead>
+                    <TableHead>{t('journal.columns.rules')}</TableHead>
+                    <TableHead>{t('journal.columns.confidence')}</TableHead>
                     <TableHead className="text-right">{t('common.actions')}</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -231,7 +245,7 @@ export default function JournalPage() {
                       <TableCell className="font-medium">{journal.symbol}</TableCell>
                       <TableCell>
                         <Badge variant={journal.direction === TradeDirection.LONG ? "default" : "secondary"}>
-                          {journal.direction.toUpperCase()}
+                          {directionLabel(journal.direction)}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -247,9 +261,9 @@ export default function JournalPage() {
                       </TableCell>
                       <TableCell>
                         {journal.followed_rules ? (
-                          <Badge variant="outline" className="text-green-600">Followed</Badge>
+                          <Badge variant="outline" className="text-green-600">{t('journal.rulesStatus.followed')}</Badge>
                         ) : (
-                          <Badge variant="destructive">Violated</Badge>
+                          <Badge variant="destructive">{t('journal.rulesStatus.violated')}</Badge>
                         )}
                       </TableCell>
                       <TableCell>
@@ -290,17 +304,17 @@ export default function JournalPage() {
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
                 >
-                  Previous
+                  {t('common.previous')}
                 </Button>
                 <span className="flex items-center px-3 text-sm text-muted-foreground">
-                  Page {currentPage} of {totalPages}
+                  {t('journal.pagination', { current: currentPage, total: totalPages })}
                 </span>
                 <Button
                   variant="outline"
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
                 >
-                  Next
+                  {t('common.next')}
                 </Button>
               </div>
             </>
@@ -311,11 +325,9 @@ export default function JournalPage() {
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{locale === 'zh' ? '确定删除？' : 'Are you sure?'}</AlertDialogTitle>
+            <AlertDialogTitle>{t('journal.confirmDelete.title')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {locale === 'zh'
-                ? '此操作无法撤销。这将永久删除您的日志记录。'
-                : 'This action cannot be undone. This will permanently delete your journal entry.'}
+              {t('journal.confirmDelete.description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

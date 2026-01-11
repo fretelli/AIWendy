@@ -17,7 +17,7 @@ import {
 import { cn } from '@/lib/utils'
 
 export function ProjectSelector({ collapsed }: { collapsed?: boolean }) {
-  const { t, locale } = useI18n()
+  const { t } = useI18n()
   const { projectId, setProjectId, ready } = useActiveProjectId()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(false)
@@ -70,7 +70,7 @@ export function ProjectSelector({ collapsed }: { collapsed?: boolean }) {
     <div className="px-3 py-3 border-b">
       <div className="flex items-center justify-between gap-2 mb-2">
         <div className="text-xs font-medium text-muted-foreground">
-          {locale === 'zh' ? '当前项目' : 'Project'}
+          {t('projects.selector.label')}
         </div>
         <Button asChild size="sm" variant="ghost" className="h-7 px-2">
           <Link href="/projects">{t('nav.projects' as any)}</Link>
@@ -84,7 +84,7 @@ export function ProjectSelector({ collapsed }: { collapsed?: boolean }) {
       >
         <SelectTrigger className={cn('h-9', loading && 'opacity-80')}>
           <SelectValue
-            placeholder={loading ? (locale === 'zh' ? '加载中…' : 'Loading…') : (locale === 'zh' ? '选择项目' : 'Select a project')}
+            placeholder={loading ? t('projects.selector.loading') : t('projects.selector.placeholder')}
           />
         </SelectTrigger>
         <SelectContent>
