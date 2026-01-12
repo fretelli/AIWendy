@@ -8,9 +8,29 @@
 [![CI](https://github.com/fretelli/AIWendy/actions/workflows/ci.yml/badge.svg)](https://github.com/fretelli/AIWendy/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-AIWendy 是一套面向交易心理与行为表现的 AI 教练系统（Web: Next.js，API: FastAPI）。核心能力围绕：对话、知识库（RAG）、以及“圆桌讨论”（多教练协作）。
+AIWendy 是一套面向交易心理与行为表现的 AI 教练系统（Web: Next.js，API: FastAPI）。核心能力围绕：对话、知识库（RAG）、以及"圆桌讨论"（多教练协作）。
 
 免责声明：仅用于教育/研究目的，本项目 **不构成** 投资建议。
+
+## 产品灵感：谁是 Wendy Rhodes?
+
+在美剧《Billions》中，**Wendy Rhodes** 是对冲基金 Axe Capital 的驻场心理绩效教练（Performance Coach）。她的职责不是做投资分析，而是：
+
+| 她做什么 | 具体场景 |
+|----------|----------|
+| **情绪急救** | 交易员在盘中崩溃时，她会立即介入，帮助他们冷静下来继续工作 |
+| **行为模式识别** | 发现某个交易员最近连续亏损是因为离婚影响了判断 |
+| **认知重构** | 帮助过度自信的明星交易员意识到自己的盲点 |
+| **心理韧性训练** | 让交易员学会在巨额亏损后快速恢复状态 |
+| **绩效提升** | 通过心理辅导让整个团队的交易表现更稳定 |
+
+**现实中的问题**：
+- 顶级对冲基金才养得起全职心理绩效教练（年薪 $300K+）
+- 散户和小型机构根本接触不到这种服务
+- 大多数交易者的亏损 80% 来自心理因素，而非技术分析
+
+**AIWendy 的愿景**：
+> 用 AI 把 Wendy Rhodes 的能力民主化，让每个交易者都能有自己的心理绩效教练。
 
 ## 截图 / 演示
 
@@ -56,14 +76,17 @@ docker compose up -d --build
 
 ## 文档
 
-- 从这里开始：`docs/README.md`
-- 仓库导览：`docs/PROJECT_OVERVIEW.md`
-- 应用文档：`aiwendy/docs/README.md`
+- 从这里开始：`aiwendy/docs/README.md`
 - 架构：`aiwendy/docs/ARCHITECTURE.md`
 - 部署：`aiwendy/docs/DEPLOYMENT.md`
+- 自托管：`aiwendy/docs/SELF_HOSTING.md`
+- 部署模式：`aiwendy/docs/DEPLOYMENT_MODES.md`
+- 自定义 API：`aiwendy/docs/CUSTOM_API_SETUP.md`
+- 国际化：`aiwendy/docs/I18N_GUIDE.md`
 
 ## 贡献与安全
 
+- **分支策略**：我们使用 Git Flow。请从 `develop` 分支创建功能分支，并将 PR 提交到 `develop`（不是 `main`）。详见 `CONTRIBUTING.md`。
 - 贡献指南：`CONTRIBUTING.md`
 - 行为准则：`CODE_OF_CONDUCT.md`
 - 安全策略：`SECURITY.md`
