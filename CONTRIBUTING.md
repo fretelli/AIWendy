@@ -5,6 +5,40 @@
 
 Thanks for your interest in contributing to AIWendy!
 
+## Branch Strategy
+
+We follow Git Flow for branch management:
+
+### For Contributors
+
+1. **New features**: Create from `develop`
+   ```bash
+   git checkout develop
+   git pull origin develop
+   git checkout -b feature/123-your-feature
+   ```
+
+2. **Submit PR**: Target `develop` branch (not `main`)
+
+3. **Branch naming**:
+   - Features: `feature/<issue>-<description>`
+   - Bug fixes: `bugfix/<issue>-<description>`
+   - Examples: `feature/123-add-dark-mode`, `bugfix/456-fix-login`
+
+### For Maintainers
+
+- **Release process**: Create `release/vX.Y.Z` from `develop`
+- **Hotfixes**: Create `hotfix/vX.Y.Z-description` from `main`
+- **Merging**: Release/hotfix branches merge to both `main` and `develop`
+
+### Branch Overview
+
+- `main`: Production-ready code (protected)
+- `develop`: Integration branch for features (protected)
+- `feature/*`: New features (delete after merge)
+- `release/*`: Release preparation (delete after merge)
+- `hotfix/*`: Emergency fixes (delete after merge)
+
 ## Quick start (recommended)
 
 The easiest way to run the full stack locally is Docker Compose:
@@ -29,6 +63,56 @@ You can also run DB/Redis in Docker and run the API/Web on your host:
 - Prefer adding/adjusting docs if behavior changes.
 - Ensure CI passes (lint/type-check/compile checks).
 
+## Commit Message Convention
+
+We follow [Conventional Commits](https://www.conventionalcommits.org/) to maintain a clear and consistent commit history.
+
+### Format
+
+```
+<type>(<scope>): <subject>
+
+[optional body]
+
+[optional footer]
+```
+
+### Types
+
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code formatting (no functional changes)
+- `refactor`: Code refactoring
+- `perf`: Performance improvements
+- `test`: Adding or updating tests
+- `build`: Build system changes
+- `ci`: CI configuration changes
+- `chore`: Other changes (maintenance, dependencies, etc.)
+- `revert`: Revert a previous commit
+
+### Examples
+
+```bash
+feat(api): add user authentication endpoint
+fix(web): resolve login form validation issue
+docs: update README with new setup instructions
+test(api): add tests for journal service
+ci: add test coverage reporting
+```
+
+### Scope (optional)
+
+The scope specifies which part of the codebase is affected:
+- `api`: Backend API changes
+- `web`: Frontend web app changes
+- `db`: Database changes
+- `docs`: Documentation changes
+
+### Commit Message Validation
+
+Commit messages are automatically validated using commitlint. If your commit message doesn't follow the convention, the commit will be rejected.
+
 ## Reporting bugs / requesting features
 
 Please use GitHub Issues and include:
@@ -48,6 +132,40 @@ If you believe you found a security issue, please follow `SECURITY.md` instead o
 ## 中文
 
 感谢你愿意为 AIWendy 做贡献！
+
+### 分支策略
+
+我们遵循 Git Flow 分支管理策略：
+
+#### 贡献者指南
+
+1. **新功能开发**：从 `develop` 分支创建
+   ```bash
+   git checkout develop
+   git pull origin develop
+   git checkout -b feature/123-your-feature
+   ```
+
+2. **提交 PR**：目标分支选择 `develop`（不是 `main`）
+
+3. **分支命名规范**：
+   - 新功能：`feature/<issue编号>-<简短描述>`
+   - Bug修复：`bugfix/<issue编号>-<简短描述>`
+   - 示例：`feature/123-add-dark-mode`、`bugfix/456-fix-login`
+
+#### 维护者指南
+
+- **发布流程**：从 `develop` 创建 `release/vX.Y.Z` 分支
+- **紧急修复**：从 `main` 创建 `hotfix/vX.Y.Z-description` 分支
+- **合并规则**：release/hotfix 分支需要同时合并到 `main` 和 `develop`
+
+#### 分支说明
+
+- `main`：生产稳定版代码（受保护）
+- `develop`：功能集成分支（受保护）
+- `feature/*`：新功能分支（合并后删除）
+- `release/*`：发布准备分支（合并后删除）
+- `hotfix/*`：紧急修复分支（合并后删除）
 
 ### 快速开始（推荐）
 
@@ -72,6 +190,56 @@ If you believe you found a security issue, please follow `SECURITY.md` instead o
 - UI 变更请补充截图/GIF。
 - 如果行为有变化，优先补充/调整文档。
 - 确保 CI 通过（lint/type-check/compile checks）。
+
+### 提交信息规范
+
+我们遵循 [Conventional Commits](https://www.conventionalcommits.org/) 规范，以保持清晰一致的提交历史。
+
+#### 格式
+
+```
+<type>(<scope>): <subject>
+
+[可选的 body]
+
+[可选的 footer]
+```
+
+#### 类型
+
+- `feat`: 新功能
+- `fix`: Bug 修复
+- `docs`: 文档更新
+- `style`: 代码格式（不影响功能）
+- `refactor`: 重构
+- `perf`: 性能优化
+- `test`: 测试相关
+- `build`: 构建系统
+- `ci`: CI 配置
+- `chore`: 其他杂项
+- `revert`: 回滚提交
+
+#### 示例
+
+```bash
+feat(api): 添加用户认证端点
+fix(web): 修复登录表单验证问题
+docs: 更新 README 安装说明
+test(api): 添加交易日志服务测试
+ci: 添加测试覆盖率报告
+```
+
+#### Scope（可选）
+
+Scope 指定代码库的哪个部分受到影响：
+- `api`: 后端 API 变更
+- `web`: 前端 Web 应用变更
+- `db`: 数据库变更
+- `docs`: 文档变更
+
+#### 提交信息验证
+
+提交信息会通过 commitlint 自动验证。如果提交信息不符合规范，提交将被拒绝。
 
 ### 报告 Bug / 提需求
 

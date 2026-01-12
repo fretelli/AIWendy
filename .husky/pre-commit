@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Pre-commit hook is disabled for now
+# You can manually run linting before commit:
+# cd aiwendy/apps/web && npm run lint
+# cd aiwendy/apps/api && black . && isort .
+
+echo "Pre-commit hook: Skipping automatic formatting (run manually if needed)"

@@ -8,9 +8,29 @@
 [![CI](https://github.com/fretelli/AIWendy/actions/workflows/ci.yml/badge.svg)](https://github.com/fretelli/AIWendy/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-AIWendy is an AI-powered performance coach for trading psychology (Web: Next.js, API: FastAPI). It’s built around chat, knowledge base (RAG), and a “roundtable” multi-coach discussion mode.
+AIWendy is an AI-powered performance coach for trading psychology (Web: Next.js, API: FastAPI). It's built around chat, knowledge base (RAG), and a "roundtable" multi-coach discussion mode.
 
 Disclaimer: for educational/research purposes only. This project is **not** investment advice.
+
+## Inspiration: Who is Wendy Rhodes?
+
+In the TV series *Billions*, **Wendy Rhodes** is the in-house performance coach at hedge fund Axe Capital. Her role isn't investment analysis—it's psychological performance optimization:
+
+| What She Does | Real Scenarios |
+|---------------|----------------|
+| **Emotional First Aid** | When a trader melts down mid-session, she intervenes immediately to restore composure |
+| **Behavioral Pattern Recognition** | Identifies that a trader's losing streak stems from divorce affecting judgment |
+| **Cognitive Reframing** | Helps overconfident star traders recognize their blind spots |
+| **Psychological Resilience Training** | Teaches traders to bounce back quickly after massive losses |
+| **Performance Enhancement** | Improves team-wide trading stability through psychological coaching |
+
+**The Real-World Problem**:
+- Only elite hedge funds can afford full-time performance coaches (salaries $300K+)
+- Retail traders and small institutions have zero access to this service
+- 80% of trading losses stem from psychological factors, not technical analysis
+
+**AIWendy's Vision**:
+> Democratize Wendy Rhodes' capabilities through AI, giving every trader their own performance coach.
 
 ## Screenshots
 
@@ -64,6 +84,7 @@ Set `AIWENDY_AUTH_REQUIRED=0` for the API (enabled by default in `aiwendy/docker
 
 ## Contributing & security
 
+- **Branch strategy**: We use Git Flow. Create feature branches from `develop` and submit PRs to `develop` (not `main`). See `CONTRIBUTING.md` for details.
 - Contributing: `CONTRIBUTING.md`
 - Code of Conduct: `CODE_OF_CONDUCT.md`
 - Security policy: `SECURITY.md`

@@ -48,6 +48,8 @@ celerybeat.pid
 .coverage
 htmlcov/
 .pytest_cache/
+coverage/
+*.lcov
 
 # Windows oddities
 nul
@@ -57,3 +59,13 @@ nul
 *.swp
 *.swo
 *~
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
