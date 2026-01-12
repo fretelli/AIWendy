@@ -56,6 +56,64 @@ You can also run DB/Redis in Docker and run the API/Web on your host:
 - API: `aiwendy/docs/DEPLOYMENT.md`
 - Web: `aiwendy/apps/web/package.json` scripts: `npm run dev`, `npm run lint`, `npm run type-check`
 
+## Development Setup
+
+### Initial Setup
+
+After cloning the repository, install dependencies:
+
+```bash
+# Install root dependencies (commitlint, husky)
+npm install
+
+# Install frontend dependencies
+cd aiwendy/apps/web
+npm install
+
+# Install backend dependencies (if not using Docker)
+cd ../api
+pip install -r requirements.txt
+pip install pre-commit
+```
+
+### Running Tests
+
+```bash
+# Frontend tests
+cd aiwendy/apps/web
+npm run test              # Run tests
+npm run test:watch        # Watch mode
+npm run test:coverage     # With coverage
+
+# Backend tests
+cd aiwendy/apps/api
+pytest                    # Run all tests
+pytest tests/unit         # Unit tests only
+pytest --cov=.            # With coverage
+```
+
+### Code Quality
+
+The project uses automated code quality tools:
+
+- **Frontend**: ESLint, Prettier, TypeScript
+- **Backend**: black, isort, flake8, mypy
+
+Run checks manually:
+```bash
+# Frontend
+cd aiwendy/apps/web
+npm run lint
+npm run type-check
+
+# Backend
+cd aiwendy/apps/api
+black .
+isort .
+flake8 .
+mypy .
+```
+
 ## Pull requests
 
 - Keep PRs focused (one topic per PR).
@@ -183,6 +241,64 @@ If you believe you found a security issue, please follow `SECURITY.md` instead o
 
 - API：`aiwendy/docs/DEPLOYMENT.md`
 - Web：参考 `aiwendy/apps/web/package.json` scripts：`npm run dev`、`npm run lint`、`npm run type-check`
+
+### 开发环境设置
+
+#### 初始设置
+
+克隆仓库后，安装依赖：
+
+```bash
+# 安装根目录依赖（commitlint, husky）
+npm install
+
+# 安装前端依赖
+cd aiwendy/apps/web
+npm install
+
+# 安装后端依赖（如果不使用 Docker）
+cd ../api
+pip install -r requirements.txt
+pip install pre-commit
+```
+
+#### 运行测试
+
+```bash
+# 前端测试
+cd aiwendy/apps/web
+npm run test              # 运行测试
+npm run test:watch        # 监听模式
+npm run test:coverage     # 带覆盖率
+
+# 后端测试
+cd aiwendy/apps/api
+pytest                    # 运行所有测试
+pytest tests/unit         # 只运行单元测试
+pytest --cov=.            # 带覆盖率
+```
+
+#### 代码质量
+
+项目使用自动化代码质量工具：
+
+- **前端**：ESLint、Prettier、TypeScript
+- **后端**：black、isort、flake8、mypy
+
+手动运行检查：
+```bash
+# 前端
+cd aiwendy/apps/web
+npm run lint
+npm run type-check
+
+# 后端
+cd aiwendy/apps/api
+black .
+isort .
+flake8 .
+mypy .
+```
 
 ### Pull Request
 

@@ -76,11 +76,13 @@ Set `AIWENDY_AUTH_REQUIRED=0` for the API (enabled by default in `aiwendy/docker
 
 ## Docs
 
-- Start here: `docs/README.md`
-- Repo map: `docs/PROJECT_OVERVIEW.md`
-- App docs: `aiwendy/docs/README.md`
+- Start here: `aiwendy/docs/README.md`
 - Architecture: `aiwendy/docs/ARCHITECTURE.md`
 - Deployment: `aiwendy/docs/DEPLOYMENT.md`
+- Self-hosting: `aiwendy/docs/SELF_HOSTING.md`
+- Deployment modes: `aiwendy/docs/DEPLOYMENT_MODES.md`
+- Custom API setup: `aiwendy/docs/CUSTOM_API_SETUP.md`
+- Internationalization: `aiwendy/docs/I18N_GUIDE.md`
 
 ## Contributing & security
 
