@@ -16,12 +16,11 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from apps.api.config import get_settings
 from apps.api.core.database import Base
-
+from apps.api.domain.analysis.models import JournalAnalysis, MoodAnalysis
+from apps.api.domain.coach.models import ChatMessage, ChatSession
+from apps.api.domain.journal.models import JournalEntry
 # Import all models to ensure they're registered with Base
 from apps.api.domain.user.models import User
-from apps.api.domain.journal.models import JournalEntry
-from apps.api.domain.coach.models import ChatSession, ChatMessage
-from apps.api.domain.analysis.models import MoodAnalysis, JournalAnalysis
 
 # Get settings
 settings = get_settings()

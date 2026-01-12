@@ -4,10 +4,10 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, func, and_, or_, desc
+from core.logging import get_logger
+from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.logging import get_logger
 from .models import Journal, TradeResult
 from .schemas import JournalFilter, JournalStatistics
 
@@ -27,7 +27,9 @@ class JournalRepository:
             self.session.add(journal)
             await self.session.commit()
             await self.session.refresh(journal)
-            logger.info(f"Created journal entry {journal.id} for user {journal.user_id}")
+            logger.info(
+                f"Created journal entry {journal.id} for user {journal.user_id}"
+            )
             return journal
         except Exception as e:
             await self.session.rollback()
@@ -52,7 +54,7 @@ class JournalRepository:
         filter_params: Optional[JournalFilter] = None,
         limit: int = 20,
         offset: int = 0,
-        order_by: str = "trade_date"
+        order_by: str = "trade_date",
     ) -> tuple[List[Journal], int]:
         """Get journals for a user with optional filtering."""
         # Base query
@@ -86,7 +88,9 @@ class JournalRepository:
                 conditions.append(Journal.trade_date <= filter_params.date_to)
 
             if filter_params.followed_rules is not None:
-                conditions.append(Journal.followed_rules == filter_params.followed_rules)
+                conditions.append(
+                    Journal.followed_rules == filter_params.followed_rules
+                )
 
             if conditions:
                 filter_clause = and_(*conditions)
@@ -142,10 +146,7 @@ class JournalRepository:
         """Get trading statistics for a user."""
         # Get all non-deleted journals for the user
         query = select(Journal).where(
-            and_(
-                Journal.user_id == user_id,
-                Journal.deleted_at.is_(None)
-            )
+            and_(Journal.user_id == user_id, Journal.deleted_at.is_(None))
         )
         result = await self.session.execute(query)
         journals = result.scalars().all()
@@ -171,18 +172,18 @@ class JournalRepository:
                 stats.winning_trades += 1
                 if journal.pnl_amount is not None:
                     stats.average_win = (
-                        (stats.average_win * (stats.winning_trades - 1) + journal.pnl_amount)
-                        / stats.winning_trades
-                    )
+                        stats.average_win * (stats.winning_trades - 1)
+                        + journal.pnl_amount
+                    ) / stats.winning_trades
                     stats.best_trade = max(stats.best_trade, journal.pnl_amount)
 
             elif journal.result == TradeResult.LOSS:
                 stats.losing_trades += 1
                 if journal.pnl_amount is not None:
                     stats.average_loss = (
-                        (stats.average_loss * (stats.losing_trades - 1) + journal.pnl_amount)
-                        / stats.losing_trades
-                    )
+                        stats.average_loss * (stats.losing_trades - 1)
+                        + journal.pnl_amount
+                    ) / stats.losing_trades
                     stats.worst_trade = min(stats.worst_trade, journal.pnl_amount)
 
             elif journal.result == TradeResult.BREAKEVEN:
@@ -204,7 +205,9 @@ class JournalRepository:
                 rule_violation_count += 1
 
         # Calculate ratios
-        closed_trades = stats.winning_trades + stats.losing_trades + stats.breakeven_trades
+        closed_trades = (
+            stats.winning_trades + stats.losing_trades + stats.breakeven_trades
+        )
         if closed_trades > 0:
             stats.win_rate = (stats.winning_trades / closed_trades) * 100
 
@@ -218,12 +221,14 @@ class JournalRepository:
             stats.average_stress = stress_sum / stress_count
 
         if stats.total_trades > 0:
-            stats.rule_violation_rate = (rule_violation_count / stats.total_trades) * 100
+            stats.rule_violation_rate = (
+                rule_violation_count / stats.total_trades
+            ) * 100
 
         # Calculate streaks
         sorted_journals = sorted(
             [j for j in journals if j.result in [TradeResult.WIN, TradeResult.LOSS]],
-            key=lambda x: x.trade_date or x.created_at
+            key=lambda x: x.trade_date or x.created_at,
         )
 
         current_streak = 0
@@ -246,46 +251,50 @@ class JournalRepository:
         return stats
 
     async def get_recent_journals(
-        self,
-        user_id: UUID,
-        days: int = 7,
-        limit: int = 10
+        self, user_id: UUID, days: int = 7, limit: int = 10
     ) -> List[Journal]:
         """Get recent journal entries for a user."""
         cutoff_date = datetime.utcnow() - timedelta(days=days)
 
-        query = select(Journal).where(
-            and_(
-                Journal.user_id == user_id,
-                Journal.trade_date >= cutoff_date,
-                Journal.deleted_at.is_(None)
+        query = (
+            select(Journal)
+            .where(
+                and_(
+                    Journal.user_id == user_id,
+                    Journal.trade_date >= cutoff_date,
+                    Journal.deleted_at.is_(None),
+                )
             )
-        ).order_by(desc(Journal.trade_date)).limit(limit)
+            .order_by(desc(Journal.trade_date))
+            .limit(limit)
+        )
 
         result = await self.session.execute(query)
         return result.scalars().all()
 
     async def search_journals(
-        self,
-        user_id: UUID,
-        search_term: str,
-        limit: int = 20
+        self, user_id: UUID, search_term: str, limit: int = 20
     ) -> List[Journal]:
         """Search journals by text in notes, symbols, or tags."""
-        query = select(Journal).where(
-            and_(
-                Journal.user_id == user_id,
-                Journal.deleted_at.is_(None),
-                or_(
-                    Journal.symbol.ilike(f"%{search_term}%"),
-                    Journal.notes.ilike(f"%{search_term}%"),
-                    Journal.setup_description.ilike(f"%{search_term}%"),
-                    Journal.exit_reason.ilike(f"%{search_term}%"),
-                    Journal.lessons_learned.ilike(f"%{search_term}%"),
-                    Journal.strategy_name.ilike(f"%{search_term}%")
+        query = (
+            select(Journal)
+            .where(
+                and_(
+                    Journal.user_id == user_id,
+                    Journal.deleted_at.is_(None),
+                    or_(
+                        Journal.symbol.ilike(f"%{search_term}%"),
+                        Journal.notes.ilike(f"%{search_term}%"),
+                        Journal.setup_description.ilike(f"%{search_term}%"),
+                        Journal.exit_reason.ilike(f"%{search_term}%"),
+                        Journal.lessons_learned.ilike(f"%{search_term}%"),
+                        Journal.strategy_name.ilike(f"%{search_term}%"),
+                    ),
                 )
             )
-        ).order_by(desc(Journal.trade_date)).limit(limit)
+            .order_by(desc(Journal.trade_date))
+            .limit(limit)
+        )
 
         result = await self.session.execute(query)
         return result.scalars().all()

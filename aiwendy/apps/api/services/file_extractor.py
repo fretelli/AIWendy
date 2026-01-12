@@ -1,12 +1,12 @@
 """File content extraction service for various file types."""
 
-import io
-import os
 import csv
+import io
 import json
+import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple
-from dataclasses import dataclass
 
 from core.logging import get_logger
 
@@ -16,6 +16,7 @@ logger = get_logger(__name__)
 @dataclass
 class ExtractionResult:
     """Result of file content extraction."""
+
     success: bool
     text: Optional[str] = None
     error: Optional[str] = None
@@ -24,31 +25,81 @@ class ExtractionResult:
 
 
 # File type categories
-IMAGE_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.ico'}
-AUDIO_EXTENSIONS = {'.wav', '.mp3', '.ogg', '.webm', '.m4a', '.aac', '.flac'}
-PDF_EXTENSIONS = {'.pdf'}
-WORD_EXTENSIONS = {'.docx', '.doc'}
-EXCEL_EXTENSIONS = {'.xlsx', '.xls', '.csv'}
-PPT_EXTENSIONS = {'.pptx', '.ppt'}
-TEXT_EXTENSIONS = {'.txt', '.md', '.markdown', '.rst', '.log', '.ini', '.cfg', '.conf'}
-JSON_EXTENSIONS = {'.json', '.jsonl'}
-XML_EXTENSIONS = {'.xml', '.html', '.htm', '.xhtml', '.svg'}
-YAML_EXTENSIONS = {'.yaml', '.yml'}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".ico"}
+AUDIO_EXTENSIONS = {".wav", ".mp3", ".ogg", ".webm", ".m4a", ".aac", ".flac"}
+PDF_EXTENSIONS = {".pdf"}
+WORD_EXTENSIONS = {".docx", ".doc"}
+EXCEL_EXTENSIONS = {".xlsx", ".xls", ".csv"}
+PPT_EXTENSIONS = {".pptx", ".ppt"}
+TEXT_EXTENSIONS = {".txt", ".md", ".markdown", ".rst", ".log", ".ini", ".cfg", ".conf"}
+JSON_EXTENSIONS = {".json", ".jsonl"}
+XML_EXTENSIONS = {".xml", ".html", ".htm", ".xhtml", ".svg"}
+YAML_EXTENSIONS = {".yaml", ".yml"}
 CODE_EXTENSIONS = {
-    '.py', '.js', '.ts', '.jsx', '.tsx', '.vue', '.svelte',
-    '.java', '.c', '.cpp', '.cc', '.h', '.hpp', '.cs',
-    '.go', '.rs', '.rb', '.php', '.swift', '.kt', '.scala',
-    '.sh', '.bash', '.zsh', '.fish', '.ps1', '.bat', '.cmd',
-    '.sql', '.r', '.m', '.pl', '.lua', '.dart', '.elm',
-    '.css', '.scss', '.sass', '.less', '.styl',
+    ".py",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".vue",
+    ".svelte",
+    ".java",
+    ".c",
+    ".cpp",
+    ".cc",
+    ".h",
+    ".hpp",
+    ".cs",
+    ".go",
+    ".rs",
+    ".rb",
+    ".php",
+    ".swift",
+    ".kt",
+    ".scala",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".fish",
+    ".ps1",
+    ".bat",
+    ".cmd",
+    ".sql",
+    ".r",
+    ".m",
+    ".pl",
+    ".lua",
+    ".dart",
+    ".elm",
+    ".css",
+    ".scss",
+    ".sass",
+    ".less",
+    ".styl",
 }
 
 # Binary files that cannot be extracted
 BINARY_EXTENSIONS = {
-    '.exe', '.dll', '.so', '.dylib', '.bin',
-    '.zip', '.tar', '.gz', '.rar', '.7z', '.bz2',
-    '.mp4', '.avi', '.mov', '.mkv', '.wmv', '.flv',
-    '.iso', '.dmg', '.msi',
+    ".exe",
+    ".dll",
+    ".so",
+    ".dylib",
+    ".bin",
+    ".zip",
+    ".tar",
+    ".gz",
+    ".rar",
+    ".7z",
+    ".bz2",
+    ".mp4",
+    ".avi",
+    ".mov",
+    ".mkv",
+    ".wmv",
+    ".flv",
+    ".iso",
+    ".dmg",
+    ".msi",
 }
 
 
@@ -66,25 +117,30 @@ def get_file_category(filename: str) -> str:
     ext = Path(filename).suffix.lower()
 
     if ext in IMAGE_EXTENSIONS:
-        return 'image'
+        return "image"
     elif ext in AUDIO_EXTENSIONS:
-        return 'audio'
+        return "audio"
     elif ext in PDF_EXTENSIONS:
-        return 'pdf'
+        return "pdf"
     elif ext in WORD_EXTENSIONS:
-        return 'word'
+        return "word"
     elif ext in EXCEL_EXTENSIONS:
-        return 'excel'
+        return "excel"
     elif ext in PPT_EXTENSIONS:
-        return 'ppt'
-    elif ext in TEXT_EXTENSIONS or ext in JSON_EXTENSIONS or ext in XML_EXTENSIONS or ext in YAML_EXTENSIONS:
-        return 'text'
+        return "ppt"
+    elif (
+        ext in TEXT_EXTENSIONS
+        or ext in JSON_EXTENSIONS
+        or ext in XML_EXTENSIONS
+        or ext in YAML_EXTENSIONS
+    ):
+        return "text"
     elif ext in CODE_EXTENSIONS:
-        return 'code'
+        return "code"
     elif ext in BINARY_EXTENSIONS:
-        return 'binary'
+        return "binary"
     else:
-        return 'unknown'
+        return "unknown"
 
 
 def can_extract_text(filename: str) -> bool:
@@ -98,7 +154,7 @@ def can_extract_text(filename: str) -> bool:
         True if text extraction is possible
     """
     category = get_file_category(filename)
-    return category in ('pdf', 'word', 'excel', 'ppt', 'text', 'code')
+    return category in ("pdf", "word", "excel", "ppt", "text", "code")
 
 
 async def extract_text(file_path: Path, filename: str) -> ExtractionResult:
@@ -115,29 +171,25 @@ async def extract_text(file_path: Path, filename: str) -> ExtractionResult:
     category = get_file_category(filename)
 
     try:
-        if category == 'pdf':
+        if category == "pdf":
             return await _extract_pdf(file_path)
-        elif category == 'word':
+        elif category == "word":
             return await _extract_word(file_path)
-        elif category == 'excel':
+        elif category == "excel":
             return await _extract_excel(file_path, filename)
-        elif category == 'ppt':
+        elif category == "ppt":
             return await _extract_ppt(file_path)
-        elif category in ('text', 'code'):
+        elif category in ("text", "code"):
             return await _extract_text_file(file_path)
         else:
             return ExtractionResult(
                 success=False,
                 error=f"Cannot extract text from {category} files",
-                file_type=category
+                file_type=category,
             )
     except Exception as e:
         logger.error(f"Failed to extract text from {filename}: {e}")
-        return ExtractionResult(
-            success=False,
-            error=str(e),
-            file_type=category
-        )
+        return ExtractionResult(success=False, error=str(e), file_type=category)
 
 
 async def _extract_pdf(file_path: Path) -> ExtractionResult:
@@ -151,11 +203,11 @@ async def _extract_pdf(file_path: Path) -> ExtractionResult:
             return ExtractionResult(
                 success=False,
                 error="PyPDF2 library not installed. Run: pip install PyPDF2",
-                file_type='pdf'
+                file_type="pdf",
             )
 
     try:
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             reader = PyPDF2.PdfReader(f)
             page_count = len(reader.pages)
             text_parts = []
@@ -168,16 +220,11 @@ async def _extract_pdf(file_path: Path) -> ExtractionResult:
             text = "\n\n".join(text_parts)
 
             return ExtractionResult(
-                success=True,
-                text=text,
-                file_type='pdf',
-                page_count=page_count
+                success=True, text=text, file_type="pdf", page_count=page_count
             )
     except Exception as e:
         return ExtractionResult(
-            success=False,
-            error=f"Failed to parse PDF: {str(e)}",
-            file_type='pdf'
+            success=False, error=f"Failed to parse PDF: {str(e)}", file_type="pdf"
         )
 
 
@@ -189,7 +236,7 @@ async def _extract_word(file_path: Path) -> ExtractionResult:
         return ExtractionResult(
             success=False,
             error="python-docx library not installed. Run: pip install python-docx",
-            file_type='word'
+            file_type="word",
         )
 
     try:
@@ -206,16 +253,12 @@ async def _extract_word(file_path: Path) -> ExtractionResult:
             if table_rows:
                 text += "\n\n[Table]\n" + "\n".join(table_rows)
 
-        return ExtractionResult(
-            success=True,
-            text=text,
-            file_type='word'
-        )
+        return ExtractionResult(success=True, text=text, file_type="word")
     except Exception as e:
         return ExtractionResult(
             success=False,
             error=f"Failed to parse Word document: {str(e)}",
-            file_type='word'
+            file_type="word",
         )
 
 
@@ -223,7 +266,7 @@ async def _extract_excel(file_path: Path, filename: str) -> ExtractionResult:
     """Extract text from Excel file or CSV."""
     ext = Path(filename).suffix.lower()
 
-    if ext == '.csv':
+    if ext == ".csv":
         return await _extract_csv(file_path)
 
     try:
@@ -232,7 +275,7 @@ async def _extract_excel(file_path: Path, filename: str) -> ExtractionResult:
         return ExtractionResult(
             success=False,
             error="openpyxl library not installed. Run: pip install openpyxl",
-            file_type='excel'
+            file_type="excel",
         )
 
     try:
@@ -254,39 +297,29 @@ async def _extract_excel(file_path: Path, filename: str) -> ExtractionResult:
         wb.close()
         text = "\n\n".join(text_parts)
 
-        return ExtractionResult(
-            success=True,
-            text=text,
-            file_type='excel'
-        )
+        return ExtractionResult(success=True, text=text, file_type="excel")
     except Exception as e:
         return ExtractionResult(
             success=False,
             error=f"Failed to parse Excel file: {str(e)}",
-            file_type='excel'
+            file_type="excel",
         )
 
 
 async def _extract_csv(file_path: Path) -> ExtractionResult:
     """Extract text from CSV file."""
     try:
-        with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
             reader = csv.reader(f)
             rows = []
             for row in reader:
                 rows.append(" | ".join(row))
             text = "\n".join(rows)
 
-        return ExtractionResult(
-            success=True,
-            text=text,
-            file_type='csv'
-        )
+        return ExtractionResult(success=True, text=text, file_type="csv")
     except Exception as e:
         return ExtractionResult(
-            success=False,
-            error=f"Failed to parse CSV file: {str(e)}",
-            file_type='csv'
+            success=False, error=f"Failed to parse CSV file: {str(e)}", file_type="csv"
         )
 
 
@@ -298,7 +331,7 @@ async def _extract_ppt(file_path: Path) -> ExtractionResult:
         return ExtractionResult(
             success=False,
             error="python-pptx library not installed. Run: pip install python-pptx",
-            file_type='ppt'
+            file_type="ppt",
         )
 
     try:
@@ -318,16 +351,13 @@ async def _extract_ppt(file_path: Path) -> ExtractionResult:
         text = "\n\n".join(text_parts)
 
         return ExtractionResult(
-            success=True,
-            text=text,
-            file_type='ppt',
-            page_count=len(prs.slides)
+            success=True, text=text, file_type="ppt", page_count=len(prs.slides)
         )
     except Exception as e:
         return ExtractionResult(
             success=False,
             error=f"Failed to parse PowerPoint: {str(e)}",
-            file_type='ppt'
+            file_type="ppt",
         )
 
 
@@ -336,22 +366,16 @@ async def _extract_text_file(file_path: Path) -> ExtractionResult:
     try:
         # Try UTF-8 first, then fall back to latin-1
         try:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 text = f.read()
         except UnicodeDecodeError:
-            with open(file_path, 'r', encoding='latin-1') as f:
+            with open(file_path, "r", encoding="latin-1") as f:
                 text = f.read()
 
-        return ExtractionResult(
-            success=True,
-            text=text,
-            file_type='text'
-        )
+        return ExtractionResult(success=True, text=text, file_type="text")
     except Exception as e:
         return ExtractionResult(
-            success=False,
-            error=f"Failed to read text file: {str(e)}",
-            file_type='text'
+            success=False, error=f"Failed to read text file: {str(e)}", file_type="text"
         )
 
 
@@ -368,16 +392,16 @@ def get_file_size_limit(filename: str) -> int:
     category = get_file_category(filename)
 
     limits = {
-        'image': 10 * 1024 * 1024,      # 10MB
-        'audio': 25 * 1024 * 1024,      # 25MB
-        'pdf': 50 * 1024 * 1024,        # 50MB
-        'word': 50 * 1024 * 1024,       # 50MB
-        'excel': 50 * 1024 * 1024,      # 50MB
-        'ppt': 50 * 1024 * 1024,        # 50MB
-        'text': 10 * 1024 * 1024,       # 10MB
-        'code': 10 * 1024 * 1024,       # 10MB
-        'binary': 100 * 1024 * 1024,    # 100MB
-        'unknown': 100 * 1024 * 1024,   # 100MB
+        "image": 10 * 1024 * 1024,  # 10MB
+        "audio": 25 * 1024 * 1024,  # 25MB
+        "pdf": 50 * 1024 * 1024,  # 50MB
+        "word": 50 * 1024 * 1024,  # 50MB
+        "excel": 50 * 1024 * 1024,  # 50MB
+        "ppt": 50 * 1024 * 1024,  # 50MB
+        "text": 10 * 1024 * 1024,  # 10MB
+        "code": 10 * 1024 * 1024,  # 10MB
+        "binary": 100 * 1024 * 1024,  # 100MB
+        "unknown": 100 * 1024 * 1024,  # 100MB
     }
 
     return limits.get(category, 100 * 1024 * 1024)
@@ -391,40 +415,70 @@ def get_allowed_mime_types() -> dict:
         Dictionary mapping categories to lists of MIME types
     """
     return {
-        'image': [
-            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-            'image/bmp', 'image/x-icon'
+        "image": [
+            "image/jpeg",
+            "image/png",
+            "image/gif",
+            "image/webp",
+            "image/bmp",
+            "image/x-icon",
         ],
-        'audio': [
-            'audio/wav', 'audio/x-wav', 'audio/mp3', 'audio/mpeg',
-            'audio/ogg', 'audio/webm', 'audio/m4a', 'audio/aac',
-            'audio/flac', 'audio/x-flac'
+        "audio": [
+            "audio/wav",
+            "audio/x-wav",
+            "audio/mp3",
+            "audio/mpeg",
+            "audio/ogg",
+            "audio/webm",
+            "audio/m4a",
+            "audio/aac",
+            "audio/flac",
+            "audio/x-flac",
         ],
-        'pdf': ['application/pdf'],
-        'word': [
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'application/msword'
+        "pdf": ["application/pdf"],
+        "word": [
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/msword",
         ],
-        'excel': [
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'application/vnd.ms-excel',
-            'text/csv'
+        "excel": [
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-excel",
+            "text/csv",
         ],
-        'ppt': [
-            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            'application/vnd.ms-powerpoint'
+        "ppt": [
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "application/vnd.ms-powerpoint",
         ],
-        'text': [
-            'text/plain', 'text/markdown', 'text/x-markdown',
-            'text/html', 'text/xml', 'application/xml',
-            'application/json', 'text/yaml', 'application/x-yaml'
+        "text": [
+            "text/plain",
+            "text/markdown",
+            "text/x-markdown",
+            "text/html",
+            "text/xml",
+            "application/xml",
+            "application/json",
+            "text/yaml",
+            "application/x-yaml",
         ],
-        'code': [
-            'text/x-python', 'application/javascript', 'text/javascript',
-            'text/typescript', 'text/x-java-source', 'text/x-c',
-            'text/x-c++', 'text/x-csharp', 'text/x-go', 'text/x-rust',
-            'text/x-ruby', 'application/x-php', 'text/x-swift',
-            'text/x-kotlin', 'text/x-scala', 'text/x-shellscript',
-            'text/css', 'text/x-scss', 'text/x-sass'
+        "code": [
+            "text/x-python",
+            "application/javascript",
+            "text/javascript",
+            "text/typescript",
+            "text/x-java-source",
+            "text/x-c",
+            "text/x-c++",
+            "text/x-csharp",
+            "text/x-go",
+            "text/x-rust",
+            "text/x-ruby",
+            "application/x-php",
+            "text/x-swift",
+            "text/x-kotlin",
+            "text/x-scala",
+            "text/x-shellscript",
+            "text/css",
+            "text/x-scss",
+            "text/x-sass",
         ],
     }

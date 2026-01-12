@@ -1,21 +1,21 @@
 """Dashboard API endpoints with caching."""
 
-from typing import Optional, Dict, Any
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select, func, and_
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from apps.api.core.database import get_async_db
 from apps.api.core.auth import get_current_user
-from apps.api.core.cache_service import cache_async, invalidate_cache, get_cache_service
+from apps.api.core.cache_service import (cache_async, get_cache_service,
+                                         invalidate_cache)
+from apps.api.core.database import get_async_db
 from apps.api.core.logging import get_logger
-from apps.api.domain.user.models import User
+from apps.api.domain.coach.models import ChatSession
 from apps.api.domain.journal.models import Journal
 from apps.api.domain.report.models import Report, ReportType
-from apps.api.domain.coach.models import ChatSession
+from apps.api.domain.user.models import User
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
 logger = get_logger(__name__)
@@ -49,10 +49,7 @@ async def get_dashboard_stats(
         start_date = now - timedelta(days=7)  # Default to week
 
     # Build base query conditions
-    journal_conditions = [
-        Journal.user_id == user_id,
-        Journal.trade_date >= start_date
-    ]
+    journal_conditions = [Journal.user_id == user_id, Journal.trade_date >= start_date]
     if project_id:
         journal_conditions.append(Journal.project_id == project_id)
 
@@ -60,8 +57,12 @@ async def get_dashboard_stats(
     trading_stats = await db.execute(
         select(
             func.count(Journal.id).label("total_trades"),
-            func.count(func.nullif(Journal.pnl_amount > 0, False)).label("winning_trades"),
-            func.count(func.nullif(Journal.pnl_amount < 0, False)).label("losing_trades"),
+            func.count(func.nullif(Journal.pnl_amount > 0, False)).label(
+                "winning_trades"
+            ),
+            func.count(func.nullif(Journal.pnl_amount < 0, False)).label(
+                "losing_trades"
+            ),
             func.sum(Journal.pnl_amount).label("total_pnl"),
             func.avg(Journal.pnl_amount).label("avg_pnl"),
             func.max(Journal.pnl_amount).label("max_profit"),
@@ -87,7 +88,7 @@ async def get_dashboard_stats(
     # Get recent chat sessions count
     chat_conditions = [
         ChatSession.user_id == user_id,
-        ChatSession.created_at >= start_date
+        ChatSession.created_at >= start_date,
     ]
     if project_id:
         chat_conditions.append(ChatSession.project_id == project_id)
@@ -98,10 +99,7 @@ async def get_dashboard_stats(
     total_chats = chat_count.scalar()
 
     # Get recent reports count
-    report_conditions = [
-        Report.user_id == user_id,
-        Report.created_at >= start_date
-    ]
+    report_conditions = [Report.user_id == user_id, Report.created_at >= start_date]
     if project_id:
         report_conditions.append(Report.project_id == project_id)
 
@@ -128,7 +126,9 @@ async def get_dashboard_stats(
         "psychological": {
             "avg_mood_before": float(psych.avg_mood_before or 0),
             "avg_mood_after": float(psych.avg_mood_after or 0),
-            "mood_improvement": float((psych.avg_mood_after or 0) - (psych.avg_mood_before or 0)),
+            "mood_improvement": float(
+                (psych.avg_mood_after or 0) - (psych.avg_mood_before or 0)
+            ),
         },
         "activity": {
             "total_chats": total_chats or 0,
@@ -281,12 +281,14 @@ async def get_performance_trend(
 
     for row in pnl_data:
         cumulative_pnl += float(row.daily_pnl or 0)
-        trend_data.append({
-            "date": row.date.isoformat(),
-            "daily_pnl": float(row.daily_pnl or 0),
-            "cumulative_pnl": cumulative_pnl,
-            "trade_count": row.trade_count,
-        })
+        trend_data.append(
+            {
+                "date": row.date.isoformat(),
+                "daily_pnl": float(row.daily_pnl or 0),
+                "cumulative_pnl": cumulative_pnl,
+                "trade_count": row.trade_count,
+            }
+        )
 
     return {
         "period": {

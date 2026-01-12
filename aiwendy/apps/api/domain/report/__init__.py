@@ -1,5 +1,6 @@
 """Report domain module."""
 
-from .models import Report, ReportType, ReportStatus, ReportSchedule, ReportTemplate
+from .models import (Report, ReportSchedule, ReportStatus, ReportTemplate,
+                     ReportType)
 
 __all__ = ["Report", "ReportType", "ReportStatus", "ReportSchedule", "ReportTemplate"]

@@ -5,8 +5,8 @@ Only active when DEPLOYMENT_MODE=cloud and enterprise_sso_enabled=true.
 """
 
 import logging
-from typing import Any, Dict, Optional
 from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
 
 from config import get_settings
 
@@ -22,10 +22,7 @@ class SSOProvider:
 
     def _is_enabled(self) -> bool:
         """Check if SSO is enabled."""
-        return (
-            self.settings.is_cloud_mode()
-            and self.settings.enterprise_sso_enabled
-        )
+        return self.settings.is_cloud_mode() and self.settings.enterprise_sso_enabled
 
     def get_authorization_url(self, redirect_uri: str, state: str) -> str:
         """Get the authorization URL for SSO login."""
@@ -110,7 +107,9 @@ class SAMLProvider(SSOProvider):
             # Create SAML auth request
             request_data = {
                 "https": "on" if self.settings.app_url.startswith("https") else "off",
-                "http_host": self.settings.app_url.replace("https://", "").replace("http://", ""),
+                "http_host": self.settings.app_url.replace("https://", "").replace(
+                    "http://", ""
+                ),
                 "script_name": "/api/v1/auth/saml/login",
                 "server_port": 443 if self.settings.app_url.startswith("https") else 80,
             }
@@ -131,7 +130,9 @@ class SAMLProvider(SSOProvider):
 
             request_data = {
                 "https": "on" if self.settings.app_url.startswith("https") else "off",
-                "http_host": self.settings.app_url.replace("https://", "").replace("http://", ""),
+                "http_host": self.settings.app_url.replace("https://", "").replace(
+                    "http://", ""
+                ),
                 "script_name": "/api/v1/auth/saml/acs",
                 "post_data": {"SAMLResponse": saml_response},
             }
@@ -232,6 +233,7 @@ class OAuthProvider(SSOProvider):
         }
 
         from urllib.parse import urlencode
+
         return f"{self.authorize_url}?{urlencode(params)}"
 
     def exchange_code_for_token(self, code: str, redirect_uri: str) -> Dict[str, Any]:
@@ -302,10 +304,7 @@ class SSOService:
 
     def is_enabled(self) -> bool:
         """Check if SSO is enabled."""
-        return (
-            self.settings.is_cloud_mode()
-            and self.settings.enterprise_sso_enabled
-        )
+        return self.settings.is_cloud_mode() and self.settings.enterprise_sso_enabled
 
     def get_saml_provider(self) -> Optional[SAMLProvider]:
         """Get SAML provider if enabled."""

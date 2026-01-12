@@ -1,27 +1,15 @@
 """Coach domain models."""
 
 import enum
+import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    Enum,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    JSON,
-    Float,
-    Index,
-)
+from core.database import Base
+from sqlalchemy import (JSON, Boolean, Column, DateTime, Enum, Float,
+                        ForeignKey, Index, Integer, String, Text)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-import uuid
-
-from core.database import Base
 
 
 class CoachStyle(str, enum.Enum):
@@ -160,7 +148,12 @@ class ChatSession(Base):
     # Indexes
     __table_args__ = (
         Index("ix_chat_sessions_user_created", "user_id", "created_at"),
-        Index("ix_chat_sessions_user_project_created", "user_id", "project_id", "created_at"),
+        Index(
+            "ix_chat_sessions_user_project_created",
+            "user_id",
+            "project_id",
+            "created_at",
+        ),
         Index("ix_chat_sessions_coach_active", "coach_id", "is_active"),
     )
 
@@ -196,10 +189,14 @@ class ChatMessage(Base):
 
     # Relationships
     session = relationship("ChatSession", back_populates="messages")
-    attachments = relationship("ChatAttachment", back_populates="message", lazy="selectin")
+    attachments = relationship(
+        "ChatAttachment", back_populates="message", lazy="selectin"
+    )
 
     # Indexes
-    __table_args__ = (Index("ix_chat_messages_session_created", "session_id", "created_at"),)
+    __table_args__ = (
+        Index("ix_chat_messages_session_created", "session_id", "created_at"),
+    )
 
 
 class AttachmentType(str, enum.Enum):
@@ -230,7 +227,9 @@ class ChatAttachment(Base):
     )
 
     # Attachment info
-    attachment_type = Column(String(20), nullable=False)  # 'image', 'audio', 'pdf', etc.
+    attachment_type = Column(
+        String(20), nullable=False
+    )  # 'image', 'audio', 'pdf', etc.
     file_name = Column(String(255), nullable=False)
     file_size = Column(Integer, nullable=False)  # Size in bytes
     mime_type = Column(String(100), nullable=False)
@@ -252,9 +251,7 @@ class ChatAttachment(Base):
     message = relationship("ChatMessage", back_populates="attachments")
 
     # Indexes
-    __table_args__ = (
-        Index("ix_chat_attachments_message", "message_id"),
-    )
+    __table_args__ = (Index("ix_chat_attachments_message", "message_id"),)
 
 
 # ============= Roundtable Discussion Models =============
@@ -306,16 +303,24 @@ class RoundtableSession(Base):
     # Session info
     title = Column(String(200), nullable=True)
     coach_ids = Column(JSON, nullable=False)  # Array of participating coach IDs
-    turn_order = Column(JSON, nullable=True)  # Custom turn order (defaults to coach_ids)
+    turn_order = Column(
+        JSON, nullable=True
+    )  # Custom turn order (defaults to coach_ids)
     current_turn = Column(Integer, default=0)  # Index of current coach in turn_order
 
     # Moderator mode settings
     discussion_mode = Column(String(20), default="free")  # "free" or "moderated"
-    moderator_id = Column(String(50), ForeignKey("coaches.id"), nullable=True)  # Host coach ID
+    moderator_id = Column(
+        String(50), ForeignKey("coaches.id"), nullable=True
+    )  # Host coach ID
 
     # Session-level LLM overrides (optional; request-level can override these)
-    llm_config_id = Column(String(100), nullable=True)  # User LLM config id (from /llm-config)
-    llm_provider = Column(String(50), nullable=True)  # Preferred provider hint (e.g. openai/ollama/custom)
+    llm_config_id = Column(
+        String(100), nullable=True
+    )  # User LLM config id (from /llm-config)
+    llm_provider = Column(
+        String(50), nullable=True
+    )  # Preferred provider hint (e.g. openai/ollama/custom)
     llm_model = Column(String(200), nullable=True)
     llm_temperature = Column(Float, nullable=True)
     llm_max_tokens = Column(Integer, nullable=True)
@@ -345,8 +350,10 @@ class RoundtableSession(Base):
     preset = relationship("CoachPreset", lazy="joined")
     moderator = relationship("Coach", foreign_keys=[moderator_id], lazy="joined")
     messages = relationship(
-        "RoundtableMessage", back_populates="session", lazy="dynamic",
-        order_by="RoundtableMessage.created_at"
+        "RoundtableMessage",
+        back_populates="session",
+        lazy="dynamic",
+        order_by="RoundtableMessage.created_at",
     )
 
     # Indexes
@@ -371,12 +378,16 @@ class RoundtableMessage(Base):
     session_id = Column(
         UUID(as_uuid=True), ForeignKey("roundtable_sessions.id"), nullable=False
     )
-    coach_id = Column(String(50), ForeignKey("coaches.id"), nullable=True)  # NULL = user message
+    coach_id = Column(
+        String(50), ForeignKey("coaches.id"), nullable=True
+    )  # NULL = user message
 
     # Message content
     role = Column(String(20), nullable=False)  # "user" or "assistant"
     content = Column(Text, nullable=False)
-    attachments = Column(JSON, nullable=True)  # Optional list of uploaded attachments metadata
+    attachments = Column(
+        JSON, nullable=True
+    )  # Optional list of uploaded attachments metadata
 
     # Message type for moderator mode
     # 'response' = regular coach response (default)
@@ -386,8 +397,12 @@ class RoundtableMessage(Base):
     message_type = Column(String(20), default="response")
 
     # Discussion tracking
-    turn_number = Column(Integer, nullable=True)  # Which round of discussion (1, 2, 3...)
-    sequence_in_turn = Column(Integer, nullable=True)  # Order within the turn (0, 1, 2...)
+    turn_number = Column(
+        Integer, nullable=True
+    )  # Which round of discussion (1, 2, 3...)
+    sequence_in_turn = Column(
+        Integer, nullable=True
+    )  # Order within the turn (0, 1, 2...)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)

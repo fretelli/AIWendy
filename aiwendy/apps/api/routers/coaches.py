@@ -1,19 +1,20 @@
 """Coach management endpoints."""
 
-from typing import List, Optional, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, Field
-from uuid import UUID
-from datetime import datetime
 import uuid
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from core.auth import get_current_user
 from core.database import get_session
 from core.i18n import Locale, get_request_locale, t
+from domain.coach.models import (ChatMessage, ChatSession, Coach, CoachStyle,
+                                 LLMProvider)
 from domain.user.models import User
-from domain.coach.models import Coach, ChatSession, ChatMessage, CoachStyle, LLMProvider
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 from services.coach_service import CoachService
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 # Pydantic models for request/response
@@ -157,11 +158,41 @@ _DEFAULT_COACH_TRAITS_EN: dict[str, list[str]] = {
 }
 
 _DEFAULT_COACH_SPECIALTY_EN: dict[str, list[str]] = {
-    "wendy": ["Emotional regulation", "Mental resilience", "Confidence rebuilding", "Stress management", "Recovery after setbacks"],
-    "marcus": ["Risk management", "Discipline & execution", "Stop-loss rules", "Process design", "Habit building"],
-    "sophia": ["Performance analytics", "Pattern recognition", "Statistical optimization", "Backtesting", "Quant improvement"],
-    "alex": ["Confidence building", "Goal setting", "Motivation", "Winning mindset", "Breaking limiting beliefs"],
-    "socrates": ["Self-awareness", "Critical thinking", "Deep reflection", "Belief challenging", "Mental clarity"],
+    "wendy": [
+        "Emotional regulation",
+        "Mental resilience",
+        "Confidence rebuilding",
+        "Stress management",
+        "Recovery after setbacks",
+    ],
+    "marcus": [
+        "Risk management",
+        "Discipline & execution",
+        "Stop-loss rules",
+        "Process design",
+        "Habit building",
+    ],
+    "sophia": [
+        "Performance analytics",
+        "Pattern recognition",
+        "Statistical optimization",
+        "Backtesting",
+        "Quant improvement",
+    ],
+    "alex": [
+        "Confidence building",
+        "Goal setting",
+        "Motivation",
+        "Winning mindset",
+        "Breaking limiting beliefs",
+    ],
+    "socrates": [
+        "Self-awareness",
+        "Critical thinking",
+        "Deep reflection",
+        "Belief challenging",
+        "Mental clarity",
+    ],
 }
 
 
@@ -202,7 +233,7 @@ async def list_coaches(
     current_user: User = Depends(get_current_user),
 ):
     """List available coaches."""
-    from sqlalchemy import select, or_
+    from sqlalchemy import or_, select
 
     locale = get_request_locale(http_request)
 
@@ -247,7 +278,9 @@ async def get_default_coach(
     coach = result.scalar_one_or_none()
 
     if not coach:
-        raise HTTPException(status_code=404, detail=t("errors.no_default_coach_configured", locale))
+        raise HTTPException(
+            status_code=404, detail=t("errors.no_default_coach_configured", locale)
+        )
 
     return _localize_default_coach_response(coach, locale)
 
@@ -289,7 +322,7 @@ async def list_custom_coaches(
     current_user: User = Depends(get_current_user),
 ):
     """List the current user's custom coaches."""
-    from sqlalchemy import select, desc
+    from sqlalchemy import desc, select
 
     result = await db.execute(
         select(Coach)
@@ -319,7 +352,9 @@ async def create_custom_coach(
             coach_id = candidate
             break
     if not coach_id:
-        raise HTTPException(status_code=500, detail=t("errors.failed_allocate_coach_id", locale))
+        raise HTTPException(
+            status_code=500, detail=t("errors.failed_allocate_coach_id", locale)
+        )
 
     coach = Coach(
         id=coach_id,
@@ -330,7 +365,8 @@ async def create_custom_coach(
         style=request.style,
         personality_traits=request.personality_traits,
         specialty=request.specialty,
-        language=request.language or (current_user.language if getattr(current_user, "language", None) else "en"),
+        language=request.language
+        or (current_user.language if getattr(current_user, "language", None) else "en"),
         llm_provider=request.llm_provider,
         llm_model=request.llm_model,
         system_prompt=request.system_prompt,
@@ -418,9 +454,10 @@ async def create_session(
 ):
     """Start a new chat session with a coach."""
     # Quick fix: Initialize coach service without DB check for now
-    from domain.coach.models import ChatSession
     import uuid
     from datetime import datetime
+
+    from domain.coach.models import ChatSession
 
     locale = get_request_locale(http_request)
 
@@ -430,13 +467,17 @@ async def create_session(
         user_id=current_user.id,
         coach_id=request.coach_id,
         title=request.title
-        or t("chat.session_title_default", locale, ts=datetime.now().strftime("%Y-%m-%d %H:%M")),
+        or t(
+            "chat.session_title_default",
+            locale,
+            ts=datetime.now().strftime("%Y-%m-%d %H:%M"),
+        ),
         context=request.context,
         project_id=request.project_id,
         is_active=True,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
-        message_count=0
+        message_count=0,
     )
 
     # Save to DB
@@ -457,7 +498,7 @@ async def get_user_sessions(
     current_user: User = Depends(get_current_user),
 ):
     """Get user's chat sessions."""
-    from sqlalchemy import select, desc
+    from sqlalchemy import desc, select
 
     # Build query
     query = select(ChatSession).where(ChatSession.user_id == current_user.id)
@@ -497,7 +538,9 @@ async def get_session_details(
     session = result.scalar_one_or_none()
 
     if not session:
-        raise HTTPException(status_code=404, detail=t("errors.session_not_found", locale))
+        raise HTTPException(
+            status_code=404, detail=t("errors.session_not_found", locale)
+        )
 
     # Verify user owns this session
     if session.user_id != current_user.id:
@@ -525,7 +568,9 @@ async def end_session(
     session = result.scalar_one_or_none()
 
     if not session or session.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail=t("errors.session_not_found", locale))
+        raise HTTPException(
+            status_code=404, detail=t("errors.session_not_found", locale)
+        )
 
     # End the session
     session.is_active = False
@@ -549,8 +594,9 @@ async def get_session_messages(
     current_user: User = Depends(get_current_user),
 ):
     """Get messages from a chat session."""
-    from sqlalchemy import select
     import logging
+
+    from sqlalchemy import select
 
     logger = logging.getLogger(__name__)
     locale = get_request_locale(http_request)
@@ -562,12 +608,16 @@ async def get_session_messages(
         session = session_result.scalar_one_or_none()
 
         if not session or session.user_id != current_user.id:
-            raise HTTPException(status_code=404, detail=t("errors.session_not_found", locale))
+            raise HTTPException(
+                status_code=404, detail=t("errors.session_not_found", locale)
+            )
 
         # Get messages
-        messages_query = select(ChatMessage).where(
-            ChatMessage.session_id == session_id
-        ).order_by(ChatMessage.created_at)
+        messages_query = (
+            select(ChatMessage)
+            .where(ChatMessage.session_id == session_id)
+            .order_by(ChatMessage.created_at)
+        )
 
         if limit:
             messages_query = messages_query.limit(limit)
@@ -579,34 +629,44 @@ async def get_session_messages(
         serialized_messages = []
         for msg in messages:
             try:
-                serialized_messages.append({
-                    "id": str(msg.id),
-                    "role": msg.role,
-                    "content": msg.content or "",
-                    "created_at": msg.created_at.isoformat() if msg.created_at else None,
-                    "metadata": msg.message_metadata if msg.message_metadata else {}
-                })
+                serialized_messages.append(
+                    {
+                        "id": str(msg.id),
+                        "role": msg.role,
+                        "content": msg.content or "",
+                        "created_at": (
+                            msg.created_at.isoformat() if msg.created_at else None
+                        ),
+                        "metadata": (
+                            msg.message_metadata if msg.message_metadata else {}
+                        ),
+                    }
+                )
             except Exception as e:
                 logger.error(f"Error serializing message {msg.id}: {str(e)}")
                 # Skip problematic messages or use default values
-                serialized_messages.append({
-                    "id": str(msg.id),
-                    "role": msg.role or "user",
-                    "content": msg.content or "",
-                    "created_at": None,
-                    "metadata": {}
-                })
+                serialized_messages.append(
+                    {
+                        "id": str(msg.id),
+                        "role": msg.role or "user",
+                        "content": msg.content or "",
+                        "created_at": None,
+                        "metadata": {},
+                    }
+                )
 
         return {
             "session_id": str(session_id),
             "messages": serialized_messages,
-            "total_count": len(serialized_messages)
+            "total_count": len(serialized_messages),
         }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting messages for session {session_id}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Error getting messages for session {session_id}: {str(e)}", exc_info=True
+        )
         raise HTTPException(
             status_code=500,
             detail=t("errors.failed_to_retrieve_messages", locale),

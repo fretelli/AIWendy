@@ -1,15 +1,15 @@
 """Add journal tables to database."""
 
 import asyncio
-import sys
 import os
+import sys
 
 # Add parent directory to path to import modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import text
 from core.database import engine
 from core.logging import get_logger
+from sqlalchemy import text
 
 logger = get_logger(__name__)
 
@@ -113,7 +113,7 @@ async def add_journal_tables():
             "CREATE INDEX IF NOT EXISTS ix_journals_user_date ON journals(user_id, trade_date)",
             "CREATE INDEX IF NOT EXISTS ix_journals_symbol ON journals(symbol)",
             "CREATE INDEX IF NOT EXISTS ix_journals_result ON journals(result)",
-            "CREATE INDEX IF NOT EXISTS ix_journals_user_result ON journals(user_id, result)"
+            "CREATE INDEX IF NOT EXISTS ix_journals_user_result ON journals(user_id, result)",
         ]
 
         try:
@@ -122,10 +122,14 @@ async def add_journal_tables():
             await conn.execute(text(create_journals_table))
 
             # Ensure newer columns exist when upgrading an existing database
-            await conn.execute(text("""
+            await conn.execute(
+                text(
+                    """
                 ALTER TABLE journals
                 ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE;
-            """))
+            """
+                )
+            )
 
             logger.info("Creating journal_templates table...")
             await conn.execute(text(create_templates_table))

@@ -1,24 +1,23 @@
 """Advanced Machine Learning Analytics for Trading Pattern Recognition."""
 
 import json
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Dict, List, Optional, Tuple
+
+import joblib
 import numpy as np
 import pandas as pd
-from typing import List, Dict, Any, Optional, Tuple
-from datetime import datetime, timedelta
-from dataclasses import dataclass, field
-from enum import Enum
-
 import sklearn
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from sklearn.decomposition import PCA
-from sklearn.cluster import KMeans, DBSCAN
-from sklearn.ensemble import RandomForestClassifier, IsolationForest
-from sklearn.metrics import classification_report, silhouette_score
-from sklearn.model_selection import train_test_split
-import joblib
-
 from core.logging import get_logger
 from domain.journal.models import Journal, TradeResult
+from sklearn.cluster import DBSCAN, KMeans
+from sklearn.decomposition import PCA
+from sklearn.ensemble import IsolationForest, RandomForestClassifier
+from sklearn.metrics import classification_report, silhouette_score
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler, StandardScaler
 
 logger = get_logger(__name__)
 
@@ -78,7 +77,9 @@ class TradingPatternAnalyzer:
 
         for trade in trades:
             # Calculate trade metrics
-            duration = (trade.exit_time - trade.entry_time).total_seconds() / 3600  # Hours
+            duration = (
+                trade.exit_time - trade.entry_time
+            ).total_seconds() / 3600  # Hours
             pnl_percentage = (trade.pnl / (trade.entry_price * trade.quantity)) * 100
 
             # Time-based features
@@ -91,21 +92,21 @@ class TradingPatternAnalyzer:
             rule_violations = len(trade.rule_violations) if trade.rule_violations else 0
 
             feature_dict = {
-                'duration_hours': duration,
-                'pnl': trade.pnl,
-                'pnl_percentage': pnl_percentage,
-                'quantity': trade.quantity,
-                'entry_price': trade.entry_price,
-                'exit_price': trade.exit_price,
-                'side': 1 if trade.side == 'long' else -1,
-                'result': 1 if trade.result == TradeResult.WIN else 0,
-                'hour': hour,
-                'day_of_week': day_of_week,
-                'month': month,
-                'emotional_score': emotional_score,
-                'rule_violations': rule_violations,
-                'confidence_level': trade.confidence_level or 5,
-                'is_revenge_trade': 1 if trade.is_revenge_trade else 0
+                "duration_hours": duration,
+                "pnl": trade.pnl,
+                "pnl_percentage": pnl_percentage,
+                "quantity": trade.quantity,
+                "entry_price": trade.entry_price,
+                "exit_price": trade.exit_price,
+                "side": 1 if trade.side == "long" else -1,
+                "result": 1 if trade.result == TradeResult.WIN else 0,
+                "hour": hour,
+                "day_of_week": day_of_week,
+                "month": month,
+                "emotional_score": emotional_score,
+                "rule_violations": rule_violations,
+                "confidence_level": trade.confidence_level or 5,
+                "is_revenge_trade": 1 if trade.is_revenge_trade else 0,
             }
 
             features.append(feature_dict)
@@ -115,9 +116,7 @@ class TradingPatternAnalyzer:
         return df
 
     def identify_patterns(
-        self,
-        trades: List[Journal],
-        lookback_days: int = 30
+        self, trades: List[Journal], lookback_days: int = 30
     ) -> List[TradingPattern]:
         """Identify trading patterns in recent trades."""
 
@@ -160,9 +159,7 @@ class TradingPatternAnalyzer:
         return patterns
 
     def _detect_revenge_trading(
-        self,
-        trades: List[Journal],
-        df: pd.DataFrame
+        self, trades: List[Journal], df: pd.DataFrame
     ) -> Optional[TradingPattern]:
         """Detect revenge trading pattern."""
 
@@ -173,7 +170,9 @@ class TradingPatternAnalyzer:
             # Check if previous trade was a loss
             if prev_trade.result == TradeResult.LOSS:
                 # Check if current trade was entered quickly after loss
-                time_diff = (trade.entry_time - prev_trade.exit_time).total_seconds() / 60
+                time_diff = (
+                    trade.entry_time - prev_trade.exit_time
+                ).total_seconds() / 60
 
                 if time_diff < 30:  # Within 30 minutes
                     # Check if position size increased
@@ -189,39 +188,43 @@ class TradingPatternAnalyzer:
                 time_period=(trades[0].entry_time, trades[-1].exit_time),
                 metrics={
                     "occurrence_count": len(revenge_trades),
-                    "avg_loss_after_revenge": df.loc[df.index.isin(revenge_trades), 'pnl'].mean()
+                    "avg_loss_after_revenge": df.loc[
+                        df.index.isin(revenge_trades), "pnl"
+                    ].mean(),
                 },
                 recommendations=[
                     "Implement a mandatory cool-down period after losses",
                     "Set maximum daily loss limits",
-                    "Practice mindfulness techniques before entering new trades"
-                ]
+                    "Practice mindfulness techniques before entering new trades",
+                ],
             )
 
         return None
 
     def _detect_overtrading(
-        self,
-        trades: List[Journal],
-        df: pd.DataFrame
+        self, trades: List[Journal], df: pd.DataFrame
     ) -> Optional[TradingPattern]:
         """Detect overtrading pattern."""
 
         # Group trades by date
-        df['date'] = pd.to_datetime([t.entry_time.date() for t in trades])
-        daily_trades = df.groupby('date').size()
+        df["date"] = pd.to_datetime([t.entry_time.date() for t in trades])
+        daily_trades = df.groupby("date").size()
 
         # Calculate statistics
         avg_daily_trades = daily_trades.mean()
         std_daily_trades = daily_trades.std()
 
         # Find days with excessive trading
-        overtrade_days = daily_trades[daily_trades > avg_daily_trades + 2 * std_daily_trades]
+        overtrade_days = daily_trades[
+            daily_trades > avg_daily_trades + 2 * std_daily_trades
+        ]
 
         if len(overtrade_days) >= 3:
             affected_trades = []
             for date in overtrade_days.index:
-                day_trades = [str(t.id) for t in trades if t.entry_time.date() == date.date()]
+                day_trades = [
+                    str(t.id) for t in trades if t.entry_time.date() == date.date()
+                ]
                 affected_trades.extend(day_trades)
 
             return TradingPattern(
@@ -233,21 +236,19 @@ class TradingPatternAnalyzer:
                 metrics={
                     "avg_daily_trades": float(avg_daily_trades),
                     "max_daily_trades": int(daily_trades.max()),
-                    "overtrade_days": len(overtrade_days)
+                    "overtrade_days": len(overtrade_days),
                 },
                 recommendations=[
                     "Set a maximum number of trades per day",
                     "Focus on quality over quantity",
-                    "Implement trade planning the night before"
-                ]
+                    "Implement trade planning the night before",
+                ],
             )
 
         return None
 
     def _detect_fomo(
-        self,
-        trades: List[Journal],
-        df: pd.DataFrame
+        self, trades: List[Journal], df: pd.DataFrame
     ) -> Optional[TradingPattern]:
         """Detect FOMO (Fear of Missing Out) pattern."""
 
@@ -264,9 +265,13 @@ class TradingPatternAnalyzer:
 
             if emotional_score > 7:
                 # Check if entered at highs (for long) or lows (for short)
-                if trade.side == 'long' and trade.entry_price > df['entry_price'].quantile(0.9):
+                if trade.side == "long" and trade.entry_price > df[
+                    "entry_price"
+                ].quantile(0.9):
                     fomo_trades.append(str(trade.id))
-                elif trade.side == 'short' and trade.entry_price < df['entry_price'].quantile(0.1):
+                elif trade.side == "short" and trade.entry_price < df[
+                    "entry_price"
+                ].quantile(0.1):
                     fomo_trades.append(str(trade.id))
 
         if len(fomo_trades) >= 3:
@@ -278,21 +283,21 @@ class TradingPatternAnalyzer:
                 time_period=(trades[0].entry_time, trades[-1].exit_time),
                 metrics={
                     "fomo_trade_count": len(fomo_trades),
-                    "avg_loss_fomo_trades": df.loc[df.index.isin(fomo_trades), 'pnl'].mean()
+                    "avg_loss_fomo_trades": df.loc[
+                        df.index.isin(fomo_trades), "pnl"
+                    ].mean(),
                 },
                 recommendations=[
                     "Wait for proper setups and confirmations",
                     "Create a pre-trade checklist",
-                    "Practice patience and discipline"
-                ]
+                    "Practice patience and discipline",
+                ],
             )
 
         return None
 
     def _detect_streaks(
-        self,
-        trades: List[Journal],
-        df: pd.DataFrame
+        self, trades: List[Journal], df: pd.DataFrame
     ) -> List[TradingPattern]:
         """Detect winning and losing streaks."""
 
@@ -315,18 +320,25 @@ class TradingPatternAnalyzer:
                         else PatternType.LOSING_STREAK
                     )
 
-                    patterns.append(TradingPattern(
-                        pattern_type=pattern_type,
-                        confidence=0.85,
-                        description=f"{len(current_streak)}-trade {streak_type.value} streak detected",
-                        affected_trades=[str(t.id) for t in current_streak],
-                        time_period=(current_streak[0].entry_time, current_streak[-1].exit_time),
-                        metrics={
-                            "streak_length": len(current_streak),
-                            "total_pnl": sum(t.pnl for t in current_streak)
-                        },
-                        recommendations=self._get_streak_recommendations(pattern_type)
-                    ))
+                    patterns.append(
+                        TradingPattern(
+                            pattern_type=pattern_type,
+                            confidence=0.85,
+                            description=f"{len(current_streak)}-trade {streak_type.value} streak detected",
+                            affected_trades=[str(t.id) for t in current_streak],
+                            time_period=(
+                                current_streak[0].entry_time,
+                                current_streak[-1].exit_time,
+                            ),
+                            metrics={
+                                "streak_length": len(current_streak),
+                                "total_pnl": sum(t.pnl for t in current_streak),
+                            },
+                            recommendations=self._get_streak_recommendations(
+                                pattern_type
+                            ),
+                        )
+                    )
 
                 current_streak = [trade]
                 streak_type = trade.result
@@ -334,19 +346,17 @@ class TradingPatternAnalyzer:
         return patterns
 
     def _detect_risk_patterns(
-        self,
-        trades: List[Journal],
-        df: pd.DataFrame
+        self, trades: List[Journal], df: pd.DataFrame
     ) -> Optional[TradingPattern]:
         """Detect risk management patterns."""
 
         # Calculate risk metrics
-        position_sizes = df['quantity'].values
+        position_sizes = df["quantity"].values
         avg_position = position_sizes.mean()
         std_position = position_sizes.std()
 
         # Find overleveraged trades
-        overleveraged = df[df['quantity'] > avg_position + 2 * std_position]
+        overleveraged = df[df["quantity"] > avg_position + 2 * std_position]
 
         if len(overleveraged) >= 3:
             return TradingPattern(
@@ -358,21 +368,19 @@ class TradingPatternAnalyzer:
                 metrics={
                     "avg_position": float(avg_position),
                     "max_position": float(position_sizes.max()),
-                    "overleveraged_count": len(overleveraged)
+                    "overleveraged_count": len(overleveraged),
                 },
                 recommendations=[
                     "Implement fixed position sizing rules",
                     "Use Kelly Criterion for optimal sizing",
-                    "Never risk more than 2% per trade"
-                ]
+                    "Never risk more than 2% per trade",
+                ],
             )
 
         return None
 
     def _cluster_behavioral_patterns(
-        self,
-        trades: List[Journal],
-        df: pd.DataFrame
+        self, trades: List[Journal], df: pd.DataFrame
     ) -> List[TradingPattern]:
         """Use clustering to identify behavioral patterns."""
 
@@ -383,7 +391,9 @@ class TradingPatternAnalyzer:
 
         try:
             # Prepare features for clustering
-            features = df[['emotional_score', 'rule_violations', 'confidence_level']].values
+            features = df[
+                ["emotional_score", "rule_violations", "confidence_level"]
+            ].values
 
             # Scale features
             scaler = StandardScaler()
@@ -405,28 +415,35 @@ class TradingPatternAnalyzer:
                     # Determine pattern type based on cluster characteristics
                     cluster_df = df.iloc[cluster_indices]
 
-                    if cluster_df['emotional_score'].mean() > 7:
+                    if cluster_df["emotional_score"].mean() > 7:
                         pattern_type = PatternType.ERRATIC_BEHAVIOR
                         description = "Cluster of emotionally driven trades"
-                    elif cluster_df['confidence_level'].mean() < 3:
+                    elif cluster_df["confidence_level"].mean() < 3:
                         pattern_type = PatternType.FEAR_OF_LOSS
                         description = "Cluster of low-confidence trades"
                     else:
                         continue
 
-                    patterns.append(TradingPattern(
-                        pattern_type=pattern_type,
-                        confidence=0.7,
-                        description=description,
-                        affected_trades=[str(t.id) for t in cluster_trades],
-                        time_period=(cluster_trades[0].entry_time, cluster_trades[-1].exit_time),
-                        metrics={
-                            "cluster_size": len(cluster_trades),
-                            "avg_pnl": cluster_df['pnl'].mean(),
-                            "win_rate": cluster_df['result'].mean()
-                        },
-                        recommendations=self._get_behavioral_recommendations(pattern_type)
-                    ))
+                    patterns.append(
+                        TradingPattern(
+                            pattern_type=pattern_type,
+                            confidence=0.7,
+                            description=description,
+                            affected_trades=[str(t.id) for t in cluster_trades],
+                            time_period=(
+                                cluster_trades[0].entry_time,
+                                cluster_trades[-1].exit_time,
+                            ),
+                            metrics={
+                                "cluster_size": len(cluster_trades),
+                                "avg_pnl": cluster_df["pnl"].mean(),
+                                "win_rate": cluster_df["result"].mean(),
+                            },
+                            recommendations=self._get_behavioral_recommendations(
+                                pattern_type
+                            ),
+                        )
+                    )
 
         except Exception as e:
             logger.error(f"Clustering failed: {e}")
@@ -434,9 +451,7 @@ class TradingPatternAnalyzer:
         return patterns
 
     def predict_performance(
-        self,
-        trades: List[Journal],
-        horizon_days: int = 30
+        self, trades: List[Journal], horizon_days: int = 30
     ) -> Optional[PerformancePrediction]:
         """Predict future trading performance using ML."""
 
@@ -448,8 +463,8 @@ class TradingPatternAnalyzer:
             df = self.extract_features(trades)
 
             # Prepare training data
-            X = df.drop(['pnl', 'result'], axis=1)
-            y = df['result']  # Win/Loss
+            X = df.drop(["pnl", "result"], axis=1)
+            y = df["result"]  # Win/Loss
 
             # Split data
             X_train, X_test, y_train, y_test = train_test_split(
@@ -475,16 +490,16 @@ class TradingPatternAnalyzer:
 
             # Feature importance
             feature_importance = dict(zip(X.columns, rf.feature_importances_))
-            top_features = dict(sorted(
-                feature_importance.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[:5])
+            top_features = dict(
+                sorted(feature_importance.items(), key=lambda x: x[1], reverse=True)[:5]
+            )
 
             # Calculate expected profit
-            recent_avg_win = df[df['result'] == 1]['pnl'].mean()
-            recent_avg_loss = abs(df[df['result'] == 0]['pnl'].mean())
-            expected_profit = (predicted_win_rate * recent_avg_win) - ((1 - predicted_win_rate) * recent_avg_loss)
+            recent_avg_win = df[df["result"] == 1]["pnl"].mean()
+            recent_avg_loss = abs(df[df["result"] == 0]["pnl"].mean())
+            expected_profit = (predicted_win_rate * recent_avg_win) - (
+                (1 - predicted_win_rate) * recent_avg_loss
+            )
 
             # Risk score (0-100)
             risk_score = self._calculate_risk_score(df, predicted_win_rate)
@@ -493,12 +508,12 @@ class TradingPatternAnalyzer:
                 predicted_win_rate=float(predicted_win_rate),
                 confidence_interval=(
                     float(predicted_win_rate - (1 - confidence)),
-                    float(predicted_win_rate + (1 - confidence))
+                    float(predicted_win_rate + (1 - confidence)),
                 ),
                 expected_profit=float(expected_profit),
                 risk_score=float(risk_score),
                 prediction_horizon=horizon_days,
-                factors=top_features
+                factors=top_features,
             )
 
         except Exception as e:
@@ -529,14 +544,18 @@ class TradingPatternAnalyzer:
             for i, pred in enumerate(predictions):
                 if pred == -1:  # Anomaly
                     trade = trades[i]
-                    anomalies.append({
-                        'trade_id': str(trade.id),
-                        'entry_time': trade.entry_time.isoformat(),
-                        'symbol': trade.symbol,
-                        'pnl': trade.pnl,
-                        'anomaly_score': float(iso_forest.score_samples([scaled_features[i]])[0]),
-                        'reason': self._explain_anomaly(df.iloc[i], df)
-                    })
+                    anomalies.append(
+                        {
+                            "trade_id": str(trade.id),
+                            "entry_time": trade.entry_time.isoformat(),
+                            "symbol": trade.symbol,
+                            "pnl": trade.pnl,
+                            "anomaly_score": float(
+                                iso_forest.score_samples([scaled_features[i]])[0]
+                            ),
+                            "reason": self._explain_anomaly(df.iloc[i], df),
+                        }
+                    )
 
             return anomalies
 
@@ -552,8 +571,12 @@ class TradingPatternAnalyzer:
         # Check emotional state
         if trade.emotional_state:
             emotional_map = {
-                'fearful': 8, 'anxious': 7, 'greedy': 8,
-                'confident': 3, 'calm': 2, 'frustrated': 9
+                "fearful": 8,
+                "anxious": 7,
+                "greedy": 8,
+                "confident": 3,
+                "calm": 2,
+                "frustrated": 9,
             }
             score = emotional_map.get(trade.emotional_state.lower(), 5)
 
@@ -575,7 +598,7 @@ class TradingPatternAnalyzer:
                 "Stay disciplined and don't increase position sizes",
                 "Review and reinforce successful strategies",
                 "Prepare for eventual mean reversion",
-                "Take some profits off the table"
+                "Take some profits off the table",
             ]
         else:  # Losing streak
             return [
@@ -583,7 +606,7 @@ class TradingPatternAnalyzer:
                 "Take a break to reset mentally",
                 "Review and identify what's not working",
                 "Focus on process over outcomes",
-                "Consider paper trading until confidence returns"
+                "Consider paper trading until confidence returns",
             ]
 
     def _get_behavioral_recommendations(self, pattern_type: PatternType) -> List[str]:
@@ -594,25 +617,27 @@ class TradingPatternAnalyzer:
                 "Implement strict trading rules",
                 "Practice emotional regulation techniques",
                 "Keep a detailed trading journal",
-                "Consider automated trading systems"
+                "Consider automated trading systems",
             ],
             PatternType.FEAR_OF_LOSS: [
                 "Work on building confidence gradually",
                 "Start with smaller position sizes",
                 "Focus on high-probability setups",
-                "Practice with demo account first"
+                "Practice with demo account first",
             ],
             PatternType.RISK_AVERSION: [
                 "Gradually increase position sizes",
                 "Focus on risk-reward ratios",
                 "Set realistic profit targets",
-                "Understand that losses are part of trading"
-            ]
+                "Understand that losses are part of trading",
+            ],
         }
 
         return recommendations_map.get(pattern_type, ["Continue monitoring patterns"])
 
-    def _calculate_risk_score(self, df: pd.DataFrame, predicted_win_rate: float) -> float:
+    def _calculate_risk_score(
+        self, df: pd.DataFrame, predicted_win_rate: float
+    ) -> float:
         """Calculate risk score (0-100)."""
 
         score = 50  # Start neutral
@@ -624,22 +649,22 @@ class TradingPatternAnalyzer:
             score -= 10
 
         # Factor 2: Position size variance
-        position_variance = df['quantity'].std() / df['quantity'].mean()
+        position_variance = df["quantity"].std() / df["quantity"].mean()
         if position_variance > 0.5:
             score += 15
 
         # Factor 3: Rule violations
-        avg_violations = df['rule_violations'].mean()
+        avg_violations = df["rule_violations"].mean()
         score += min(20, avg_violations * 5)
 
         # Factor 4: Emotional scores
-        avg_emotional = df['emotional_score'].mean()
+        avg_emotional = df["emotional_score"].mean()
         if avg_emotional > 6:
             score += 10
 
         # Factor 5: Recent performance
         recent_trades = df.tail(10)
-        recent_win_rate = recent_trades['result'].mean()
+        recent_win_rate = recent_trades["result"].mean()
         if recent_win_rate < 0.3:
             score += 15
 
@@ -652,15 +677,23 @@ class TradingPatternAnalyzer:
 
         # Check each feature
         for col in trade_row.index:
-            if col in ['pnl', 'quantity', 'duration_hours']:
+            if col in ["pnl", "quantity", "duration_hours"]:
                 value = trade_row[col]
                 mean = df[col].mean()
                 std = df[col].std()
 
                 if abs(value - mean) > 2 * std:
                     if value > mean:
-                        reasons.append(f"Unusually high {col}: {value:.2f} (avg: {mean:.2f})")
+                        reasons.append(
+                            f"Unusually high {col}: {value:.2f} (avg: {mean:.2f})"
+                        )
                     else:
-                        reasons.append(f"Unusually low {col}: {value:.2f} (avg: {mean:.2f})")
+                        reasons.append(
+                            f"Unusually low {col}: {value:.2f} (avg: {mean:.2f})"
+                        )
 
-        return "; ".join(reasons) if reasons else "Multiple unusual characteristics detected"
+        return (
+            "; ".join(reasons)
+            if reasons
+            else "Multiple unusual characteristics detected"
+        )

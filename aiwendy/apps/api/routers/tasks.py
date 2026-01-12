@@ -1,19 +1,13 @@
 """Task management and monitoring API endpoints."""
 
-from typing import Optional, Dict, Any, List
-from datetime import datetime
-from uuid import UUID
-
 import asyncio
 import json
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from celery.result import AsyncResult
 from celery import states
-from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi.responses import StreamingResponse
-
+from celery.result import AsyncResult
 from core.auth import get_current_user
 from core.cache_service import get_cache_service
 from core.database import get_session
@@ -22,16 +16,15 @@ from core.logging import get_logger
 from core.task_events import record_task_owner, task_event_channel
 from domain.knowledge.models import KnowledgeDocument
 from domain.user.models import User
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 from workers.celery_app import celery_app
-from workers.report_tasks import (
-    generate_daily_report,
-    generate_weekly_report,
-    generate_monthly_report,
-)
-from workers.knowledge_tasks import (
-    ingest_knowledge_document,
-    semantic_search,
-)
+from workers.knowledge_tasks import ingest_knowledge_document, semantic_search
+from workers.report_tasks import (generate_daily_report,
+                                  generate_monthly_report,
+                                  generate_weekly_report)
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 logger = get_logger(__name__)
@@ -62,8 +55,14 @@ async def get_task_status(
         cache = get_cache_service()
         redis_client = await cache.async_client
         owner = await redis_client.get(f"task:owner:{task_id}")
-        if owner and (str(owner) != str(current_user.id)) and (not current_user.is_admin):
-            raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
+        if (
+            owner
+            and (str(owner) != str(current_user.id))
+            and (not current_user.is_admin)
+        ):
+            raise HTTPException(
+                status_code=403, detail=t("errors.access_denied", locale)
+            )
 
         result = AsyncResult(task_id, app=celery_app)
 
@@ -136,8 +135,12 @@ async def stream_task_status(
                 "ready": result.ready(),
                 "successful": result.successful() if result.ready() else None,
                 "failed": result.failed() if result.ready() else None,
-                "result": result.result if result.ready() and result.successful() else None,
-                "error": str(result.info) if result.ready() and result.failed() else None,
+                "result": (
+                    result.result if result.ready() and result.successful() else None
+                ),
+                "error": (
+                    str(result.info) if result.ready() and result.failed() else None
+                ),
             }
             yield f"data: {json.dumps(snapshot, ensure_ascii=False)}\n\n"
             if snapshot["ready"]:
@@ -145,7 +148,9 @@ async def stream_task_status(
 
             while True:
                 # Push events if workers publish.
-                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                message = await pubsub.get_message(
+                    ignore_subscribe_messages=True, timeout=1.0
+                )
                 if message and message.get("data"):
                     data = message["data"]
                     if isinstance(data, (bytes, bytearray)):
@@ -167,8 +172,16 @@ async def stream_task_status(
                         "ready": result.ready(),
                         "successful": result.successful() if result.ready() else None,
                         "failed": result.failed() if result.ready() else None,
-                        "result": result.result if result.ready() and result.successful() else None,
-                        "error": str(result.info) if result.ready() and result.failed() else None,
+                        "result": (
+                            result.result
+                            if result.ready() and result.successful()
+                            else None
+                        ),
+                        "error": (
+                            str(result.info)
+                            if result.ready() and result.failed()
+                            else None
+                        ),
                     }
                     yield f"data: {json.dumps(snapshot, ensure_ascii=False)}\n\n"
                     if snapshot["ready"]:
@@ -226,12 +239,15 @@ async def trigger_daily_report(
             "task_id": task.id,
             "status": "queued",
             "message": t("messages.daily_report_queued", locale),
-            "check_status_url": f"/api/v1/tasks/status/{task.id}"
+            "check_status_url": f"/api/v1/tasks/status/{task.id}",
         }
 
     except Exception as e:
         logger.error(f"Failed to trigger daily report: {str(e)}")
-        raise HTTPException(status_code=500, detail=t("errors.internal", get_request_locale(http_request)))
+        raise HTTPException(
+            status_code=500,
+            detail=t("errors.internal", get_request_locale(http_request)),
+        )
 
 
 @router.post("/reports/generate-weekly")
@@ -264,12 +280,15 @@ async def trigger_weekly_report(
             "task_id": task.id,
             "status": "queued",
             "message": t("messages.weekly_report_queued", locale),
-            "check_status_url": f"/api/v1/tasks/status/{task.id}"
+            "check_status_url": f"/api/v1/tasks/status/{task.id}",
         }
 
     except Exception as e:
         logger.error(f"Failed to trigger weekly report: {str(e)}")
-        raise HTTPException(status_code=500, detail=t("errors.internal", get_request_locale(http_request)))
+        raise HTTPException(
+            status_code=500,
+            detail=t("errors.internal", get_request_locale(http_request)),
+        )
 
 
 @router.post("/reports/generate-monthly")
@@ -305,12 +324,15 @@ async def trigger_monthly_report(
             "task_id": task.id,
             "status": "queued",
             "message": t("messages.monthly_report_queued", locale),
-            "check_status_url": f"/api/v1/tasks/status/{task.id}"
+            "check_status_url": f"/api/v1/tasks/status/{task.id}",
         }
 
     except Exception as e:
         logger.error(f"Failed to trigger monthly report: {str(e)}")
-        raise HTTPException(status_code=500, detail=t("errors.internal", get_request_locale(http_request)))
+        raise HTTPException(
+            status_code=500,
+            detail=t("errors.internal", get_request_locale(http_request)),
+        )
 
 
 @router.post("/knowledge/ingest")
@@ -326,7 +348,9 @@ async def trigger_knowledge_ingest(
         title = request.title.strip()
         content = request.content.strip()
         if not title or not content:
-            raise HTTPException(status_code=400, detail=t("errors.title_and_content_required", locale))
+            raise HTTPException(
+                status_code=400, detail=t("errors.title_and_content_required", locale)
+            )
 
         doc = KnowledgeDocument(
             user_id=current_user.id,
@@ -358,7 +382,7 @@ async def trigger_knowledge_ingest(
             "document_id": str(doc.id),
             "status": "queued",
             "message": t("messages.knowledge_ingestion_queued", locale),
-            "check_status_url": f"/api/v1/tasks/status/{task.id}"
+            "check_status_url": f"/api/v1/tasks/status/{task.id}",
         }
 
     except Exception as e:
@@ -388,7 +412,7 @@ async def trigger_semantic_search(
             query=query,
             user_id=str(current_user.id),
             top_k=top_k,
-            project_id=str(project_id) if project_id else None
+            project_id=str(project_id) if project_id else None,
         )
         record_task_owner(task.id, str(current_user.id))
 
@@ -398,7 +422,7 @@ async def trigger_semantic_search(
             "task_id": task.id,
             "status": "queued",
             "message": t("messages.semantic_search_queued", locale),
-            "check_status_url": f"/api/v1/tasks/status/{task.id}"
+            "check_status_url": f"/api/v1/tasks/status/{task.id}",
         }
 
     except Exception as e:
@@ -423,11 +447,7 @@ async def get_active_tasks(
         active_tasks = inspect.active()
 
         if not active_tasks:
-            return {
-                "tasks": [],
-                "total": 0,
-                "timestamp": datetime.utcnow().isoformat()
-            }
+            return {"tasks": [], "total": 0, "timestamp": datetime.utcnow().isoformat()}
 
         # Filter tasks for current user (unless admin)
         user_tasks = []
@@ -439,20 +459,22 @@ async def get_active_tasks(
 
                 # Check if user_id matches (in args or kwargs)
                 user_id_match = (
-                    str(current_user.id) in task_args or
-                    task_kwargs.get("user_id") == str(current_user.id) or
-                    current_user.is_admin
+                    str(current_user.id) in task_args
+                    or task_kwargs.get("user_id") == str(current_user.id)
+                    or current_user.is_admin
                 )
 
                 if user_id_match:
-                    user_tasks.append({
-                        "task_id": task.get("id"),
-                        "name": task.get("name"),
-                        "worker": worker,
-                        "args": task.get("args"),
-                        "kwargs": task.get("kwargs"),
-                        "time_start": task.get("time_start"),
-                    })
+                    user_tasks.append(
+                        {
+                            "task_id": task.get("id"),
+                            "name": task.get("name"),
+                            "worker": worker,
+                            "args": task.get("args"),
+                            "kwargs": task.get("kwargs"),
+                            "time_start": task.get("time_start"),
+                        }
+                    )
 
         # Limit results
         user_tasks = user_tasks[:limit]
@@ -460,7 +482,7 @@ async def get_active_tasks(
         return {
             "tasks": user_tasks,
             "total": len(user_tasks),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     except Exception as e:
@@ -469,7 +491,7 @@ async def get_active_tasks(
             "tasks": [],
             "total": 0,
             "error": t("errors.internal", locale),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
 
@@ -484,25 +506,29 @@ async def get_scheduled_tasks(
     """
     locale = get_request_locale(http_request)
     if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail=t("errors.admin_access_required", locale))
+        raise HTTPException(
+            status_code=403, detail=t("errors.admin_access_required", locale)
+        )
 
     try:
         # Get scheduled tasks from Celery Beat
         scheduled_tasks = []
 
         for task_name, task_info in celery_app.conf.beat_schedule.items():
-            scheduled_tasks.append({
-                "name": task_name,
-                "task": task_info.get("task"),
-                "schedule": str(task_info.get("schedule")),
-                "args": task_info.get("args", []),
-                "kwargs": task_info.get("kwargs", {}),
-            })
+            scheduled_tasks.append(
+                {
+                    "name": task_name,
+                    "task": task_info.get("task"),
+                    "schedule": str(task_info.get("schedule")),
+                    "args": task_info.get("args", []),
+                    "kwargs": task_info.get("kwargs", {}),
+                }
+            )
 
         return {
             "scheduled_tasks": scheduled_tasks,
             "total": len(scheduled_tasks),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     except Exception as e:
@@ -544,7 +570,7 @@ async def cancel_task(
             "task_id": task_id,
             "status": "cancelled",
             "message": t("messages.task_cancelled", locale),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     except HTTPException:
@@ -565,7 +591,9 @@ async def get_task_stats(
     """
     locale = get_request_locale(http_request)
     if not current_user.is_admin:
-        raise HTTPException(status_code=403, detail=t("errors.admin_access_required", locale))
+        raise HTTPException(
+            status_code=403, detail=t("errors.admin_access_required", locale)
+        )
 
     try:
         inspect = celery_app.control.inspect()
@@ -585,13 +613,17 @@ async def get_task_stats(
         worker_stats = []
         if stats:
             for worker, worker_info in stats.items():
-                worker_stats.append({
-                    "worker": worker,
-                    "pool": worker_info.get("pool", {}).get("implementation"),
-                    "max_concurrency": worker_info.get("pool", {}).get("max-concurrency"),
-                    "processes": worker_info.get("pool", {}).get("processes"),
-                    "total_tasks": worker_info.get("total", {}),
-                })
+                worker_stats.append(
+                    {
+                        "worker": worker,
+                        "pool": worker_info.get("pool", {}).get("implementation"),
+                        "max_concurrency": worker_info.get("pool", {}).get(
+                            "max-concurrency"
+                        ),
+                        "processes": worker_info.get("pool", {}).get("processes"),
+                        "total_tasks": worker_info.get("total", {}),
+                    }
+                )
 
         return {
             "queue_stats": {
@@ -600,7 +632,7 @@ async def get_task_stats(
                 "reserved_tasks": reserved_count,
             },
             "workers": worker_stats,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
 
     except Exception as e:
@@ -613,5 +645,5 @@ async def get_task_stats(
             },
             "workers": [],
             "error": t("errors.internal", locale),
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.utcnow().isoformat(),
         }
