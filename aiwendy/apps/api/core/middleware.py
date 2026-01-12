@@ -5,17 +5,16 @@ import uuid
 from typing import Callable, Optional
 
 import structlog
-from fastapi import Request, Response
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
-from jose import JWTError, jwt
-from sqlalchemy import select
-
 from config import get_settings
+from core.database import async_session
 from core.i18n import get_request_locale, t
 from core.ratelimit import RateLimiter, get_rate_limiter
-from core.database import async_session
 from domain.user.models import User
+from fastapi import Request, Response
+from fastapi.responses import JSONResponse
+from jose import JWTError, jwt
+from sqlalchemy import select
+from starlette.middleware.base import BaseHTTPMiddleware
 
 settings = get_settings()
 
@@ -80,7 +79,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Extract user from JWT token and add to request state."""
         # Skip auth for health checks and docs
-        if request.url.path in ["/", "/api/health", "/api/docs", "/api/redoc", "/api/openapi.json"]:
+        if request.url.path in [
+            "/",
+            "/api/health",
+            "/api/docs",
+            "/api/redoc",
+            "/api/openapi.json",
+        ]:
             return await call_next(request)
 
         # Skip auth for auth endpoints
@@ -108,7 +113,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
                         # Get user from database
                         async with async_session() as session:
                             result = await session.execute(
-                                select(User).where(User.id == user_id, User.is_active == True)
+                                select(User).where(
+                                    User.id == user_id, User.is_active == True
+                                )
                             )
                             user = result.scalar_one_or_none()
 
@@ -154,7 +161,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Get limits based on user tier
         # Handle both string and enum values
-        tier = user.subscription_tier.value if hasattr(user.subscription_tier, 'value') else user.subscription_tier
+        tier = (
+            user.subscription_tier.value
+            if hasattr(user.subscription_tier, "value")
+            else user.subscription_tier
+        )
         limits = self._get_limits(tier)
         limit, window = limits.get(endpoint, (None, None))
 
@@ -183,7 +194,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 content={
                     "error": {
                         "code": "RATE_LIMIT_EXCEEDED",
-                        "message": t("errors.rate_limit_exceeded", locale, limit=limit, window=window),
+                        "message": t(
+                            "errors.rate_limit_exceeded",
+                            locale,
+                            limit=limit,
+                            window=window,
+                        ),
                         "details": {
                             "limit": limit,
                             "window": window,

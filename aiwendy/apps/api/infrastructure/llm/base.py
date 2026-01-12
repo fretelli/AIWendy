@@ -1,13 +1,14 @@
 """Base LLM provider interface."""
 
 from abc import ABC, abstractmethod
-from typing import AsyncIterator, List, Dict, Any, Optional, Union
 from dataclasses import dataclass, field
+from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 
 @dataclass
 class ImageContent:
     """Image content for multimodal messages."""
+
     url: str  # Can be a URL or base64 data URL (data:image/jpeg;base64,...)
     detail: str = "auto"  # "auto", "low", "high" (for OpenAI)
 
@@ -15,12 +16,14 @@ class ImageContent:
 @dataclass
 class TextContent:
     """Text content for multimodal messages."""
+
     text: str
 
 
 @dataclass
 class MessageContent:
     """Content block in a multimodal message."""
+
     type: str  # "text" or "image_url"
     text: Optional[str] = None
     image_url: Optional[ImageContent] = None
@@ -39,6 +42,7 @@ class MessageContent:
 @dataclass
 class Message:
     """Chat message supporting both text-only and multimodal content."""
+
     role: str  # "system", "user", "assistant"
     content: Union[str, List[MessageContent]] = ""
 
@@ -68,13 +72,15 @@ class Message:
             if part.type == "text":
                 content_parts.append({"type": "text", "text": part.text})
             elif part.type == "image_url" and part.image_url:
-                content_parts.append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": part.image_url.url,
-                        "detail": part.image_url.detail
+                content_parts.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": part.image_url.url,
+                            "detail": part.image_url.detail,
+                        },
                     }
-                })
+                )
 
         return {"role": self.role, "content": content_parts}
 
@@ -96,14 +102,16 @@ class Message:
                     try:
                         header, data = url.split(",", 1)
                         media_type = header.split(";")[0].split(":")[1]
-                        content_parts.append({
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": media_type,
-                                "data": data
+                        content_parts.append(
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type,
+                                    "data": data,
+                                },
                             }
-                        })
+                        )
                     except (ValueError, IndexError):
                         # Skip invalid data URLs
                         pass
@@ -118,6 +126,7 @@ class Message:
 @dataclass
 class LLMConfig:
     """LLM configuration."""
+
     model: str
     temperature: float = 0.7
     max_tokens: int = 2000

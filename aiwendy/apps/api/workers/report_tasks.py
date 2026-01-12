@@ -7,12 +7,11 @@ from typing import Any, Dict, Optional
 from uuid import UUID
 
 from celery import Task
-
 from core.database import SessionLocal
 from core.logging import get_logger
+from core.task_events import publish_task_event
 from domain.report.models import Report, ReportSchedule, ReportType
 from services.report_service import ReportService
-from core.task_events import publish_task_event
 from workers.celery_app import celery_app
 
 logger = get_logger(__name__)
@@ -51,7 +50,9 @@ def generate_daily_report(
     db = self._get_db()
     now = datetime.utcnow()
     try:
-        publish_task_event(task_id, {"task_id": task_id, "state": "STARTED", "ready": False})
+        publish_task_event(
+            task_id, {"task_id": task_id, "state": "STARTED", "ready": False}
+        )
         user_uuid = UUID(user_id)
         project_uuid = UUID(project_id) if project_id else None
 
@@ -68,7 +69,9 @@ def generate_daily_report(
             project_id=project_uuid,
         )
 
-        schedule = db.query(ReportSchedule).filter(ReportSchedule.user_id == user_uuid).first()
+        schedule = (
+            db.query(ReportSchedule).filter(ReportSchedule.user_id == user_uuid).first()
+        )
         if schedule:
             schedule.last_daily_generated = now
             db.commit()
@@ -81,12 +84,30 @@ def generate_daily_report(
             "report_type": "daily",
             "created_at": report.created_at.isoformat() if report.created_at else None,
         }
-        publish_task_event(task_id, {"task_id": task_id, "state": "SUCCESS", "ready": True, "successful": True, "result": payload})
+        publish_task_event(
+            task_id,
+            {
+                "task_id": task_id,
+                "state": "SUCCESS",
+                "ready": True,
+                "successful": True,
+                "result": payload,
+            },
+        )
         return payload
     except Exception as e:
         db.rollback()
         logger.error("daily_report_failed", user_id=user_id, error=str(e))
-        publish_task_event(task_id, {"task_id": task_id, "state": "FAILURE", "ready": True, "successful": False, "error": str(e)})
+        publish_task_event(
+            task_id,
+            {
+                "task_id": task_id,
+                "state": "FAILURE",
+                "ready": True,
+                "successful": False,
+                "error": str(e),
+            },
+        )
         return {"status": "error", "error": str(e)}
     finally:
         db.close()
@@ -105,7 +126,9 @@ def generate_weekly_report(
     db = self._get_db()
     now = datetime.utcnow()
     try:
-        publish_task_event(task_id, {"task_id": task_id, "state": "STARTED", "ready": False})
+        publish_task_event(
+            task_id, {"task_id": task_id, "state": "STARTED", "ready": False}
+        )
         user_uuid = UUID(user_id)
         project_uuid = UUID(project_id) if project_id else None
 
@@ -124,25 +147,47 @@ def generate_weekly_report(
             project_id=project_uuid,
         )
 
-        schedule = db.query(ReportSchedule).filter(ReportSchedule.user_id == user_uuid).first()
+        schedule = (
+            db.query(ReportSchedule).filter(ReportSchedule.user_id == user_uuid).first()
+        )
         if schedule:
             schedule.last_weekly_generated = now
             db.commit()
 
         _invalidate_user_report_caches(user_id)
-        logger.info("weekly_report_generated", user_id=user_id, report_id=str(report.id))
+        logger.info(
+            "weekly_report_generated", user_id=user_id, report_id=str(report.id)
+        )
         payload = {
             "status": "success",
             "report_id": str(report.id),
             "report_type": "weekly",
             "created_at": report.created_at.isoformat() if report.created_at else None,
         }
-        publish_task_event(task_id, {"task_id": task_id, "state": "SUCCESS", "ready": True, "successful": True, "result": payload})
+        publish_task_event(
+            task_id,
+            {
+                "task_id": task_id,
+                "state": "SUCCESS",
+                "ready": True,
+                "successful": True,
+                "result": payload,
+            },
+        )
         return payload
     except Exception as e:
         db.rollback()
         logger.error("weekly_report_failed", user_id=user_id, error=str(e))
-        publish_task_event(task_id, {"task_id": task_id, "state": "FAILURE", "ready": True, "successful": False, "error": str(e)})
+        publish_task_event(
+            task_id,
+            {
+                "task_id": task_id,
+                "state": "FAILURE",
+                "ready": True,
+                "successful": False,
+                "error": str(e),
+            },
+        )
         return {"status": "error", "error": str(e)}
     finally:
         db.close()
@@ -162,7 +207,9 @@ def generate_monthly_report(
     db = self._get_db()
     now = datetime.utcnow()
     try:
-        publish_task_event(task_id, {"task_id": task_id, "state": "STARTED", "ready": False})
+        publish_task_event(
+            task_id, {"task_id": task_id, "state": "STARTED", "ready": False}
+        )
         user_uuid = UUID(user_id)
         project_uuid = UUID(project_id) if project_id else None
 
@@ -184,25 +231,47 @@ def generate_monthly_report(
             project_id=project_uuid,
         )
 
-        schedule = db.query(ReportSchedule).filter(ReportSchedule.user_id == user_uuid).first()
+        schedule = (
+            db.query(ReportSchedule).filter(ReportSchedule.user_id == user_uuid).first()
+        )
         if schedule:
             schedule.last_monthly_generated = now
             db.commit()
 
         _invalidate_user_report_caches(user_id)
-        logger.info("monthly_report_generated", user_id=user_id, report_id=str(report.id))
+        logger.info(
+            "monthly_report_generated", user_id=user_id, report_id=str(report.id)
+        )
         payload = {
             "status": "success",
             "report_id": str(report.id),
             "report_type": "monthly",
             "created_at": report.created_at.isoformat() if report.created_at else None,
         }
-        publish_task_event(task_id, {"task_id": task_id, "state": "SUCCESS", "ready": True, "successful": True, "result": payload})
+        publish_task_event(
+            task_id,
+            {
+                "task_id": task_id,
+                "state": "SUCCESS",
+                "ready": True,
+                "successful": True,
+                "result": payload,
+            },
+        )
         return payload
     except Exception as e:
         db.rollback()
         logger.error("monthly_report_failed", user_id=user_id, error=str(e))
-        publish_task_event(task_id, {"task_id": task_id, "state": "FAILURE", "ready": True, "successful": False, "error": str(e)})
+        publish_task_event(
+            task_id,
+            {
+                "task_id": task_id,
+                "state": "FAILURE",
+                "ready": True,
+                "successful": False,
+                "error": str(e),
+            },
+        )
         return {"status": "error", "error": str(e)}
     finally:
         db.close()
@@ -214,14 +283,18 @@ def generate_scheduled_reports(self) -> Dict[str, Any]:
     db = self._get_db()
     now = datetime.utcnow()
     try:
-        schedules = db.query(ReportSchedule).filter(ReportSchedule.is_active == True).all()
+        schedules = (
+            db.query(ReportSchedule).filter(ReportSchedule.is_active == True).all()
+        )
         generated = {"daily": 0, "weekly": 0, "monthly": 0, "errors": []}
 
         for schedule in schedules:
             uid = str(schedule.user_id)
             service = ReportService(db)
 
-            should, for_date = service.should_generate_report(UUID(uid), ReportType.DAILY)
+            should, for_date = service.should_generate_report(
+                UUID(uid), ReportType.DAILY
+            )
             if should:
                 try:
                     generate_daily_report.delay(
@@ -233,7 +306,9 @@ def generate_scheduled_reports(self) -> Dict[str, Any]:
                 except Exception as e:
                     generated["errors"].append(f"daily:{uid}:{str(e)}")
 
-            should, for_date = service.should_generate_report(UUID(uid), ReportType.WEEKLY)
+            should, for_date = service.should_generate_report(
+                UUID(uid), ReportType.WEEKLY
+            )
             if should:
                 try:
                     generate_weekly_report.delay(
@@ -254,7 +329,11 @@ def generate_scheduled_reports(self) -> Dict[str, Any]:
                     generated["errors"].append(f"monthly:{uid}:{str(e)}")
 
         logger.info("generate_scheduled_reports_done", totals=generated)
-        return {"status": "success", "generated": generated, "timestamp": now.isoformat()}
+        return {
+            "status": "success",
+            "generated": generated,
+            "timestamp": now.isoformat(),
+        }
     except Exception as e:
         db.rollback()
         logger.error("generate_scheduled_reports_failed", error=str(e))

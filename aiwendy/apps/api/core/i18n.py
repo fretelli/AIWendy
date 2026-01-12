@@ -27,11 +27,15 @@ def normalize_locale(value: Optional[str]) -> Locale:
 
 
 def get_request_locale(request: Request) -> Locale:
-    cookie_locale = request.cookies.get(LOCALE_COOKIE) or request.cookies.get(LEGACY_LOCALE_COOKIE)
+    cookie_locale = request.cookies.get(LOCALE_COOKIE) or request.cookies.get(
+        LEGACY_LOCALE_COOKIE
+    )
     if cookie_locale:
         return normalize_locale(cookie_locale)
 
-    accept = request.headers.get("accept-language") or request.headers.get("Accept-Language")
+    accept = request.headers.get("accept-language") or request.headers.get(
+        "Accept-Language"
+    )
     if accept:
         # e.g. "zh-CN,zh;q=0.9,en;q=0.8"
         first = accept.split(",")[0].strip()

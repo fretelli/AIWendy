@@ -1,14 +1,14 @@
 """Coach service for managing AI coaches."""
 
-from typing import List, Optional, Dict, Any
-from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
-from uuid import UUID
 import uuid
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+from uuid import UUID
 
-from domain.coach.models import Coach, ChatSession, ChatMessage, CoachStyle
 from core.database import get_db
+from domain.coach.models import ChatMessage, ChatSession, Coach, CoachStyle
+from sqlalchemy import and_, or_
+from sqlalchemy.orm import Session
 
 
 class CoachService:
@@ -18,7 +18,9 @@ class CoachService:
         self.db = db
 
     # Coach Management
-    def get_all_coaches(self, is_public: bool = True, is_active: bool = True) -> List[Coach]:
+    def get_all_coaches(
+        self, is_public: bool = True, is_active: bool = True
+    ) -> List[Coach]:
         """Get all available coaches."""
         query = self.db.query(Coach)
 
@@ -36,29 +38,35 @@ class CoachService:
 
     def get_coaches_by_style(self, style: CoachStyle) -> List[Coach]:
         """Get coaches by interaction style."""
-        return self.db.query(Coach).filter(
-            and_(
-                Coach.style == style,
-                Coach.is_active == True,
-                Coach.is_public == True
+        return (
+            self.db.query(Coach)
+            .filter(
+                and_(
+                    Coach.style == style,
+                    Coach.is_active == True,
+                    Coach.is_public == True,
+                )
             )
-        ).all()
+            .all()
+        )
 
     def get_premium_coaches(self) -> List[Coach]:
         """Get premium coaches."""
-        return self.db.query(Coach).filter(
-            and_(
-                Coach.is_premium == True,
-                Coach.is_active == True,
-                Coach.is_public == True
+        return (
+            self.db.query(Coach)
+            .filter(
+                and_(
+                    Coach.is_premium == True,
+                    Coach.is_active == True,
+                    Coach.is_public == True,
+                )
             )
-        ).all()
+            .all()
+        )
 
     def get_default_coach(self) -> Optional[Coach]:
         """Get the default coach."""
-        return self.db.query(Coach).filter(
-            Coach.is_default == True
-        ).first()
+        return self.db.query(Coach).filter(Coach.is_default == True).first()
 
     def create_coach(self, coach_data: Dict[str, Any]) -> Coach:
         """Create a new coach."""
@@ -68,7 +76,9 @@ class CoachService:
         self.db.refresh(coach)
         return coach
 
-    def update_coach(self, coach_id: str, update_data: Dict[str, Any]) -> Optional[Coach]:
+    def update_coach(
+        self, coach_id: str, update_data: Dict[str, Any]
+    ) -> Optional[Coach]:
         """Update coach information."""
         coach = self.get_coach_by_id(coach_id)
         if not coach:
@@ -83,10 +93,13 @@ class CoachService:
         self.db.refresh(coach)
         return coach
 
-    def update_coach_stats(self, coach_id: str,
-                          new_session: bool = False,
-                          new_messages: int = 0,
-                          rating: Optional[int] = None) -> None:
+    def update_coach_stats(
+        self,
+        coach_id: str,
+        new_session: bool = False,
+        new_messages: int = 0,
+        rating: Optional[int] = None,
+    ) -> None:
         """Update coach statistics."""
         coach = self.get_coach_by_id(coach_id)
         if not coach:
@@ -110,12 +123,14 @@ class CoachService:
         self.db.commit()
 
     # Chat Session Management
-    def create_chat_session(self,
-                          user_id: UUID,
-                          coach_id: str,
-                          title: Optional[str] = None,
-                          context: Optional[Dict] = None,
-                          project_id: Optional[UUID] = None) -> ChatSession:
+    def create_chat_session(
+        self,
+        user_id: UUID,
+        coach_id: str,
+        title: Optional[str] = None,
+        context: Optional[Dict] = None,
+        project_id: Optional[UUID] = None,
+    ) -> ChatSession:
         """Create a new chat session."""
         session = ChatSession(
             user_id=user_id,
@@ -133,14 +148,15 @@ class CoachService:
 
         return session
 
-    def get_user_sessions(self, user_id: UUID,
-                         coach_id: Optional[str] = None,
-                         is_active: Optional[bool] = None,
-                         project_id: Optional[UUID] = None) -> List[ChatSession]:
+    def get_user_sessions(
+        self,
+        user_id: UUID,
+        coach_id: Optional[str] = None,
+        is_active: Optional[bool] = None,
+        project_id: Optional[UUID] = None,
+    ) -> List[ChatSession]:
         """Get user's chat sessions."""
-        query = self.db.query(ChatSession).filter(
-            ChatSession.user_id == user_id
-        )
+        query = self.db.query(ChatSession).filter(ChatSession.user_id == user_id)
 
         if coach_id:
             query = query.filter(ChatSession.coach_id == coach_id)
@@ -155,14 +171,15 @@ class CoachService:
 
     def get_session_by_id(self, session_id: UUID) -> Optional[ChatSession]:
         """Get chat session by ID."""
-        return self.db.query(ChatSession).filter(
-            ChatSession.id == session_id
-        ).first()
+        return self.db.query(ChatSession).filter(ChatSession.id == session_id).first()
 
-    def end_chat_session(self, session_id: UUID,
-                        mood_after: Optional[int] = None,
-                        user_rating: Optional[int] = None,
-                        user_feedback: Optional[str] = None) -> Optional[ChatSession]:
+    def end_chat_session(
+        self,
+        session_id: UUID,
+        mood_after: Optional[int] = None,
+        user_rating: Optional[int] = None,
+        user_feedback: Optional[str] = None,
+    ) -> Optional[ChatSession]:
         """End a chat session."""
         session = self.get_session_by_id(session_id)
         if not session:
@@ -187,19 +204,21 @@ class CoachService:
         return session
 
     # Message Management
-    def add_message(self,
-                   session_id: UUID,
-                   role: str,
-                   content: str,
-                   token_count: Optional[int] = None,
-                   metadata: Optional[Dict] = None) -> ChatMessage:
+    def add_message(
+        self,
+        session_id: UUID,
+        role: str,
+        content: str,
+        token_count: Optional[int] = None,
+        metadata: Optional[Dict] = None,
+    ) -> ChatMessage:
         """Add a message to a chat session."""
         message = ChatMessage(
             session_id=session_id,
             role=role,
             content=content,
             token_count=token_count,
-            message_metadata=metadata
+            message_metadata=metadata,
         )
         self.db.add(message)
 
@@ -219,23 +238,32 @@ class CoachService:
         self.db.refresh(message)
         return message
 
-    def get_session_messages(self, session_id: UUID,
-                           limit: Optional[int] = None) -> List[ChatMessage]:
+    def get_session_messages(
+        self, session_id: UUID, limit: Optional[int] = None
+    ) -> List[ChatMessage]:
         """Get messages from a chat session."""
-        query = self.db.query(ChatMessage).filter(
-            ChatMessage.session_id == session_id
-        ).order_by(ChatMessage.created_at)
+        query = (
+            self.db.query(ChatMessage)
+            .filter(ChatMessage.session_id == session_id)
+            .order_by(ChatMessage.created_at)
+        )
 
         if limit:
             query = query.limit(limit)
 
         return query.all()
 
-    def get_recent_messages(self, session_id: UUID, count: int = 10) -> List[ChatMessage]:
+    def get_recent_messages(
+        self, session_id: UUID, count: int = 10
+    ) -> List[ChatMessage]:
         """Get recent messages from a session."""
-        return self.db.query(ChatMessage).filter(
-            ChatMessage.session_id == session_id
-        ).order_by(ChatMessage.created_at.desc()).limit(count).all()[::-1]
+        return (
+            self.db.query(ChatMessage)
+            .filter(ChatMessage.session_id == session_id)
+            .order_by(ChatMessage.created_at.desc())
+            .limit(count)
+            .all()[::-1]
+        )
 
 
 def get_coach_service(db: Session = None) -> CoachService:

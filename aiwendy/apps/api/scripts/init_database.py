@@ -13,15 +13,16 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy.ext.asyncio import create_async_engine
-from config import get_settings
-from core.database import Base
 import logging
 
+from config import get_settings
+from core.database import Base
+from domain.analysis.models import AnalysisReport
+from domain.journal.models import Journal
 # Import all models to register them with Base
 from domain.user.models import User
-from domain.journal.models import Journal
-from domain.analysis.models import AnalysisReport
+from sqlalchemy.ext.asyncio import create_async_engine
+
 # Avoid importing ChatSession due to metadata conflict
 # from domain.coach.models import ChatSession
 
@@ -34,11 +35,7 @@ async def init_database():
     settings = get_settings()
 
     # Create database engine
-    engine = create_async_engine(
-        settings.database_url,
-        echo=True,
-        pool_pre_ping=True
-    )
+    engine = create_async_engine(settings.database_url, echo=True, pool_pre_ping=True)
 
     async with engine.begin() as conn:
         # Create all tables
@@ -63,6 +60,7 @@ async def main():
     except Exception as e:
         print(f"\n❌ Error initializing database: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

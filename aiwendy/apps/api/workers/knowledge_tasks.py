@@ -8,8 +8,6 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from celery import Task
-from sqlalchemy import and_, select
-
 from core.cache import get_redis_client
 from core.cache_keys import knowledge_search_key
 from core.database import SessionLocal
@@ -19,6 +17,7 @@ from domain.knowledge.chunking import chunk_text
 from domain.knowledge.models import KnowledgeChunk, KnowledgeDocument
 from domain.user.models import User
 from infrastructure.llm.router import get_llm_router
+from sqlalchemy import and_, select
 from workers.celery_app import celery_app
 
 logger = get_logger(__name__)
@@ -66,7 +65,9 @@ def ingest_knowledge_document(
     task_id = self.request.id
     db = self._get_db()
     try:
-        publish_task_event(task_id, {"task_id": task_id, "state": "STARTED", "ready": False})
+        publish_task_event(
+            task_id, {"task_id": task_id, "state": "STARTED", "ready": False}
+        )
         doc_uuid = UUID(document_id)
         user_uuid = UUID(user_id)
 
@@ -90,17 +91,35 @@ def ingest_knowledge_document(
 
         chunks = chunk_text(doc.content)
         if not chunks:
-            return {"status": "error", "error": "Document content is empty after cleaning"}
+            return {
+                "status": "error",
+                "error": "Document content is empty after cleaning",
+            }
 
-        publish_task_event(task_id, {"task_id": task_id, "state": "CHUNKED", "ready": False, "total_chunks": len(chunks)})
+        publish_task_event(
+            task_id,
+            {
+                "task_id": task_id,
+                "state": "CHUNKED",
+                "ready": False,
+                "total_chunks": len(chunks),
+            },
+        )
 
         llm_router = get_llm_router(user=user)
-        provider_name, provider = _choose_embedding_provider(llm_router, embedding_provider)
+        provider_name, provider = _choose_embedding_provider(
+            llm_router, embedding_provider
+        )
         if provider is None or provider_name is None:
-            return {"status": "error", "error": "No embedding provider available (configure OpenAI or start Ollama)"}
+            return {
+                "status": "error",
+                "error": "No embedding provider available (configure OpenAI or start Ollama)",
+            }
 
         if overwrite:
-            db.query(KnowledgeChunk).filter(KnowledgeChunk.document_id == doc_uuid).delete(synchronize_session=False)
+            db.query(KnowledgeChunk).filter(
+                KnowledgeChunk.document_id == doc_uuid
+            ).delete(synchronize_session=False)
             db.commit()
 
         embeddings: List[List[float]] = []
@@ -156,13 +175,33 @@ def ingest_knowledge_document(
             "provider": provider_name,
             "embedding_dim": len(embeddings[0]) if embeddings else None,
         }
-        publish_task_event(task_id, {"task_id": task_id, "state": "SUCCESS", "ready": True, "successful": True, "result": payload})
+        publish_task_event(
+            task_id,
+            {
+                "task_id": task_id,
+                "state": "SUCCESS",
+                "ready": True,
+                "successful": True,
+                "result": payload,
+            },
+        )
         return payload
 
     except Exception as e:
         db.rollback()
-        logger.error("kb_ingest_failed", user_id=user_id, document_id=document_id, error=str(e))
-        publish_task_event(task_id, {"task_id": task_id, "state": "FAILURE", "ready": True, "successful": False, "error": str(e)})
+        logger.error(
+            "kb_ingest_failed", user_id=user_id, document_id=document_id, error=str(e)
+        )
+        publish_task_event(
+            task_id,
+            {
+                "task_id": task_id,
+                "state": "FAILURE",
+                "ready": True,
+                "successful": False,
+                "error": str(e),
+            },
+        )
         return {"status": "error", "error": str(e)}
     finally:
         db.close()
@@ -201,7 +240,10 @@ def semantic_search(
         llm_router = get_llm_router(user=user)
         provider_name, provider = _choose_embedding_provider(llm_router, None)
         if provider is None or provider_name is None:
-            return {"status": "error", "error": "No embedding provider available (configure OpenAI or start Ollama)"}
+            return {
+                "status": "error",
+                "error": "No embedding provider available (configure OpenAI or start Ollama)",
+            }
 
         query_embedding = _run_async(provider.embed(query_text, model=None))
         if not query_embedding:

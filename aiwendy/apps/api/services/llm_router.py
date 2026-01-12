@@ -43,7 +43,9 @@ class LLMRouter:
 
         config = LLMConfig(
             model=model or settings.llm_default_model,
-            temperature=settings.llm_temperature if temperature is None else temperature,
+            temperature=(
+                settings.llm_temperature if temperature is None else temperature
+            ),
             max_tokens=settings.llm_max_tokens if max_tokens is None else max_tokens,
             stream=False,
         )
@@ -54,4 +56,3 @@ class LLMRouter:
             config=config,
             preferred_provider=preferred_provider,
         )
-

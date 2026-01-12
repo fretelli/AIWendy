@@ -13,10 +13,11 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy import text
-from config import get_settings
 import logging
+
+from config import get_settings
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,27 +28,29 @@ async def create_users_table():
     settings = get_settings()
 
     # Create database engine
-    engine = create_async_engine(
-        settings.database_url,
-        echo=True,
-        pool_pre_ping=True
-    )
+    engine = create_async_engine(settings.database_url, echo=True, pool_pre_ping=True)
 
     async with engine.begin() as conn:
         # Ensure UUID generator exists for `gen_random_uuid()`
         await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "pgcrypto";'))
 
         # Create ENUM type for subscription_tier if it doesn't exist
-        await conn.execute(text("""
+        await conn.execute(
+            text(
+                """
             DO $$ BEGIN
                 CREATE TYPE subscriptiontier AS ENUM ('free', 'pro', 'elite', 'enterprise');
             EXCEPTION
                 WHEN duplicate_object THEN null;
             END $$;
-        """))
+        """
+            )
+        )
 
         # Create users table if it doesn't exist
-        await conn.execute(text("""
+        await conn.execute(
+            text(
+                """
             CREATE TABLE IF NOT EXISTS users (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 email VARCHAR(255) UNIQUE NOT NULL,
@@ -81,31 +84,51 @@ async def create_users_table():
                 updated_at TIMESTAMPTZ DEFAULT NOW(),
                 deleted_at TIMESTAMPTZ
             );
-        """))
+        """
+            )
+        )
 
         # Ensure newer columns exist when upgrading an existing database
-        await conn.execute(text("""
+        await conn.execute(
+            text(
+                """
             ALTER TABLE users
             ADD COLUMN IF NOT EXISTS openai_api_key TEXT,
             ADD COLUMN IF NOT EXISTS anthropic_api_key TEXT,
             ADD COLUMN IF NOT EXISTS api_keys_encrypted JSON DEFAULT '{}'::json;
-        """))
+        """
+            )
+        )
 
         # Create indexes for users table
-        await conn.execute(text("""
+        await conn.execute(
+            text(
+                """
             CREATE INDEX IF NOT EXISTS ix_users_email ON users(email);
-        """))
+        """
+            )
+        )
 
-        await conn.execute(text("""
+        await conn.execute(
+            text(
+                """
             CREATE INDEX IF NOT EXISTS ix_users_email_active ON users(email, is_active);
-        """))
+        """
+            )
+        )
 
-        await conn.execute(text("""
+        await conn.execute(
+            text(
+                """
             CREATE INDEX IF NOT EXISTS ix_users_subscription ON users(subscription_tier, subscription_expires_at);
-        """))
+        """
+            )
+        )
 
         # Create user_sessions table
-        await conn.execute(text("""
+        await conn.execute(
+            text(
+                """
             CREATE TABLE IF NOT EXISTS user_sessions (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 user_id UUID NOT NULL REFERENCES users(id),
@@ -119,25 +142,43 @@ async def create_users_table():
                 last_activity_at TIMESTAMPTZ DEFAULT NOW(),
                 revoked_at TIMESTAMPTZ
             );
-        """))
+        """
+            )
+        )
 
-        await conn.execute(text("""
+        await conn.execute(
+            text(
+                """
             ALTER TABLE user_sessions
             ADD COLUMN IF NOT EXISTS device_info JSON;
-        """))
+        """
+            )
+        )
 
         # Create indexes for user_sessions table
-        await conn.execute(text("""
+        await conn.execute(
+            text(
+                """
             CREATE INDEX IF NOT EXISTS ix_user_sessions_user_id ON user_sessions(user_id);
-        """))
+        """
+            )
+        )
 
-        await conn.execute(text("""
+        await conn.execute(
+            text(
+                """
             CREATE INDEX IF NOT EXISTS ix_user_sessions_access_token ON user_sessions(access_token);
-        """))
+        """
+            )
+        )
 
-        await conn.execute(text("""
+        await conn.execute(
+            text(
+                """
             CREATE INDEX IF NOT EXISTS ix_user_sessions_expires_at ON user_sessions(expires_at);
-        """))
+        """
+            )
+        )
 
     await engine.dispose()
     logger.info("Users table created successfully!")
@@ -158,6 +199,7 @@ async def main():
     except Exception as e:
         print(f"\n❌ Error creating table: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

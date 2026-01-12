@@ -158,7 +158,9 @@ class DuplicateResourceError(AppException):
 class RateLimitExceededError(AppException):
     """Rate limit exceeded."""
 
-    def __init__(self, limit: int, window_seconds: int, retry_after: Optional[int] = None):
+    def __init__(
+        self, limit: int, window_seconds: int, retry_after: Optional[int] = None
+    ):
         super().__init__(
             code="RATE_LIMIT_EXCEEDED",
             message=f"Rate limit of {limit} per {window_seconds}s exceeded",

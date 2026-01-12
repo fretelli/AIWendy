@@ -11,10 +11,10 @@ from uuid import uuid4
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import text
 from core.database import async_session
 from core.encryption import get_encryption_service
 from core.logging import get_logger
+from sqlalchemy import text
 
 logger = get_logger(__name__)
 
@@ -24,7 +24,9 @@ USER_EMAIL = os.environ.get("AIWENDY_USER_EMAIL", "admin@aiwendy.com")
 
 # You can modify this URL to your actual OneAPI endpoint
 # 请将下面的URL修改为你的OneAPI服务地址
-CUSTOM_API_URL = os.environ.get("AIWENDY_CUSTOM_API_URL", "https://your-oneapi-service.com")
+CUSTOM_API_URL = os.environ.get(
+    "AIWENDY_CUSTOM_API_URL", "https://your-oneapi-service.com"
+)
 
 
 async def save_custom_api_config(base_url: str):
@@ -36,7 +38,7 @@ async def save_custom_api_config(base_url: str):
             # Get user record
             result = await session.execute(
                 text("SELECT id, api_keys_encrypted FROM users WHERE email = :email"),
-                {"email": USER_EMAIL}
+                {"email": USER_EMAIL},
             )
             row = result.fetchone()
 
@@ -55,12 +57,10 @@ async def save_custom_api_config(base_url: str):
                 "is_active": True,
                 "is_default": True,
                 "api_key": encryption_service.encrypt(API_KEY),
-                "base_url": base_url.rstrip('/'),
-
+                "base_url": base_url.rstrip("/"),
                 # OpenAI compatible settings
                 "api_format": "openai",
                 "auth_type": "bearer",
-
                 # Model settings (supports various models through proxy)
                 "default_model": "gpt-3.5-turbo",
                 "available_models": [
@@ -83,27 +83,23 @@ async def save_custom_api_config(base_url: str):
                     "qwen-max",
                     "moonshot-v1-8k",
                     "glm-4",
-                    "yi-34b-chat"
+                    "yi-34b-chat",
                 ],
-
                 # API endpoints (OpenAI format)
                 "chat_endpoint": "/v1/chat/completions",
                 "completions_endpoint": "/v1/completions",
                 "embeddings_endpoint": "/v1/embeddings",
                 "models_endpoint": "/v1/models",
-
                 # Features
                 "supports_streaming": True,
                 "supports_functions": True,
                 "supports_vision": True,
                 "supports_embeddings": True,
-
                 # High limits for proxy service
                 "max_tokens_limit": 128000,
-
                 # Metadata
                 "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat()
+                "updated_at": datetime.utcnow().isoformat(),
             }
 
             # Update configuration
@@ -114,17 +110,19 @@ async def save_custom_api_config(base_url: str):
 
             # Update user record
             await session.execute(
-                text("""
+                text(
+                    """
                     UPDATE users
                     SET api_keys_encrypted = :config,
                         openai_api_key = :openai_key
                     WHERE id = :user_id
-                """),
+                """
+                ),
                 {
                     "config": json.dumps(existing_config),
                     "openai_key": encrypted_key,
-                    "user_id": user_id
-                }
+                    "user_id": user_id,
+                },
             )
 
             await session.commit()
@@ -145,17 +143,14 @@ async def test_connection(base_url: str):
     url = f"{base_url.rstrip('/')}/v1/chat/completions"
     print(f"\nTesting connection to: {url}")
 
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
 
     payload = {
         "model": "gpt-3.5-turbo",
         "messages": [{"role": "user", "content": "Say 'Hello' in one word"}],
         "max_tokens": 10,
         "temperature": 0.1,
-        "stream": False
+        "stream": False,
     }
 
     try:
@@ -179,7 +174,9 @@ async def test_connection(base_url: str):
                 try:
                     error = response.json()
                     if "error" in error:
-                        print(f"Message: {error['error'].get('message', 'Unknown error')}")
+                        print(
+                            f"Message: {error['error'].get('message', 'Unknown error')}"
+                        )
                 except:
                     print(f"Response: {response.text[:200]}")
                 return False
@@ -212,7 +209,9 @@ async def main():
     print("⚠️ " * 10)
 
     if CUSTOM_API_URL == "https://your-oneapi-service.com":
-        print("\n❌ Please edit this file and set CUSTOM_API_URL to your actual service URL!")
+        print(
+            "\n❌ Please edit this file and set CUSTOM_API_URL to your actual service URL!"
+        )
         print("Example URLs:")
         print("  - https://api.example.com")
         print("  - http://123.456.789.0:3000")

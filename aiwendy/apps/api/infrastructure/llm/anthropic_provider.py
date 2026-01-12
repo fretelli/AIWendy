@@ -3,12 +3,12 @@
 from typing import AsyncIterator, List, Optional
 
 from anthropic import AsyncAnthropic
-from tenacity import retry, stop_after_attempt, wait_exponential
-
 from config import get_settings
 from core.exceptions import LLMProviderError
 from core.logging import get_logger
-from .base import LLMProvider, Message, LLMConfig
+from tenacity import retry, stop_after_attempt, wait_exponential
+
+from .base import LLMConfig, LLMProvider, Message
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -40,7 +40,9 @@ class AnthropicProvider(LLMProvider):
         for msg in messages:
             if msg.role == "system":
                 # System messages are always text-only
-                system_message = msg.get_text_content() if msg.is_multimodal() else msg.content
+                system_message = (
+                    msg.get_text_content() if msg.is_multimodal() else msg.content
+                )
             else:
                 chat_messages.append(self._format_message(msg))
 

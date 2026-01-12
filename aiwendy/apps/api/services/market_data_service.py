@@ -1,9 +1,11 @@
 """
 Market data service for fetching price data for charts
 """
+
 import logging
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Any
+from typing import Any, Dict, List, Optional
+
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +26,7 @@ class MarketDataService:
         interval: str = "1day",
         outputsize: int = 60,
         start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None
+        end_date: Optional[datetime] = None,
     ) -> List[Dict[str, Any]]:
         """
         Fetch historical price data for a symbol
@@ -48,10 +50,7 @@ class MarketDataService:
             return []
 
     async def _generate_mock_data(
-        self,
-        symbol: str,
-        interval: str,
-        outputsize: int
+        self, symbol: str, interval: str, outputsize: int
     ) -> List[Dict[str, Any]]:
         """Generate mock OHLCV data for testing"""
         import random
@@ -92,19 +91,27 @@ class MarketDataService:
             trend = random.choice([-1, 1]) * random.random() * 0.01
 
             open_price = current_price
-            close_price = open_price * (1 + trend + volatility * (random.random() - 0.5))
-            high_price = max(open_price, close_price) * (1 + volatility * random.random() * 0.5)
-            low_price = min(open_price, close_price) * (1 - volatility * random.random() * 0.5)
+            close_price = open_price * (
+                1 + trend + volatility * (random.random() - 0.5)
+            )
+            high_price = max(open_price, close_price) * (
+                1 + volatility * random.random() * 0.5
+            )
+            low_price = min(open_price, close_price) * (
+                1 - volatility * random.random() * 0.5
+            )
             volume = random.randint(100000, 10000000)
 
-            data.append({
-                "time": current_time.isoformat(),
-                "open": round(open_price, 2),
-                "high": round(high_price, 2),
-                "low": round(low_price, 2),
-                "close": round(close_price, 2),
-                "volume": volume,
-            })
+            data.append(
+                {
+                    "time": current_time.isoformat(),
+                    "open": round(open_price, 2),
+                    "high": round(high_price, 2),
+                    "low": round(low_price, 2),
+                    "close": round(close_price, 2),
+                    "volume": volume,
+                }
+            )
 
             current_price = close_price
             current_time += delta
@@ -152,7 +159,7 @@ class MarketDataService:
         symbol: str,
         interval: str = "1day",
         indicator: str = "sma",
-        period: int = 20
+        period: int = 20,
     ) -> List[Dict[str, Any]]:
         """
         Calculate technical indicators for a symbol
@@ -191,13 +198,15 @@ class MarketDataService:
         sma_data = []
 
         for i in range(period - 1, len(data)):
-            sum_price = sum(d["close"] for d in data[i - period + 1:i + 1])
+            sum_price = sum(d["close"] for d in data[i - period + 1 : i + 1])
             sma_value = sum_price / period
 
-            sma_data.append({
-                "time": data[i]["time"],
-                "value": round(sma_value, 2),
-            })
+            sma_data.append(
+                {
+                    "time": data[i]["time"],
+                    "value": round(sma_value, 2),
+                }
+            )
 
         return sma_data
 
@@ -209,18 +218,24 @@ class MarketDataService:
         # Start with SMA for the first value
         if len(data) >= period:
             sma = sum(d["close"] for d in data[:period]) / period
-            ema_data.append({
-                "time": data[period - 1]["time"],
-                "value": round(sma, 2),
-            })
+            ema_data.append(
+                {
+                    "time": data[period - 1]["time"],
+                    "value": round(sma, 2),
+                }
+            )
 
             # Calculate EMA for remaining values
             for i in range(period, len(data)):
-                ema_value = (data[i]["close"] - ema_data[-1]["value"]) * multiplier + ema_data[-1]["value"]
-                ema_data.append({
-                    "time": data[i]["time"],
-                    "value": round(ema_value, 2),
-                })
+                ema_value = (
+                    data[i]["close"] - ema_data[-1]["value"]
+                ) * multiplier + ema_data[-1]["value"]
+                ema_data.append(
+                    {
+                        "time": data[i]["time"],
+                        "value": round(ema_value, 2),
+                    }
+                )
 
         return ema_data
 
@@ -251,10 +266,12 @@ class MarketDataService:
                 rs = avg_gain / avg_loss
                 rsi = 100 - (100 / (1 + rs))
 
-            rsi_data.append({
-                "time": data[i + 1]["time"],
-                "value": round(rsi, 2),
-            })
+            rsi_data.append(
+                {
+                    "time": data[i + 1]["time"],
+                    "value": round(rsi, 2),
+                }
+            )
 
             # Update averages
             current_gain = changes[i] if changes[i] > 0 else 0

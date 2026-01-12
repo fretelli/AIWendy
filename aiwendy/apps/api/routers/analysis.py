@@ -7,10 +7,6 @@ from datetime import date, datetime, timedelta
 from typing import Any, Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import and_, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from core.auth import get_current_user
 from core.cache_keys import analysis_patterns_key, analysis_stats_key
 from core.cache_service import get_cache_service
@@ -18,6 +14,9 @@ from core.database import get_session
 from domain.journal.models import Journal, TradeResult
 from domain.journal.schemas import JournalStatistics
 from domain.user.models import User
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -61,8 +60,8 @@ def _calculate_stats(journals: list[Journal]) -> JournalStatistics:
             if journal.pnl_amount is not None:
                 pnl = float(journal.pnl_amount)
                 stats.average_win = (
-                    (stats.average_win * (stats.winning_trades - 1) + pnl) / stats.winning_trades
-                )
+                    stats.average_win * (stats.winning_trades - 1) + pnl
+                ) / stats.winning_trades
                 stats.best_trade = max(stats.best_trade, pnl)
 
         elif journal.result == TradeResult.LOSS:
@@ -70,8 +69,8 @@ def _calculate_stats(journals: list[Journal]) -> JournalStatistics:
             if journal.pnl_amount is not None:
                 pnl = float(journal.pnl_amount)
                 stats.average_loss = (
-                    (stats.average_loss * (stats.losing_trades - 1) + pnl) / stats.losing_trades
-                )
+                    stats.average_loss * (stats.losing_trades - 1) + pnl
+                ) / stats.losing_trades
                 stats.worst_trade = min(stats.worst_trade, pnl)
 
         elif journal.result == TradeResult.BREAKEVEN:
@@ -87,7 +86,9 @@ def _calculate_stats(journals: list[Journal]) -> JournalStatistics:
             stress_sum += journal.stress_level
             stress_count += 1
 
-        if (not journal.followed_rules) or (journal.rule_violations and len(journal.rule_violations) > 0):
+        if (not journal.followed_rules) or (
+            journal.rule_violations and len(journal.rule_violations) > 0
+        ):
             rule_violation_count += 1
 
     closed_trades = stats.winning_trades + stats.losing_trades + stats.breakeven_trades
@@ -204,8 +205,12 @@ async def get_patterns(
     payload = {
         "period": period,
         "project_id": str(project_id) if project_id else None,
-        "rule_violations": [{"type": t, "count": c} for t, c in violations_counter.most_common(10)],
-        "detected_patterns": [{"pattern": p, "count": c} for p, c in patterns_counter.most_common(10)],
+        "rule_violations": [
+            {"type": t, "count": c} for t, c in violations_counter.most_common(10)
+        ],
+        "detected_patterns": [
+            {"pattern": p, "count": c} for p, c in patterns_counter.most_common(10)
+        ],
     }
     await cache.set_async(cache_key, payload, ttl=60)
     return payload

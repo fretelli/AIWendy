@@ -1,27 +1,15 @@
 """Analysis domain models."""
 
 import enum
+import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    Enum,
-    ForeignKey,
-    Float,
-    Integer,
-    String,
-    Text,
-    JSON,
-    Index,
-)
+from core.database import Base
+from sqlalchemy import (JSON, Boolean, Column, DateTime, Enum, Float,
+                        ForeignKey, Index, Integer, String, Text)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-import uuid
-
-from core.database import Base
 
 
 class ReportType(str, enum.Enum):
@@ -118,9 +106,7 @@ class AnalysisReport(Base):
     )
 
     def __repr__(self):
-        return (
-            f"<AnalysisReport(id={self.id}, type={self.report_type}, user_id={self.user_id})>"
-        )
+        return f"<AnalysisReport(id={self.id}, type={self.report_type}, user_id={self.user_id})>"
 
 
 class BehaviorPattern(Base):
@@ -134,7 +120,9 @@ class BehaviorPattern(Base):
     # Foreign keys
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     journal_id = Column(UUID(as_uuid=True), ForeignKey("journals.id"), nullable=True)
-    session_id = Column(UUID(as_uuid=True), ForeignKey("chat_sessions.id"), nullable=True)
+    session_id = Column(
+        UUID(as_uuid=True), ForeignKey("chat_sessions.id"), nullable=True
+    )
 
     # Pattern info
     pattern_type = Column(Enum(PatternType), nullable=False)

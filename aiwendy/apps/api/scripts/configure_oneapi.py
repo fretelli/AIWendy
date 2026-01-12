@@ -11,10 +11,10 @@ from uuid import uuid4
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import text
 from core.database import async_session
 from core.encryption import get_encryption_service
 from core.logging import get_logger
+from sqlalchemy import text
 
 logger = get_logger(__name__)
 
@@ -26,8 +26,8 @@ USER_EMAIL = os.environ.get("AIWENDY_USER_EMAIL", "admin@aiwendy.com")
 ONEAPI_ENDPOINTS = [
     "http://localhost:3000",  # Default OneAPI local port
     "http://localhost:8080",  # Alternative local port
-    "http://oneapi:3000",     # Docker service name
-    "https://api.oneapi.com", # Cloud hosted (example)
+    "http://oneapi:3000",  # Docker service name
+    "https://api.oneapi.com",  # Cloud hosted (example)
 ]
 
 
@@ -38,17 +38,14 @@ async def test_oneapi_endpoint(base_url: str):
     url = f"{base_url.rstrip('/')}/v1/chat/completions"
     print(f"Testing: {url}")
 
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
 
     payload = {
         "model": "gpt-3.5-turbo",
         "messages": [{"role": "user", "content": "Hi"}],
         "max_tokens": 10,
         "temperature": 0.1,
-        "stream": False
+        "stream": False,
     }
 
     try:
@@ -96,7 +93,7 @@ async def save_oneapi_config(base_url: str):
             # Get user record
             result = await session.execute(
                 text("SELECT id, api_keys_encrypted FROM users WHERE email = :email"),
-                {"email": USER_EMAIL}
+                {"email": USER_EMAIL},
             )
             row = result.fetchone()
 
@@ -116,11 +113,9 @@ async def save_oneapi_config(base_url: str):
                 "is_default": True,
                 "api_key": encryption_service.encrypt(API_KEY),
                 "base_url": base_url,
-
                 # OneAPI is OpenAI-compatible
                 "api_format": "openai",
                 "auth_type": "bearer",
-
                 # Model settings (OneAPI can route to multiple models)
                 "default_model": "gpt-3.5-turbo",
                 "available_models": [
@@ -135,27 +130,23 @@ async def save_oneapi_config(base_url: str):
                     "gemini-pro",
                     "deepseek-chat",
                     "qwen-turbo",
-                    "qwen-plus"
+                    "qwen-plus",
                 ],
-
                 # API endpoints (OneAPI uses OpenAI format)
                 "chat_endpoint": "/v1/chat/completions",
                 "completions_endpoint": "/v1/completions",
                 "embeddings_endpoint": "/v1/embeddings",
                 "models_endpoint": "/v1/models",
-
                 # Features
                 "supports_streaming": True,
                 "supports_functions": True,
                 "supports_vision": True,
                 "supports_embeddings": True,
-
                 # Limits (OneAPI handles its own rate limiting)
                 "max_tokens_limit": 128000,
-
                 # Metadata
                 "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat()
+                "updated_at": datetime.utcnow().isoformat(),
             }
 
             # Update configuration
@@ -166,17 +157,19 @@ async def save_oneapi_config(base_url: str):
 
             # Update user record
             await session.execute(
-                text("""
+                text(
+                    """
                     UPDATE users
                     SET api_keys_encrypted = :config,
                         openai_api_key = :openai_key
                     WHERE id = :user_id
-                """),
+                """
+                ),
                 {
                     "config": json.dumps(existing_config),
                     "openai_key": encrypted_key,
-                    "user_id": user_id
-                }
+                    "user_id": user_id,
+                },
             )
 
             await session.commit()
@@ -211,9 +204,11 @@ async def main():
     # Check if user wants to specify custom endpoint
     custom = input("Do you have a custom OneAPI endpoint URL? (y/N): ").strip().lower()
 
-    if custom == 'y':
-        endpoint = input("Enter your OneAPI endpoint URL (e.g., http://localhost:3000): ").strip()
-        if not endpoint.startswith(('http://', 'https://')):
+    if custom == "y":
+        endpoint = input(
+            "Enter your OneAPI endpoint URL (e.g., http://localhost:3000): "
+        ).strip()
+        if not endpoint.startswith(("http://", "https://")):
             endpoint = f"http://{endpoint}"
 
         print(f"\nTesting custom endpoint: {endpoint}")

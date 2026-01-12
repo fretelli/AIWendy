@@ -2,20 +2,21 @@
 
 import asyncio
 import json
-from typing import List, Optional, Dict, Any, Tuple
-from sqlalchemy import and_
-from sqlalchemy.orm import Session
+from datetime import date, datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
-from datetime import datetime, date, timedelta
 
+from core.database import get_db
 from core.i18n import DEFAULT_LOCALE, Locale, normalize_locale, t
-from domain.report.models import Report, ReportType, ReportStatus, ReportSchedule, ReportTemplate
-from domain.journal.models import Journal
 from domain.coach.models import ChatSession
+from domain.journal.models import Journal
 from domain.project.models import Project
+from domain.report.models import (Report, ReportSchedule, ReportStatus,
+                                  ReportTemplate, ReportType)
 from domain.user.models import User
 from services.llm_router import LLMRouter
-from core.database import get_db
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
 
 
 class ReportService:
@@ -24,7 +25,9 @@ class ReportService:
     def __init__(self, db: Session):
         self.db = db
 
-    def _get_project_name(self, user_id: UUID, project_id: Optional[UUID]) -> Optional[str]:
+    def _get_project_name(
+        self, user_id: UUID, project_id: Optional[UUID]
+    ) -> Optional[str]:
         if project_id is None:
             return None
 
@@ -37,11 +40,17 @@ class ReportService:
             raise ValueError("Project not found")
         return project.name
 
-    def _resolve_report_locale(self, user_id: UUID, override: Optional[str] = None) -> Locale:
+    def _resolve_report_locale(
+        self, user_id: UUID, override: Optional[str] = None
+    ) -> Locale:
         if override:
             return normalize_locale(override)
 
-        schedule = self.db.query(ReportSchedule).filter(ReportSchedule.user_id == user_id).first()
+        schedule = (
+            self.db.query(ReportSchedule)
+            .filter(ReportSchedule.user_id == user_id)
+            .first()
+        )
         if schedule and schedule.language:
             return normalize_locale(schedule.language)
 
@@ -81,14 +90,21 @@ class ReportService:
         period_start = report_date
         period_end = report_date
 
-        project_name = self._get_project_name(user_id, project_id) if project_id else None
+        project_name = (
+            self._get_project_name(user_id, project_id) if project_id else None
+        )
         title = t(
             "reports.title.daily",
             resolved_locale,
             date=self._format_date(resolved_locale, report_date),
         )
         if project_name:
-            title = t("reports.title.with_project", resolved_locale, title=title, project=project_name)
+            title = t(
+                "reports.title.with_project",
+                resolved_locale,
+                title=title,
+                project=project_name,
+            )
 
         return self._generate_report(
             user_id=user_id,
@@ -120,14 +136,21 @@ class ReportService:
         period_start = week_start
         period_end = week_start + timedelta(days=6)
 
-        project_name = self._get_project_name(user_id, project_id) if project_id else None
+        project_name = (
+            self._get_project_name(user_id, project_id) if project_id else None
+        )
         title = t(
             "reports.title.weekly",
             resolved_locale,
             week=week_start.isocalendar()[1],
         )
         if project_name:
-            title = t("reports.title.with_project", resolved_locale, title=title, project=project_name)
+            title = t(
+                "reports.title.with_project",
+                resolved_locale,
+                title=title,
+                project=project_name,
+            )
 
         return self._generate_report(
             user_id=user_id,
@@ -167,7 +190,9 @@ class ReportService:
         else:
             period_end = date(year, month + 1, 1) - timedelta(days=1)
 
-        project_name = self._get_project_name(user_id, project_id) if project_id else None
+        project_name = (
+            self._get_project_name(user_id, project_id) if project_id else None
+        )
         title = t(
             "reports.title.monthly",
             resolved_locale,
@@ -176,7 +201,12 @@ class ReportService:
             month_label=self._format_month(resolved_locale, year, month),
         )
         if project_name:
-            title = t("reports.title.with_project", resolved_locale, title=title, project=project_name)
+            title = t(
+                "reports.title.with_project",
+                resolved_locale,
+                title=title,
+                project=project_name,
+            )
 
         return self._generate_report(
             user_id=user_id,
@@ -188,8 +218,17 @@ class ReportService:
             locale=resolved_locale,
         )
 
-    def _generate_report(self, user_id: UUID, report_type: ReportType,
-                        period_start: date, period_end: date, title: str, project_id: Optional[UUID] = None, *, locale: Locale = DEFAULT_LOCALE) -> Report:
+    def _generate_report(
+        self,
+        user_id: UUID,
+        report_type: ReportType,
+        period_start: date,
+        period_end: date,
+        title: str,
+        project_id: Optional[UUID] = None,
+        *,
+        locale: Locale = DEFAULT_LOCALE,
+    ) -> Report:
         """Generate a report for the specified period."""
         start_time = datetime.now()
 
@@ -207,14 +246,16 @@ class ReportService:
             ),
             period_start=period_start,
             period_end=period_end,
-            status=ReportStatus.GENERATING
+            status=ReportStatus.GENERATING,
         )
         self.db.add(report)
         self.db.commit()
 
         try:
             # Fetch trading journals for the period
-            journals = self._fetch_journals(user_id, period_start, period_end, project_id)
+            journals = self._fetch_journals(
+                user_id, period_start, period_end, project_id
+            )
 
             # Calculate statistics
             stats = self._calculate_statistics(journals)
@@ -249,7 +290,9 @@ class ReportService:
             report.action_items = ai_insights["action_items"]
 
             # Get coach insights
-            coach_insights = self._get_coach_insights(user_id, period_start, period_end, locale, project_id)
+            coach_insights = self._get_coach_insights(
+                user_id, period_start, period_end, locale, project_id
+            )
             report.coach_notes = coach_insights["notes"]
             report.primary_coach_id = coach_insights["primary_coach"]
 
@@ -262,8 +305,8 @@ class ReportService:
                 "locale": locale,
                 "period": {
                     "start": period_start.isoformat(),
-                    "end": period_end.isoformat()
-                }
+                    "end": period_end.isoformat(),
+                },
             }
 
             # Generate summary
@@ -313,12 +356,16 @@ class ReportService:
                 "total_pnl": 0.0,
                 "avg_pnl": 0.0,
                 "max_profit": 0.0,
-                "max_loss": 0.0
+                "max_loss": 0.0,
             }
 
         total_trades = len(journals)
-        winning_trades = sum(1 for j in journals if j.pnl_amount is not None and j.pnl_amount > 0)
-        losing_trades = sum(1 for j in journals if j.pnl_amount is not None and j.pnl_amount < 0)
+        winning_trades = sum(
+            1 for j in journals if j.pnl_amount is not None and j.pnl_amount > 0
+        )
+        losing_trades = sum(
+            1 for j in journals if j.pnl_amount is not None and j.pnl_amount < 0
+        )
 
         pnls = [j.pnl_amount for j in journals if j.pnl_amount is not None]
         total_pnl = sum(pnls) if pnls else 0.0
@@ -336,23 +383,29 @@ class ReportService:
             "total_pnl": round(total_pnl, 2),
             "avg_pnl": round(avg_pnl, 2),
             "max_profit": round(max_profit, 2),
-            "max_loss": round(max_loss, 2)
+            "max_loss": round(max_loss, 2),
         }
 
-    def _calculate_psychological_metrics(self, journals: List[Journal], locale: Locale) -> Dict[str, Any]:
+    def _calculate_psychological_metrics(
+        self, journals: List[Journal], locale: Locale
+    ) -> Dict[str, Any]:
         """Calculate psychological metrics from journals."""
         if not journals:
             return {
                 "avg_mood_before": None,
                 "avg_mood_after": None,
                 "mood_improvement": None,
-                "emotional_patterns": []
+                "emotional_patterns": [],
             }
 
-        mood_befores = [j.emotion_before for j in journals if j.emotion_before is not None]
+        mood_befores = [
+            j.emotion_before for j in journals if j.emotion_before is not None
+        ]
         mood_afters = [j.emotion_after for j in journals if j.emotion_after is not None]
 
-        avg_mood_before = sum(mood_befores) / len(mood_befores) if mood_befores else None
+        avg_mood_before = (
+            sum(mood_befores) / len(mood_befores) if mood_befores else None
+        )
         avg_mood_after = sum(mood_afters) / len(mood_afters) if mood_afters else None
 
         mood_improvement = None
@@ -363,6 +416,7 @@ class ReportService:
         emotional_patterns = []
         if mood_befores:
             from collections import Counter
+
             labels = {
                 1: t("reports.mood.1", locale),
                 2: t("reports.mood.2", locale),
@@ -379,11 +433,15 @@ class ReportService:
         return {
             "avg_mood_before": round(avg_mood_before, 2) if avg_mood_before else None,
             "avg_mood_after": round(avg_mood_after, 2) if avg_mood_after else None,
-            "mood_improvement": round(mood_improvement, 2) if mood_improvement else None,
-            "emotional_patterns": emotional_patterns
+            "mood_improvement": (
+                round(mood_improvement, 2) if mood_improvement else None
+            ),
+            "emotional_patterns": emotional_patterns,
         }
 
-    def _analyze_patterns(self, journals: List[Journal], locale: Locale) -> Dict[str, Any]:
+    def _analyze_patterns(
+        self, journals: List[Journal], locale: Locale
+    ) -> Dict[str, Any]:
         """Analyze trading patterns from journals."""
         top_mistakes = []
         top_successes = []
@@ -398,6 +456,7 @@ class ReportService:
 
             if all_mistakes:
                 from collections import Counter
+
                 mistake_counts = Counter(all_mistakes)
                 top_mistakes = [
                     {"mistake": mistake, "frequency": count}
@@ -405,7 +464,9 @@ class ReportService:
                 ]
 
             # Analyze successful patterns
-            winning_journals = [j for j in journals if j.pnl_amount is not None and j.pnl_amount > 0]
+            winning_journals = [
+                j for j in journals if j.pnl_amount is not None and j.pnl_amount > 0
+            ]
             if winning_journals:
                 # Extract patterns from winning trades
                 success_patterns = []
@@ -441,7 +502,9 @@ class ReportService:
                 improvements = []
                 for m in top_mistakes[:3]:
                     key = m.get("mistake")
-                    tip = suggestions.get(str(key), t("reports.improvement.generic", locale, key=str(key)))
+                    tip = suggestions.get(
+                        str(key), t("reports.improvement.generic", locale, key=str(key))
+                    )
                     improvements.append(
                         t(
                             "reports.improvement.with_frequency",
@@ -454,19 +517,26 @@ class ReportService:
         return {
             "top_mistakes": top_mistakes,
             "top_successes": top_successes,
-            "improvements": improvements
+            "improvements": improvements,
         }
 
-    def _generate_ai_insights(self, user_id: UUID, journals: List[Journal],
-                              stats: Dict, psych_metrics: Dict, patterns: Dict,
-                              report_type: ReportType, locale: Locale) -> Dict[str, Any]:
+    def _generate_ai_insights(
+        self,
+        user_id: UUID,
+        journals: List[Journal],
+        stats: Dict,
+        psych_metrics: Dict,
+        patterns: Dict,
+        report_type: ReportType,
+        locale: Locale,
+    ) -> Dict[str, Any]:
         """Generate AI insights for the report."""
         if not journals:
             return {
                 "analysis": t("reports.ai.no_trades", locale),
                 "recommendations": [],
                 "key_insights": [],
-                "action_items": []
+                "action_items": [],
             }
 
         # Prepare context for AI
@@ -475,7 +545,7 @@ class ReportService:
             "statistics": stats,
             "psychological": psych_metrics,
             "patterns": patterns,
-            "total_journals": len(journals)
+            "total_journals": len(journals),
         }
 
         report_type_label = self._report_type_label(locale, report_type)
@@ -502,11 +572,13 @@ class ReportService:
                 "analysis": insights.get("analysis", ""),
                 "recommendations": insights.get("recommendations", []),
                 "key_insights": insights.get("key_insights", []),
-                "action_items": insights.get("action_items", [])
+                "action_items": insights.get("action_items", []),
             }
         except Exception as e:
             # Fallback to rule-based insights
-            return self._generate_rule_based_insights(stats, psych_metrics, patterns, locale)
+            return self._generate_rule_based_insights(
+                stats, psych_metrics, patterns, locale
+            )
 
     def _run_llm_chat(self, router: LLMRouter, prompt: str, locale: Locale) -> str:
         """Run an LLM chat call from sync code (best-effort)."""
@@ -543,8 +615,9 @@ class ReportService:
 
         raise ValueError("No JSON object found in LLM response")
 
-    def _generate_rule_based_insights(self, stats: Dict, psych_metrics: Dict,
-                                     patterns: Dict, locale: Locale) -> Dict[str, Any]:
+    def _generate_rule_based_insights(
+        self, stats: Dict, psych_metrics: Dict, patterns: Dict, locale: Locale
+    ) -> Dict[str, Any]:
         """Generate rule-based insights as fallback."""
         analysis = t(
             "reports.fallback.analysis_header",
@@ -554,7 +627,11 @@ class ReportService:
         )
 
         if stats["total_pnl"] > 0:
-            analysis += t("reports.fallback.analysis_profit", locale, total_pnl=stats.get("total_pnl"))
+            analysis += t(
+                "reports.fallback.analysis_profit",
+                locale,
+                total_pnl=stats.get("total_pnl"),
+            )
         else:
             analysis += t(
                 "reports.fallback.analysis_loss",
@@ -566,7 +643,10 @@ class ReportService:
         if stats["win_rate"] < 50:
             recommendations.append(t("reports.fallback.rec.low_win_rate", locale))
 
-        if psych_metrics.get("mood_improvement") and psych_metrics.get("mood_improvement") < 0:
+        if (
+            psych_metrics.get("mood_improvement")
+            and psych_metrics.get("mood_improvement") < 0
+        ):
             recommendations.append(t("reports.fallback.rec.mood_negative", locale))
 
         if patterns.get("top_mistakes"):
@@ -602,7 +682,7 @@ class ReportService:
             "analysis": analysis,
             "recommendations": recommendations[:3],
             "key_insights": key_insights[:3],
-            "action_items": action_items
+            "action_items": action_items,
         }
 
     def _get_coach_insights(
@@ -618,8 +698,10 @@ class ReportService:
         query = self.db.query(ChatSession).filter(
             and_(
                 ChatSession.user_id == user_id,
-                ChatSession.created_at >= datetime.combine(start_date, datetime.min.time()),
-                ChatSession.created_at <= datetime.combine(end_date, datetime.max.time())
+                ChatSession.created_at
+                >= datetime.combine(start_date, datetime.min.time()),
+                ChatSession.created_at
+                <= datetime.combine(end_date, datetime.max.time()),
             )
         )
         if project_id is not None:
@@ -628,10 +710,7 @@ class ReportService:
         sessions = query.all()
 
         if not sessions:
-            return {
-                "notes": {},
-                "primary_coach": None
-            }
+            return {"notes": {}, "primary_coach": None}
 
         # Count sessions per coach
         coach_sessions = {}
@@ -641,17 +720,16 @@ class ReportService:
             coach_sessions[session.coach_id] += 1
 
         # Find primary coach
-        primary_coach = max(coach_sessions, key=coach_sessions.get) if coach_sessions else None
+        primary_coach = (
+            max(coach_sessions, key=coach_sessions.get) if coach_sessions else None
+        )
 
         # Generate notes (simplified version)
         notes = {}
         for coach_id, count in coach_sessions.items():
             notes[coach_id] = t("reports.coach.notes", locale, count=count)
 
-        return {
-            "notes": notes,
-            "primary_coach": primary_coach
-        }
+        return {"notes": notes, "primary_coach": primary_coach}
 
     def _generate_summary(self, report: Report, locale: Locale) -> str:
         """Generate a summary for the report."""
@@ -674,9 +752,13 @@ class ReportService:
 
         if report.total_pnl is not None and report.total_pnl != 0:
             if report.total_pnl > 0:
-                summary += t("reports.summary.profit", locale, total_pnl=report.total_pnl)
+                summary += t(
+                    "reports.summary.profit", locale, total_pnl=report.total_pnl
+                )
             else:
-                summary += t("reports.summary.loss", locale, total_loss=abs(report.total_pnl))
+                summary += t(
+                    "reports.summary.loss", locale, total_loss=abs(report.total_pnl)
+                )
 
         if report.mood_improvement is not None and report.mood_improvement != 0:
             if report.mood_improvement > 0:
@@ -687,8 +769,13 @@ class ReportService:
         return summary
 
     # Report Management
-    def get_user_reports(self, user_id: UUID, report_type: Optional[ReportType] = None,
-                        project_id: Optional[UUID] = None, limit: int = 10) -> List[Report]:
+    def get_user_reports(
+        self,
+        user_id: UUID,
+        report_type: Optional[ReportType] = None,
+        project_id: Optional[UUID] = None,
+        limit: int = 10,
+    ) -> List[Report]:
         """Get user's reports."""
         query = self.db.query(Report).filter(Report.user_id == user_id)
 
@@ -704,14 +791,15 @@ class ReportService:
         """Get report by ID."""
         return self.db.query(Report).filter(Report.id == report_id).first()
 
-    def get_latest_report(self, user_id: UUID,
-                         report_type: ReportType, project_id: Optional[UUID] = None) -> Optional[Report]:
+    def get_latest_report(
+        self, user_id: UUID, report_type: ReportType, project_id: Optional[UUID] = None
+    ) -> Optional[Report]:
         """Get the latest report of a specific type."""
         query = self.db.query(Report).filter(
             and_(
                 Report.user_id == user_id,
                 Report.report_type == report_type,
-                Report.status == ReportStatus.COMPLETED
+                Report.status == ReportStatus.COMPLETED,
             )
         )
         if project_id is not None:
@@ -721,12 +809,15 @@ class ReportService:
     # Schedule Management
     def get_user_schedule(self, user_id: UUID) -> Optional[ReportSchedule]:
         """Get user's report schedule preferences."""
-        return self.db.query(ReportSchedule).filter(
-            ReportSchedule.user_id == user_id
-        ).first()
+        return (
+            self.db.query(ReportSchedule)
+            .filter(ReportSchedule.user_id == user_id)
+            .first()
+        )
 
-    def create_or_update_schedule(self, user_id: UUID,
-                                 schedule_data: Dict[str, Any]) -> ReportSchedule:
+    def create_or_update_schedule(
+        self, user_id: UUID, schedule_data: Dict[str, Any]
+    ) -> ReportSchedule:
         """Create or update user's report schedule."""
         schedule = self.get_user_schedule(user_id)
 
@@ -743,8 +834,9 @@ class ReportService:
         self.db.refresh(schedule)
         return schedule
 
-    def should_generate_report(self, user_id: UUID,
-                              report_type: ReportType) -> Tuple[bool, Optional[date]]:
+    def should_generate_report(
+        self, user_id: UUID, report_type: ReportType
+    ) -> Tuple[bool, Optional[date]]:
         """Check if a report should be generated for the user."""
         schedule = self.get_user_schedule(user_id)
         if not schedule or not schedule.is_active:
@@ -784,8 +876,10 @@ class ReportService:
 
             # Check if already generated this month
             if schedule.last_monthly_generated:
-                if schedule.last_monthly_generated.year == now.year and \
-                   schedule.last_monthly_generated.month == now.month:
+                if (
+                    schedule.last_monthly_generated.year == now.year
+                    and schedule.last_monthly_generated.month == now.month
+                ):
                     return False, None
 
             return True, None  # Will use default (last month)

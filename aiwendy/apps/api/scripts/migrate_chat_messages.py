@@ -5,9 +5,10 @@ Run this script once to add the missing columns.
 """
 
 import asyncio
-from sqlalchemy import text
+
 from core.database import engine
 from core.logging import get_logger
+from sqlalchemy import text
 
 logger = get_logger(__name__)
 

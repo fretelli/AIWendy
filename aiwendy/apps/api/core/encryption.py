@@ -2,10 +2,10 @@
 
 import base64
 import os
-from cryptography.fernet import Fernet
 from typing import Optional
 
 from config import get_settings
+from cryptography.fernet import Fernet
 
 settings = get_settings()
 
@@ -20,7 +20,7 @@ class EncryptionService:
         else:
             # Use JWT secret as base for encryption key
             # In production, use a separate encryption key
-            key_base = settings.jwt_secret[:32].ljust(32, '0')
+            key_base = settings.jwt_secret[:32].ljust(32, "0")
             key_bytes = base64.urlsafe_b64encode(key_base.encode()[:32])
             self.cipher = Fernet(key_bytes)
 
@@ -29,16 +29,16 @@ class EncryptionService:
         if not data:
             return ""
         encrypted = self.cipher.encrypt(data.encode())
-        return base64.b64encode(encrypted).decode('utf-8')
+        return base64.b64encode(encrypted).decode("utf-8")
 
     def decrypt(self, encrypted_data: str) -> str:
         """Decrypt base64 encoded data and return original string."""
         if not encrypted_data:
             return ""
         try:
-            decoded = base64.b64decode(encrypted_data.encode('utf-8'))
+            decoded = base64.b64decode(encrypted_data.encode("utf-8"))
             decrypted = self.cipher.decrypt(decoded)
-            return decrypted.decode('utf-8')
+            return decrypted.decode("utf-8")
         except Exception:
             # If decryption fails, return empty string
             return ""

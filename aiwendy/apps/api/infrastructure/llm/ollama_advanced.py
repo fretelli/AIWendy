@@ -4,17 +4,16 @@ import asyncio
 import json
 import math
 import time
-from typing import List, Dict, Any, Optional, AsyncIterator, Tuple
-from datetime import datetime, timedelta
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 import httpx
+from core.cache import get_redis_client
+from core.logging import get_logger
+from infrastructure.llm.base import LLMConfig, LLMProvider, Message
 from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential
-
-from core.logging import get_logger
-from core.cache import get_redis_client
-from infrastructure.llm.base import LLMProvider, Message, LLMConfig
 
 logger = get_logger(__name__)
 
@@ -36,7 +35,7 @@ class OllamaModel:
 
     @property
     def size_gb(self) -> float:
-        return round(self.size / (1024 ** 3), 2)
+        return round(self.size / (1024**3), 2)
 
 
 class ModelCache:
@@ -59,9 +58,7 @@ class ModelCache:
         """Set cached value."""
         try:
             await self.redis.setex(
-                f"ollama:cache:{key}",
-                ttl or self.ttl,
-                json.dumps(value)
+                f"ollama:cache:{key}", ttl or self.ttl, json.dumps(value)
             )
         except Exception as e:
             logger.error(f"Cache set error: {e}")
@@ -69,6 +66,7 @@ class ModelCache:
     async def get_embedding(self, text: str, model: str) -> Optional[List[float]]:
         """Get cached embedding."""
         import hashlib
+
         key = hashlib.md5(f"{model}:{text}".encode()).hexdigest()
         cached = await self.get(f"embedding:{key}")
         return cached if cached else None
@@ -76,6 +74,7 @@ class ModelCache:
     async def set_embedding(self, text: str, model: str, embedding: List[float]):
         """Cache embedding."""
         import hashlib
+
         key = hashlib.md5(f"{model}:{text}".encode()).hexdigest()
         await self.set(f"embedding:{key}", embedding, ttl=86400)  # 24 hours
 
@@ -89,33 +88,35 @@ class ModelOptimizer:
             "top_p": 0.9,
             "top_k": 40,
             "repeat_penalty": 1.1,
-            "num_predict": 256
+            "num_predict": 256,
         },
         "balanced": {
             "temperature": 0.7,
             "top_p": 0.95,
             "top_k": 50,
             "repeat_penalty": 1.2,
-            "num_predict": 512
+            "num_predict": 512,
         },
         "creative": {
             "temperature": 1.0,
             "top_p": 0.98,
             "top_k": 100,
             "repeat_penalty": 1.3,
-            "num_predict": 1024
+            "num_predict": 1024,
         },
         "analytical": {
             "temperature": 0.1,
             "top_p": 0.85,
             "top_k": 20,
             "repeat_penalty": 1.0,
-            "num_predict": 2048
-        }
+            "num_predict": 2048,
+        },
     }
 
     @classmethod
-    def get_optimized_params(cls, use_case: str, base_config: LLMConfig) -> Dict[str, Any]:
+    def get_optimized_params(
+        cls, use_case: str, base_config: LLMConfig
+    ) -> Dict[str, Any]:
         """Get optimized parameters for a use case."""
         preset = cls.PRESETS.get(use_case, cls.PRESETS["balanced"])
 
@@ -125,7 +126,7 @@ class ModelOptimizer:
             "top_k": preset["top_k"],
             "repeat_penalty": preset["repeat_penalty"],
             "num_predict": base_config.max_tokens or preset["num_predict"],
-            "seed": base_config.seed if hasattr(base_config, 'seed') else None,
+            "seed": base_config.seed if hasattr(base_config, "seed") else None,
             "num_ctx": 4096,  # Context window
             "num_batch": 512,  # Batch size for prompt processing
             "num_gpu": -1,  # Use all available GPUs
@@ -146,7 +147,7 @@ class AdvancedOllamaProvider(LLMProvider):
         base_url: str = "http://localhost:11434",
         timeout: int = 120,
         enable_cache: bool = True,
-        enable_monitoring: bool = True
+        enable_monitoring: bool = True,
     ):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
@@ -162,7 +163,9 @@ class AdvancedOllamaProvider(LLMProvider):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.client.aclose()
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10)
+    )
     async def check_health(self) -> bool:
         """Check if Ollama service is healthy."""
         try:
@@ -184,11 +187,17 @@ class AdvancedOllamaProvider(LLMProvider):
             for model_data in data.get("models", []):
                 model = OllamaModel(
                     name=model_data["name"].split(":")[0],
-                    tag=model_data["name"].split(":")[-1] if ":" in model_data["name"] else "latest",
+                    tag=(
+                        model_data["name"].split(":")[-1]
+                        if ":" in model_data["name"]
+                        else "latest"
+                    ),
                     digest=model_data["digest"],
                     size=model_data["size"],
-                    modified_at=datetime.fromisoformat(model_data["modified_at"].replace("Z", "+00:00")),
-                    details=model_data.get("details", {})
+                    modified_at=datetime.fromisoformat(
+                        model_data["modified_at"].replace("Z", "+00:00")
+                    ),
+                    details=model_data.get("details", {}),
                 )
                 models.append(model)
                 self._model_info_cache[model.full_name] = model
@@ -199,9 +208,7 @@ class AdvancedOllamaProvider(LLMProvider):
             return []
 
     async def pull_model(
-        self,
-        model_name: str,
-        progress_callback: Optional[callable] = None
+        self, model_name: str, progress_callback: Optional[callable] = None
     ) -> AsyncIterator[Dict[str, Any]]:
         """Pull a model with progress tracking."""
         try:
@@ -209,7 +216,7 @@ class AdvancedOllamaProvider(LLMProvider):
                 "POST",
                 f"{self.base_url}/api/pull",
                 json={"name": model_name},
-                timeout=None  # No timeout for pulling
+                timeout=None,  # No timeout for pulling
             ) as response:
                 async for line in response.aiter_lines():
                     if line:
@@ -232,8 +239,7 @@ class AdvancedOllamaProvider(LLMProvider):
         """Delete a model from local storage."""
         try:
             response = await self.client.delete(
-                f"{self.base_url}/api/delete",
-                json={"name": model_name}
+                f"{self.base_url}/api/delete", json={"name": model_name}
             )
             response.raise_for_status()
 
@@ -253,8 +259,7 @@ class AdvancedOllamaProvider(LLMProvider):
 
         try:
             response = await self.client.post(
-                f"{self.base_url}/api/show",
-                json={"name": model_name}
+                f"{self.base_url}/api/show", json={"name": model_name}
             )
             response.raise_for_status()
 
@@ -265,7 +270,7 @@ class AdvancedOllamaProvider(LLMProvider):
                 digest=data.get("digest", ""),
                 size=data.get("size", 0),
                 modified_at=datetime.now(),
-                details=data
+                details=data,
             )
 
             self._model_info_cache[model_name] = model
@@ -275,10 +280,7 @@ class AdvancedOllamaProvider(LLMProvider):
             return None
 
     async def chat(
-        self,
-        messages: List[Message],
-        config: LLMConfig,
-        use_case: str = "balanced"
+        self, messages: List[Message], config: LLMConfig, use_case: str = "balanced"
     ) -> str:
         """Chat completion with optimized parameters."""
 
@@ -298,7 +300,7 @@ class AdvancedOllamaProvider(LLMProvider):
             "model": config.model,
             "messages": [{"role": m.role, "content": m.content} for m in messages],
             "stream": config.stream,
-            "options": params
+            "options": params,
         }
 
         try:
@@ -308,9 +310,7 @@ class AdvancedOllamaProvider(LLMProvider):
                 return self._stream_chat(request_data)
             else:
                 response = await self.client.post(
-                    f"{self.base_url}/api/chat",
-                    json=request_data,
-                    timeout=self.timeout
+                    f"{self.base_url}/api/chat", json=request_data, timeout=self.timeout
                 )
                 response.raise_for_status()
 
@@ -336,10 +336,7 @@ class AdvancedOllamaProvider(LLMProvider):
         """Stream chat responses."""
         try:
             async with self.client.stream(
-                "POST",
-                f"{self.base_url}/api/chat",
-                json=request_data,
-                timeout=None
+                "POST", f"{self.base_url}/api/chat", json=request_data, timeout=None
             ) as response:
                 async for line in response.aiter_lines():
                     if line:
@@ -354,9 +351,7 @@ class AdvancedOllamaProvider(LLMProvider):
             raise
 
     async def generate_embeddings(
-        self,
-        texts: List[str],
-        model: str = "nomic-embed-text"
+        self, texts: List[str], model: str = "nomic-embed-text"
     ) -> List[List[float]]:
         """Generate embeddings for texts."""
         embeddings = []
@@ -372,7 +367,7 @@ class AdvancedOllamaProvider(LLMProvider):
             try:
                 response = await self.client.post(
                     f"{self.base_url}/api/embeddings",
-                    json={"model": model, "prompt": text}
+                    json={"model": model, "prompt": text},
                 )
                 response.raise_for_status()
 
@@ -394,7 +389,7 @@ class AdvancedOllamaProvider(LLMProvider):
         query: str,
         documents: List[str],
         model: str = "nomic-embed-text",
-        top_k: int = 5
+        top_k: int = 5,
     ) -> List[Tuple[str, float]]:
         """Find most similar documents using embeddings."""
 
@@ -431,9 +426,7 @@ class AdvancedOllamaProvider(LLMProvider):
         return similarities[:top_k]
 
     async def analyze_sentiment(
-        self,
-        text: str,
-        model: str = "llama3.2:latest"
+        self, text: str, model: str = "llama3.2:latest"
     ) -> Dict[str, Any]:
         """Analyze sentiment of text."""
 
@@ -449,7 +442,7 @@ Provide response in JSON format."""
 
         messages = [
             Message(role="system", content="You are a sentiment analysis expert."),
-            Message(role="user", content=prompt)
+            Message(role="user", content=prompt),
         ]
 
         config = LLMConfig(model=model, temperature=0.1, max_tokens=200)
@@ -458,7 +451,8 @@ Provide response in JSON format."""
         try:
             # Parse JSON response
             import re
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+
+            json_match = re.search(r"\{.*\}", response, re.DOTALL)
             if json_match:
                 return json.loads(json_match.group())
             else:
@@ -472,16 +466,19 @@ Provide response in JSON format."""
         base_model: str,
         training_data: List[Dict[str, str]],
         model_name: str,
-        parameters: Optional[Dict[str, Any]] = None
+        parameters: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Fine-tune a model with custom data (requires Ollama 0.2+)."""
 
         try:
             # Prepare training file in JSONL format
             import tempfile
-            with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".jsonl", delete=False
+            ) as f:
                 for item in training_data:
-                    f.write(json.dumps(item) + '\n')
+                    f.write(json.dumps(item) + "\n")
                 training_file = f.name
 
             # Create Modelfile
@@ -496,15 +493,13 @@ SYSTEM You are a specialized trading psychology coach trained on custom data.
             # Create model
             response = await self.client.post(
                 f"{self.base_url}/api/create",
-                json={
-                    "name": model_name,
-                    "modelfile": modelfile
-                }
+                json={"name": model_name, "modelfile": modelfile},
             )
             response.raise_for_status()
 
             # Clean up
             import os
+
             os.unlink(training_file)
 
             return True
@@ -517,12 +512,14 @@ SYSTEM You are a specialized trading psychology coach trained on custom data.
         """Generate cache key for messages and config."""
         import hashlib
 
-        content = json.dumps({
-            "messages": [{"role": m.role, "content": m.content} for m in messages],
-            "model": config.model,
-            "temperature": config.temperature,
-            "max_tokens": config.max_tokens
-        })
+        content = json.dumps(
+            {
+                "messages": [{"role": m.role, "content": m.content} for m in messages],
+                "model": config.model,
+                "temperature": config.temperature,
+                "max_tokens": config.max_tokens,
+            }
+        )
 
         return hashlib.md5(content.encode()).hexdigest()
 
@@ -536,13 +533,12 @@ SYSTEM You are a specialized trading psychology coach trained on custom data.
                     "timestamp": datetime.now().isoformat(),
                     "elapsed_time": elapsed_time,
                     "tokens": tokens,
-                    "tokens_per_second": tokens / elapsed_time if elapsed_time > 0 else 0
+                    "tokens_per_second": (
+                        tokens / elapsed_time if elapsed_time > 0 else 0
+                    ),
                 }
 
-                await self.cache.redis.lpush(
-                    "ollama:metrics",
-                    json.dumps(metrics)
-                )
+                await self.cache.redis.lpush("ollama:metrics", json.dumps(metrics))
 
                 # Trim to last 1000 entries
                 await self.cache.redis.ltrim("ollama:metrics", 0, 999)
@@ -572,8 +568,10 @@ SYSTEM You are a specialized trading psychology coach trained on custom data.
                 "avg_response_time": float(sum(elapsed_times) / len(elapsed_times)),
                 "min_response_time": float(min(elapsed_times)),
                 "max_response_time": float(max(elapsed_times)),
-                "avg_tokens_per_second": float(sum(tokens_per_second) / len(tokens_per_second)),
-                "models_used": list(set(m["model"] for m in metrics))
+                "avg_tokens_per_second": float(
+                    sum(tokens_per_second) / len(tokens_per_second)
+                ),
+                "models_used": list(set(m["model"] for m in metrics)),
             }
         except Exception as e:
             logger.error(f"Failed to get performance stats: {e}")

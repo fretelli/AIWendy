@@ -5,8 +5,8 @@ Only active when DEPLOYMENT_MODE=cloud and analytics is configured.
 """
 
 import logging
-from typing import Any, Dict, Optional
 from datetime import datetime
+from typing import Any, Dict, Optional
 
 from config import get_settings
 
@@ -72,7 +72,9 @@ class PostHogProvider(AnalyticsProvider):
                 )
                 logger.info("PostHog analytics initialized")
             except ImportError:
-                logger.warning("PostHog library not installed. Install with: pip install posthog")
+                logger.warning(
+                    "PostHog library not installed. Install with: pip install posthog"
+                )
                 self.enabled = False
             except Exception as e:
                 logger.error(f"Failed to initialize PostHog: {e}")
@@ -156,7 +158,9 @@ class MixpanelProvider(AnalyticsProvider):
                 self.client = Mixpanel(self.settings.mixpanel_token)
                 logger.info("Mixpanel analytics initialized")
             except ImportError:
-                logger.warning("Mixpanel library not installed. Install with: pip install mixpanel")
+                logger.warning(
+                    "Mixpanel library not installed. Install with: pip install mixpanel"
+                )
                 self.enabled = False
             except Exception as e:
                 logger.error(f"Failed to initialize Mixpanel: {e}")
@@ -217,10 +221,14 @@ class NoOpProvider(AnalyticsProvider):
         super().__init__()
         self.enabled = False
 
-    def identify(self, user_id: str, properties: Optional[Dict[str, Any]] = None) -> None:
+    def identify(
+        self, user_id: str, properties: Optional[Dict[str, Any]] = None
+    ) -> None:
         pass
 
-    def track(self, user_id: str, event: str, properties: Optional[Dict[str, Any]] = None) -> None:
+    def track(
+        self, user_id: str, event: str, properties: Optional[Dict[str, Any]] = None
+    ) -> None:
         pass
 
     def group(
@@ -272,10 +280,12 @@ class Analytics:
     ) -> None:
         """Identify a user with their properties."""
         props = properties or {}
-        props.update({
-            "email": email,
-            "identified_at": datetime.utcnow().isoformat(),
-        })
+        props.update(
+            {
+                "email": email,
+                "identified_at": datetime.utcnow().isoformat(),
+            }
+        )
         self.provider.identify(user_id, props)
 
     def track_event(
@@ -286,9 +296,11 @@ class Analytics:
     ) -> None:
         """Track a user event."""
         props = properties or {}
-        props.update({
-            "timestamp": datetime.utcnow().isoformat(),
-        })
+        props.update(
+            {
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
         self.provider.track(user_id, event, props)
 
     def associate_tenant(
@@ -310,7 +322,9 @@ class Analytics:
         )
 
     # Convenience methods for common events
-    def track_signup(self, user_id: str, email: str, source: Optional[str] = None) -> None:
+    def track_signup(
+        self, user_id: str, email: str, source: Optional[str] = None
+    ) -> None:
         """Track user signup."""
         self.track_event(
             user_id,

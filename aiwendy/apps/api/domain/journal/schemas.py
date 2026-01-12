@@ -1,20 +1,23 @@
 """Journal domain schemas."""
 
-from datetime import datetime
-from typing import Optional, List
-from pydantic import BaseModel, Field, validator
-from enum import Enum
 import uuid
+from datetime import datetime
+from enum import Enum
+from typing import List, Optional
+
+from pydantic import BaseModel, Field, validator
 
 
 class TradeDirection(str, Enum):
     """Trade direction enum."""
+
     long = "long"
     short = "short"
 
 
 class TradeResult(str, Enum):
     """Trade result enum."""
+
     win = "win"
     loss = "loss"
     breakeven = "breakeven"
@@ -23,6 +26,7 @@ class TradeResult(str, Enum):
 
 class RuleViolationType(str, Enum):
     """Rule violation types."""
+
     early_exit = "early_exit"
     late_exit = "late_exit"
     no_stop_loss = "no_stop_loss"
@@ -87,7 +91,7 @@ class JournalBase(BaseModel):
     # Attachments
     screenshots: List[str] = []
 
-    @validator('pnl_percentage')
+    @validator("pnl_percentage")
     def validate_pnl_percentage(cls, v):
         """Validate PnL percentage is reasonable."""
         if v is not None and abs(v) > 1000:  # More than 1000% seems unrealistic
@@ -100,6 +104,7 @@ class JournalBase(BaseModel):
 
 class JournalCreate(JournalBase):
     """Journal creation schema."""
+
     pass
 
 

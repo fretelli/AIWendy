@@ -1,31 +1,20 @@
 """Report domain models."""
 
 import enum
-from datetime import datetime, date
-from typing import Optional, Dict, Any
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    Date,
-    Enum,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    JSON,
-    Float,
-    Index,
-)
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
 import uuid
+from datetime import date, datetime
+from typing import Any, Dict, Optional
 
 from core.database import Base
+from sqlalchemy import (JSON, Boolean, Column, Date, DateTime, Enum, Float,
+                        ForeignKey, Index, Integer, String, Text)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
 
 
 class ReportType(str, enum.Enum):
     """Report type enumeration."""
+
     DAILY = "daily"
     WEEKLY = "weekly"
     MONTHLY = "monthly"
@@ -35,6 +24,7 @@ class ReportType(str, enum.Enum):
 
 class ReportStatus(str, enum.Enum):
     """Report generation status."""
+
     PENDING = "pending"
     GENERATING = "generating"
     COMPLETED = "completed"
@@ -125,12 +115,16 @@ class Report(Base):
     __table_args__ = (
         Index("ix_reports_user_type", "user_id", "report_type"),
         Index("ix_reports_user_period", "user_id", "period_start", "period_end"),
-        Index("ix_reports_user_project_period", "user_id", "project_id", "period_start"),
+        Index(
+            "ix_reports_user_project_period", "user_id", "project_id", "period_start"
+        ),
         Index("ix_reports_status", "status"),
     )
 
     def __repr__(self):
-        return f"<Report(id={self.id}, type={self.report_type}, user_id={self.user_id})>"
+        return (
+            f"<Report(id={self.id}, type={self.report_type}, user_id={self.user_id})>"
+        )
 
 
 class ReportSchedule(Base):
@@ -142,7 +136,9 @@ class ReportSchedule(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
     # Foreign key
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True)
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, unique=True
+    )
 
     # Schedule settings
     daily_enabled = Column(Boolean, default=True)
@@ -231,9 +227,7 @@ class ReportTemplate(Base):
     )
 
     # Indexes
-    __table_args__ = (
-        Index("ix_report_templates_type", "report_type", "is_active"),
-    )
+    __table_args__ = (Index("ix_report_templates_type", "report_type", "is_active"),)
 
     def __repr__(self):
         return f"<ReportTemplate(name={self.name}, type={self.report_type})>"

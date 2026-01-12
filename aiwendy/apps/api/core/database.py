@@ -4,17 +4,13 @@ from __future__ import annotations
 
 from typing import AsyncGenerator, Generator
 
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-from sqlalchemy.engine import make_url
-from sqlalchemy.orm import Session, declarative_base, sessionmaker
-from sqlalchemy import create_engine
-
 from config import get_settings
 from core.logging import get_logger
+from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import (AsyncSession, async_sessionmaker,
+                                    create_async_engine)
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -83,10 +79,10 @@ async def init_database() -> None:
     """Initialize database (create tables if needed)."""
     try:
         # Import all models to register them with Base
-        from domain.user import models as user_models  # noqa
+        from domain.analysis import models as analysis_models  # noqa
         from domain.coach import models as coach_models  # noqa
         from domain.journal import models as journal_models  # noqa
-        from domain.analysis import models as analysis_models  # noqa
+        from domain.user import models as user_models  # noqa
         from sqlalchemy import text
 
         async with engine.begin() as conn:

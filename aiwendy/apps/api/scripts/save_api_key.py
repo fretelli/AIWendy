@@ -11,10 +11,10 @@ from uuid import uuid4
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import text
 from core.database import async_session
 from core.encryption import get_encryption_service
 from core.logging import get_logger
+from sqlalchemy import text
 
 logger = get_logger(__name__)
 
@@ -32,7 +32,7 @@ async def save_api_key():
             # Use raw SQL to avoid ORM issues
             result = await session.execute(
                 text("SELECT id, api_keys_encrypted FROM users WHERE email = :email"),
-                {"email": USER_EMAIL}
+                {"email": USER_EMAIL},
             )
             row = result.fetchone()
 
@@ -59,7 +59,7 @@ async def save_api_key():
                 "supports_vision": False,
                 "supports_embeddings": True,
                 "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat()
+                "updated_at": datetime.utcnow().isoformat(),
             }
 
             # Update configuration
@@ -70,17 +70,19 @@ async def save_api_key():
 
             # Update user record
             await session.execute(
-                text("""
+                text(
+                    """
                     UPDATE users
                     SET api_keys_encrypted = :config,
                         openai_api_key = :openai_key
                     WHERE id = :user_id
-                """),
+                """
+                ),
                 {
                     "config": json.dumps(existing_config),
                     "openai_key": encrypted_key,
-                    "user_id": user_id
-                }
+                    "user_id": user_id,
+                },
             )
 
             await session.commit()
@@ -109,10 +111,7 @@ async def test_api_connection():
 
     print("\nTesting API connection...")
 
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"}
 
     test_payload = {
         "model": "gpt-3.5-turbo",
@@ -120,7 +119,7 @@ async def test_api_connection():
             {"role": "user", "content": "Say 'Hello' if you can receive this."}
         ],
         "max_tokens": 50,
-        "temperature": 0.1
+        "temperature": 0.1,
     }
 
     try:
@@ -129,7 +128,7 @@ async def test_api_connection():
                 "https://api.openai.com/v1/chat/completions",
                 headers=headers,
                 json=test_payload,
-                timeout=30.0
+                timeout=30.0,
             )
 
             if response.status_code == 200:

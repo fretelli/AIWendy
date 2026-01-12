@@ -23,16 +23,15 @@ Supports any OpenAI-compatible API endpoints including:
 import asyncio
 import json
 import time
-from typing import List, Optional, Dict, Any, AsyncIterator, Tuple
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential
-
-from infrastructure.llm.base import LLMProvider, Message, LLMConfig
-from core.logging import get_logger
 from core.exceptions import LLMError
+from core.logging import get_logger
+from infrastructure.llm.base import LLMConfig, LLMProvider, Message
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = get_logger(__name__)
 
@@ -114,7 +113,7 @@ class CustomAPIProvider(LLMProvider):
             "auth_header_name": "api-key",
             "chat_endpoint": "/openai/deployments/{model}/chat/completions?api-version=2024-02-15-preview",
             "supports_functions": True,
-            "supports_vision": True
+            "supports_vision": True,
         },
         "groq": {
             "base_url": "https://api.groq.com/openai",
@@ -125,34 +124,34 @@ class CustomAPIProvider(LLMProvider):
                 "mixtral-8x7b-32768",
                 "llama3-70b-8192",
                 "llama3-8b-8192",
-                "gemma-7b-it"
+                "gemma-7b-it",
             ],
-            "max_tokens_limit": 32768
+            "max_tokens_limit": 32768,
         },
         "together": {
             "base_url": "https://api.together.xyz",
             "api_format": APIFormat.OPENAI,
             "auth_type": AuthType.BEARER,
             "chat_endpoint": "/v1/chat/completions",
-            "default_model": "meta-llama/Llama-3-70b-chat-hf"
+            "default_model": "meta-llama/Llama-3-70b-chat-hf",
         },
         "anyscale": {
             "base_url": "https://api.endpoints.anyscale.com",
             "api_format": APIFormat.OPENAI,
             "auth_type": AuthType.BEARER,
-            "chat_endpoint": "/v1/chat/completions"
+            "chat_endpoint": "/v1/chat/completions",
         },
         "perplexity": {
             "base_url": "https://api.perplexity.ai",
             "api_format": APIFormat.OPENAI,
             "auth_type": AuthType.BEARER,
-            "default_model": "pplx-70b-online"
+            "default_model": "pplx-70b-online",
         },
         "deepinfra": {
             "base_url": "https://api.deepinfra.com",
             "api_format": APIFormat.OPENAI,
             "auth_type": AuthType.BEARER,
-            "chat_endpoint": "/v1/openai/chat/completions"
+            "chat_endpoint": "/v1/openai/chat/completions",
         },
         "openrouter": {
             "base_url": "https://openrouter.ai/api",
@@ -161,83 +160,78 @@ class CustomAPIProvider(LLMProvider):
             "chat_endpoint": "/v1/chat/completions",
             "extra_headers": {
                 "HTTP-Referer": "https://aiwendy.com",
-                "X-Title": "AIWendy Trading Coach"
-            }
+                "X-Title": "AIWendy Trading Coach",
+            },
         },
         "huggingface": {
             "base_url": "https://api-inference.huggingface.co",
             "api_format": APIFormat.CUSTOM,
             "auth_type": AuthType.BEARER,
             "chat_endpoint": "/models/{model}",
-            "response_mapping": {
-                "content": "generated_text",
-                "role": "assistant"
-            }
+            "response_mapping": {"content": "generated_text", "role": "assistant"},
         },
         "vllm": {
             "base_url": "http://localhost:8000",
             "api_format": APIFormat.OPENAI,
             "auth_type": AuthType.NONE,
             "chat_endpoint": "/v1/chat/completions",
-            "supports_streaming": True
+            "supports_streaming": True,
         },
         "localai": {
             "base_url": "http://localhost:8080",
             "api_format": APIFormat.OPENAI,
             "auth_type": AuthType.NONE,
             "chat_endpoint": "/v1/chat/completions",
-            "models_endpoint": "/v1/models"
+            "models_endpoint": "/v1/models",
         },
         "oneapi": {
             "base_url": "http://localhost:3000",
             "api_format": APIFormat.OPENAI,
             "auth_type": AuthType.BEARER,
             "chat_endpoint": "/v1/chat/completions",
-            "supports_functions": True
+            "supports_functions": True,
         },
         "api2d": {
             "base_url": "https://api.api2d.com",
             "api_format": APIFormat.OPENAI,
             "auth_type": AuthType.BEARER,
             "chat_endpoint": "/v1/chat/completions",
-            "extra_headers": {
-                "User-Agent": "AIWendy/2.0"
-            }
+            "extra_headers": {"User-Agent": "AIWendy/2.0"},
         },
         "xinference": {
             "base_url": "http://localhost:9997",
             "api_format": APIFormat.OPENAI,
             "auth_type": AuthType.NONE,
-            "chat_endpoint": "/v1/chat/completions"
+            "chat_endpoint": "/v1/chat/completions",
         },
         "moonshot": {
             "base_url": "https://api.moonshot.cn",
             "api_format": APIFormat.OPENAI,
             "auth_type": AuthType.BEARER,
             "chat_endpoint": "/v1/chat/completions",
-            "default_model": "moonshot-v1-8k"
+            "default_model": "moonshot-v1-8k",
         },
         "zhipu": {
             "base_url": "https://open.bigmodel.cn/api/paas",
             "api_format": APIFormat.CUSTOM,
             "auth_type": AuthType.BEARER,
             "chat_endpoint": "/v4/chat/completions",
-            "default_model": "glm-4"
+            "default_model": "glm-4",
         },
         "baichuan": {
             "base_url": "https://api.baichuan-ai.com",
             "api_format": APIFormat.OPENAI,
             "auth_type": AuthType.BEARER,
             "chat_endpoint": "/v1/chat/completions",
-            "default_model": "Baichuan2-Turbo"
+            "default_model": "Baichuan2-Turbo",
         },
         "qwen": {
             "base_url": "https://dashscope.aliyuncs.com/api",
             "api_format": APIFormat.CUSTOM,
             "auth_type": AuthType.BEARER,
             "chat_endpoint": "/v1/services/aigc/text-generation/generation",
-            "default_model": "qwen-turbo"
-        }
+            "default_model": "qwen-turbo",
+        },
     }
 
     def __init__(self, config: CustomAPIConfig):
@@ -246,14 +240,18 @@ class CustomAPIProvider(LLMProvider):
         self.client = self._create_client()
         self._rate_limiter = RateLimiter(
             requests_per_minute=config.requests_per_minute,
-            tokens_per_minute=config.tokens_per_minute
+            tokens_per_minute=config.tokens_per_minute,
         )
 
     @classmethod
-    def from_preset(cls, preset_name: str, api_key: str, base_url: Optional[str] = None) -> "CustomAPIProvider":
+    def from_preset(
+        cls, preset_name: str, api_key: str, base_url: Optional[str] = None
+    ) -> "CustomAPIProvider":
         """Create provider from preset configuration."""
         if preset_name not in cls.PRESETS:
-            raise ValueError(f"Unknown preset: {preset_name}. Available: {list(cls.PRESETS.keys())}")
+            raise ValueError(
+                f"Unknown preset: {preset_name}. Available: {list(cls.PRESETS.keys())}"
+            )
 
         preset = cls.PRESETS[preset_name].copy()
 
@@ -262,11 +260,7 @@ class CustomAPIProvider(LLMProvider):
             preset["base_url"] = base_url
 
         # Create config
-        config = CustomAPIConfig(
-            name=preset_name,
-            api_key=api_key,
-            **preset
-        )
+        config = CustomAPIConfig(name=preset_name, api_key=api_key, **preset)
 
         return cls(config)
 
@@ -280,10 +274,14 @@ class CustomAPIProvider(LLMProvider):
         elif self.config.auth_type == AuthType.API_KEY:
             header_name = self.config.auth_header_name or "X-API-Key"
             headers[header_name] = self.config.api_key
-        elif self.config.auth_type == AuthType.CUSTOM_HEADER and self.config.auth_header_name:
+        elif (
+            self.config.auth_type == AuthType.CUSTOM_HEADER
+            and self.config.auth_header_name
+        ):
             headers[self.config.auth_header_name] = self.config.api_key
         elif self.config.auth_type == AuthType.BASIC:
             import base64
+
             auth_string = base64.b64encode(f":{self.config.api_key}".encode()).decode()
             headers["Authorization"] = f"Basic {auth_string}"
 
@@ -292,18 +290,13 @@ class CustomAPIProvider(LLMProvider):
             headers.update(self.config.extra_headers)
 
         return httpx.AsyncClient(
-            base_url=self.config.base_url,
-            headers=headers,
-            timeout=self.config.timeout
+            base_url=self.config.base_url, headers=headers, timeout=self.config.timeout
         )
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-    async def chat(
-        self,
-        messages: List[Message],
-        config: LLMConfig,
-        **kwargs
-    ) -> str:
+    @retry(
+        stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10)
+    )
+    async def chat(self, messages: List[Message], config: LLMConfig, **kwargs) -> str:
         """Send chat completion request."""
 
         # Apply rate limiting
@@ -355,10 +348,7 @@ class CustomAPIProvider(LLMProvider):
             raise LLMError(f"Unexpected error: {e}")
 
     async def stream_chat(
-        self,
-        messages: List[Message],
-        config: LLMConfig,
-        **kwargs
+        self, messages: List[Message], config: LLMConfig, **kwargs
     ) -> AsyncIterator[str]:
         """Stream chat completion response."""
 
@@ -373,7 +363,9 @@ class CustomAPIProvider(LLMProvider):
 
         # Prepare request
         if self.config.api_format == APIFormat.OPENAI:
-            request_data = self._prepare_openai_request(messages, config, stream=True, **kwargs)
+            request_data = self._prepare_openai_request(
+                messages, config, stream=True, **kwargs
+            )
         else:
             # Fallback to non-streaming for non-OpenAI formats
             response = await self.chat(messages, config, **kwargs)
@@ -388,7 +380,9 @@ class CustomAPIProvider(LLMProvider):
         endpoint = self._build_endpoint(self.config.chat_endpoint, config.model)
 
         try:
-            async with self.client.stream("POST", endpoint, json=request_data) as response:
+            async with self.client.stream(
+                "POST", endpoint, json=request_data
+            ) as response:
                 if response.status_code >= 400:
                     error_text = None
                     try:
@@ -425,7 +419,9 @@ class CustomAPIProvider(LLMProvider):
             logger.error(f"Stream error from {self.config.name}: {e}")
             raise LLMError(f"Stream failed: {e}")
 
-    async def get_embeddings(self, texts: List[str], model: Optional[str] = None) -> List[List[float]]:
+    async def get_embeddings(
+        self, texts: List[str], model: Optional[str] = None
+    ) -> List[List[float]]:
         """Get embeddings for texts."""
 
         if not self.config.supports_embeddings:
@@ -437,10 +433,7 @@ class CustomAPIProvider(LLMProvider):
         embeddings = []
 
         for text in texts:
-            request_data = {
-                "input": text,
-                "model": model
-            }
+            request_data = {"input": text, "model": model}
 
             if self.config.extra_body_params:
                 request_data.update(self.config.extra_body_params)
@@ -486,7 +479,11 @@ class CustomAPIProvider(LLMProvider):
             return [m for m in cleaned if m]
 
         if not self.config.models_endpoint:
-            return [self.config.default_model] if _normalize(self.config.default_model) else []
+            return (
+                [self.config.default_model]
+                if _normalize(self.config.default_model)
+                else []
+            )
 
         endpoint = self._build_endpoint(self.config.models_endpoint, None)
         try:
@@ -502,7 +499,9 @@ class CustomAPIProvider(LLMProvider):
                 error_text = error_text.strip()
                 if len(error_text) > 1000:
                     error_text = error_text[:1000] + "..."
-            logger.error(f"HTTP error listing models from {self.config.name}: {e} | {error_text}")
+            logger.error(
+                f"HTTP error listing models from {self.config.name}: {e} | {error_text}"
+            )
             message = f"API request failed: {e}"
             if error_text:
                 message = f"{message} | Response: {error_text}"
@@ -560,31 +559,34 @@ class CustomAPIProvider(LLMProvider):
         if not models:
             fallback: List[str] = []
             if self.config.available_models:
-                fallback = [m for m in ([_normalize(x) for x in self.config.available_models]) if m]
+                fallback = [
+                    m
+                    for m in ([_normalize(x) for x in self.config.available_models])
+                    if m
+                ]
             if not fallback:
-                fallback = [_normalize(self.config.default_model)] if _normalize(self.config.default_model) else []
+                fallback = (
+                    [_normalize(self.config.default_model)]
+                    if _normalize(self.config.default_model)
+                    else []
+                )
             models = fallback
 
         return _dedupe_keep_order(models)
 
     def _prepare_openai_request(
-        self,
-        messages: List[Message],
-        config: LLMConfig,
-        stream: bool = False,
-        **kwargs
+        self, messages: List[Message], config: LLMConfig, stream: bool = False, **kwargs
     ) -> Dict[str, Any]:
         """Prepare request in OpenAI format."""
 
         request = {
             "model": config.model or self.config.default_model,
             "messages": [
-                {"role": msg.role, "content": msg.content}
-                for msg in messages
+                {"role": msg.role, "content": msg.content} for msg in messages
             ],
             "temperature": config.temperature or 0.7,
             "max_tokens": min(config.max_tokens or 2000, self.config.max_tokens_limit),
-            "stream": stream
+            "stream": stream,
         }
 
         # Add optional parameters
@@ -606,10 +608,7 @@ class CustomAPIProvider(LLMProvider):
         return request
 
     def _prepare_anthropic_request(
-        self,
-        messages: List[Message],
-        config: LLMConfig,
-        **kwargs
+        self, messages: List[Message], config: LLMConfig, **kwargs
     ) -> Dict[str, Any]:
         """Prepare request in Anthropic format."""
 
@@ -621,16 +620,13 @@ class CustomAPIProvider(LLMProvider):
             if msg.role == "system":
                 system_prompt = msg.content
             else:
-                anthropic_messages.append({
-                    "role": msg.role,
-                    "content": msg.content
-                })
+                anthropic_messages.append({"role": msg.role, "content": msg.content})
 
         request = {
             "model": config.model or self.config.default_model,
             "messages": anthropic_messages,
             "max_tokens": config.max_tokens or 2000,
-            "temperature": config.temperature or 0.7
+            "temperature": config.temperature or 0.7,
         }
 
         if system_prompt:
@@ -639,10 +635,7 @@ class CustomAPIProvider(LLMProvider):
         return request
 
     def _prepare_google_request(
-        self,
-        messages: List[Message],
-        config: LLMConfig,
-        **kwargs
+        self, messages: List[Message], config: LLMConfig, **kwargs
     ) -> Dict[str, Any]:
         """Prepare request in Google Gemini format."""
 
@@ -651,10 +644,7 @@ class CustomAPIProvider(LLMProvider):
 
         for msg in messages:
             role = "user" if msg.role == "user" else "model"
-            contents.append({
-                "role": role,
-                "parts": [{"text": msg.content}]
-            })
+            contents.append({"role": role, "parts": [{"text": msg.content}]})
 
         return {
             "contents": contents,
@@ -662,15 +652,12 @@ class CustomAPIProvider(LLMProvider):
                 "temperature": config.temperature or 0.7,
                 "maxOutputTokens": config.max_tokens or 2000,
                 "topP": config.top_p or 0.95,
-                "topK": 40
-            }
+                "topK": 40,
+            },
         }
 
     def _prepare_custom_request(
-        self,
-        messages: List[Message],
-        config: LLMConfig,
-        **kwargs
+        self, messages: List[Message], config: LLMConfig, **kwargs
     ) -> Dict[str, Any]:
         """Prepare request in custom format."""
 
@@ -727,13 +714,13 @@ class CustomAPIProvider(LLMProvider):
         # Smart URL handling to avoid duplicate /v1
         # If base_url ends with /v1 and endpoint starts with /v1, remove the duplicate
         if self.config.base_url:
-            base_parts = self.config.base_url.rstrip('/').split('/')
-            endpoint_parts = endpoint_template.lstrip('/').split('/')
+            base_parts = self.config.base_url.rstrip("/").split("/")
+            endpoint_parts = endpoint_template.lstrip("/").split("/")
 
             # Check if there's a duplicate path segment at the junction
             if base_parts and endpoint_parts and base_parts[-1] == endpoint_parts[0]:
                 # Remove the duplicate from endpoint
-                endpoint_template = '/' + '/'.join(endpoint_parts[1:])
+                endpoint_template = "/" + "/".join(endpoint_parts[1:])
 
         return endpoint_template
 
@@ -781,7 +768,11 @@ class CustomAPIProvider(LLMProvider):
 class RateLimiter:
     """Simple rate limiter for API requests."""
 
-    def __init__(self, requests_per_minute: Optional[int] = None, tokens_per_minute: Optional[int] = None):
+    def __init__(
+        self,
+        requests_per_minute: Optional[int] = None,
+        tokens_per_minute: Optional[int] = None,
+    ):
         self.requests_per_minute = requests_per_minute
         self.tokens_per_minute = tokens_per_minute
         self.request_times: List[float] = []
@@ -795,7 +786,9 @@ class RateLimiter:
         # Check request rate limit
         if self.requests_per_minute:
             # Remove old requests
-            self.request_times = [t for t in self.request_times if current_time - t < 60]
+            self.request_times = [
+                t for t in self.request_times if current_time - t < 60
+            ]
 
             if len(self.request_times) >= self.requests_per_minute:
                 # Wait until oldest request is older than 1 minute
@@ -809,7 +802,9 @@ class RateLimiter:
         # Check token rate limit
         if self.tokens_per_minute and tokens > 0:
             # Remove old token usage
-            self.token_usage = [(t, tok) for t, tok in self.token_usage if current_time - t < 60]
+            self.token_usage = [
+                (t, tok) for t, tok in self.token_usage if current_time - t < 60
+            ]
 
             total_tokens = sum(tok for _, tok in self.token_usage)
 
@@ -825,10 +820,7 @@ class RateLimiter:
 
 # Export convenience function
 def create_custom_provider(
-    provider_name: str,
-    api_key: str,
-    base_url: Optional[str] = None,
-    **kwargs
+    provider_name: str, api_key: str, base_url: Optional[str] = None, **kwargs
 ) -> CustomAPIProvider:
     """Create a custom API provider easily."""
 
@@ -841,7 +833,7 @@ def create_custom_provider(
         name=provider_name,
         base_url=base_url or f"http://localhost:8000",
         api_key=api_key,
-        **kwargs
+        **kwargs,
     )
 
     return CustomAPIProvider(config)

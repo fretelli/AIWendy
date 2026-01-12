@@ -1,26 +1,15 @@
 """User domain models."""
 
 import enum
+import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    Enum,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    JSON,
-    Index,
-)
+from core.database import Base
+from sqlalchemy import (JSON, Boolean, Column, DateTime, Enum, ForeignKey,
+                        Index, Integer, String, Text)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-import uuid
-
-from core.database import Base
 
 
 class SubscriptionTier(str, enum.Enum):
@@ -119,7 +108,9 @@ class User(Base):
     projects = relationship("Project", back_populates="user")
     chat_sessions = relationship("ChatSession", back_populates="user")
     reports = relationship("Report", back_populates="user")
-    report_schedule = relationship("ReportSchedule", back_populates="user", uselist=False)
+    report_schedule = relationship(
+        "ReportSchedule", back_populates="user", uselist=False
+    )
     sessions = relationship("UserSession", back_populates="user")
 
     # Indexes
@@ -152,7 +143,9 @@ class UserSession(Base):
     __tablename__ = "user_sessions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True
+    )
 
     # Session info
     access_token = Column(Text, nullable=False, unique=True)
@@ -168,8 +161,6 @@ class UserSession(Base):
     revoked_at = Column(DateTime(timezone=True), nullable=True)
 
     # Index
-    __table_args__ = (
-        Index("ix_user_sessions_user_active", "user_id", "expires_at"),
-    )
+    __table_args__ = (Index("ix_user_sessions_user_active", "user_id", "expires_at"),)
 
     user = relationship("User", back_populates="sessions")
