@@ -232,10 +232,12 @@ export default function JournalImportPage() {
             {result ? (
               <div className="rounded-md border p-3 text-sm space-y-2">
                 <div>
-                  {t('journal.importPage.viewJournal')}
-                    </Link>
-                  </div>
-                ) : null}
+                  <Link href="/journal">
+                    {t('journal.importPage.viewJournal')}
+                  </Link>
+                </div>
+              </div>
+            ) : null}
                 {result.errors?.length ? (
                   <div className="text-muted-foreground space-y-1">
                     {result.errors.slice(0, 10).map((err, i) => (
