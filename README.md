@@ -32,6 +32,44 @@ In the TV series *Billions*, **Wendy Rhodes** is the in-house performance coach 
 **AIWendy's Vision**:
 > Democratize Wendy Rhodes' capabilities through AI, giving every trader their own performance coach.
 
+## Behavioral Finance 3.0 Positioning
+
+AIWendy represents the evolution of behavioral finance from theory to practice:
+
+| Generation | Focus | Limitation |
+|------------|-------|------------|
+| **1.0 Academic Research** | Kahneman & Tversky's cognitive biases | Theory stays in textbooks, traders can't apply it |
+| **2.0 Robo-Advisors** | Automated portfolio allocation | One-size-fits-all, ignores individual psychology |
+| **3.0 AI Performance Coach** | Real-time psychological intervention | Personalized, actionable, adaptive |
+
+### What Makes AIWendy Different
+
+**Traditional Approach** (Behavioral Finance 1.0 & 2.0):
+- Read about loss aversion → Still panic sell during crashes
+- Know about confirmation bias → Still cherry-pick bullish news
+- Understand overconfidence → Still overtrade after wins
+
+**AIWendy's Approach** (Behavioral Finance 3.0):
+- **Real-time Intervention**: Detects emotional patterns in your journal entries and intervenes before you make mistakes
+- **Personalized Coaching**: Learns your specific psychological triggers and blind spots
+- **Actionable Guidance**: Not just "you have loss aversion" but "here's how to handle this specific trade decision right now"
+- **Continuous Learning**: Adapts coaching strategies based on what actually works for you
+
+### The Gap We Fill
+
+```
+Academic Knowledge → [MISSING LINK] → Trading Performance
+     (BF 1.0)                              (Your P&L)
+                    ↓
+                AIWendy
+            (BF 3.0 Bridge)
+```
+
+Most traders know the theory but fail in execution. AIWendy bridges this gap by providing:
+1. **Moment-of-truth coaching**: When you're about to revenge trade, not after
+2. **Pattern recognition**: Spots your recurring mistakes before you do
+3. **Accountability partner**: Helps you stick to your trading plan when emotions run high
+
 ## Screenshots
 
 ![Overview](docs/assets/overview.svg)
