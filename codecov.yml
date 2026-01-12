@@ -1,0 +1,38 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 80%
+        threshold: 5%
+    patch:
+      default:
+        target: 80%
+        threshold: 5%
+
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
+
+flags:
+  frontend:
+    paths:
+      - aiwendy/apps/web/
+    carryforward: true
+  backend:
+    paths:
+      - aiwendy/apps/api/
+    carryforward: true
+
+ignore:
+  - "**/__tests__/**"
+  - "**/tests/**"
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+  - "**/test_*.py"
+  - "**/alembic/**"
+  - "**/venv/**"
+  - "**/.next/**"
+  - "**/node_modules/**"
