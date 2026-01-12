@@ -2,38 +2,29 @@
 
 import json
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 from uuid import UUID
-
-from fastapi import APIRouter, Depends, Query, HTTPException, Request, status, UploadFile, File, Form
-from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.auth import get_current_user
 from core.database import get_session
 from core.i18n import get_request_locale, t
 from core.logging import get_logger
-from domain.user.models import User
 from domain.journal.models import Journal as JournalModel
-from domain.journal.schemas import (
-    JournalCreate,
-    JournalUpdate,
-    JournalResponse,
-    JournalListResponse,
-    JournalStatistics,
-    JournalFilter,
-    QuickJournalEntry,
-)
 from domain.journal.repository import JournalRepository
+from domain.journal.schemas import (JournalCreate, JournalFilter,
+                                    JournalListResponse, JournalResponse,
+                                    JournalStatistics, JournalUpdate,
+                                    QuickJournalEntry)
+from domain.user.models import User
+from fastapi import (APIRouter, Depends, File, Form, HTTPException, Query,
+                     Request, UploadFile, status)
+from pydantic import BaseModel, Field
 from services.journal_ai_analyzer import JournalAIAnalyzer
-from services.journal_importer import (
-    MAX_IMPORT_ROWS,
-    MAX_PREVIEW_ROWS,
-    parse_tabular_file,
-    suggest_mapping,
-    build_journal_payload,
-)
+from services.journal_importer import (MAX_IMPORT_ROWS, MAX_PREVIEW_ROWS,
+                                       build_journal_payload,
+                                       parse_tabular_file, suggest_mapping)
 from services.llm_router import LLMRouter
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -66,10 +57,7 @@ async def create_journal_entry(
         repo = JournalRepository(session)
 
         # Create journal model
-        journal = JournalModel(
-            user_id=current_user.id,
-            **entry.dict()
-        )
+        journal = JournalModel(user_id=current_user.id, **entry.dict())
 
         # Calculate computed fields
         if journal.pnl_amount:
@@ -135,17 +123,14 @@ async def list_journal_entries(
             user_id=current_user.id,
             filter_params=filter_params,
             limit=per_page,
-            offset=offset
+            offset=offset,
         )
 
         # Convert to response models
         items = [JournalResponse.from_orm(j) for j in journals]
 
         return JournalListResponse(
-            items=items,
-            total=total,
-            page=page,
-            per_page=per_page
+            items=items, total=total, page=page, per_page=per_page
         )
 
     except Exception as e:
@@ -189,7 +174,9 @@ async def preview_journal_import(
     locale = get_request_locale(http_request)
 
     if not file.filename:
-        raise HTTPException(status_code=400, detail=t("errors.filename_required", locale))
+        raise HTTPException(
+            status_code=400, detail=t("errors.filename_required", locale)
+        )
 
     content = await file.read()
     parsed = parse_tabular_file(file.filename, content, max_rows=preview_rows)
@@ -228,7 +215,9 @@ async def import_journal_entries(
     """
     locale = get_request_locale(http_request)
     if not file.filename:
-        raise HTTPException(status_code=400, detail=t("errors.filename_required", locale))
+        raise HTTPException(
+            status_code=400, detail=t("errors.filename_required", locale)
+        )
 
     if project_id is not None and not project_id.strip():
         project_id = None
@@ -238,13 +227,20 @@ async def import_journal_entries(
         if not isinstance(raw_mapping, dict):
             raise ValueError("mapping_json must be an object")
         mapping: Dict[str, str] = {
-            str(k): str(v) for k, v in raw_mapping.items() if v is not None and str(v).strip()
+            str(k): str(v)
+            for k, v in raw_mapping.items()
+            if v is not None and str(v).strip()
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=t("errors.invalid_mapping_json", locale, error=str(e)))
+        raise HTTPException(
+            status_code=400,
+            detail=t("errors.invalid_mapping_json", locale, error=str(e)),
+        )
 
     if "symbol" not in mapping or "direction" not in mapping:
-        raise HTTPException(status_code=400, detail=t("errors.mapping_missing_symbol_direction", locale))
+        raise HTTPException(
+            status_code=400, detail=t("errors.mapping_missing_symbol_direction", locale)
+        )
 
     if max_rows < 1 or max_rows > MAX_IMPORT_ROWS:
         max_rows = MAX_IMPORT_ROWS
@@ -289,7 +285,10 @@ async def import_journal_entries(
         except Exception as e:
             await session.rollback()
             logger.error(f"Failed to import journal entries: {e}")
-            raise HTTPException(status_code=500, detail=t("errors.failed_to_import_journal_entries", locale))
+            raise HTTPException(
+                status_code=500,
+                detail=t("errors.failed_to_import_journal_entries", locale),
+            )
 
     return JournalImportResponse(
         created=len(created_models),
@@ -429,17 +428,16 @@ async def create_quick_journal_entry(
             emotion_after=entry.emotion_after,
             followed_rules=not entry.violated_rules,
             notes=entry.quick_note,
-            trade_date=datetime.utcnow()
+            trade_date=datetime.utcnow(),
         )
 
-        journal = JournalModel(
-            user_id=current_user.id,
-            **journal_data.dict()
-        )
+        journal = JournalModel(user_id=current_user.id, **journal_data.dict())
 
         journal = await repo.create(journal)
 
-        logger.info(f"Created quick journal entry {journal.id} for user {current_user.id}")
+        logger.info(
+            f"Created quick journal entry {journal.id} for user {current_user.id}"
+        )
 
         return JournalResponse.from_orm(journal)
 
@@ -480,8 +478,7 @@ async def analyze_journal_entry(
 
         # Perform analysis
         analysis = await analyzer.analyze_single_journal(
-            JournalResponse.from_orm(journal),
-            stats
+            JournalResponse.from_orm(journal), stats
         )
 
         # Update journal with AI insights
@@ -517,16 +514,14 @@ async def analyze_trading_patterns(
 
         # Get recent journal entries
         journals = await repo.get_user_journals(
-            user_id=current_user.id,
-            limit=limit,
-            offset=0
+            user_id=current_user.id, limit=limit, offset=0
         )
 
         if not journals:
             return {
                 "message": t("messages.no_journal_entries_for_analysis", locale),
                 "patterns": [],
-                "recommendations": []
+                "recommendations": [],
             }
 
         # Get user statistics
@@ -565,9 +560,7 @@ async def generate_improvement_plan(
 
         # Get recent journal entries
         journals = await repo.get_user_journals(
-            user_id=current_user.id,
-            limit=30,
-            offset=0
+            user_id=current_user.id, limit=30, offset=0
         )
 
         if not journals:

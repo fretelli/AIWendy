@@ -1,16 +1,15 @@
 """Enhanced cache service with decorators and utilities."""
 
-import json
-import hashlib
-import pickle
-from typing import Optional, Any, Callable, Union
-from functools import wraps
-from datetime import timedelta
 import asyncio
+import hashlib
+import json
+import pickle
+from datetime import timedelta
+from functools import wraps
+from typing import Any, Callable, Optional, Union
 
-import redis.asyncio as redis_async
 import redis
-
+import redis.asyncio as redis_async
 from config import get_settings
 from core.logging import get_logger
 
@@ -192,6 +191,7 @@ def get_cache_service() -> CacheService:
 
 # Decorators
 
+
 def cache(
     key_prefix: str,
     ttl: Union[int, timedelta] = 300,
@@ -246,7 +246,9 @@ def cache(
             return result
 
         # Add cache management methods
-        wrapper.clear_cache = lambda: get_cache_service().clear_pattern(f"{key_prefix}:*")
+        wrapper.clear_cache = lambda: get_cache_service().clear_pattern(
+            f"{key_prefix}:*"
+        )
         wrapper.cache_key_prefix = key_prefix
 
         return wrapper
@@ -330,8 +332,10 @@ def invalidate_cache(*patterns: str) -> Callable:
         def update_user(user_id: str, data: dict):
             return save_user_to_db(user_id, data)
     """
+
     def decorator(func: Callable) -> Callable:
         if asyncio.iscoroutinefunction(func):
+
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
                 result = await func(*args, **kwargs)
@@ -339,8 +343,10 @@ def invalidate_cache(*patterns: str) -> Callable:
                 for pattern in patterns:
                     await cache_service.clear_pattern_async(pattern)
                 return result
+
             return async_wrapper
         else:
+
             @wraps(func)
             def sync_wrapper(*args, **kwargs):
                 result = func(*args, **kwargs)
@@ -348,12 +354,14 @@ def invalidate_cache(*patterns: str) -> Callable:
                 for pattern in patterns:
                     cache_service.clear_pattern(pattern)
                 return result
+
             return sync_wrapper
 
     return decorator
 
 
 # Cache key generators
+
 
 def user_cache_key(user_id: str, *parts: str) -> str:
     """Generate user-specific cache key."""

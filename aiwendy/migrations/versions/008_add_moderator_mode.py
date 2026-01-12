@@ -5,19 +5,21 @@ Revises: 007
 Create Date: 2025-01-04
 
 """
-from alembic import op
+
 import sqlalchemy as sa
+from alembic import op
 
 # revision identifiers
-revision = '008'
-down_revision = '007'
+revision = "008"
+down_revision = "007"
 branch_labels = None
 depends_on = None
 
 
 def upgrade():
     # 1. Add the dedicated host coach
-    op.execute("""
+    op.execute(
+        """
         INSERT INTO coaches (
             id, name, avatar_url, description, bio,
             style, personality_traits, specialty, language,
@@ -61,29 +63,32 @@ def upgrade():
             false
         )
         ON CONFLICT (id) DO NOTHING
-    """)
+    """
+    )
 
     # 2. Add discussion_mode column to roundtable_sessions
     # 'free' = free discussion (existing mode)
     # 'moderated' = moderated mode with host
     op.add_column(
-        'roundtable_sessions',
-        sa.Column('discussion_mode', sa.String(20), nullable=True,
-                  server_default='free')
+        "roundtable_sessions",
+        sa.Column(
+            "discussion_mode", sa.String(20), nullable=True, server_default="free"
+        ),
     )
 
     # 3. Add moderator_id column to roundtable_sessions
     # References the coach who acts as moderator (default is 'host')
     op.add_column(
-        'roundtable_sessions',
-        sa.Column('moderator_id', sa.String(50), nullable=True)
+        "roundtable_sessions", sa.Column("moderator_id", sa.String(50), nullable=True)
     )
 
     # Add foreign key for moderator_id
     op.create_foreign_key(
-        'fk_roundtable_sessions_moderator',
-        'roundtable_sessions', 'coaches',
-        ['moderator_id'], ['id']
+        "fk_roundtable_sessions_moderator",
+        "roundtable_sessions",
+        "coaches",
+        ["moderator_id"],
+        ["id"],
     )
 
     # 4. Add message_type column to roundtable_messages
@@ -92,23 +97,25 @@ def upgrade():
     # 'summary' = moderator round summary
     # 'closing' = moderator closing remarks
     op.add_column(
-        'roundtable_messages',
-        sa.Column('message_type', sa.String(20), nullable=True,
-                  server_default='response')
+        "roundtable_messages",
+        sa.Column(
+            "message_type", sa.String(20), nullable=True, server_default="response"
+        ),
     )
 
 
 def downgrade():
     # Remove message_type column
-    op.drop_column('roundtable_messages', 'message_type')
+    op.drop_column("roundtable_messages", "message_type")
 
     # Remove foreign key and moderator_id column
-    op.drop_constraint('fk_roundtable_sessions_moderator',
-                       'roundtable_sessions', type_='foreignkey')
-    op.drop_column('roundtable_sessions', 'moderator_id')
+    op.drop_constraint(
+        "fk_roundtable_sessions_moderator", "roundtable_sessions", type_="foreignkey"
+    )
+    op.drop_column("roundtable_sessions", "moderator_id")
 
     # Remove discussion_mode column
-    op.drop_column('roundtable_sessions', 'discussion_mode')
+    op.drop_column("roundtable_sessions", "discussion_mode")
 
     # Remove host coach
     op.execute("DELETE FROM coaches WHERE id = 'host'")

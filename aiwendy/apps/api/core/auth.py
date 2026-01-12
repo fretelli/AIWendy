@@ -1,24 +1,20 @@
 """Authentication utilities."""
 
+import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import Depends, HTTPException, Request, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
 import bcrypt
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-import uuid
-
 from config import get_settings
 from core.database import get_session
-from core.exceptions import (
-    InvalidTokenError,
-    TokenExpiredError,
-    UserNotFoundError,
-)
+from core.exceptions import (InvalidTokenError, TokenExpiredError,
+                             UserNotFoundError)
 from domain.user.models import User
+from fastapi import Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 settings = get_settings()
 
@@ -66,22 +62,22 @@ async def _ensure_guest_user(session: AsyncSession) -> User:
 
 def hash_password(password: str) -> str:
     """Hash a password."""
-    password_bytes = password.encode('utf-8')
+    password_bytes = password.encode("utf-8")
     # Truncate to 72 bytes if needed (bcrypt limitation)
     if len(password_bytes) > 72:
         password_bytes = password_bytes[:72]
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password_bytes, salt)
-    return hashed.decode('utf-8')
+    return hashed.decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against a hash."""
-    password_bytes = plain_password.encode('utf-8')
+    password_bytes = plain_password.encode("utf-8")
     # Truncate to 72 bytes if needed
     if len(password_bytes) > 72:
         password_bytes = password_bytes[:72]
-    hashed_bytes = hashed_password.encode('utf-8')
+    hashed_bytes = hashed_password.encode("utf-8")
     return bcrypt.checkpw(password_bytes, hashed_bytes)
 
 

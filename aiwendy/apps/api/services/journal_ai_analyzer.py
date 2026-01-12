@@ -1,16 +1,15 @@
 """AI-powered journal analysis service."""
 
-from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func
-
+from core.logging import get_logger
 from domain.journal.models import Journal
 from domain.journal.schemas import JournalResponse, JournalStatistics
-from core.logging import get_logger
 from services.llm_router import LLMRouter
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 
@@ -22,9 +21,7 @@ class JournalAIAnalyzer:
         self.llm = llm_router
 
     async def analyze_single_journal(
-        self,
-        journal: JournalResponse,
-        user_stats: Optional[JournalStatistics] = None
+        self, journal: JournalResponse, user_stats: Optional[JournalStatistics] = None
     ) -> Dict[str, Any]:
         """Analyze a single journal entry."""
 
@@ -38,18 +35,18 @@ class JournalAIAnalyzer:
         return self._parse_ai_response(analysis, "single")
 
     async def analyze_recent_trades(
-        self,
-        journals: List[JournalResponse],
-        user_stats: JournalStatistics
+        self, journals: List[JournalResponse], user_stats: JournalStatistics
     ) -> Dict[str, Any]:
         """Analyze recent trading patterns and provide insights."""
 
         if not journals:
             return {
                 "patterns": [],
-                "recommendations": ["Start journaling your trades to get personalized insights"],
+                "recommendations": [
+                    "Start journaling your trades to get personalized insights"
+                ],
                 "risk_assessment": "No data available",
-                "psychological_insights": "No data available"
+                "psychological_insights": "No data available",
             }
 
         # Build comprehensive analysis prompt
@@ -62,9 +59,7 @@ class JournalAIAnalyzer:
         return self._parse_ai_response(analysis, "pattern")
 
     async def generate_improvement_plan(
-        self,
-        journals: List[JournalResponse],
-        user_stats: JournalStatistics
+        self, journals: List[JournalResponse], user_stats: JournalStatistics
     ) -> Dict[str, Any]:
         """Generate a personalized improvement plan based on trading history."""
 
@@ -78,9 +73,7 @@ class JournalAIAnalyzer:
         return self._parse_ai_response(plan, "improvement")
 
     def _build_single_analysis_prompt(
-        self,
-        journal: JournalResponse,
-        stats: Optional[JournalStatistics] = None
+        self, journal: JournalResponse, stats: Optional[JournalStatistics] = None
     ) -> str:
         """Build prompt for single journal analysis."""
 
@@ -139,9 +132,7 @@ Please provide a structured analysis with:
 Format your response in a clear, structured way with bullet points."""
 
     def _build_pattern_analysis_prompt(
-        self,
-        journals: List[JournalResponse],
-        stats: JournalStatistics
+        self, journals: List[JournalResponse], stats: JournalStatistics
     ) -> str:
         """Build prompt for pattern analysis across multiple trades."""
 
@@ -149,8 +140,12 @@ Format your response in a clear, structured way with bullet points."""
         recent_results = [j.result for j in journals[:10]]
         recent_pnl = sum(j.pnl_amount or 0 for j in journals[:10])
         violation_count = sum(1 for j in journals[:10] if not j.followed_rules)
-        avg_confidence = sum(j.confidence_level or 0 for j in journals[:10]) / len(journals[:10])
-        avg_stress = sum(j.stress_level or 0 for j in journals[:10]) / len(journals[:10])
+        avg_confidence = sum(j.confidence_level or 0 for j in journals[:10]) / len(
+            journals[:10]
+        )
+        avg_stress = sum(j.stress_level or 0 for j in journals[:10]) / len(
+            journals[:10]
+        )
 
         # Find common violations
         all_violations = []
@@ -159,6 +154,7 @@ Format your response in a clear, structured way with bullet points."""
                 all_violations.extend(j.rule_violations)
 
         from collections import Counter
+
         violation_frequency = Counter(all_violations)
 
         return f"""You are an expert trading psychology coach analyzing trading patterns. Review the following trading data and identify key patterns and areas for improvement.
@@ -192,9 +188,7 @@ Please identify:
 Provide specific, actionable insights based on the data."""
 
     def _build_improvement_prompt(
-        self,
-        journals: List[JournalResponse],
-        stats: JournalStatistics
+        self, journals: List[JournalResponse], stats: JournalStatistics
     ) -> str:
         """Build prompt for generating improvement plan."""
 
@@ -261,7 +255,7 @@ Make the plan specific, measurable, and actionable."""
         """Parse and structure AI response based on analysis type."""
 
         # Basic parsing - in production, use more sophisticated parsing
-        lines = response.split('\n')
+        lines = response.split("\n")
 
         if analysis_type == "single":
             return {
@@ -269,8 +263,10 @@ Make the plan specific, measurable, and actionable."""
                 "detected_patterns": self._extract_patterns(response),
                 "recommendations": self._extract_recommendations(response),
                 "risk_assessment": self._extract_section(response, "Risk Management"),
-                "psychological_insights": self._extract_section(response, "Psychological"),
-                "timestamp": datetime.utcnow().isoformat()
+                "psychological_insights": self._extract_section(
+                    response, "Psychological"
+                ),
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
         elif analysis_type == "pattern":
@@ -281,7 +277,7 @@ Make the plan specific, measurable, and actionable."""
                 "weaknesses": self._extract_section(response, "Weaknesses"),
                 "focus_areas": self._extract_recommendations(response),
                 "full_analysis": response,
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
         elif analysis_type == "improvement":
@@ -292,7 +288,7 @@ Make the plan specific, measurable, and actionable."""
                 "mental_exercises": self._extract_section(response, "Mental Game"),
                 "risk_rules": self._extract_section(response, "Risk Management Rules"),
                 "success_metrics": self._extract_metrics(response),
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.utcnow().isoformat(),
             }
 
         return {"analysis": response, "timestamp": datetime.utcnow().isoformat()}
@@ -300,14 +296,14 @@ Make the plan specific, measurable, and actionable."""
     def _extract_patterns(self, text: str) -> List[str]:
         """Extract patterns from AI response."""
         patterns = []
-        lines = text.split('\n')
+        lines = text.split("\n")
 
         in_pattern_section = False
         for line in lines:
-            if 'pattern' in line.lower() or 'recurring' in line.lower():
+            if "pattern" in line.lower() or "recurring" in line.lower():
                 in_pattern_section = True
-            elif in_pattern_section and line.strip().startswith('-'):
-                pattern = line.strip().lstrip('- ').strip()
+            elif in_pattern_section and line.strip().startswith("-"):
+                pattern = line.strip().lstrip("- ").strip()
                 if pattern and len(pattern) > 10:
                     patterns.append(pattern)
             elif in_pattern_section and not line.strip():
@@ -318,14 +314,18 @@ Make the plan specific, measurable, and actionable."""
     def _extract_recommendations(self, text: str) -> List[str]:
         """Extract recommendations from AI response."""
         recommendations = []
-        lines = text.split('\n')
+        lines = text.split("\n")
 
         in_rec_section = False
         for line in lines:
-            if 'recommend' in line.lower() or 'improvement' in line.lower() or 'focus' in line.lower():
+            if (
+                "recommend" in line.lower()
+                or "improvement" in line.lower()
+                or "focus" in line.lower()
+            ):
                 in_rec_section = True
-            elif in_rec_section and line.strip().startswith('-'):
-                rec = line.strip().lstrip('- ').strip()
+            elif in_rec_section and line.strip().startswith("-"):
+                rec = line.strip().lstrip("- ").strip()
                 if rec and len(rec) > 10:
                     recommendations.append(rec)
             elif in_rec_section and not line.strip():
@@ -335,7 +335,7 @@ Make the plan specific, measurable, and actionable."""
 
     def _extract_section(self, text: str, section_name: str) -> str:
         """Extract a specific section from AI response."""
-        lines = text.split('\n')
+        lines = text.split("\n")
 
         section_content = []
         in_section = False
@@ -344,22 +344,25 @@ Make the plan specific, measurable, and actionable."""
             if section_name.lower() in line.lower():
                 in_section = True
             elif in_section:
-                if line.strip().startswith('#') or line.strip().startswith('**'):
+                if line.strip().startswith("#") or line.strip().startswith("**"):
                     break
                 if line.strip():
                     section_content.append(line.strip())
 
-        return ' '.join(section_content)[:500]  # Limit to 500 chars
+        return " ".join(section_content)[:500]  # Limit to 500 chars
 
     def _extract_metrics(self, text: str) -> List[str]:
         """Extract success metrics from improvement plan."""
         metrics = []
-        lines = text.split('\n')
+        lines = text.split("\n")
 
         for line in lines:
-            if any(word in line.lower() for word in ['metric', 'track', 'measure', 'target']):
-                if line.strip().startswith('-'):
-                    metric = line.strip().lstrip('- ').strip()
+            if any(
+                word in line.lower()
+                for word in ["metric", "track", "measure", "target"]
+            ):
+                if line.strip().startswith("-"):
+                    metric = line.strip().lstrip("- ").strip()
                     if metric:
                         metrics.append(metric)
 

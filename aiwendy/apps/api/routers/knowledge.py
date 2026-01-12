@@ -1,14 +1,10 @@
 """Knowledge base endpoints (documents + retrieval)."""
 
 from __future__ import annotations
+
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
-
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, Field
-from sqlalchemy import and_, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.auth import get_current_user
 from core.cache_keys import knowledge_search_key
@@ -19,7 +15,11 @@ from core.logging import get_logger
 from domain.knowledge.chunking import chunk_text
 from domain.knowledge.models import KnowledgeChunk, KnowledgeDocument
 from domain.user.models import User
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from infrastructure.llm.router import get_llm_router
+from pydantic import BaseModel, Field
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -32,7 +32,9 @@ class CreateDocumentRequest(BaseModel):
     source_type: str = Field("text", max_length=50)
     source_name: Optional[str] = Field(None, max_length=500)
     metadata: Dict[str, Any] = Field(default_factory=dict)
-    embedding_provider: Optional[str] = Field(None, description="openai/ollama (optional)")
+    embedding_provider: Optional[str] = Field(
+        None, description="openai/ollama (optional)"
+    )
     embedding_model: Optional[str] = None
 
 
@@ -72,12 +74,16 @@ async def list_documents(
         conditions.append(KnowledgeDocument.deleted_at.is_(None))
 
     result = await session.execute(
-        select(KnowledgeDocument).where(and_(*conditions)).order_by(KnowledgeDocument.updated_at.desc())
+        select(KnowledgeDocument)
+        .where(and_(*conditions))
+        .order_by(KnowledgeDocument.updated_at.desc())
     )
     return result.scalars().all()
 
 
-@router.post("/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_document(
     request: CreateDocumentRequest,
     http_request: Request,
@@ -88,11 +94,15 @@ async def create_document(
     title = request.title.strip()
     content = request.content.strip()
     if not title or not content:
-        raise HTTPException(status_code=400, detail=t("errors.title_and_content_required", locale))
+        raise HTTPException(
+            status_code=400, detail=t("errors.title_and_content_required", locale)
+        )
 
     chunks = chunk_text(content)
     if not chunks:
-        raise HTTPException(status_code=400, detail=t("errors.content_empty_after_cleaning", locale))
+        raise HTTPException(
+            status_code=400, detail=t("errors.content_empty_after_cleaning", locale)
+        )
 
     llm_router = get_llm_router(user=current_user)
     preferred_provider = (request.embedding_provider or "").strip().lower() or None
@@ -105,20 +115,30 @@ async def create_document(
 
     if provider is None:
         # Default preference: OpenAI first, then Ollama, then custom providers with embedding support
-        provider = llm_router.providers.get("openai") or llm_router.providers.get("ollama")
-        provider_name = "openai" if llm_router.providers.get("openai") else ("ollama" if llm_router.providers.get("ollama") else None)
+        provider = llm_router.providers.get("openai") or llm_router.providers.get(
+            "ollama"
+        )
+        provider_name = (
+            "openai"
+            if llm_router.providers.get("openai")
+            else ("ollama" if llm_router.providers.get("ollama") else None)
+        )
 
         # 如果 openai/ollama 都没有，尝试找支持 embedding 的 custom provider
         if provider is None:
             for name, p in llm_router.providers.items():
                 if name not in ("openai", "ollama", "anthropic"):
-                    if hasattr(p, 'config') and getattr(p.config, 'supports_embeddings', False):
+                    if hasattr(p, "config") and getattr(
+                        p.config, "supports_embeddings", False
+                    ):
                         provider = p
                         provider_name = name
                         break
 
     if provider is None or provider_name is None:
-        raise HTTPException(status_code=400, detail=t("errors.no_embedding_provider", locale))
+        raise HTTPException(
+            status_code=400, detail=t("errors.no_embedding_provider", locale)
+        )
 
     # Create document
     doc = KnowledgeDocument(
@@ -140,7 +160,9 @@ async def create_document(
     for chunk in chunks:
         emb = await provider.embed(chunk, model=embedding_model)
         if not emb:
-            raise HTTPException(status_code=500, detail=t("errors.failed_generate_embeddings", locale))
+            raise HTTPException(
+                status_code=500, detail=t("errors.failed_generate_embeddings", locale)
+            )
         embeddings.append(emb)
 
     # Persist chunks
@@ -156,15 +178,18 @@ async def create_document(
             "embedding_model": embedding_model,
             "embedding_provider": provider_name,
         }
-        session.add(
-            KnowledgeChunk(**chunk_kwargs)
-        )
+        session.add(KnowledgeChunk(**chunk_kwargs))
 
     doc.chunk_count = len(chunks)
     doc.updated_at = datetime.utcnow()
     await session.commit()
     await session.refresh(doc)
-    logger.info("kb_document_created", user_id=str(current_user.id), document_id=str(doc.id), chunks=len(chunks))
+    logger.info(
+        "kb_document_created",
+        user_id=str(current_user.id),
+        document_id=str(doc.id),
+        chunks=len(chunks),
+    )
     return doc
 
 
@@ -185,7 +210,9 @@ async def delete_document(
     )
     doc = result.scalar_one_or_none()
     if not doc:
-        raise HTTPException(status_code=404, detail=t("errors.document_not_found", locale))
+        raise HTTPException(
+            status_code=404, detail=t("errors.document_not_found", locale)
+        )
 
     if hard_delete:
         await session.delete(doc)
@@ -232,11 +259,15 @@ async def search_knowledge(
     # 添加支持 embedding 的 custom provider
     for name, provider in llm_router.providers.items():
         if name not in ("openai", "ollama", "anthropic"):
-            if hasattr(provider, 'config') and getattr(provider.config, 'supports_embeddings', False):
+            if hasattr(provider, "config") and getattr(
+                provider.config, "supports_embeddings", False
+            ):
                 provider_order.append(name)
 
     if not provider_order:
-        raise HTTPException(status_code=400, detail=t("errors.no_embedding_provider", locale))
+        raise HTTPException(
+            status_code=400, detail=t("errors.no_embedding_provider", locale)
+        )
 
     best_results: List[SearchResult] = []
 

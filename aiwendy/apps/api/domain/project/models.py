@@ -3,11 +3,11 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, String, Text
+from core.database import Base
+from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Index, String,
+                        Text)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-
-from core.database import Base
 
 
 class Project(Base):
@@ -25,7 +25,9 @@ class Project(Base):
     is_archived = Column(Boolean, default=False)
 
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
-    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
+    )
 
     user = relationship("User", back_populates="projects")
 
@@ -33,4 +35,3 @@ class Project(Base):
         Index("ix_projects_user_updated", "user_id", "updated_at"),
         Index("ix_projects_user_default", "user_id", "is_default"),
     )
-

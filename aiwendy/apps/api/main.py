@@ -5,37 +5,22 @@ from contextlib import asynccontextmanager
 
 import sentry_sdk
 import structlog
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
-
 from config import get_settings
 from core.database import init_database
 from core.db_bootstrap import maybe_auto_init_db
 from core.exceptions import AppException
 from core.i18n import get_request_locale, t
 from core.logging import setup_logging
-from core.middleware import AuthMiddleware, LoggingMiddleware, RateLimitMiddleware
-from routers import (
-    health,
-    auth,
-    users,
-    coaches,
-    chat,
-    journals,
-    analysis,
-    ollama,
-    market_data,
-    reports,
-    llm_config,
-    projects,
-    knowledge,
-    tasks,
-    files,
-    roundtable,
-)
+from core.middleware import (AuthMiddleware, LoggingMiddleware,
+                             RateLimitMiddleware)
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from routers import (analysis, auth, chat, coaches, files, health, journals,
+                     knowledge, llm_config, market_data, ollama, projects,
+                     reports, roundtable, tasks, users)
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
 # Get settings
 settings = get_settings()
@@ -173,7 +158,9 @@ app.include_router(ollama.router, prefix="/api/v1/ollama", tags=["Ollama"])
 app.include_router(llm_config.router, tags=["LLM Configuration"])
 app.include_router(market_data.router, tags=["Market Data"])
 app.include_router(projects.router, prefix="/api/v1/projects", tags=["Projects"])
-app.include_router(knowledge.router, prefix="/api/v1/knowledge", tags=["Knowledge Base"])
+app.include_router(
+    knowledge.router, prefix="/api/v1/knowledge", tags=["Knowledge Base"]
+)
 app.include_router(files.router, prefix="/api/v1/files", tags=["Files"])
 app.include_router(roundtable.router, prefix="/api/v1/roundtable", tags=["Roundtable"])
 app.include_router(tasks.router)

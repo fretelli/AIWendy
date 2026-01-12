@@ -1,16 +1,17 @@
 """LLM provider router for intelligent routing between providers."""
 
-from typing import Dict, Optional, List, AsyncIterator
 from enum import Enum
+from typing import AsyncIterator, Dict, List, Optional
 
 from config import get_settings
+from core.encryption import get_encryption_service
 from core.exceptions import LLMProviderError
 from core.logging import get_logger
-from core.encryption import get_encryption_service
-from .base import LLMProvider, Message, LLMConfig
-from .openai_provider import OpenAIProvider
+
 from .anthropic_provider import AnthropicProvider
+from .base import LLMConfig, LLMProvider, Message
 from .ollama_provider import OllamaProvider
+from .openai_provider import OpenAIProvider
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -19,6 +20,7 @@ encryption = get_encryption_service()
 
 class ProviderPriority(Enum):
     """Provider priority for routing."""
+
     PRIMARY = 1
     FALLBACK = 2
     EMERGENCY = 3
@@ -46,25 +48,35 @@ class LLMRouter:
         # Check for user-specific keys
         if self.user:
             # Decrypt user's OpenAI key if available
-            if hasattr(self.user, 'openai_api_key') and self.user.openai_api_key:
+            if hasattr(self.user, "openai_api_key") and self.user.openai_api_key:
                 decrypted = encryption.decrypt(self.user.openai_api_key)
                 if decrypted:
                     openai_key = decrypted
                     logger.info(f"Using user-specific OpenAI key for {self.user.email}")
 
             # Decrypt user's Anthropic key if available
-            if hasattr(self.user, 'anthropic_api_key') and self.user.anthropic_api_key:
+            if hasattr(self.user, "anthropic_api_key") and self.user.anthropic_api_key:
                 decrypted = encryption.decrypt(self.user.anthropic_api_key)
                 if decrypted:
                     anthropic_key = decrypted
-                    logger.info(f"Using user-specific Anthropic key for {self.user.email}")
+                    logger.info(
+                        f"Using user-specific Anthropic key for {self.user.email}"
+                    )
 
         # Fall back to system keys if user keys not available
-        if not openai_key and settings.openai_api_key and not settings.openai_api_key.startswith("your_"):
+        if (
+            not openai_key
+            and settings.openai_api_key
+            and not settings.openai_api_key.startswith("your_")
+        ):
             openai_key = settings.openai_api_key
             logger.info("Using system OpenAI key")
 
-        if not anthropic_key and settings.anthropic_api_key and not settings.anthropic_api_key.startswith("your_"):
+        if (
+            not anthropic_key
+            and settings.anthropic_api_key
+            and not settings.anthropic_api_key.startswith("your_")
+        ):
             anthropic_key = settings.anthropic_api_key
             logger.info("Using system Anthropic key")
 
@@ -93,7 +105,9 @@ class LLMRouter:
                 asyncio.get_running_loop()
                 # We're already in an async context; skip the health check.
                 self.providers["ollama"] = ollama_provider
-                logger.info("Ollama provider initialized (health check skipped in async context)")
+                logger.info(
+                    "Ollama provider initialized (health check skipped in async context)"
+                )
             except RuntimeError:
                 # No running loop (e.g., Celery worker). Do a best-effort health check.
                 is_healthy = asyncio.run(ollama_provider.check_health())
@@ -183,7 +197,9 @@ class LLMRouter:
             f"All LLM providers failed. Last error: {last_error}",
         )
 
-    def _get_provider_order(self, preferred_provider: Optional[str] = None) -> List[str]:
+    def _get_provider_order(
+        self, preferred_provider: Optional[str] = None
+    ) -> List[str]:
         """Get provider order for fallback."""
         order = []
 

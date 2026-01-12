@@ -2,10 +2,10 @@
 
 import os
 import uuid
+from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO, Optional
-from abc import ABC, abstractmethod
 
 from core.logging import get_logger
 
@@ -42,7 +42,9 @@ class LocalStorageProvider(StorageProvider):
     def __init__(self, base_path: str = "./uploads"):
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
-        logger.info(f"LocalStorageProvider initialized with base path: {self.base_path.absolute()}")
+        logger.info(
+            f"LocalStorageProvider initialized with base path: {self.base_path.absolute()}"
+        )
 
     async def upload(self, file: BinaryIO, filename: str, content_type: str) -> str:
         """
@@ -69,7 +71,7 @@ class LocalStorageProvider(StorageProvider):
         # Write file
         try:
             content = file.read()
-            with open(full_path, 'wb') as f:
+            with open(full_path, "wb") as f:
                 f.write(content)
 
             logger.info(f"File uploaded: {rel_path} ({len(content)} bytes)")
@@ -141,13 +143,13 @@ class LocalStorageProvider(StorageProvider):
         filename = os.path.basename(filename)
 
         # Replace potentially dangerous characters
-        for char in ['/', '\\', '..', '\x00']:
-            filename = filename.replace(char, '_')
+        for char in ["/", "\\", "..", "\x00"]:
+            filename = filename.replace(char, "_")
 
         # Limit length
         if len(filename) > 200:
             name, ext = os.path.splitext(filename)
-            filename = name[:200 - len(ext)] + ext
+            filename = name[: 200 - len(ext)] + ext
 
         return filename or "unnamed"
 

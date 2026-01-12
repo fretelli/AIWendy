@@ -1,25 +1,23 @@
 """Factory for creating LLM providers with support for custom APIs."""
 
-from typing import Optional, Dict, Any, List
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
-from infrastructure.llm.base import LLMProvider
-from infrastructure.llm.openai_provider import OpenAIProvider
-from infrastructure.llm.anthropic_provider import AnthropicProvider
-from infrastructure.llm.ollama_provider import OllamaProvider
-from infrastructure.llm.ollama_advanced import AdvancedOllamaProvider
-from infrastructure.llm.custom_api_provider import (
-    CustomAPIProvider,
-    CustomAPIConfig,
-    APIFormat,
-    AuthType,
-    create_custom_provider
-)
-from core.logging import get_logger
 from config import get_settings
+from core.logging import get_logger
+from infrastructure.llm.anthropic_provider import AnthropicProvider
+from infrastructure.llm.base import LLMProvider
+from infrastructure.llm.custom_api_provider import (APIFormat, AuthType,
+                                                    CustomAPIConfig,
+                                                    CustomAPIProvider,
+                                                    create_custom_provider)
+from infrastructure.llm.ollama_advanced import AdvancedOllamaProvider
+from infrastructure.llm.ollama_provider import OllamaProvider
+from infrastructure.llm.openai_provider import OpenAIProvider
 
 logger = get_logger(__name__)
 settings = get_settings()
+
 
 def _clean_str(value: Any) -> Optional[str]:
     if not isinstance(value, str):
@@ -89,7 +87,7 @@ class LLMFactory:
         api_key: Optional[str] = None,
         model: Optional[str] = None,
         base_url: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> LLMProvider:
         """Create an LLM provider instance.
 
@@ -113,11 +111,7 @@ class LLMFactory:
 
         # Create new provider
         provider = self._create_provider_instance(
-            provider_type,
-            api_key,
-            model,
-            base_url,
-            **kwargs
+            provider_type, api_key, model, base_url, **kwargs
         )
 
         # Cache the provider
@@ -132,7 +126,7 @@ class LLMFactory:
         api_key: Optional[str],
         model: Optional[str],
         base_url: Optional[str],
-        **kwargs
+        **kwargs,
     ) -> LLMProvider:
         """Create a new provider instance."""
 
@@ -150,7 +144,7 @@ class LLMFactory:
                     base_url=base_url,
                     api_format=APIFormat.OPENAI,
                     default_model=model or "gpt-3.5-turbo",
-                    **kwargs
+                    **kwargs,
                 )
             else:
                 return OpenAIProvider(api_key=api_key)
@@ -164,20 +158,16 @@ class LLMFactory:
                     base_url=base_url,
                     api_format=APIFormat.ANTHROPIC,
                     default_model=model or "claude-3-haiku-20240307",
-                    **kwargs
+                    **kwargs,
                 )
             else:
                 return AnthropicProvider(api_key=api_key)
 
         elif provider_type == ProviderType.OLLAMA:
-            return OllamaProvider(
-                base_url=base_url or "http://localhost:11434"
-            )
+            return OllamaProvider(base_url=base_url or "http://localhost:11434")
 
         elif provider_type == ProviderType.OLLAMA_ADVANCED:
-            return AdvancedOllamaProvider(
-                base_url=base_url or "http://localhost:11434"
-            )
+            return AdvancedOllamaProvider(base_url=base_url or "http://localhost:11434")
 
         elif provider_type == ProviderType.DEEPSEEK:
             # DeepSeek uses OpenAI-compatible API format
@@ -208,12 +198,10 @@ class LLMFactory:
             ProviderType.MOONSHOT,
             ProviderType.ZHIPU,
             ProviderType.BAICHUAN,
-            ProviderType.QWEN
+            ProviderType.QWEN,
         ]:
             return CustomAPIProvider.from_preset(
-                preset_name=provider_type,
-                api_key=api_key or "",
-                base_url=base_url
+                preset_name=provider_type, api_key=api_key or "", base_url=base_url
             )
 
         # Generic custom provider
@@ -251,9 +239,7 @@ class LLMFactory:
             # Try to treat unknown provider as custom preset
             try:
                 return CustomAPIProvider.from_preset(
-                    preset_name=provider_type,
-                    api_key=api_key or "",
-                    base_url=base_url
+                    preset_name=provider_type, api_key=api_key or "", base_url=base_url
                 )
             except ValueError:
                 raise ValueError(
@@ -261,18 +247,13 @@ class LLMFactory:
                     f"Available: {', '.join([e.value for e in ProviderType])}"
                 )
 
-    def register_custom_config(
-        self,
-        name: str,
-        config: CustomAPIConfig
-    ):
+    def register_custom_config(self, name: str, config: CustomAPIConfig):
         """Register a custom API configuration for reuse."""
         self.custom_configs[name] = config
         logger.info(f"Registered custom config: {name}")
 
     def create_custom_provider_from_dict(
-        self,
-        config_dict: Dict[str, Any]
+        self, config_dict: Dict[str, Any]
     ) -> CustomAPIProvider:
         """Create custom provider from dictionary configuration."""
 
@@ -287,12 +268,17 @@ class LLMFactory:
             api_format=APIFormat(config_dict.get("api_format", "openai")),
             auth_type=AuthType(config_dict.get("auth_type", "bearer")),
             auth_header_name=config_dict.get("auth_header_name"),
-            default_model=_clean_str(config_dict.get("default_model")) or "gpt-3.5-turbo",
+            default_model=_clean_str(config_dict.get("default_model"))
+            or "gpt-3.5-turbo",
             available_models=_clean_str_list(config_dict.get("available_models")),
-            chat_endpoint=_clean_str(config_dict.get("chat_endpoint")) or "/v1/chat/completions",
-            completions_endpoint=_clean_str(config_dict.get("completions_endpoint")) or "/v1/completions",
-            embeddings_endpoint=_clean_str(config_dict.get("embeddings_endpoint")) or "/v1/embeddings",
-            models_endpoint=_clean_str(config_dict.get("models_endpoint")) or "/v1/models",
+            chat_endpoint=_clean_str(config_dict.get("chat_endpoint"))
+            or "/v1/chat/completions",
+            completions_endpoint=_clean_str(config_dict.get("completions_endpoint"))
+            or "/v1/completions",
+            embeddings_endpoint=_clean_str(config_dict.get("embeddings_endpoint"))
+            or "/v1/embeddings",
+            models_endpoint=_clean_str(config_dict.get("models_endpoint"))
+            or "/v1/models",
             extra_headers=config_dict.get("extra_headers"),
             extra_body_params=config_dict.get("extra_body_params"),
             response_mapping=config_dict.get("response_mapping"),
@@ -340,58 +326,71 @@ class LLMFactory:
             "supports_vision": False,
             "supports_embeddings": False,
             "default_model": None,
-            "description": None
+            "description": None,
         }
 
         # Provider-specific info
         if provider_type == ProviderType.OPENAI:
-            info.update({
-                "supports_functions": True,
-                "supports_vision": True,
-                "supports_embeddings": True,
-                "default_model": "gpt-4o-mini",
-                "description": "OpenAI GPT models"
-            })
+            info.update(
+                {
+                    "supports_functions": True,
+                    "supports_vision": True,
+                    "supports_embeddings": True,
+                    "default_model": "gpt-4o-mini",
+                    "description": "OpenAI GPT models",
+                }
+            )
         elif provider_type == ProviderType.ANTHROPIC:
-            info.update({
-                "supports_vision": True,
-                "default_model": "claude-3-haiku-20240307",
-                "description": "Anthropic Claude models"
-            })
+            info.update(
+                {
+                    "supports_vision": True,
+                    "default_model": "claude-3-haiku-20240307",
+                    "description": "Anthropic Claude models",
+                }
+            )
         elif provider_type == ProviderType.OLLAMA:
-            info.update({
-                "requires_api_key": False,
-                "default_model": "llama3.2:latest",
-                "description": "Local Ollama models"
-            })
+            info.update(
+                {
+                    "requires_api_key": False,
+                    "default_model": "llama3.2:latest",
+                    "description": "Local Ollama models",
+                }
+            )
         elif provider_type == ProviderType.OLLAMA_ADVANCED:
-            info.update({
-                "requires_api_key": False,
-                "default_model": "llama3.2:latest",
-                "description": "Local Ollama models (advanced features)"
-            })
+            info.update(
+                {
+                    "requires_api_key": False,
+                    "default_model": "llama3.2:latest",
+                    "description": "Local Ollama models (advanced features)",
+                }
+            )
         elif provider_type == ProviderType.GROQ:
-            info.update({
-                "default_model": "mixtral-8x7b-32768",
-                "description": "Groq Cloud - Fast inference"
-            })
+            info.update(
+                {
+                    "default_model": "mixtral-8x7b-32768",
+                    "description": "Groq Cloud - Fast inference",
+                }
+            )
         elif provider_type == ProviderType.TOGETHER:
-            info.update({
-                "supports_embeddings": True,
-                "default_model": "meta-llama/Llama-3-70b-chat-hf",
-                "description": "Together AI - Open source models"
-            })
+            info.update(
+                {
+                    "supports_embeddings": True,
+                    "default_model": "meta-llama/Llama-3-70b-chat-hf",
+                    "description": "Together AI - Open source models",
+                }
+            )
         elif provider_type == ProviderType.VLLM:
-            info.update({
-                "requires_api_key": False,
-                "description": "Self-hosted vLLM server"
-            })
+            info.update(
+                {"requires_api_key": False, "description": "Self-hosted vLLM server"}
+            )
         elif provider_type == ProviderType.LOCALAI:
-            info.update({
-                "requires_api_key": False,
-                "supports_embeddings": True,
-                "description": "LocalAI - Local OpenAI alternative"
-            })
+            info.update(
+                {
+                    "requires_api_key": False,
+                    "supports_embeddings": True,
+                    "description": "LocalAI - Local OpenAI alternative",
+                }
+            )
 
         return info
 
@@ -406,7 +405,7 @@ def create_llm_provider(
     api_key: Optional[str] = None,
     model: Optional[str] = None,
     base_url: Optional[str] = None,
-    **kwargs
+    **kwargs,
 ) -> LLMProvider:
     """Create an LLM provider.
 

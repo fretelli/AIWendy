@@ -1,26 +1,22 @@
 """File upload and management endpoints."""
 
-import io
 import base64
+import io
 from pathlib import Path
 from typing import Optional
 from uuid import uuid4
-
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
 
 from core.auth import get_current_user
 from core.i18n import get_request_locale, t
 from core.logging import get_logger
 from domain.user.models import User
-from services.storage_service import get_storage_provider, StorageProvider
-from services.file_extractor import (
-    get_file_category,
-    get_file_size_limit,
-    can_extract_text,
-    extract_text,
-)
+from fastapi import (APIRouter, Depends, File, HTTPException, Request,
+                     UploadFile)
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+from services.file_extractor import (can_extract_text, extract_text,
+                                     get_file_category, get_file_size_limit)
+from services.storage_service import StorageProvider, get_storage_provider
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -29,17 +25,21 @@ logger = get_logger(__name__)
 # Response models
 class FileUploadResponse(BaseModel):
     """Response for file upload."""
+
     id: str
     fileName: str
     fileSize: int
     mimeType: str
-    type: str  # 'image', 'audio', 'pdf', 'word', 'excel', 'ppt', 'text', 'code', 'binary'
+    type: (
+        str  # 'image', 'audio', 'pdf', 'word', 'excel', 'ppt', 'text', 'code', 'binary'
+    )
     url: str
     thumbnailBase64: Optional[str] = None
 
 
 class TextExtractionResponse(BaseModel):
     """Response for text extraction."""
+
     success: bool
     text: Optional[str] = None
     error: Optional[str] = None
@@ -49,6 +49,7 @@ class TextExtractionResponse(BaseModel):
 
 class TranscriptionResponse(BaseModel):
     """Response for audio transcription."""
+
     text: str
     language: Optional[str] = None
     confidence: Optional[float] = None
@@ -74,7 +75,9 @@ async def upload_file(
     locale = get_request_locale(http_request)
 
     if not file.filename:
-        raise HTTPException(status_code=400, detail=t("errors.filename_required", locale))
+        raise HTTPException(
+            status_code=400, detail=t("errors.filename_required", locale)
+        )
 
     # Get file category and size limit
     file_category = get_file_category(file.filename)
@@ -89,29 +92,37 @@ async def upload_file(
         max_mb = max_size // (1024 * 1024)
         raise HTTPException(
             status_code=400,
-            detail=t("errors.file_too_large", locale, file_category=file_category, max_mb=max_mb),
+            detail=t(
+                "errors.file_too_large",
+                locale,
+                file_category=file_category,
+                max_mb=max_mb,
+            ),
         )
 
     # Validate content type for images (security check)
     content_type = file.content_type or "application/octet-stream"
-    if file_category == 'image':
-        if not content_type.startswith('image/'):
-            raise HTTPException(status_code=400, detail=t("errors.invalid_image_file", locale))
+    if file_category == "image":
+        if not content_type.startswith("image/"):
+            raise HTTPException(
+                status_code=400, detail=t("errors.invalid_image_file", locale)
+            )
 
     # Generate thumbnail for images
     thumbnail_base64 = None
-    if file_category == 'image':
+    if file_category == "image":
         try:
             from PIL import Image
+
             img = Image.open(io.BytesIO(content))
             img.thumbnail((200, 200))
 
             # Convert to RGB if necessary (for PNG with transparency)
-            if img.mode in ('RGBA', 'P'):
-                img = img.convert('RGB')
+            if img.mode in ("RGBA", "P"):
+                img = img.convert("RGB")
 
             thumb_io = io.BytesIO()
-            img.save(thumb_io, format='JPEG', quality=80)
+            img.save(thumb_io, format="JPEG", quality=80)
             thumbnail_base64 = base64.b64encode(thumb_io.getvalue()).decode()
         except Exception as e:
             logger.warning(f"Failed to generate thumbnail: {e}")
@@ -155,14 +166,20 @@ async def extract_file_text(
     locale = get_request_locale(http_request)
 
     if not file.filename:
-        raise HTTPException(status_code=400, detail=t("errors.filename_required", locale))
+        raise HTTPException(
+            status_code=400, detail=t("errors.filename_required", locale)
+        )
 
     # Check if text can be extracted
     if not can_extract_text(file.filename):
         file_category = get_file_category(file.filename)
         return TextExtractionResponse(
             success=False,
-            error=t("errors.cannot_extract_text_from_category", locale, file_category=file_category),
+            error=t(
+                "errors.cannot_extract_text_from_category",
+                locale,
+                file_category=file_category,
+            ),
             fileType=file_category,
         )
 
@@ -171,7 +188,9 @@ async def extract_file_text(
     file_obj = io.BytesIO(content)
 
     # Upload temporarily
-    storage_path = await storage.upload(file_obj, file.filename, file.content_type or "")
+    storage_path = await storage.upload(
+        file_obj, file.filename, file.content_type or ""
+    )
     file_path = await storage.get_file_path(storage_path)
 
     if not file_path:
@@ -209,11 +228,13 @@ async def transcribe_audio(
     locale = get_request_locale(http_request)
 
     if not file.filename:
-        raise HTTPException(status_code=400, detail=t("errors.filename_required", locale))
+        raise HTTPException(
+            status_code=400, detail=t("errors.filename_required", locale)
+        )
 
     # Validate file type
     file_category = get_file_category(file.filename)
-    if file_category != 'audio':
+    if file_category != "audio":
         raise HTTPException(
             status_code=400,
             detail=t("errors.only_audio_supported_for_transcription", locale),
@@ -230,8 +251,8 @@ async def transcribe_audio(
 
     # Use OpenAI Whisper API
     try:
-        from openai import AsyncOpenAI
         from config import get_settings
+        from openai import AsyncOpenAI
 
         settings = get_settings()
         if not settings.openai_api_key:
@@ -252,7 +273,9 @@ async def transcribe_audio(
             file=audio_file,
         )
 
-        logger.info(f"Audio transcribed for user {current_user.id}: {len(response.text)} chars")
+        logger.info(
+            f"Audio transcribed for user {current_user.id}: {len(response.text)} chars"
+        )
 
         return TranscriptionResponse(
             text=response.text,
@@ -289,8 +312,8 @@ async def download_file(
     # Get filename from path
     filename = file_path.name
     # Remove UUID prefix if present
-    if '-' in filename:
-        parts = filename.split('-', 1)
+    if "-" in filename:
+        parts = filename.split("-", 1)
         if len(parts) > 1:
             filename = parts[1]
 
@@ -315,7 +338,9 @@ async def delete_file(
     success = await storage.delete(path)
 
     if not success:
-        raise HTTPException(status_code=404, detail=t("errors.file_not_found_or_deleted", locale))
+        raise HTTPException(
+            status_code=404, detail=t("errors.file_not_found_or_deleted", locale)
+        )
 
     logger.info(f"File deleted by user {current_user.id}: {path}")
 

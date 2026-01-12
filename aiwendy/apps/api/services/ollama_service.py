@@ -3,9 +3,10 @@ Ollama Service for local LLM support
 Handles communication with Ollama API for local model inference
 """
 
-import aiohttp
 import json
-from typing import AsyncGenerator, Optional, Dict, Any, List
+from typing import Any, AsyncGenerator, Dict, List, Optional
+
+import aiohttp
 from core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -21,7 +22,7 @@ class OllamaService:
         Args:
             base_url: Base URL for Ollama API (default: http://localhost:11434)
         """
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.session: Optional[aiohttp.ClientSession] = None
 
     async def __aenter__(self):
@@ -61,7 +62,7 @@ class OllamaService:
                 async with session.get(f"{self.base_url}/api/tags") as response:
                     if response.status == 200:
                         data = await response.json()
-                        return data.get('models', [])
+                        return data.get("models", [])
                     return []
         except Exception as e:
             logger.error(f"Failed to list Ollama models: {e}")
@@ -83,14 +84,14 @@ class OllamaService:
                 async with session.post(
                     f"{self.base_url}/api/pull",
                     data=data,
-                    headers={"Content-Type": "application/json"}
+                    headers={"Content-Type": "application/json"},
                 ) as response:
                     async for line in response.content:
                         if line:
                             try:
                                 progress = json.loads(line)
-                                if 'status' in progress:
-                                    yield progress['status']
+                                if "status" in progress:
+                                    yield progress["status"]
                             except json.JSONDecodeError:
                                 continue
         except Exception as e:
@@ -103,7 +104,7 @@ class OllamaService:
         messages: List[Dict[str, str]],
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
-        stream: bool = True
+        stream: bool = True,
     ) -> AsyncGenerator[str, None]:
         """
         Generate chat completion with Ollama
@@ -124,9 +125,7 @@ class OllamaService:
                 "model": model,
                 "messages": messages,
                 "stream": stream,
-                "options": {
-                    "temperature": temperature
-                }
+                "options": {"temperature": temperature},
             }
 
             if max_tokens:
@@ -136,21 +135,21 @@ class OllamaService:
                 async with session.post(
                     f"{self.base_url}/api/chat",
                     json=data,
-                    headers={"Content-Type": "application/json"}
+                    headers={"Content-Type": "application/json"},
                 ) as response:
                     if not stream:
                         # Non-streaming response
                         result = await response.json()
-                        if 'message' in result:
-                            yield result['message']['content']
+                        if "message" in result:
+                            yield result["message"]["content"]
                     else:
                         # Streaming response
                         async for line in response.content:
                             if line:
                                 try:
                                     chunk = json.loads(line)
-                                    if 'message' in chunk:
-                                        content = chunk['message'].get('content', '')
+                                    if "message" in chunk:
+                                        content = chunk["message"].get("content", "")
                                         if content:
                                             yield content
                                 except json.JSONDecodeError:
@@ -167,7 +166,7 @@ class OllamaService:
         system: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
-        stream: bool = True
+        stream: bool = True,
     ) -> AsyncGenerator[str, None]:
         """
         Generate text completion with Ollama (non-chat endpoint)
@@ -188,9 +187,7 @@ class OllamaService:
                 "model": model,
                 "prompt": prompt,
                 "stream": stream,
-                "options": {
-                    "temperature": temperature
-                }
+                "options": {"temperature": temperature},
             }
 
             if system:
@@ -203,19 +200,19 @@ class OllamaService:
                 async with session.post(
                     f"{self.base_url}/api/generate",
                     json=data,
-                    headers={"Content-Type": "application/json"}
+                    headers={"Content-Type": "application/json"},
                 ) as response:
                     if not stream:
                         result = await response.json()
-                        if 'response' in result:
-                            yield result['response']
+                        if "response" in result:
+                            yield result["response"]
                     else:
                         async for line in response.content:
                             if line:
                                 try:
                                     chunk = json.loads(line)
-                                    if 'response' in chunk:
-                                        yield chunk['response']
+                                    if "response" in chunk:
+                                        yield chunk["response"]
                                 except json.JSONDecodeError:
                                     continue
 
@@ -236,25 +233,16 @@ class OllamaService:
         """
         formatted = []
         for msg in messages:
-            role = msg.get('role', 'user')
-            content = msg.get('content', '')
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
 
             # Ollama uses 'user', 'assistant', and 'system' roles
-            if role in ['user', 'assistant', 'system']:
-                formatted.append({
-                    'role': role,
-                    'content': content
-                })
-            elif role == 'human':
-                formatted.append({
-                    'role': 'user',
-                    'content': content
-                })
-            elif role == 'ai':
-                formatted.append({
-                    'role': 'assistant',
-                    'content': content
-                })
+            if role in ["user", "assistant", "system"]:
+                formatted.append({"role": role, "content": content})
+            elif role == "human":
+                formatted.append({"role": "user", "content": content})
+            elif role == "ai":
+                formatted.append({"role": "assistant", "content": content})
 
         return formatted
 
