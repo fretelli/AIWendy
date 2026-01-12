@@ -2,9 +2,6 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-<a id="zh-cn"></a>
-[简体中文](#zh-cn) | [English](#en)
-
 [![CI](https://github.com/fretelli/AIWendy/actions/workflows/ci.yml/badge.svg)](https://github.com/fretelli/AIWendy/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
