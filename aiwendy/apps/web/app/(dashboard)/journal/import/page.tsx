@@ -236,8 +236,6 @@ export default function JournalImportPage() {
                     {t('journal.importPage.viewJournal')}
                   </Link>
                 </div>
-              </div>
-            ) : null}
                 {result.errors?.length ? (
                   <div className="text-muted-foreground space-y-1">
                     {result.errors.slice(0, 10).map((err, i) => (
