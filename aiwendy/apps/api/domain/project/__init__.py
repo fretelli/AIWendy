@@ -1,2 +1,1 @@
 """Project domain package."""
-

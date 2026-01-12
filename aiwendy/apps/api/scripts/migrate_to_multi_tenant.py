@@ -17,13 +17,13 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from config import get_settings
+from core.database import engine, get_db_session
+from domain.tenant.models import (Tenant, TenantMember, TenantPlan, TenantRole,
+                                  TenantStatus)
+from domain.user.models import User
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from core.database import get_db_session, engine
-from domain.user.models import User
-from domain.tenant.models import Tenant, TenantMember, TenantPlan, TenantRole, TenantStatus
-from config import get_settings
 
 
 async def create_default_tenant(session: AsyncSession) -> Tenant:
@@ -193,6 +193,7 @@ async def main():
     except Exception as e:
         print(f"\n✗ Migration failed: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

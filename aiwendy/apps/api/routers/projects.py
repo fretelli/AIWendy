@@ -4,16 +4,15 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, Field
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from core.auth import get_current_user
 from core.database import get_session
 from core.i18n import Locale, get_request_locale, t
 from domain.project.models import Project
 from domain.user.models import User
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -87,7 +86,9 @@ async def create_project(
     locale: Locale = get_request_locale(http_request)
     name = request.name.strip()
     if not name:
-        raise HTTPException(status_code=400, detail=t("errors.project_name_required", locale))
+        raise HTTPException(
+            status_code=400, detail=t("errors.project_name_required", locale)
+        )
 
     existing = await session.execute(
         select(Project).where(
@@ -97,11 +98,15 @@ async def create_project(
         )
     )
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail=t("errors.project_name_exists", locale))
+        raise HTTPException(
+            status_code=409, detail=t("errors.project_name_exists", locale)
+        )
 
     # First project defaults to active/default
     count_result = await session.execute(
-        select(func.count()).select_from(Project).where(Project.user_id == current_user.id)
+        select(func.count())
+        .select_from(Project)
+        .where(Project.user_id == current_user.id)
     )
     has_any = (count_result.scalar() or 0) > 0
 
@@ -136,11 +141,15 @@ async def get_project(
 ):
     locale: Locale = get_request_locale(http_request)
     result = await session.execute(
-        select(Project).where(Project.id == project_id, Project.user_id == current_user.id)
+        select(Project).where(
+            Project.id == project_id, Project.user_id == current_user.id
+        )
     )
     project = result.scalar_one_or_none()
     if not project:
-        raise HTTPException(status_code=404, detail=t("errors.project_not_found", locale))
+        raise HTTPException(
+            status_code=404, detail=t("errors.project_not_found", locale)
+        )
     return project
 
 
@@ -154,16 +163,22 @@ async def update_project(
 ):
     locale: Locale = get_request_locale(http_request)
     result = await session.execute(
-        select(Project).where(Project.id == project_id, Project.user_id == current_user.id)
+        select(Project).where(
+            Project.id == project_id, Project.user_id == current_user.id
+        )
     )
     project = result.scalar_one_or_none()
     if not project:
-        raise HTTPException(status_code=404, detail=t("errors.project_not_found", locale))
+        raise HTTPException(
+            status_code=404, detail=t("errors.project_not_found", locale)
+        )
 
     if request.name is not None:
         name = request.name.strip()
         if not name:
-            raise HTTPException(status_code=400, detail=t("errors.project_name_cannot_be_empty", locale))
+            raise HTTPException(
+                status_code=400, detail=t("errors.project_name_cannot_be_empty", locale)
+            )
         # Check conflicts
         existing = await session.execute(
             select(Project).where(
@@ -174,11 +189,15 @@ async def update_project(
             )
         )
         if existing.scalar_one_or_none():
-            raise HTTPException(status_code=409, detail=t("errors.project_name_exists", locale))
+            raise HTTPException(
+                status_code=409, detail=t("errors.project_name_exists", locale)
+            )
         project.name = name
 
     if request.description is not None:
-        project.description = request.description.strip() if request.description else None
+        project.description = (
+            request.description.strip() if request.description else None
+        )
 
     if request.is_archived is not None:
         project.is_archived = request.is_archived
@@ -213,11 +232,15 @@ async def delete_project(
 ):
     locale: Locale = get_request_locale(http_request)
     result = await session.execute(
-        select(Project).where(Project.id == project_id, Project.user_id == current_user.id)
+        select(Project).where(
+            Project.id == project_id, Project.user_id == current_user.id
+        )
     )
     project = result.scalar_one_or_none()
     if not project:
-        raise HTTPException(status_code=404, detail=t("errors.project_not_found", locale))
+        raise HTTPException(
+            status_code=404, detail=t("errors.project_not_found", locale)
+        )
 
     if hard_delete:
         await session.delete(project)

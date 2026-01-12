@@ -41,4 +41,3 @@ def chunk_text(text: str, max_chars: int = 900, overlap: int = 120) -> List[str]
         start = next_start
 
     return chunks
-

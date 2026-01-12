@@ -1,12 +1,13 @@
 """
 Market data API endpoints for charts
 """
+
 from datetime import datetime
-from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel
+from typing import List, Optional
 
 from core.i18n import get_request_locale, t
+from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel
 from services.market_data_service import MarketDataService
 
 router = APIRouter(prefix="/api/market-data", tags=["market-data"])
@@ -17,6 +18,7 @@ market_data_service = MarketDataService()
 
 class PriceData(BaseModel):
     """Price data response model"""
+
     time: str
     open: float
     high: float
@@ -27,6 +29,7 @@ class PriceData(BaseModel):
 
 class RealTimePrice(BaseModel):
     """Real-time price response model"""
+
     symbol: str
     price: float
     change: float
@@ -37,6 +40,7 @@ class RealTimePrice(BaseModel):
 
 class IndicatorData(BaseModel):
     """Technical indicator response model"""
+
     time: str
     value: float
 
@@ -45,7 +49,10 @@ class IndicatorData(BaseModel):
 async def get_historical_data(
     symbol: str,
     http_request: Request,
-    interval: str = Query("1day", description="Time interval (1min, 5min, 15min, 30min, 1h, 1day, 1week, 1month)"),
+    interval: str = Query(
+        "1day",
+        description="Time interval (1min, 5min, 15min, 30min, 1h, 1day, 1week, 1month)",
+    ),
     outputsize: int = Query(60, description="Number of data points", ge=1, le=500),
     start_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     end_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
@@ -75,17 +82,25 @@ async def get_historical_data(
             interval=interval,
             outputsize=outputsize,
             start_date=start_dt,
-            end_date=end_dt
+            end_date=end_dt,
         )
 
         if not data:
-            raise HTTPException(status_code=404, detail=t("errors.market_data_not_found", locale, symbol=symbol.upper()))
+            raise HTTPException(
+                status_code=404,
+                detail=t("errors.market_data_not_found", locale, symbol=symbol.upper()),
+            )
 
         return data
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=t("errors.invalid_date_format", locale, error=str(e)))
+        raise HTTPException(
+            status_code=400,
+            detail=t("errors.invalid_date_format", locale, error=str(e)),
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=t("errors.market_data_fetch_failed", locale))
+        raise HTTPException(
+            status_code=500, detail=t("errors.market_data_fetch_failed", locale)
+        )
 
 
 @router.get("/real-time/{symbol}", response_model=RealTimePrice)
@@ -104,11 +119,16 @@ async def get_real_time_price(symbol: str, http_request: Request):
         data = await market_data_service.get_real_time_price(symbol.upper())
 
         if not data:
-            raise HTTPException(status_code=404, detail=t("errors.market_data_not_found", locale, symbol=symbol.upper()))
+            raise HTTPException(
+                status_code=404,
+                detail=t("errors.market_data_not_found", locale, symbol=symbol.upper()),
+            )
 
         return data
     except Exception as e:
-        raise HTTPException(status_code=500, detail=t("errors.market_data_fetch_failed", locale))
+        raise HTTPException(
+            status_code=500, detail=t("errors.market_data_fetch_failed", locale)
+        )
 
 
 @router.get("/indicators/{symbol}/{indicator}", response_model=List[IndicatorData])
@@ -137,28 +157,40 @@ async def get_technical_indicators(
         if indicator not in valid_indicators:
             raise HTTPException(
                 status_code=400,
-                detail=t("errors.invalid_indicator", locale, valid=", ".join(valid_indicators)),
+                detail=t(
+                    "errors.invalid_indicator",
+                    locale,
+                    valid=", ".join(valid_indicators),
+                ),
             )
 
         data = await market_data_service.get_technical_indicators(
-            symbol=symbol.upper(),
-            interval=interval,
-            indicator=indicator,
-            period=period
+            symbol=symbol.upper(), interval=interval, indicator=indicator, period=period
         )
 
         if not data:
-            raise HTTPException(status_code=404, detail=t("errors.market_indicator_data_not_found", locale, symbol=symbol.upper()))
+            raise HTTPException(
+                status_code=404,
+                detail=t(
+                    "errors.market_indicator_data_not_found",
+                    locale,
+                    symbol=symbol.upper(),
+                ),
+            )
 
         return data
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=t("errors.market_indicators_failed", locale))
+        raise HTTPException(
+            status_code=500, detail=t("errors.market_indicators_failed", locale)
+        )
 
 
 @router.get("/symbols/search")
-async def search_symbols(http_request: Request, query: str = Query(..., description="Search query")):
+async def search_symbols(
+    http_request: Request, query: str = Query(..., description="Search query")
+):
     """
     Search for symbols by name or ticker
 
@@ -189,13 +221,16 @@ async def search_symbols(http_request: Request, query: str = Query(..., descript
         # Filter based on query
         query_lower = query.lower()
         results = [
-            s for s in common_symbols
+            s
+            for s in common_symbols
             if query_lower in s["symbol"].lower() or query_lower in s["name"].lower()
         ]
 
         return results
     except Exception as e:
-        raise HTTPException(status_code=500, detail=t("errors.market_symbol_search_failed", locale))
+        raise HTTPException(
+            status_code=500, detail=t("errors.market_symbol_search_failed", locale)
+        )
 
 
 @router.on_event("shutdown")

@@ -10,7 +10,6 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from openpyxl import load_workbook
 
-
 MAX_IMPORT_ROWS = 5000
 MAX_PREVIEW_ROWS = 50
 
@@ -79,7 +78,9 @@ def _parse_csv(content: bytes, max_rows: int) -> ParsedTable:
     parsed_rows: List[Dict[str, Any]] = []
     for i, row in enumerate(rows_iter):
         if i >= max_rows:
-            warnings.append(f"Reached max rows limit ({max_rows}); remaining rows ignored.")
+            warnings.append(
+                f"Reached max rows limit ({max_rows}); remaining rows ignored."
+            )
             break
         values = [_stringify(v) for v in row]
         values += [""] * max(0, len(headers) - len(values))
@@ -114,7 +115,9 @@ def _parse_xlsx(content: bytes, max_rows: int) -> ParsedTable:
     parsed_rows: List[Dict[str, Any]] = []
     for i, row in enumerate(rows):
         if i >= max_rows:
-            warnings.append(f"Reached max rows limit ({max_rows}); remaining rows ignored.")
+            warnings.append(
+                f"Reached max rows limit ({max_rows}); remaining rows ignored."
+            )
             break
         values = [_stringify(v) for v in row]
         values += [""] * max(0, len(headers) - len(values))
@@ -156,13 +159,46 @@ def suggest_mapping(columns: Iterable[str]) -> Dict[str, Optional[str]]:
         return None
 
     return {
-        "symbol": pick("symbol", "ticker", "code", "instrument", "标的", "合约", "币种", "品种"),
-        "direction": pick("direction", "side", "buy/sell", "buysell", "买卖", "方向", "开仓方向"),
-        "trade_date": pick("trade_date", "date", "datetime", "time", "开仓时间", "成交时间", "日期", "时间"),
-        "entry_price": pick("entry_price", "entry", "open_price", "openprice", "开仓价", "入场价", "买入价"),
-        "exit_price": pick("exit_price", "exit", "close_price", "closeprice", "平仓价", "出场价", "卖出价"),
-        "position_size": pick("position_size", "quantity", "qty", "size", "amount", "数量", "手数"),
-        "pnl_amount": pick("pnl", "profit", "profit_loss", "pnl_amount", "盈亏", "利润"),
+        "symbol": pick(
+            "symbol", "ticker", "code", "instrument", "标的", "合约", "币种", "品种"
+        ),
+        "direction": pick(
+            "direction", "side", "buy/sell", "buysell", "买卖", "方向", "开仓方向"
+        ),
+        "trade_date": pick(
+            "trade_date",
+            "date",
+            "datetime",
+            "time",
+            "开仓时间",
+            "成交时间",
+            "日期",
+            "时间",
+        ),
+        "entry_price": pick(
+            "entry_price",
+            "entry",
+            "open_price",
+            "openprice",
+            "开仓价",
+            "入场价",
+            "买入价",
+        ),
+        "exit_price": pick(
+            "exit_price",
+            "exit",
+            "close_price",
+            "closeprice",
+            "平仓价",
+            "出场价",
+            "卖出价",
+        ),
+        "position_size": pick(
+            "position_size", "quantity", "qty", "size", "amount", "数量", "手数"
+        ),
+        "pnl_amount": pick(
+            "pnl", "profit", "profit_loss", "pnl_amount", "盈亏", "利润"
+        ),
         "notes": pick("notes", "note", "comment", "备注", "说明"),
     }
 
@@ -271,7 +307,12 @@ def build_journal_payload(
     notes = _stringify(get(mapping.get("notes"))) or None
 
     # Compute PnL if missing and data is available
-    if pnl_amount is None and entry_price is not None and exit_price is not None and position_size is not None:
+    if (
+        pnl_amount is None
+        and entry_price is not None
+        and exit_price is not None
+        and position_size is not None
+    ):
         pnl = (exit_price - entry_price) * position_size
         pnl_amount = -pnl if direction == "short" else pnl
 
@@ -300,4 +341,3 @@ def build_journal_payload(
     payload = {k: v for k, v in payload.items() if v is not None}
 
     return payload, None
-

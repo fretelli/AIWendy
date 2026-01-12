@@ -1,15 +1,15 @@
 """Add API key columns to users table."""
 
 import asyncio
-import sys
 import os
+import sys
 
 # Add parent directory to path to import modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import text
 from core.database import engine
 from core.logging import get_logger
+from sqlalchemy import text
 
 logger = get_logger(__name__)
 
@@ -30,34 +30,46 @@ async def add_api_key_columns():
         existing_columns = [row[0] for row in result]
 
         # Add openai_api_key column if not exists
-        if 'openai_api_key' not in existing_columns:
+        if "openai_api_key" not in existing_columns:
             logger.info("Adding openai_api_key column to users table")
-            await conn.execute(text("""
+            await conn.execute(
+                text(
+                    """
                 ALTER TABLE users
                 ADD COLUMN openai_api_key TEXT;
-            """))
+            """
+                )
+            )
             logger.info("Added openai_api_key column")
         else:
             logger.info("Column openai_api_key already exists")
 
         # Add anthropic_api_key column if not exists
-        if 'anthropic_api_key' not in existing_columns:
+        if "anthropic_api_key" not in existing_columns:
             logger.info("Adding anthropic_api_key column to users table")
-            await conn.execute(text("""
+            await conn.execute(
+                text(
+                    """
                 ALTER TABLE users
                 ADD COLUMN anthropic_api_key TEXT;
-            """))
+            """
+                )
+            )
             logger.info("Added anthropic_api_key column")
         else:
             logger.info("Column anthropic_api_key already exists")
 
         # Add api_keys_encrypted column if not exists
-        if 'api_keys_encrypted' not in existing_columns:
+        if "api_keys_encrypted" not in existing_columns:
             logger.info("Adding api_keys_encrypted column to users table")
-            await conn.execute(text("""
+            await conn.execute(
+                text(
+                    """
                 ALTER TABLE users
                 ADD COLUMN api_keys_encrypted JSONB DEFAULT '{}';
-            """))
+            """
+                )
+            )
             logger.info("Added api_keys_encrypted column")
         else:
             logger.info("Column api_keys_encrypted already exists")

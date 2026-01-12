@@ -5,16 +5,15 @@ import base64
 import io
 import json
 import wave
-from typing import Optional, Dict, Any, List, AsyncIterator, Union
 from datetime import datetime
 from enum import Enum
+from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 import httpx
 import numpy as np
-from pydantic import BaseModel, Field
-
-from core.logging import get_logger
 from core.cache import get_redis_client
+from core.logging import get_logger
+from pydantic import BaseModel, Field
 
 logger = get_logger(__name__)
 
@@ -120,7 +119,7 @@ class VoiceService:
         self,
         audio_data: Union[bytes, str],  # bytes or base64 string
         provider: Optional[VoiceProvider] = None,
-        language: Optional[str] = None
+        language: Optional[str] = None,
     ) -> TranscriptionResult:
         """Transcribe audio to text."""
 
@@ -148,9 +147,7 @@ class VoiceService:
         return result
 
     async def synthesize(
-        self,
-        text: str,
-        config: Optional[VoiceConfig] = None
+        self, text: str, config: Optional[VoiceConfig] = None
     ) -> bytes:
         """Synthesize text to speech."""
 
@@ -171,16 +168,14 @@ class VoiceService:
         audio_data = await self.providers[config.provider].synthesize(text, config)
 
         # Cache result
-        await self._cache_result(cache_key, {
-            "audio": base64.b64encode(audio_data).decode()
-        })
+        await self._cache_result(
+            cache_key, {"audio": base64.b64encode(audio_data).decode()}
+        )
 
         return audio_data
 
     async def stream_synthesize(
-        self,
-        text: str,
-        config: Optional[VoiceConfig] = None
+        self, text: str, config: Optional[VoiceConfig] = None
     ) -> AsyncIterator[bytes]:
         """Stream text-to-speech synthesis."""
 
@@ -191,7 +186,7 @@ class VoiceService:
 
         provider = self.providers[config.provider]
 
-        if hasattr(provider, 'stream_synthesize'):
+        if hasattr(provider, "stream_synthesize"):
             async for chunk in provider.stream_synthesize(text, config):
                 yield chunk
         else:
@@ -200,14 +195,10 @@ class VoiceService:
             # Chunk the audio for streaming effect
             chunk_size = 4096
             for i in range(0, len(audio), chunk_size):
-                yield audio[i:i + chunk_size]
+                yield audio[i : i + chunk_size]
 
     async def create_coach_voice(
-        self,
-        coach_id: str,
-        name: str,
-        description: str,
-        config: VoiceConfig
+        self, coach_id: str, name: str, description: str, config: VoiceConfig
     ) -> Dict[str, Any]:
         """Create a custom voice profile for a coach."""
 
@@ -217,7 +208,7 @@ class VoiceService:
             "name": name,
             "description": description,
             "config": config.dict(),
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.utcnow().isoformat(),
         }
 
         # Store in cache/database
@@ -234,7 +225,7 @@ class VoiceService:
         import hashlib
 
         if isinstance(data, bytes):
-            data = data.decode('utf-8', errors='ignore')
+            data = data.decode("utf-8", errors="ignore")
 
         hash_val = hashlib.md5(data.encode()).hexdigest()
         return f"voice:{prefix}:{hash_val}"
@@ -263,14 +254,11 @@ class OpenAIVoiceProvider:
         self.api_key = api_key
         self.base_url = "https://api.openai.com/v1"
         self.client = httpx.AsyncClient(
-            headers={"Authorization": f"Bearer {api_key}"},
-            timeout=60
+            headers={"Authorization": f"Bearer {api_key}"}, timeout=60
         )
 
     async def transcribe(
-        self,
-        audio_data: bytes,
-        language: Optional[str] = None
+        self, audio_data: bytes, language: Optional[str] = None
     ) -> TranscriptionResult:
         """Transcribe using Whisper API."""
 
@@ -283,8 +271,7 @@ class OpenAIVoiceProvider:
             files["language"] = (None, language)
 
         response = await self.client.post(
-            f"{self.base_url}/audio/transcriptions",
-            files=files
+            f"{self.base_url}/audio/transcriptions", files=files
         )
         response.raise_for_status()
 
@@ -294,7 +281,7 @@ class OpenAIVoiceProvider:
             confidence=0.95,  # OpenAI doesn't provide confidence
             language=language or "en",
             duration=0.0,  # Not provided
-            metadata=data
+            metadata=data,
         )
 
     async def synthesize(self, text: str, config: VoiceConfig) -> bytes:
@@ -307,13 +294,10 @@ class OpenAIVoiceProvider:
             (VoiceGender.FEMALE, VoiceStyle.PROFESSIONAL): "nova",
             (VoiceGender.FEMALE, VoiceStyle.FRIENDLY): "shimmer",
             (VoiceGender.NEUTRAL, VoiceStyle.PROFESSIONAL): "alloy",
-            (VoiceGender.NEUTRAL, VoiceStyle.CALM): "fable"
+            (VoiceGender.NEUTRAL, VoiceStyle.CALM): "fable",
         }
 
-        voice = voice_map.get(
-            (config.gender, config.style),
-            "alloy"  # Default
-        )
+        voice = voice_map.get((config.gender, config.style), "alloy")  # Default
 
         response = await self.client.post(
             f"{self.base_url}/audio/speech",
@@ -321,24 +305,22 @@ class OpenAIVoiceProvider:
                 "model": "tts-1-hd",  # High quality
                 "input": text,
                 "voice": voice,
-                "speed": config.speed
-            }
+                "speed": config.speed,
+            },
         )
         response.raise_for_status()
 
         return response.content
 
     async def stream_synthesize(
-        self,
-        text: str,
-        config: VoiceConfig
+        self, text: str, config: VoiceConfig
     ) -> AsyncIterator[bytes]:
         """Stream TTS synthesis."""
 
         voice_map = {
             (VoiceGender.MALE, VoiceStyle.PROFESSIONAL): "echo",
             (VoiceGender.FEMALE, VoiceStyle.PROFESSIONAL): "nova",
-            (VoiceGender.NEUTRAL, VoiceStyle.PROFESSIONAL): "alloy"
+            (VoiceGender.NEUTRAL, VoiceStyle.PROFESSIONAL): "alloy",
         }
 
         voice = voice_map.get((config.gender, config.style), "alloy")
@@ -351,8 +333,8 @@ class OpenAIVoiceProvider:
                 "input": text,
                 "voice": voice,
                 "speed": config.speed,
-                "response_format": config.output_format.value
-            }
+                "response_format": config.output_format.value,
+            },
         ) as response:
             async for chunk in response.aiter_bytes(chunk_size=1024):
                 yield chunk
@@ -370,6 +352,7 @@ class LocalWhisperProvider:
         if not self.model_loaded:
             try:
                 import whisper
+
                 self.model = whisper.load_model("base")
                 self.model_loaded = True
             except ImportError:
@@ -377,9 +360,7 @@ class LocalWhisperProvider:
                 raise
 
     async def transcribe(
-        self,
-        audio_data: bytes,
-        language: Optional[str] = None
+        self, audio_data: bytes, language: Optional[str] = None
     ) -> TranscriptionResult:
         """Transcribe using local Whisper."""
 
@@ -387,26 +368,25 @@ class LocalWhisperProvider:
 
         # Save audio to temporary file
         import tempfile
+
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             f.write(audio_data)
             audio_file = f.name
 
         try:
             # Transcribe
-            result = self.model.transcribe(
-                audio_file,
-                language=language
-            )
+            result = self.model.transcribe(audio_file, language=language)
 
             return TranscriptionResult(
                 text=result["text"],
                 confidence=0.9,
                 language=result.get("language", language or "en"),
                 duration=0.0,
-                metadata=result
+                metadata=result,
             )
         finally:
             import os
+
             os.unlink(audio_file)
 
     async def synthesize(self, text: str, config: VoiceConfig) -> bytes:
@@ -422,14 +402,11 @@ class AzureVoiceProvider:
         self.region = region
         self.base_url = f"https://{region}.api.cognitive.microsoft.com"
         self.client = httpx.AsyncClient(
-            headers={"Ocp-Apim-Subscription-Key": api_key},
-            timeout=60
+            headers={"Ocp-Apim-Subscription-Key": api_key}, timeout=60
         )
 
     async def transcribe(
-        self,
-        audio_data: bytes,
-        language: Optional[str] = None
+        self, audio_data: bytes, language: Optional[str] = None
     ) -> TranscriptionResult:
         """Transcribe using Azure Speech Services."""
 
@@ -438,10 +415,7 @@ class AzureVoiceProvider:
         response = await self.client.post(
             url,
             content=audio_data,
-            headers={
-                "Content-Type": "audio/wav",
-                "Accept": "application/json"
-            }
+            headers={"Content-Type": "audio/wav", "Accept": "application/json"},
         )
         response.raise_for_status()
 
@@ -451,7 +425,7 @@ class AzureVoiceProvider:
             confidence=data.get("NBest", [{}])[0].get("Confidence", 0.9),
             language=language or "en-US",
             duration=data.get("Duration", 0.0),
-            metadata=data
+            metadata=data,
         )
 
     async def synthesize(self, text: str, config: VoiceConfig) -> bytes:
@@ -461,12 +435,11 @@ class AzureVoiceProvider:
         voice_map = {
             (VoiceGender.MALE, "en-US"): "en-US-JennyNeural",
             (VoiceGender.FEMALE, "en-US"): "en-US-AriaNeural",
-            (VoiceGender.NEUTRAL, "en-US"): "en-US-GuyNeural"
+            (VoiceGender.NEUTRAL, "en-US"): "en-US-GuyNeural",
         }
 
         voice = config.voice_id or voice_map.get(
-            (config.gender, config.language),
-            "en-US-JennyNeural"
+            (config.gender, config.language), "en-US-JennyNeural"
         )
 
         # Create SSML
@@ -485,8 +458,8 @@ class AzureVoiceProvider:
             content=ssml,
             headers={
                 "X-Microsoft-OutputFormat": f"audio-24khz-160kbitrate-mono-{config.output_format.value}",
-                "Content-Type": "application/ssml+xml"
-            }
+                "Content-Type": "application/ssml+xml",
+            },
         )
         response.raise_for_status()
 
@@ -499,10 +472,7 @@ class ElevenLabsProvider:
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.base_url = "https://api.elevenlabs.io/v1"
-        self.client = httpx.AsyncClient(
-            headers={"xi-api-key": api_key},
-            timeout=60
-        )
+        self.client = httpx.AsyncClient(headers={"xi-api-key": api_key}, timeout=60)
 
     async def synthesize(self, text: str, config: VoiceConfig) -> bytes:
         """Synthesize using ElevenLabs."""
@@ -519,18 +489,16 @@ class ElevenLabsProvider:
                     "stability": 0.5,
                     "similarity_boost": 0.75,
                     "style": config.emotion_level,
-                    "use_speaker_boost": True
-                }
-            }
+                    "use_speaker_boost": True,
+                },
+            },
         )
         response.raise_for_status()
 
         return response.content
 
     async def stream_synthesize(
-        self,
-        text: str,
-        config: VoiceConfig
+        self, text: str, config: VoiceConfig
     ) -> AsyncIterator[bytes]:
         """Stream synthesis from ElevenLabs."""
 
@@ -542,11 +510,8 @@ class ElevenLabsProvider:
             json={
                 "text": text,
                 "model_id": "eleven_monolingual_v1",
-                "voice_settings": {
-                    "stability": 0.5,
-                    "similarity_boost": 0.75
-                }
-            }
+                "voice_settings": {"stability": 0.5, "similarity_boost": 0.75},
+            },
         ) as response:
             async for chunk in response.aiter_bytes(chunk_size=1024):
                 yield chunk

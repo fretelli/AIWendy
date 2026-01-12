@@ -1,18 +1,19 @@
 """Report management endpoints."""
 
-from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Body, Request
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from uuid import UUID
 from datetime import date, datetime
+from typing import List, Optional
+from uuid import UUID
 
 from core.auth import get_current_user
 from core.database import get_db
 from core.i18n import get_request_locale, t
+from domain.report.models import (Report, ReportSchedule, ReportStatus,
+                                  ReportType)
 from domain.user.models import User
-from domain.report.models import Report, ReportType, ReportStatus, ReportSchedule
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 from services.report_service import ReportService
+from sqlalchemy.orm import Session
 
 
 # Pydantic models for request/response
@@ -145,9 +146,13 @@ def generate_report(
                 project_id=request.project_id,
             )
         else:
-            raise HTTPException(status_code=400, detail=t("errors.unsupported_report_type", locale))
+            raise HTTPException(
+                status_code=400, detail=t("errors.unsupported_report_type", locale)
+            )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=t("errors.report_generation_failed", locale))
+        raise HTTPException(
+            status_code=404, detail=t("errors.report_generation_failed", locale)
+        )
 
     return report
 
@@ -157,7 +162,9 @@ def generate_report(
 @router.get("/", response_model=List[ReportResponse])
 def get_reports(
     http_request: Request,
-    report_type: Optional[ReportType] = Query(None, description="Filter by report type"),
+    report_type: Optional[ReportType] = Query(
+        None, description="Filter by report type"
+    ),
     project_id: Optional[UUID] = Query(None, description="Filter by project_id"),
     limit: int = Query(10, le=50, description="Maximum number of reports to return"),
     db: Session = Depends(get_db),
@@ -170,7 +177,7 @@ def get_reports(
         user_id=current_user.id,
         report_type=report_type,
         project_id=project_id,
-        limit=limit
+        limit=limit,
     )
     return reports
 
@@ -195,7 +202,9 @@ def get_latest_report(
     if not report:
         raise HTTPException(
             status_code=404,
-            detail=t("errors.no_report_found_for_user", locale, report_type=report_type.value),
+            detail=t(
+                "errors.no_report_found_for_user", locale, report_type=report_type.value
+            ),
         )
 
     return report
@@ -214,7 +223,9 @@ def get_report(
     report = service.get_report_by_id(report_id)
 
     if not report:
-        raise HTTPException(status_code=404, detail=t("errors.report_not_found", locale))
+        raise HTTPException(
+            status_code=404, detail=t("errors.report_not_found", locale)
+        )
 
     # Verify user owns this report
     if report.user_id != current_user.id:
@@ -236,8 +247,7 @@ def get_schedule(
     if not schedule:
         # Create default schedule
         schedule = service.create_or_update_schedule(
-            user_id=current_user.id,
-            schedule_data={}
+            user_id=current_user.id, schedule_data={}
         )
 
     return schedule
@@ -256,8 +266,7 @@ def update_schedule(
     schedule_data = {k: v for k, v in request.dict().items() if v is not None}
 
     schedule = service.create_or_update_schedule(
-        user_id=current_user.id,
-        schedule_data=schedule_data
+        user_id=current_user.id, schedule_data=schedule_data
     )
 
     return schedule
@@ -275,9 +284,13 @@ def generate_daily_report(
     locale = get_request_locale(http_request)
     service = ReportService(db)
     try:
-        report = service.generate_daily_report(current_user.id, locale=locale, project_id=project_id)
+        report = service.generate_daily_report(
+            current_user.id, locale=locale, project_id=project_id
+        )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=t("errors.report_generation_failed", locale))
+        raise HTTPException(
+            status_code=404, detail=t("errors.report_generation_failed", locale)
+        )
     return report
 
 
@@ -292,9 +305,13 @@ def generate_weekly_report(
     locale = get_request_locale(http_request)
     service = ReportService(db)
     try:
-        report = service.generate_weekly_report(current_user.id, locale=locale, project_id=project_id)
+        report = service.generate_weekly_report(
+            current_user.id, locale=locale, project_id=project_id
+        )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=t("errors.report_generation_failed", locale))
+        raise HTTPException(
+            status_code=404, detail=t("errors.report_generation_failed", locale)
+        )
     return report
 
 
@@ -309,9 +326,13 @@ def generate_monthly_report(
     locale = get_request_locale(http_request)
     service = ReportService(db)
     try:
-        report = service.generate_monthly_report(current_user.id, locale=locale, project_id=project_id)
+        report = service.generate_monthly_report(
+            current_user.id, locale=locale, project_id=project_id
+        )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=t("errors.report_generation_failed", locale))
+        raise HTTPException(
+            status_code=404, detail=t("errors.report_generation_failed", locale)
+        )
     return report
 
 
@@ -325,15 +346,15 @@ def get_report_stats(
     service = ReportService(db)
 
     # Get counts by type
-    daily_count = len(service.get_user_reports(
-        current_user.id, ReportType.DAILY, limit=100
-    ))
-    weekly_count = len(service.get_user_reports(
-        current_user.id, ReportType.WEEKLY, limit=100
-    ))
-    monthly_count = len(service.get_user_reports(
-        current_user.id, ReportType.MONTHLY, limit=100
-    ))
+    daily_count = len(
+        service.get_user_reports(current_user.id, ReportType.DAILY, limit=100)
+    )
+    weekly_count = len(
+        service.get_user_reports(current_user.id, ReportType.WEEKLY, limit=100)
+    )
+    monthly_count = len(
+        service.get_user_reports(current_user.id, ReportType.MONTHLY, limit=100)
+    )
 
     # Get latest reports
     latest_daily = service.get_latest_report(current_user.id, ReportType.DAILY)
@@ -345,11 +366,11 @@ def get_report_stats(
         "by_type": {
             "daily": daily_count,
             "weekly": weekly_count,
-            "monthly": monthly_count
+            "monthly": monthly_count,
         },
         "latest": {
             "daily": latest_daily.created_at if latest_daily else None,
             "weekly": latest_weekly.created_at if latest_weekly else None,
-            "monthly": latest_monthly.created_at if latest_monthly else None
-        }
+            "monthly": latest_monthly.created_at if latest_monthly else None,
+        },
     }

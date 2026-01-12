@@ -11,22 +11,23 @@ This will create a test user with:
 """
 
 import asyncio
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import logging
+from datetime import datetime
+
+from config import get_settings
+# Import all models to ensure relationships are established
+from domain.user.models import SubscriptionTier, User
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import select
-from config import get_settings
-from datetime import datetime
-import logging
 
-# Import all models to ensure relationships are established
-from domain.user.models import User, SubscriptionTier
 try:
     from domain.journal.models import Journal
 except ImportError:
@@ -51,15 +52,15 @@ TEST_USERS = [
         "email": "test@example.com",
         "password": "Test@1234",
         "full_name": "Test User",
-        "subscription_tier": "free"
+        "subscription_tier": "free",
     },
     {
         "email": "admin@aiwendy.com",
         "password": "Admin@123",
         "full_name": "Admin User",
         "subscription_tier": "elite",
-        "is_admin": True  # Note: You may need to add this field to the User model
-    }
+        "is_admin": True,  # Note: You may need to add this field to the User model
+    },
 ]
 
 
@@ -68,16 +69,10 @@ async def create_test_users():
     settings = get_settings()
 
     # Create database engine
-    engine = create_async_engine(
-        settings.database_url,
-        echo=False,
-        pool_pre_ping=True
-    )
+    engine = create_async_engine(settings.database_url, echo=False, pool_pre_ping=True)
 
     # Create session
-    async_session = sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     created_users = []
     skipped_users = []
@@ -92,7 +87,9 @@ async def create_test_users():
                 existing_user = result.scalar_one_or_none()
 
                 if existing_user:
-                    logger.info(f"User {user_data['email']} already exists, skipping...")
+                    logger.info(
+                        f"User {user_data['email']} already exists, skipping..."
+                    )
                     skipped_users.append(user_data["email"])
                     continue
 
@@ -107,12 +104,12 @@ async def create_test_users():
                     subscription_tier=tier_enum,
                     is_active=True,
                     created_at=datetime.utcnow(),
-                    updated_at=datetime.utcnow()
+                    updated_at=datetime.utcnow(),
                 )
 
                 # Set admin flag if specified (if the field exists)
                 if user_data.get("is_admin"):
-                    if hasattr(user, 'is_admin'):
+                    if hasattr(user, "is_admin"):
                         user.is_admin = True
 
                 session.add(user)

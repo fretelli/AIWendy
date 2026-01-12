@@ -6,11 +6,10 @@ from datetime import datetime
 from typing import Any, Dict
 
 from celery import Task
-from sqlalchemy import and_
-
 from core.database import SessionLocal
 from core.logging import get_logger
 from domain.user.models import SubscriptionTier, User, UserSession
+from sqlalchemy import and_
 from workers.celery_app import celery_app
 
 logger = get_logger(__name__)
@@ -34,14 +33,19 @@ def cleanup_expired_user_sessions(self) -> Dict[str, Any]:
             .filter(
                 and_(
                     UserSession.user_id.isnot(None),
-                    (UserSession.expires_at < now) | (UserSession.revoked_at.isnot(None)),
+                    (UserSession.expires_at < now)
+                    | (UserSession.revoked_at.isnot(None)),
                 )
             )
             .delete(synchronize_session=False)
         )
         db.commit()
         logger.info("cleanup_expired_user_sessions_done", deleted=int(deleted or 0))
-        return {"status": "success", "deleted": int(deleted or 0), "timestamp": now.isoformat()}
+        return {
+            "status": "success",
+            "deleted": int(deleted or 0),
+            "timestamp": now.isoformat(),
+        }
     except Exception as e:
         db.rollback()
         logger.error("cleanup_expired_user_sessions_failed", error=str(e))
@@ -83,4 +87,3 @@ def update_subscription_status(self) -> Dict[str, Any]:
         return {"status": "error", "error": str(e), "timestamp": now.isoformat()}
     finally:
         db.close()
-

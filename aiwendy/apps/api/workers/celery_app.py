@@ -2,7 +2,6 @@
 
 from celery import Celery
 from celery.schedules import crontab
-
 from config import get_settings
 
 settings = get_settings()
@@ -50,6 +49,8 @@ celery_app.conf.beat_schedule = {
     },
     "cleanup-old-reports": {
         "task": "workers.report_tasks.cleanup_old_reports",
-        "schedule": crontab(minute="0", hour="4", day_of_week="0"),  # Weekly on Sunday at 4 AM
+        "schedule": crontab(
+            minute="0", hour="4", day_of_week="0"
+        ),  # Weekly on Sunday at 4 AM
     },
 }

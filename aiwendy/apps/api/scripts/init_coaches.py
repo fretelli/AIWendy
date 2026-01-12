@@ -1,17 +1,18 @@
 """Initialize default coaches in the database."""
 
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
+import logging
+
+from core.database import get_db_url
+from domain.coach.models import Coach, CoachStyle, LLMProvider
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from domain.coach.models import Coach, CoachStyle, LLMProvider
-from core.database import get_db_url
-import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -61,7 +62,7 @@ def create_default_coaches():
             "is_premium": False,
             "is_public": True,
             "is_default": True,
-            "min_subscription_tier": "free"
+            "min_subscription_tier": "free",
         },
         {
             "id": "marcus",
@@ -105,7 +106,7 @@ def create_default_coaches():
             "is_premium": False,
             "is_public": True,
             "is_default": False,
-            "min_subscription_tier": "free"
+            "min_subscription_tier": "free",
         },
         {
             "id": "sophia",
@@ -152,7 +153,7 @@ def create_default_coaches():
             "is_premium": False,
             "is_public": True,
             "is_default": False,
-            "min_subscription_tier": "free"
+            "min_subscription_tier": "free",
         },
         {
             "id": "alex",
@@ -200,7 +201,7 @@ def create_default_coaches():
             "is_premium": True,
             "is_public": True,
             "is_default": False,
-            "min_subscription_tier": "pro"
+            "min_subscription_tier": "pro",
         },
         {
             "id": "socrates",
@@ -252,8 +253,8 @@ def create_default_coaches():
             "is_premium": True,
             "is_public": True,
             "is_default": False,
-            "min_subscription_tier": "pro"
-        }
+            "min_subscription_tier": "pro",
+        },
     ]
 
     return coaches_data
@@ -271,7 +272,9 @@ def init_coaches():
 
         for coach_data in coaches_data:
             # Check if coach already exists
-            existing_coach = db.query(Coach).filter(Coach.id == coach_data["id"]).first()
+            existing_coach = (
+                db.query(Coach).filter(Coach.id == coach_data["id"]).first()
+            )
 
             if existing_coach:
                 logger.info(f"Coach {coach_data['id']} already exists, updating...")

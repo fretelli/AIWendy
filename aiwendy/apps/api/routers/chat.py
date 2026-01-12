@@ -1,27 +1,30 @@
 """Chat endpoints for coach conversations."""
 
-import json
 import asyncio
+import json
 from datetime import datetime
+from typing import AsyncIterator, List, Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import and_, select
-from typing import List, Optional, AsyncIterator
 
 from core.auth import get_current_user
 from core.database import get_session
+from core.encryption import get_encryption_service
 from core.i18n import Locale, get_request_locale, t
 from core.logging import get_logger
-from core.encryption import get_encryption_service
-from domain.coach.models import Coach, ChatSession, ChatMessage as ChatMessageDB
+from domain.coach.models import ChatMessage as ChatMessageDB
+from domain.coach.models import ChatSession, Coach
 from domain.knowledge.models import KnowledgeChunk, KnowledgeDocument
 from domain.user.models import User
-from infrastructure.llm.router import get_llm_router
-from infrastructure.llm.base import Message as LLMMessage, MessageContent, ImageContent, LLMConfig
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
+from infrastructure.llm.base import ImageContent, LLMConfig
+from infrastructure.llm.base import Message as LLMMessage
+from infrastructure.llm.base import MessageContent
 from infrastructure.llm.factory import create_llm_provider, llm_factory
+from infrastructure.llm.router import get_llm_router
+from pydantic import BaseModel
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -30,6 +33,7 @@ encryption = get_encryption_service()
 
 class MessageAttachment(BaseModel):
     """Attachment in a chat message."""
+
     id: str
     type: str  # 'image', 'audio', 'pdf', 'word', 'excel', 'ppt', 'text', 'code', 'file'
     fileName: str
@@ -43,6 +47,7 @@ class MessageAttachment(BaseModel):
 
 class ChatMessage(BaseModel):
     """Chat message model."""
+
     role: str
     content: str
     attachments: Optional[List[MessageAttachment]] = None
@@ -50,6 +55,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     """Chat request model."""
+
     coach_id: str
     session_id: Optional[UUID] = None
     messages: List[ChatMessage]
@@ -99,7 +105,9 @@ def _clean_str(value: Optional[str]) -> Optional[str]:
     return cleaned or None
 
 
-def _choose_preferred_model(models: list[str], provider_hint: Optional[str]) -> Optional[str]:
+def _choose_preferred_model(
+    models: list[str], provider_hint: Optional[str]
+) -> Optional[str]:
     cleaned: list[str] = []
     seen = set()
     for item in models:
@@ -149,7 +157,17 @@ def _choose_preferred_model(models: list[str], provider_hint: Optional[str]) -> 
     elif provider_hint == "ollama":
         prefixes = ["llama"]
     else:
-        prefixes = ["gpt-", "claude-", "gemini", "deepseek", "qwen", "moonshot", "glm", "yi", "llama"]
+        prefixes = [
+            "gpt-",
+            "claude-",
+            "gemini",
+            "deepseek",
+            "qwen",
+            "moonshot",
+            "glm",
+            "yi",
+            "llama",
+        ]
 
     for prefix in prefixes:
         for model in cleaned:
@@ -175,7 +193,11 @@ def _build_provider_from_llm_config(cfg: dict):
     if provider_type == "custom":
         cfg_copy = cfg.copy()
         cfg_copy["api_key"] = api_key
-        return llm_factory.create_custom_provider_from_dict(cfg_copy), provider_type, cfg
+        return (
+            llm_factory.create_custom_provider_from_dict(cfg_copy),
+            provider_type,
+            cfg,
+        )
 
     provider = create_llm_provider(
         provider=provider_type,
@@ -208,7 +230,9 @@ async def _retrieve_kb_context(
     for name, provider in llm_router.providers.items():
         if name not in ("openai", "ollama", "anthropic"):
             # 检查 custom provider 是否支持 embedding
-            if hasattr(provider, 'config') and getattr(provider.config, 'supports_embeddings', False):
+            if hasattr(provider, "config") and getattr(
+                provider.config, "supports_embeddings", False
+            ):
                 provider_order.append(name)
 
     for provider_name in provider_order:
@@ -277,9 +301,7 @@ async def stream_llm_response(
 
         # Get the streaming response from LLM
         stream = await llm_router.chat_stream_with_fallback(
-            messages=messages,
-            config=config,
-            preferred_provider=provider
+            messages=messages, config=config, preferred_provider=provider
         )
 
         # Stream the response chunks
@@ -293,6 +315,7 @@ async def stream_llm_response(
 
     except Exception as e:
         import traceback
+
         error_traceback = traceback.format_exc()
         logger.error(
             f"Error in streaming response: {str(e)}\n"
@@ -324,7 +347,9 @@ async def chat_with_coach(
             )
             chat_session = result.scalar_one_or_none()
             if not chat_session:
-                raise HTTPException(status_code=404, detail=t("errors.chat_session_not_found", locale))
+                raise HTTPException(
+                    status_code=404, detail=t("errors.chat_session_not_found", locale)
+                )
             if chat_session.coach_id != request.coach_id:
                 raise HTTPException(
                     status_code=400,
@@ -348,14 +373,20 @@ async def chat_with_coach(
                     detail=t("errors.llm_configuration_inactive", locale),
                 )
             try:
-                selected_provider, selected_provider_type, selected_cfg = _build_provider_from_llm_config(cfg)
+                selected_provider, selected_provider_type, selected_cfg = (
+                    _build_provider_from_llm_config(cfg)
+                )
             except HTTPException:
                 raise
             except Exception as e:
-                logger.error(f"Failed to build provider from config: {e}", exc_info=True)
+                logger.error(
+                    f"Failed to build provider from config: {e}", exc_info=True
+                )
                 raise HTTPException(
                     status_code=400,
-                    detail=t("errors.llm_configuration_use_failed", locale, detail=str(e)),
+                    detail=t(
+                        "errors.llm_configuration_use_failed", locale, detail=str(e)
+                    ),
                 )
 
         # Create user-specific router
@@ -384,12 +415,14 @@ async def chat_with_coach(
                 # Add extracted text from documents and audio
                 extra_context = []
                 for att in msg.attachments:
-                    if att.type == 'image' and att.base64Data:
+                    if att.type == "image" and att.base64Data:
                         # Add image content for vision models
-                        content_parts.append(MessageContent(
-                            type="image_url",
-                            image_url=ImageContent(url=att.base64Data)
-                        ))
+                        content_parts.append(
+                            MessageContent(
+                                type="image_url",
+                                image_url=ImageContent(url=att.base64Data),
+                            )
+                        )
                     elif att.extractedText:
                         # Add extracted document text as context
                         extra_context.append(
@@ -409,21 +442,31 @@ async def chat_with_coach(
                         # Append to existing text content
                         content_parts[0] = MessageContent(
                             type="text",
-                            text=f"{content_parts[0].text}\n\n{section}:\n{context_text}"
+                            text=f"{content_parts[0].text}\n\n{section}:\n{context_text}",
                         )
                     else:
                         # Insert text content at beginning
-                        content_parts.insert(0, MessageContent(
-                            type="text",
-                            text=f"{section}:\n{context_text}"
-                        ))
+                        content_parts.insert(
+                            0,
+                            MessageContent(
+                                type="text", text=f"{section}:\n{context_text}"
+                            ),
+                        )
 
                 # If we have multimodal content, use content list
-                if len(content_parts) > 1 or (len(content_parts) == 1 and content_parts[0].type == "image_url"):
-                    llm_messages.append(LLMMessage(role=msg.role, content=content_parts))
+                if len(content_parts) > 1 or (
+                    len(content_parts) == 1 and content_parts[0].type == "image_url"
+                ):
+                    llm_messages.append(
+                        LLMMessage(role=msg.role, content=content_parts)
+                    )
                 elif content_parts:
                     # Just text, use simple content
-                    llm_messages.append(LLMMessage(role=msg.role, content=content_parts[0].text or msg.content))
+                    llm_messages.append(
+                        LLMMessage(
+                            role=msg.role, content=content_parts[0].text or msg.content
+                        )
+                    )
                 else:
                     llm_messages.append(LLMMessage(role=msg.role, content=msg.content))
             else:
@@ -440,7 +483,9 @@ async def chat_with_coach(
         coach = coach_result.scalar_one_or_none()
 
         if coach and not coach.is_public and coach.created_by != current_user.id:
-            raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
+            raise HTTPException(
+                status_code=403, detail=t("errors.access_denied", locale)
+            )
 
         default_prompt = (
             "You are Wendy, an AI trading psychology performance coach inspired by "
@@ -465,7 +510,11 @@ async def chat_with_coach(
             and (request.knowledge_top_k or 0) > 0
         ):
             last_user_text = next(
-                (m.content for m in reversed(request.messages) if m.role == "user" and m.content.strip()),
+                (
+                    m.content
+                    for m in reversed(request.messages)
+                    if m.role == "user" and m.content.strip()
+                ),
                 "",
             )
             kb_hits = await _retrieve_kb_context(
@@ -488,11 +537,13 @@ async def chat_with_coach(
 
                 kb_message = LLMMessage(
                     role="system",
-                    content=(
-                        t("kb.chat_intro", locale) + "\n\n".join(context_lines)
-                    ),
+                    content=(t("kb.chat_intro", locale) + "\n\n".join(context_lines)),
                 )
-                llm_messages = [system_message, kb_message, language_message] + llm_messages
+                llm_messages = [
+                    system_message,
+                    kb_message,
+                    language_message,
+                ] + llm_messages
             else:
                 llm_messages = [system_message, language_message] + llm_messages
         else:
@@ -500,12 +551,18 @@ async def chat_with_coach(
 
         # Configure LLM settings with request parameters
         requested_model = _clean_str(request.model)
-        configured_model = _clean_str(selected_cfg.get("default_model")) if selected_cfg else None
+        configured_model = (
+            _clean_str(selected_cfg.get("default_model")) if selected_cfg else None
+        )
 
         # Some OpenAI-compatible gateways include internal/placeholder models (e.g. `aqa`) that
         # may exist in `/v1/models` but be unusable unless an admin configures pricing.
         # Only ignore it when it's coming from the saved default (not an explicit user choice).
-        if configured_model and configured_model.lower() == "aqa" and not requested_model:
+        if (
+            configured_model
+            and configured_model.lower() == "aqa"
+            and not requested_model
+        ):
             configured_model = None
 
         model = requested_model or configured_model
@@ -532,15 +589,19 @@ async def chat_with_coach(
 
         provider_hint = selected_provider_type or request.provider
         if not model and provider_hint == "custom" and selected_provider is not None:
-            model = _clean_str(getattr(getattr(selected_provider, "config", None), "default_model", None))
+            model = _clean_str(
+                getattr(
+                    getattr(selected_provider, "config", None), "default_model", None
+                )
+            )
 
         if not model:
-            if provider_hint == 'ollama':
-                model = 'llama3.2:latest'  # Default Ollama model
-            elif provider_hint == 'anthropic':
-                model = 'claude-3-haiku-20240307'  # Default Anthropic model
+            if provider_hint == "ollama":
+                model = "llama3.2:latest"  # Default Ollama model
+            elif provider_hint == "anthropic":
+                model = "claude-3-haiku-20240307"  # Default Anthropic model
             else:
-                model = 'gpt-4o-mini'  # Default OpenAI model
+                model = "gpt-4o-mini"  # Default OpenAI model
 
         if not model:
             raise HTTPException(
@@ -552,19 +613,24 @@ async def chat_with_coach(
             model=model,
             temperature=request.temperature or 0.7,
             max_tokens=request.max_tokens or 1000,
-            stream=request.stream
+            stream=request.stream,
         )
 
         if request.stream:
             # Return streaming response
             if selected_provider:
+
                 async def provider_stream():
                     accumulated = ""
                     try:
                         # Persist the latest user message (server-side history) if session_id is provided
                         if chat_session and request.messages:
                             last_user = next(
-                                (m for m in reversed(request.messages) if m.role == "user" and m.content.strip()),
+                                (
+                                    m
+                                    for m in reversed(request.messages)
+                                    if m.role == "user" and m.content.strip()
+                                ),
                                 None,
                             )
                             if last_user:
@@ -575,17 +641,22 @@ async def chat_with_coach(
                                         content=last_user.content.strip(),
                                     )
                                 )
-                                chat_session.message_count = (chat_session.message_count or 0) + 1
+                                chat_session.message_count = (
+                                    chat_session.message_count or 0
+                                ) + 1
                                 chat_session.updated_at = datetime.utcnow()
                                 await session.commit()
 
-                        async for chunk in selected_provider.chat_stream(llm_messages, config):
+                        async for chunk in selected_provider.chat_stream(
+                            llm_messages, config
+                        ):
                             accumulated += chunk
                             yield f"data: {json.dumps({'content': chunk})}\n\n"
                             await asyncio.sleep(0.01)
                         yield f"data: {json.dumps({'done': True})}\n\n"
                     except Exception as e:
                         import traceback
+
                         error_traceback = traceback.format_exc()
                         logger.error(
                             f"Error in provider streaming response: {str(e)}\n"
@@ -605,7 +676,9 @@ async def chat_with_coach(
                                     content=accumulated,
                                 )
                             )
-                            chat_session.message_count = (chat_session.message_count or 0) + 1
+                            chat_session.message_count = (
+                                chat_session.message_count or 0
+                            ) + 1
                             chat_session.updated_at = datetime.utcnow()
                             await session.commit()
 
@@ -616,7 +689,7 @@ async def chat_with_coach(
                         "Cache-Control": "no-cache",
                         "Connection": "keep-alive",
                         "X-Accel-Buffering": "no",  # Disable Nginx buffering
-                    }
+                    },
                 )
 
             async def router_stream():
@@ -625,7 +698,11 @@ async def chat_with_coach(
                     # Persist the latest user message (server-side history) if session_id is provided
                     if chat_session and request.messages:
                         last_user = next(
-                            (m for m in reversed(request.messages) if m.role == "user" and m.content.strip()),
+                            (
+                                m
+                                for m in reversed(request.messages)
+                                if m.role == "user" and m.content.strip()
+                            ),
                             None,
                         )
                         if last_user:
@@ -636,7 +713,9 @@ async def chat_with_coach(
                                     content=last_user.content.strip(),
                                 )
                             )
-                            chat_session.message_count = (chat_session.message_count or 0) + 1
+                            chat_session.message_count = (
+                                chat_session.message_count or 0
+                            ) + 1
                             chat_session.updated_at = datetime.utcnow()
                             await session.commit()
 
@@ -657,7 +736,9 @@ async def chat_with_coach(
                                 if not payload:
                                     continue
                                 parsed = json.loads(payload)
-                                if isinstance(parsed, dict) and isinstance(parsed.get("content"), str):
+                                if isinstance(parsed, dict) and isinstance(
+                                    parsed.get("content"), str
+                                ):
                                     accumulated += parsed["content"]
                         except Exception:
                             pass
@@ -672,7 +753,9 @@ async def chat_with_coach(
                                 content=accumulated,
                             )
                         )
-                        chat_session.message_count = (chat_session.message_count or 0) + 1
+                        chat_session.message_count = (
+                            chat_session.message_count or 0
+                        ) + 1
                         chat_session.updated_at = datetime.utcnow()
                         await session.commit()
 
@@ -693,12 +776,16 @@ async def chat_with_coach(
                 response = await llm_router.chat_with_fallback(
                     messages=llm_messages,
                     config=config,
-                    preferred_provider=request.provider
+                    preferred_provider=request.provider,
                 )
 
             if chat_session and request.messages:
                 last_user = next(
-                    (m for m in reversed(request.messages) if m.role == "user" and m.content.strip()),
+                    (
+                        m
+                        for m in reversed(request.messages)
+                        if m.role == "user" and m.content.strip()
+                    ),
                     None,
                 )
                 if last_user:
@@ -735,10 +822,7 @@ async def chat_with_coach(
         raise
     except Exception as e:
         logger.error(f"Chat error: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=t("errors.internal", locale)
-        )
+        raise HTTPException(status_code=500, detail=t("errors.internal", locale))
 
 
 @router.get("/sessions")

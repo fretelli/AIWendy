@@ -1,29 +1,17 @@
 """Journal domain models."""
 
 import enum
+# from pgvector.sqlalchemy import Vector  # Commented out until pgvector is installed
+import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    Enum,
-    ForeignKey,
-    Float,
-    Integer,
-    String,
-    Text,
-    JSON,
-    Index,
-)
+from core.database import Base
+from sqlalchemy import (JSON, Boolean, Column, DateTime, Enum, Float,
+                        ForeignKey, Index, Integer, String, Text)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
-# from pgvector.sqlalchemy import Vector  # Commented out until pgvector is installed
-import uuid
-
-from core.database import Base
 
 
 class TradeDirection(str, enum.Enum):

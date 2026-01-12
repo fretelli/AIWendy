@@ -10,11 +10,10 @@ from __future__ import annotations
 
 import os
 
-from sqlalchemy import text
-
 from config import get_settings
 from core.database import engine
 from core.logging import get_logger
+from sqlalchemy import text
 
 logger = get_logger(__name__)
 
@@ -122,9 +121,13 @@ async def ensure_dev_schema() -> None:
             )
         )
 
-        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_users_email ON users(email);"))
         await conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_users_email_active ON users(email, is_active);")
+            text("CREATE INDEX IF NOT EXISTS ix_users_email ON users(email);")
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_users_email_active ON users(email, is_active);"
+            )
         )
         await conn.execute(
             text(
@@ -156,7 +159,9 @@ async def ensure_dev_schema() -> None:
             text("ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS device_info JSON;")
         )
         await conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_user_sessions_user_id ON user_sessions(user_id);")
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_user_sessions_user_id ON user_sessions(user_id);"
+            )
         )
         await conn.execute(
             text(
@@ -164,7 +169,9 @@ async def ensure_dev_schema() -> None:
             )
         )
         await conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_user_sessions_expires_at ON user_sessions(expires_at);")
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_user_sessions_expires_at ON user_sessions(expires_at);"
+            )
         )
 
         # Projects (workspaces)
@@ -198,10 +205,14 @@ async def ensure_dev_schema() -> None:
         )
 
         await conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_projects_user_updated ON projects(user_id, updated_at);")
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_projects_user_updated ON projects(user_id, updated_at);"
+            )
         )
         await conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_projects_user_default ON projects(user_id, is_default);")
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_projects_user_default ON projects(user_id, is_default);"
+            )
         )
 
         # Coaches + chat history (sessions/messages)
@@ -266,10 +277,14 @@ async def ensure_dev_schema() -> None:
         )
 
         await conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_coaches_style_active ON coaches(style, is_active);")
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_coaches_style_active ON coaches(style, is_active);"
+            )
         )
         await conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_coaches_public_premium ON coaches(is_public, is_premium);")
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_coaches_public_premium ON coaches(is_public, is_premium);"
+            )
         )
 
         # Ensure default coaches exist for dev (all 5 coaches)
@@ -753,7 +768,11 @@ async def ensure_dev_schema() -> None:
         )
 
         # Ensure the vector column exists for older schemas
-        await conn.execute(text("ALTER TABLE knowledge_chunks ADD COLUMN IF NOT EXISTS embedding_vector vector;"))
+        await conn.execute(
+            text(
+                "ALTER TABLE knowledge_chunks ADD COLUMN IF NOT EXISTS embedding_vector vector;"
+            )
+        )
 
         # Partial ANN indexes per common embedding dims.
         #
@@ -883,12 +902,20 @@ async def ensure_dev_schema() -> None:
         )
 
         await conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_journals_user_date ON journals(user_id, trade_date);")
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_journals_user_date ON journals(user_id, trade_date);"
+            )
         )
-        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_journals_symbol ON journals(symbol);"))
-        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_journals_result ON journals(result);"))
         await conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_journals_user_result ON journals(user_id, result);")
+            text("CREATE INDEX IF NOT EXISTS ix_journals_symbol ON journals(symbol);")
+        )
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_journals_result ON journals(result);")
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_journals_user_result ON journals(user_id, result);"
+            )
         )
 
         # Add project grouping to journals when projects exist
@@ -1005,7 +1032,9 @@ async def ensure_dev_schema() -> None:
         )
 
         await conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_reports_user_type ON reports(user_id, report_type);")
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_reports_user_type ON reports(user_id, report_type);"
+            )
         )
         await conn.execute(
             text(
@@ -1017,7 +1046,9 @@ async def ensure_dev_schema() -> None:
                 "CREATE INDEX IF NOT EXISTS ix_reports_user_project_period ON reports(user_id, project_id, period_start);"
             )
         )
-        await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_reports_status ON reports(status);"))
+        await conn.execute(
+            text("CREATE INDEX IF NOT EXISTS ix_reports_status ON reports(status);")
+        )
 
         await conn.execute(
             text(
@@ -1060,7 +1091,9 @@ async def ensure_dev_schema() -> None:
         )
 
         await conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_report_schedules_user ON report_schedules(user_id);")
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_report_schedules_user ON report_schedules(user_id);"
+            )
         )
 
         await conn.execute(
@@ -1323,13 +1356,19 @@ async def ensure_dev_schema() -> None:
             )
         )
         await conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_payments_user_status ON payments(user_id, status);")
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_payments_user_status ON payments(user_id, status);"
+            )
         )
         await conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_payments_stripe_intent ON payments(stripe_payment_intent_id);")
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_payments_stripe_intent ON payments(stripe_payment_intent_id);"
+            )
         )
         await conn.execute(
-            text("CREATE INDEX IF NOT EXISTS ix_promo_codes_code_active ON promo_codes(code, is_active);")
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_promo_codes_code_active ON promo_codes(code, is_active);"
+            )
         )
 
         # Default plans (idempotent)

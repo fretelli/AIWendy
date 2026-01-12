@@ -1,11 +1,13 @@
 """Ollama LLM provider for local model support."""
 
-from typing import AsyncIterator, List, Optional
-import aiohttp
 import json
 import os
-from .base import LLMProvider, Message, LLMConfig
+from typing import AsyncIterator, List, Optional
+
+import aiohttp
 from core.logging import get_logger
+
+from .base import LLMConfig, LLMProvider, Message
 
 logger = get_logger(__name__)
 
@@ -20,8 +22,10 @@ class OllamaProvider(LLMProvider):
         Args:
             base_url: Base URL for Ollama API (default: http://localhost:11434)
         """
-        self.base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        self.base_url = self.base_url.rstrip('/')
+        self.base_url = base_url or os.getenv(
+            "OLLAMA_BASE_URL", "http://localhost:11434"
+        )
+        self.base_url = self.base_url.rstrip("/")
 
     async def chat(
         self,
@@ -32,7 +36,7 @@ class OllamaProvider(LLMProvider):
         result = []
         async for chunk in self.chat_stream(messages, config):
             result.append(chunk)
-        return ''.join(result)
+        return "".join(result)
 
     async def chat_stream(
         self,
@@ -42,8 +46,7 @@ class OllamaProvider(LLMProvider):
         """Send chat request and stream response."""
         # Convert messages to Ollama format
         formatted_messages = [
-            {"role": msg.role, "content": msg.content}
-            for msg in messages
+            {"role": msg.role, "content": msg.content} for msg in messages
         ]
 
         # Prepare request data
@@ -54,7 +57,7 @@ class OllamaProvider(LLMProvider):
             "options": {
                 "temperature": config.temperature,
                 "top_p": config.top_p,
-            }
+            },
         }
 
         if config.max_tokens:
@@ -65,11 +68,13 @@ class OllamaProvider(LLMProvider):
                 async with session.post(
                     f"{self.base_url}/api/chat",
                     json=data,
-                    headers={"Content-Type": "application/json"}
+                    headers={"Content-Type": "application/json"},
                 ) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        logger.error(f"Ollama API error: {response.status} - {error_text}")
+                        logger.error(
+                            f"Ollama API error: {response.status} - {error_text}"
+                        )
                         yield f"Error: Ollama API returned status {response.status}"
                         return
 
@@ -77,11 +82,11 @@ class OllamaProvider(LLMProvider):
                         if line:
                             try:
                                 chunk = json.loads(line)
-                                if 'message' in chunk:
-                                    content = chunk['message'].get('content', '')
+                                if "message" in chunk:
+                                    content = chunk["message"].get("content", "")
                                     if content:
                                         yield content
-                                if chunk.get('done', False):
+                                if chunk.get("done", False):
                                     break
                             except json.JSONDecodeError as e:
                                 logger.debug(f"Failed to parse JSON: {line}")
@@ -103,21 +108,18 @@ class OllamaProvider(LLMProvider):
         # Use default embedding model if not specified
         model = model or "nomic-embed-text"
 
-        data = {
-            "model": model,
-            "prompt": text
-        }
+        data = {"model": model, "prompt": text}
 
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     f"{self.base_url}/api/embeddings",
                     json=data,
-                    headers={"Content-Type": "application/json"}
+                    headers={"Content-Type": "application/json"},
                 ) as response:
                     if response.status == 200:
                         result = await response.json()
-                        return result.get('embedding', [])
+                        return result.get("embedding", [])
                     else:
                         logger.error(f"Ollama embedding error: {response.status}")
                         return []
@@ -157,8 +159,8 @@ class OllamaProvider(LLMProvider):
                 async with session.get(f"{self.base_url}/api/tags") as response:
                     if response.status == 200:
                         data = await response.json()
-                        models = data.get('models', [])
-                        return [model['name'] for model in models]
+                        models = data.get("models", [])
+                        return [model["name"] for model in models]
                     return []
         except Exception as e:
             logger.error(f"Failed to list Ollama models: {e}")
@@ -180,17 +182,17 @@ class OllamaProvider(LLMProvider):
                 async with session.post(
                     f"{self.base_url}/api/pull",
                     data=data,
-                    headers={"Content-Type": "application/json"}
+                    headers={"Content-Type": "application/json"},
                 ) as response:
                     async for line in response.content:
                         if line:
                             try:
                                 progress = json.loads(line)
-                                if 'status' in progress:
-                                    status = progress['status']
-                                    if 'completed' in progress and 'total' in progress:
-                                        completed = progress['completed']
-                                        total = progress['total']
+                                if "status" in progress:
+                                    status = progress["status"]
+                                    if "completed" in progress and "total" in progress:
+                                        completed = progress["completed"]
+                                        total = progress["total"]
                                         yield f"{status}: {completed}/{total}"
                                     else:
                                         yield status

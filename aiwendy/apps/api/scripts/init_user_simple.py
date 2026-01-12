@@ -11,31 +11,34 @@ This will create test users with:
 """
 
 import asyncio
-import sys
 import os
-from pathlib import Path
-from datetime import datetime
+import sys
 import uuid
+from datetime import datetime
+from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy import text
-from config import get_settings
 import logging
+
 import bcrypt
+from config import get_settings
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+
 
 def hash_password_simple(password: str) -> str:
     """Simple password hashing using bcrypt directly."""
     # Encode password to bytes and hash it
-    password_bytes = password.encode('utf-8')
+    password_bytes = password.encode("utf-8")
     # Truncate to 72 bytes if needed (bcrypt limitation)
     if len(password_bytes) > 72:
         password_bytes = password_bytes[:72]
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password_bytes, salt)
-    return hashed.decode('utf-8')
+    return hashed.decode("utf-8")
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -46,15 +49,15 @@ TEST_USERS = [
         "email": "test@example.com",
         "password": "Test@1234",
         "full_name": "Test User",
-        "subscription_tier": "free"
+        "subscription_tier": "free",
     },
     {
         "email": "admin@aiwendy.com",
         "password": "Admin@123",
         "full_name": "Admin User",
         "subscription_tier": "elite",
-        "is_admin": True
-    }
+        "is_admin": True,
+    },
 ]
 
 
@@ -63,11 +66,7 @@ async def create_test_users():
     settings = get_settings()
 
     # Create database engine
-    engine = create_async_engine(
-        settings.database_url,
-        echo=False,
-        pool_pre_ping=True
-    )
+    engine = create_async_engine(settings.database_url, echo=False, pool_pre_ping=True)
 
     created_users = []
     skipped_users = []
@@ -78,12 +77,14 @@ async def create_test_users():
                 # Check if user already exists
                 result = await conn.execute(
                     text("SELECT id FROM users WHERE email = :email"),
-                    {"email": user_data["email"]}
+                    {"email": user_data["email"]},
                 )
                 existing_user = result.fetchone()
 
                 if existing_user:
-                    logger.info(f"User {user_data['email']} already exists, skipping...")
+                    logger.info(
+                        f"User {user_data['email']} already exists, skipping..."
+                    )
                     skipped_users.append(user_data["email"])
                     continue
 
@@ -93,7 +94,8 @@ async def create_test_users():
                 now = datetime.utcnow()
 
                 await conn.execute(
-                    text("""
+                    text(
+                        """
                         INSERT INTO users (
                             id, email, hashed_password, full_name,
                             subscription_tier, is_active, is_admin,
@@ -103,7 +105,8 @@ async def create_test_users():
                             :subscription_tier, :is_active, :is_admin,
                             :created_at, :updated_at
                         )
-                    """),
+                    """
+                    ),
                     {
                         "id": user_id,
                         "email": user_data["email"],
@@ -113,8 +116,8 @@ async def create_test_users():
                         "is_active": True,
                         "is_admin": user_data.get("is_admin", False),
                         "created_at": now,
-                        "updated_at": now
-                    }
+                        "updated_at": now,
+                    },
                 )
 
                 logger.info(f"Created user: {user_data['email']}")
@@ -164,6 +167,7 @@ async def main():
     except Exception as e:
         print(f"\n❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
