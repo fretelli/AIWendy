@@ -10,6 +10,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-01-11
+
+### Added
+- Git Flow branch strategy for better collaboration
+- Automated release workflow via GitHub Actions
+- Branch protection guidelines in CONTRIBUTING.md
+
+### Changed
+- Updated documentation to reflect new branching model
+- Version bumped to 1.0.0 for official release
+
 ## [0.1.0] - 2026-01-09
 
 Initial open-source release (Community edition).
@@ -25,6 +36,17 @@ Initial open-source release (Community edition).
 并遵循 [语义化版本](https://semver.org/spec/v2.0.0.html)。
 
 ## [未发布]
+
+## [1.0.0] - 2026-01-11
+
+### 新增
+- Git Flow 分支策略，更好地支持协作开发
+- 通过 GitHub Actions 实现自动化发布流程
+- 在 CONTRIBUTING.md 中添加分支保护指南
+
+### 变更
+- 更新文档以反映新的分支管理模型
+- 版本号升级至 1.0.0，正式发布
 
 ## [0.1.0] - 2026-01-09
 
