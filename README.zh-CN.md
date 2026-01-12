@@ -76,11 +76,13 @@ docker compose up -d --build
 
 ## 文档
 
-- 从这里开始：`docs/README.md`
-- 仓库导览：`docs/PROJECT_OVERVIEW.md`
-- 应用文档：`aiwendy/docs/README.md`
+- 从这里开始：`aiwendy/docs/README.md`
 - 架构：`aiwendy/docs/ARCHITECTURE.md`
 - 部署：`aiwendy/docs/DEPLOYMENT.md`
+- 自托管：`aiwendy/docs/SELF_HOSTING.md`
+- 部署模式：`aiwendy/docs/DEPLOYMENT_MODES.md`
+- 自定义 API：`aiwendy/docs/CUSTOM_API_SETUP.md`
+- 国际化：`aiwendy/docs/I18N_GUIDE.md`
 
 ## 贡献与安全
 
