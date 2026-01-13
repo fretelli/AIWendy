@@ -15,14 +15,26 @@ from core.logging import get_logger
 settings = get_settings()
 logger = get_logger(__name__)
 
+# Determine if we're using SQLite (which doesn't support pool_size/max_overflow)
+_is_sqlite = "sqlite" in settings.database_url.lower()
+
 # Create async engine (for async endpoints)
-engine = create_async_engine(
-    settings.database_url,
-    echo=settings.database_echo,
-    pool_size=settings.database_pool_size,
-    max_overflow=settings.database_max_overflow,
-    pool_pre_ping=True,  # Check connection health
-)
+if _is_sqlite:
+    # SQLite doesn't support pool_size and max_overflow
+    engine = create_async_engine(
+        settings.database_url,
+        echo=settings.database_echo,
+        connect_args={"check_same_thread": False},  # Allow SQLite to be used across threads
+    )
+else:
+    # PostgreSQL and other databases support connection pooling
+    engine = create_async_engine(
+        settings.database_url,
+        echo=settings.database_echo,
+        pool_size=settings.database_pool_size,
+        max_overflow=settings.database_max_overflow,
+        pool_pre_ping=True,  # Check connection health
+    )
 
 # Create session factory
 async_session = async_sessionmaker(
