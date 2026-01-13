@@ -212,3 +212,7 @@ AIWendy 支持两种模式：
 - **Cloud/SaaS**：多租户、计费、企业 SSO、分析（仅在 `DEPLOYMENT_MODE=cloud` 时启用）
 
 详见：`docs/DEPLOYMENT_MODES.md`
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=fretelli/AIWendy&type=Date)](https://star-history.com/#fretelli/AIWendy&Date)
