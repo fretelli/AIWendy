@@ -210,6 +210,8 @@ async def refresh_token(
 
         # Get user
         user_id = payload.get("sub")
+        old_session_id = payload.get("session_id")
+
         result = await session.execute(
             select(User).where(User.id == user_id, User.is_active == True)
         )
@@ -218,15 +220,54 @@ async def refresh_token(
         if not user:
             raise InvalidCredentialsError()
 
-        # Create new tokens
-        token_data = {"sub": str(user.id)}
-        access_token = create_access_token(token_data)
+        # Verify old session is still valid (if session_id exists)
+        if old_session_id:
+            from core.cache import get_redis_client
 
-        logger.info("Token refreshed", user_id=str(user.id))
+            redis_client = get_redis_client()
+            session_key = f"session:{old_session_id}"
+            stored_user_id = redis_client.get(session_key)
+
+            if not stored_user_id or str(stored_user_id) != str(user_id):
+                raise InvalidCredentialsError()
+
+            # Revoke old session
+            redis_client.delete(session_key)
+
+        # Create new session
+        user_session = UserSession(
+            user_id=user.id,
+            expires_at=datetime.utcnow() + timedelta(minutes=settings.jwt_expire_minutes),
+        )
+        session.add(user_session)
+        await session.flush()
+
+        # Create new tokens with new session_id
+        token_data = {"sub": str(user.id), "session_id": str(user_session.id)}
+        access_token = create_access_token(token_data)
+        refresh_token_new = create_refresh_token(token_data)
+
+        # Update session with tokens
+        user_session.access_token = access_token
+        user_session.refresh_token = refresh_token_new
+        await session.commit()
+
+        # Store new session in Redis
+        from core.cache import get_redis_client
+
+        redis_client = get_redis_client()
+        new_session_key = f"session:{user_session.id}"
+        redis_client.setex(
+            new_session_key,
+            settings.jwt_expire_minutes * 60,
+            str(user.id),
+        )
+
+        logger.info("Token refreshed with new session", user_id=str(user.id))
 
         return TokenResponse(
             access_token=access_token,
-            refresh_token=request.refresh_token,
+            refresh_token=refresh_token_new,
             expires_in=settings.jwt_expire_minutes * 60,
         )
 

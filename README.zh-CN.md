@@ -69,6 +69,8 @@ AIWendy 代表了行为金融学从理论到实践的演进：
 
 ## 截图 / 演示
 
+> **注意**: 以下截图为英文界面演示。应用支持中文界面，可在设置中切换语言。
+
 ![概览](docs/assets/overview.svg)
 
 ![圆桌讨论](docs/assets/roundtable.svg)
