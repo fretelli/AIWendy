@@ -4,12 +4,13 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.logging import get_logger
 from domain.journal.models import Journal
 from domain.journal.schemas import JournalResponse, JournalStatistics
 from services.llm_router import LLMRouter
-from sqlalchemy import and_, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 

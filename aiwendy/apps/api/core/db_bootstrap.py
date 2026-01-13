@@ -10,10 +10,11 @@ from __future__ import annotations
 
 import os
 
+from sqlalchemy import text
+
 from config import get_settings
 from core.database import engine
 from core.logging import get_logger
-from sqlalchemy import text
 
 logger = get_logger(__name__)
 

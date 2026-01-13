@@ -11,10 +11,11 @@ from uuid import uuid4
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sqlalchemy import text
+
 from core.database import async_session
 from core.encryption import get_encryption_service
 from core.logging import get_logger
-from sqlalchemy import text
 
 logger = get_logger(__name__)
 

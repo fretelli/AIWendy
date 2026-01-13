@@ -5,16 +5,17 @@ import uuid
 from typing import Callable, Optional
 
 import structlog
-from config import get_settings
-from core.database import async_session
-from core.i18n import get_request_locale, t
-from core.ratelimit import RateLimiter, get_rate_limiter
-from domain.user.models import User
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from jose import JWTError, jwt
 from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
+
+from config import get_settings
+from core.database import async_session
+from core.i18n import get_request_locale, t
+from core.ratelimit import RateLimiter, get_rate_limiter
+from domain.user.models import User
 
 settings = get_settings()
 

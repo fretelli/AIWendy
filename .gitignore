@@ -20,6 +20,7 @@ Thumbs.db
 # Node/Next
 node_modules/
 .next/
+.swc/
 out/
 *.tsbuildinfo
 
@@ -29,6 +30,8 @@ build/
 *.egg-info/
 *.so
 .Python
+*.pyc
+__pycache__/
 
 # Docker volumes (if created locally)
 postgres_data/

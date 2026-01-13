@@ -4,8 +4,9 @@ import base64
 import os
 from typing import Optional
 
-from config import get_settings
 from cryptography.fernet import Fernet
+
+from config import get_settings
 
 settings = get_settings()
 

@@ -8,6 +8,11 @@ from uuid import UUID
 
 from celery import states
 from celery.result import AsyncResult
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.auth import get_current_user
 from core.cache_service import get_cache_service
 from core.database import get_session
@@ -16,15 +21,13 @@ from core.logging import get_logger
 from core.task_events import record_task_owner, task_event_channel
 from domain.knowledge.models import KnowledgeDocument
 from domain.user.models import User
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
-from sqlalchemy.ext.asyncio import AsyncSession
 from workers.celery_app import celery_app
 from workers.knowledge_tasks import ingest_knowledge_document, semantic_search
-from workers.report_tasks import (generate_daily_report,
-                                  generate_monthly_report,
-                                  generate_weekly_report)
+from workers.report_tasks import (
+    generate_daily_report,
+    generate_monthly_report,
+    generate_weekly_report,
+)
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 logger = get_logger(__name__)
@@ -548,6 +551,20 @@ async def cancel_task(
     """
     locale = get_request_locale(http_request)
     try:
+        # Check task ownership (security fix)
+        cache = get_cache_service()
+        redis_client = await cache.async_client
+        owner = await redis_client.get(f"task:owner:{task_id}")
+
+        # Verify authorization: owner must match current user OR user must be admin
+        if owner and (str(owner) != str(current_user.id)) and (not current_user.is_admin):
+            logger.warning(
+                f"User {current_user.id} attempted to cancel task {task_id} owned by {owner}"
+            )
+            raise HTTPException(
+                status_code=403, detail=t("errors.access_denied", locale)
+            )
+
         # Get task result
         result = AsyncResult(task_id, app=celery_app)
 
@@ -557,9 +574,6 @@ async def cancel_task(
                 status_code=400,
                 detail=t("errors.task_already_completed", locale, task_id=task_id),
             )
-
-        # TODO: Add user validation (check if task belongs to user)
-        # This would require storing user_id with task metadata
 
         # Revoke the task
         celery_app.control.revoke(task_id, terminate=True)
