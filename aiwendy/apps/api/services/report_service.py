@@ -6,17 +6,23 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
+from sqlalchemy import and_
+from sqlalchemy.orm import Session
+
 from core.database import get_db
 from core.i18n import DEFAULT_LOCALE, Locale, normalize_locale, t
 from domain.coach.models import ChatSession
 from domain.journal.models import Journal
 from domain.project.models import Project
-from domain.report.models import (Report, ReportSchedule, ReportStatus,
-                                  ReportTemplate, ReportType)
+from domain.report.models import (
+    Report,
+    ReportSchedule,
+    ReportStatus,
+    ReportTemplate,
+    ReportType,
+)
 from domain.user.models import User
 from services.llm_router import LLMRouter
-from sqlalchemy import and_
-from sqlalchemy.orm import Session
 
 
 class ReportService:

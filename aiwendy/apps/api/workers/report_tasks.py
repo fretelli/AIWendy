@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 from uuid import UUID
 
 from celery import Task
+
 from core.database import SessionLocal
 from core.logging import get_logger
 from core.task_events import publish_task_event

@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from celery import Task
+from sqlalchemy import and_, select
+
 from core.cache import get_redis_client
 from core.cache_keys import knowledge_search_key
 from core.database import SessionLocal
@@ -17,7 +19,6 @@ from domain.knowledge.chunking import chunk_text
 from domain.knowledge.models import KnowledgeChunk, KnowledgeDocument
 from domain.user.models import User
 from infrastructure.llm.router import get_llm_router
-from sqlalchemy import and_, select
 from workers.celery_app import celery_app
 
 logger = get_logger(__name__)
