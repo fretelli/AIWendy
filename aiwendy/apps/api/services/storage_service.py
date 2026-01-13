@@ -103,10 +103,24 @@ class LocalStorageProvider(StorageProvider):
         Returns:
             True if deleted successfully, False otherwise
         """
+        # Validate path to prevent directory traversal
+        if not self._is_safe_path(path):
+            logger.warning(f"Rejected unsafe path for deletion: {path}")
+            return False
+
         full_path = self.base_path / path
+
+        # Verify path is within base directory
         try:
-            if full_path.exists():
-                full_path.unlink()
+            resolved_path = full_path.resolve()
+            base_resolved = self.base_path.resolve()
+
+            if not str(resolved_path).startswith(str(base_resolved)):
+                logger.warning(f"Path traversal attempt in delete: {path}")
+                return False
+
+            if resolved_path.exists():
+                resolved_path.unlink()
                 logger.info(f"File deleted: {path}")
                 return True
             return False
@@ -122,12 +136,60 @@ class LocalStorageProvider(StorageProvider):
             path: Relative storage path
 
         Returns:
-            Full Path object if file exists, None otherwise
+            Full Path object if file exists and is within base_path, None otherwise
         """
+        # Validate path to prevent directory traversal
+        if not self._is_safe_path(path):
+            logger.warning(f"Rejected unsafe path: {path}")
+            return None
+
         full_path = self.base_path / path
-        if full_path.exists():
-            return full_path
+
+        # Resolve to absolute path and verify it's within base_path
+        try:
+            resolved_path = full_path.resolve()
+            base_resolved = self.base_path.resolve()
+
+            # Check if resolved path is within base directory
+            if not str(resolved_path).startswith(str(base_resolved)):
+                logger.warning(f"Path traversal attempt detected: {path}")
+                return None
+
+            if resolved_path.exists():
+                return resolved_path
+        except Exception as e:
+            logger.error(f"Error resolving path {path}: {e}")
+
         return None
+
+    def _is_safe_path(self, path: str) -> bool:
+        """
+        Check if a path is safe (no directory traversal attempts).
+
+        Args:
+            path: Path to validate
+
+        Returns:
+            True if path is safe, False otherwise
+        """
+        # Reject paths with directory traversal patterns
+        dangerous_patterns = ["../", "..\\", "..", "~", "/", "\\"]
+
+        # Check for absolute paths
+        if Path(path).is_absolute():
+            return False
+
+        # Check for dangerous patterns at start of path
+        for pattern in dangerous_patterns:
+            if path.startswith(pattern):
+                return False
+
+        # Check for .. anywhere in path components
+        path_parts = Path(path).parts
+        if ".." in path_parts:
+            return False
+
+        return True
 
     def _sanitize_filename(self, filename: str) -> str:
         """
