@@ -17,13 +17,19 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from config import get_settings
-from core.database import engine, get_db_session
-from domain.tenant.models import (Tenant, TenantMember, TenantPlan, TenantRole,
-                                  TenantStatus)
-from domain.user.models import User
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from config import get_settings
+from core.database import engine, get_db_session
+from domain.tenant.models import (
+    Tenant,
+    TenantMember,
+    TenantPlan,
+    TenantRole,
+    TenantStatus,
+)
+from domain.user.models import User
 
 
 async def create_default_tenant(session: AsyncSession) -> Tenant:

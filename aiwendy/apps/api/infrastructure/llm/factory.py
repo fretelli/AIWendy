@@ -7,10 +7,13 @@ from config import get_settings
 from core.logging import get_logger
 from infrastructure.llm.anthropic_provider import AnthropicProvider
 from infrastructure.llm.base import LLMProvider
-from infrastructure.llm.custom_api_provider import (APIFormat, AuthType,
-                                                    CustomAPIConfig,
-                                                    CustomAPIProvider,
-                                                    create_custom_provider)
+from infrastructure.llm.custom_api_provider import (
+    APIFormat,
+    AuthType,
+    CustomAPIConfig,
+    CustomAPIProvider,
+    create_custom_provider,
+)
 from infrastructure.llm.ollama_advanced import AdvancedOllamaProvider
 from infrastructure.llm.ollama_provider import OllamaProvider
 from infrastructure.llm.openai_provider import OpenAIProvider

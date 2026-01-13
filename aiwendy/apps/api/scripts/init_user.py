@@ -21,12 +21,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import logging
 from datetime import datetime
 
-from config import get_settings
-# Import all models to ensure relationships are established
-from domain.user.models import SubscriptionTier, User
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
+
+from config import get_settings
+
+# Import all models to ensure relationships are established
+from domain.user.models import SubscriptionTier, User
 
 try:
     from domain.journal.models import Journal

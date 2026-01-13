@@ -9,10 +9,11 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 import logging
 
-from core.database import get_db_url
-from domain.coach.models import Coach, CoachStyle, LLMProvider
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+
+from core.database import get_db_url
+from domain.coach.models import Coach, CoachStyle, LLMProvider
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

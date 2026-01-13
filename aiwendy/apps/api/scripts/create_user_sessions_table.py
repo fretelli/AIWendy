@@ -15,9 +15,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import logging
 
-from config import get_settings
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
+
+from config import get_settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

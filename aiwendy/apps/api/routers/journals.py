@@ -5,26 +5,45 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.auth import get_current_user
 from core.database import get_session
 from core.i18n import get_request_locale, t
 from core.logging import get_logger
 from domain.journal.models import Journal as JournalModel
 from domain.journal.repository import JournalRepository
-from domain.journal.schemas import (JournalCreate, JournalFilter,
-                                    JournalListResponse, JournalResponse,
-                                    JournalStatistics, JournalUpdate,
-                                    QuickJournalEntry)
+from domain.journal.schemas import (
+    JournalCreate,
+    JournalFilter,
+    JournalListResponse,
+    JournalResponse,
+    JournalStatistics,
+    JournalUpdate,
+    QuickJournalEntry,
+)
 from domain.user.models import User
-from fastapi import (APIRouter, Depends, File, Form, HTTPException, Query,
-                     Request, UploadFile, status)
-from pydantic import BaseModel, Field
 from services.journal_ai_analyzer import JournalAIAnalyzer
-from services.journal_importer import (MAX_IMPORT_ROWS, MAX_PREVIEW_ROWS,
-                                       build_journal_payload,
-                                       parse_tabular_file, suggest_mapping)
+from services.journal_importer import (
+    MAX_IMPORT_ROWS,
+    MAX_PREVIEW_ROWS,
+    build_journal_payload,
+    parse_tabular_file,
+    suggest_mapping,
+)
 from services.llm_router import LLMRouter
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 logger = get_logger(__name__)

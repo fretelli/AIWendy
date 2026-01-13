@@ -7,9 +7,10 @@ import sys
 # Add parent directory to path to import modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from sqlalchemy import text
+
 from core.database import engine
 from core.logging import get_logger
-from sqlalchemy import text
 
 logger = get_logger(__name__)
 

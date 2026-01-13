@@ -4,9 +4,10 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 from uuid import UUID
 
-from core.logging import get_logger
 from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.logging import get_logger
 
 from .models import Journal, TradeResult
 from .schemas import JournalFilter, JournalStatistics

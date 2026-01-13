@@ -3,11 +3,11 @@
 import uuid
 from datetime import datetime
 
-from core.database import Base
-from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Index, String,
-                        Text)
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
+
+from core.database import Base
 
 
 class Project(Base):

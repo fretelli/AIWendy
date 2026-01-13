@@ -5,9 +5,10 @@ Market data API endpoints for charts
 from datetime import datetime
 from typing import List, Optional
 
-from core.i18n import get_request_locale, t
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
+
+from core.i18n import get_request_locale, t
 from services.market_data_service import MarketDataService
 
 router = APIRouter(prefix="/api/market-data", tags=["market-data"])

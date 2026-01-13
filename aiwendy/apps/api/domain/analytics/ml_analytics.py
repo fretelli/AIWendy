@@ -10,14 +10,15 @@ import joblib
 import numpy as np
 import pandas as pd
 import sklearn
-from core.logging import get_logger
-from domain.journal.models import Journal, TradeResult
 from sklearn.cluster import DBSCAN, KMeans
 from sklearn.decomposition import PCA
 from sklearn.ensemble import IsolationForest, RandomForestClassifier
 from sklearn.metrics import classification_report, silhouette_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
+
+from core.logging import get_logger
+from domain.journal.models import Journal, TradeResult
 
 logger = get_logger(__name__)
 

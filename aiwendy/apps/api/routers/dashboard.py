@@ -5,8 +5,7 @@ from typing import Any, Dict, Optional
 from uuid import UUID
 
 from apps.api.core.auth import get_current_user
-from apps.api.core.cache_service import (cache_async, get_cache_service,
-                                         invalidate_cache)
+from apps.api.core.cache_service import cache_async, get_cache_service, invalidate_cache
 from apps.api.core.database import get_async_db
 from apps.api.core.logging import get_logger
 from apps.api.domain.coach.models import ChatSession

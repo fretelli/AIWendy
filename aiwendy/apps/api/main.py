@@ -5,22 +5,37 @@ from contextlib import asynccontextmanager
 
 import sentry_sdk
 import structlog
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
 from config import get_settings
 from core.database import init_database
 from core.db_bootstrap import maybe_auto_init_db
 from core.exceptions import AppException
 from core.i18n import get_request_locale, t
 from core.logging import setup_logging
-from core.middleware import (AuthMiddleware, LoggingMiddleware,
-                             RateLimitMiddleware)
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from routers import (analysis, auth, chat, coaches, files, health, journals,
-                     knowledge, llm_config, market_data, ollama, projects,
-                     reports, roundtable, tasks, users)
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from core.middleware import AuthMiddleware, LoggingMiddleware, RateLimitMiddleware
+from routers import (
+    analysis,
+    auth,
+    chat,
+    coaches,
+    files,
+    health,
+    journals,
+    knowledge,
+    llm_config,
+    market_data,
+    ollama,
+    projects,
+    reports,
+    roundtable,
+    tasks,
+    users,
+)
 
 # Get settings
 settings = get_settings()

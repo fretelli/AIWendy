@@ -6,17 +6,18 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID, uuid4
 
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field, validator
+from sqlalchemy import and_, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+from tenacity import RetryError
+
 from core.auth import get_current_user
 from core.database import get_session
 from core.encryption import get_encryption_service
 from core.exceptions import AppException
 from core.i18n import get_request_locale, t
 from domain.user.models import User
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, Field, validator
-from sqlalchemy import and_, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
-from tenacity import RetryError
 
 # Create encryption helper functions
 _encryption_service = get_encryption_service()
@@ -24,10 +25,13 @@ encrypt_value = _encryption_service.encrypt
 decrypt_value = _encryption_service.decrypt
 from infrastructure.llm.base import LLMConfig as BaseLLMConfig
 from infrastructure.llm.base import Message
-from infrastructure.llm.custom_api_provider import (APIFormat, AuthType,
-                                                    CustomAPIConfig)
-from infrastructure.llm.factory import (create_llm_provider, get_provider_info,
-                                        list_providers, llm_factory)
+from infrastructure.llm.custom_api_provider import APIFormat, AuthType, CustomAPIConfig
+from infrastructure.llm.factory import (
+    create_llm_provider,
+    get_provider_info,
+    list_providers,
+    llm_factory,
+)
 
 router = APIRouter(prefix="/api/v1/llm-config", tags=["LLM Configuration"])
 
@@ -506,8 +510,7 @@ async def fetch_models_server_side(
                     detail=t("errors.base_url_required_for_custom_provider", locale),
                 )
 
-            from infrastructure.llm.custom_api_provider import \
-                CustomAPIProvider
+            from infrastructure.llm.custom_api_provider import CustomAPIProvider
 
             custom_config = CustomAPIConfig(
                 name="custom",
@@ -836,8 +839,7 @@ async def test_llm_config(
                 tokens_per_minute=config.get("tokens_per_minute"),
             )
 
-            from infrastructure.llm.custom_api_provider import \
-                CustomAPIProvider
+            from infrastructure.llm.custom_api_provider import CustomAPIProvider
 
             provider = CustomAPIProvider(custom_config)
         else:
@@ -902,17 +904,21 @@ async def test_llm_config(
             stream=False,
         )
 
-        # Get response
+        # Get response with timing
+        import time
+
+        start_time = time.time()
         response = await asyncio.wait_for(
             provider.chat(messages, llm_config), timeout=30.0
         )
+        latency_ms = int((time.time() - start_time) * 1000)
 
         return {
             "status": "success",
             "response": response,
             "provider": config["provider_type"],
             "model": llm_config.model,
-            "latency_ms": 0,  # TODO: Measure actual latency
+            "latency_ms": latency_ms,
         }
 
     except asyncio.TimeoutError:

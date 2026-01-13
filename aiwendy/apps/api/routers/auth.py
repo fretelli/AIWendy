@@ -3,21 +3,29 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
-from config import get_settings
-from core.auth import (create_access_token, create_refresh_token, decode_token,
-                       get_current_user, hash_password, verify_password)
-from core.database import get_session
-from core.exceptions import DuplicateResourceError, InvalidCredentialsError
-from core.i18n import get_request_locale, t
-from core.logging import get_logger
-from domain.user.models import User, UserSession
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from config import get_settings
+from core.auth import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    get_current_user,
+    hash_password,
+    verify_password,
+)
+from core.database import get_session
+from core.exceptions import DuplicateResourceError, InvalidCredentialsError
+from core.i18n import get_request_locale, t
+from core.logging import get_logger
+from domain.user.models import User, UserSession
+from domain.user.schemas import SessionInfo, SessionListResponse
+
 settings = get_settings()
-logger = get_logger(__name__)
+logger = get_logger()
 router = APIRouter()
 
 
@@ -148,20 +156,34 @@ async def login(
     user.login_count = (user.login_count or 0) + 1
     await session.commit()
 
-    # Create tokens
-    token_data = {"sub": str(user.id)}
-    access_token = create_access_token(token_data)
-    refresh_token = create_refresh_token(token_data)
-
-    # Store session
+    # Create session record first to get session_id
     user_session = UserSession(
         user_id=user.id,
-        access_token=access_token,
-        refresh_token=refresh_token,
         expires_at=datetime.utcnow() + timedelta(minutes=settings.jwt_expire_minutes),
     )
     session.add(user_session)
+    await session.flush()  # Get the session ID without committing
+
+    # Create tokens with session_id in payload
+    token_data = {"sub": str(user.id), "session_id": str(user_session.id)}
+    access_token = create_access_token(token_data)
+    refresh_token = create_refresh_token(token_data)
+
+    # Update session with tokens
+    user_session.access_token = access_token
+    user_session.refresh_token = refresh_token
     await session.commit()
+
+    # Store session in Redis for fast validation
+    from core.cache import get_redis_client
+
+    redis_client = get_redis_client()
+    session_key = f"session:{user_session.id}"
+    redis_client.setex(
+        session_key,
+        settings.jwt_expire_minutes * 60,  # TTL in seconds
+        str(user.id),  # Store user_id for validation
+    )
 
     logger.info("User logged in", user_id=str(user.id), email=user.email)
 
@@ -215,10 +237,140 @@ async def refresh_token(
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
+    request: Request,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
     """Logout user (revoke session)."""
-    # TODO: Implement session revocation
-    logger.info("User logged out", user_id=str(current_user.id))
+    # Extract session_id from JWT token
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        logger.info("User logged out (no token)", user_id=str(current_user.id))
+        return None
+
+    token = auth_header.split(" ")[1]
+
+    try:
+        payload = decode_token(token)
+        session_id = payload.get("session_id")
+
+        if session_id:
+            # Remove session from Redis
+            from core.cache import get_redis_client
+
+            redis_client = get_redis_client()
+            session_key = f"session:{session_id}"
+            redis_client.delete(session_key)
+
+            # Mark session as revoked in database
+            result = await session.execute(
+                select(UserSession).where(UserSession.id == session_id)
+            )
+            user_session = result.scalar_one_or_none()
+            if user_session:
+                user_session.revoked_at = datetime.utcnow()
+                await session.commit()
+
+            logger.info(
+                "User logged out (session revoked)",
+                user_id=str(current_user.id),
+                session_id=session_id,
+            )
+        else:
+            logger.info(
+                "User logged out (legacy token without session_id)",
+                user_id=str(current_user.id),
+            )
+
+    except Exception as e:
+        logger.warning(f"Logout error: {str(e)}", user_id=str(current_user.id))
+
+    return None
+
+
+# ========== Session Management ==========
+
+
+@router.get("/sessions", response_model=SessionListResponse)
+async def list_sessions(
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """List all active sessions for the current user."""
+    # Get current session_id from token
+    current_session_id = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            payload = decode_token(token)
+            current_session_id = payload.get("session_id")
+        except Exception:
+            pass
+
+    # Query all active sessions for the user
+    result = await session.execute(
+        select(UserSession)
+        .where(
+            UserSession.user_id == current_user.id,
+            UserSession.revoked_at.is_(None),
+            UserSession.expires_at > datetime.utcnow(),
+        )
+        .order_by(UserSession.created_at.desc())
+    )
+    sessions = result.scalars().all()
+
+    # Convert to response format
+    session_infos = [
+        SessionInfo(
+            id=s.id,
+            ip_address=s.ip_address,
+            user_agent=s.user_agent,
+            created_at=s.created_at,
+            last_activity_at=s.last_activity_at,
+            expires_at=s.expires_at,
+            is_current=(str(s.id) == current_session_id),
+        )
+        for s in sessions
+    ]
+
+    return SessionListResponse(sessions=session_infos, total=len(session_infos))
+
+
+@router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_session(
+    session_id: str,
+    session: AsyncSession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    """Revoke a specific session."""
+    # Get the session
+    result = await session.execute(
+        select(UserSession).where(
+            UserSession.id == session_id, UserSession.user_id == current_user.id
+        )
+    )
+    user_session = result.scalar_one_or_none()
+
+    if not user_session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Remove from Redis
+    from core.cache import get_redis_client
+
+    redis_client = get_redis_client()
+    session_key = f"session:{session_id}"
+    redis_client.delete(session_key)
+
+    # Mark as revoked in database
+    user_session.revoked_at = datetime.utcnow()
+    await session.commit()
+
+    logger.info(
+        "Session revoked",
+        user_id=str(current_user.id),
+        session_id=session_id,
+    )
+
     return None

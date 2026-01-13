@@ -15,13 +15,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import logging
 
+from sqlalchemy.ext.asyncio import create_async_engine
+
 from config import get_settings
 from core.database import Base
 from domain.analysis.models import AnalysisReport
 from domain.journal.models import Journal
+
 # Import all models to register them with Base
 from domain.user.models import User
-from sqlalchemy.ext.asyncio import create_async_engine
 
 # Avoid importing ChatSession due to metadata conflict
 # from domain.coach.models import ChatSession

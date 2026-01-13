@@ -11,9 +11,10 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Union
 
 import httpx
 import numpy as np
+from pydantic import BaseModel, Field
+
 from core.cache import get_redis_client
 from core.logging import get_logger
-from pydantic import BaseModel, Field
 
 logger = get_logger(__name__)
 

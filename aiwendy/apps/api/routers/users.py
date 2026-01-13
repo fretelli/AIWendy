@@ -3,15 +3,16 @@
 import re
 from typing import Dict, Optional
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.auth import get_current_user
 from core.database import get_session
 from core.encryption import get_encryption_service
 from core.i18n import get_request_locale, t
 from core.logging import get_logger
 from domain.user.models import User
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -54,7 +55,13 @@ async def update_current_user_profile(
     current_user: User = Depends(get_current_user),
 ):
     """Update current user profile."""
-    # TODO: Implement profile update
+    # TODO(feature): Implement user profile update
+    #   - Create UserUpdateRequest schema (name, email, timezone, locale, etc.)
+    #   - Validate email uniqueness if changed
+    #   - Hash password if password field is provided
+    #   - Update user record in database
+    #   - Return updated UserResponse
+    # Placeholder endpoint
     return {"message": "Profile update endpoint - to be implemented"}
 
 

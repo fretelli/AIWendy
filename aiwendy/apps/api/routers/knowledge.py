@@ -6,6 +6,11 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.auth import get_current_user
 from core.cache_keys import knowledge_search_key
 from core.cache_service import get_cache_service
@@ -15,11 +20,7 @@ from core.logging import get_logger
 from domain.knowledge.chunking import chunk_text
 from domain.knowledge.models import KnowledgeChunk, KnowledgeDocument
 from domain.user.models import User
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from infrastructure.llm.router import get_llm_router
-from pydantic import BaseModel, Field
-from sqlalchemy import and_, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = get_logger(__name__)
 router = APIRouter()

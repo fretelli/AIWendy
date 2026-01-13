@@ -4,8 +4,9 @@ import os
 from typing import Optional
 
 import redis
-from config import get_settings
 from redis import Redis
+
+from config import get_settings
 
 settings = get_settings()
 

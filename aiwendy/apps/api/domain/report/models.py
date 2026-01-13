@@ -5,11 +5,24 @@ import uuid
 from datetime import date, datetime
 from typing import Any, Dict, Optional
 
-from core.database import Base
-from sqlalchemy import (JSON, Boolean, Column, Date, DateTime, Enum, Float,
-                        ForeignKey, Index, Integer, String, Text)
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    Date,
+    DateTime,
+    Enum,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
+
+from core.database import Base
 
 
 class ReportType(str, enum.Enum):

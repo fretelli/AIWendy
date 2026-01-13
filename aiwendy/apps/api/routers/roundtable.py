@@ -6,25 +6,25 @@ from datetime import datetime
 from typing import AsyncIterator, List, Optional
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
+from sqlalchemy import and_, desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.auth import get_current_user
 from core.database import get_session
 from core.encryption import get_encryption_service
 from core.i18n import Locale, get_request_locale, join_names, t
 from core.logging import get_logger
-from domain.coach.models import (Coach, CoachPreset, RoundtableMessage,
-                                 RoundtableSession)
+from domain.coach.models import Coach, CoachPreset, RoundtableMessage, RoundtableSession
 from domain.knowledge.models import KnowledgeChunk, KnowledgeDocument
 from domain.user.models import User
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from fastapi.responses import StreamingResponse
 from infrastructure.llm.base import ImageContent, LLMConfig
 from infrastructure.llm.base import Message as LLMMessage
 from infrastructure.llm.base import MessageContent
 from infrastructure.llm.factory import create_llm_provider, llm_factory
 from infrastructure.llm.router import get_llm_router
-from pydantic import BaseModel, Field
-from sqlalchemy import and_, desc, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 logger = get_logger(__name__)

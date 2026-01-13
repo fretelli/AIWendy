@@ -4,15 +4,16 @@ from datetime import datetime
 from typing import List, Optional
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.auth import get_current_user
 from core.database import get_session
 from core.i18n import Locale, get_request_locale, t
 from domain.project.models import Project
 from domain.user.models import User
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, Field
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 

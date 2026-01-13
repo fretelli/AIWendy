@@ -6,6 +6,12 @@ from datetime import datetime
 from typing import AsyncIterator, List, Optional
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.auth import get_current_user
 from core.database import get_session
 from core.encryption import get_encryption_service
@@ -15,16 +21,11 @@ from domain.coach.models import ChatMessage as ChatMessageDB
 from domain.coach.models import ChatSession, Coach
 from domain.knowledge.models import KnowledgeChunk, KnowledgeDocument
 from domain.user.models import User
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
 from infrastructure.llm.base import ImageContent, LLMConfig
 from infrastructure.llm.base import Message as LLMMessage
 from infrastructure.llm.base import MessageContent
 from infrastructure.llm.factory import create_llm_provider, llm_factory
 from infrastructure.llm.router import get_llm_router
-from pydantic import BaseModel
-from sqlalchemy import and_, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -831,7 +832,13 @@ async def list_chat_sessions(
     current_user: User = Depends(get_current_user),
 ):
     """List user's chat sessions."""
-    # TODO: Implement session listing
+    # TODO(feature): Implement session listing with pagination
+    #   - Query ChatSession table: SELECT * FROM chat_sessions WHERE user_id = ?
+    #   - Add pagination params: skip, limit (default 20)
+    #   - Order by updated_at DESC
+    #   - Include message count and last message preview
+    #   - Return SessionListResponse with total count
+    # Placeholder endpoint - returns empty list
     return {"sessions": [], "total": 0}
 
 
@@ -842,5 +849,10 @@ async def get_chat_session(
     current_user: User = Depends(get_current_user),
 ):
     """Get chat session details."""
-    # TODO: Implement session retrieval
+    # TODO(feature): Implement session retrieval with messages
+    #   - Query ChatSession by id and verify user_id matches current_user
+    #   - Load related ChatMessage records ordered by created_at
+    #   - Return 404 if session not found or doesn't belong to user
+    #   - Include coach info and session metadata
+    # Placeholder endpoint - returns empty session
     return {"session_id": session_id, "messages": []}
