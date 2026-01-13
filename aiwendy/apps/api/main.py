@@ -48,6 +48,9 @@ logger = structlog.get_logger()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
+    # Security validation on startup
+    _validate_security_config()
+
     # Startup
     logger.info("Starting AIWendy API", version=settings.app_version)
 
@@ -74,6 +77,50 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down AIWendy API")
+
+
+def _validate_security_config():
+    """Validate security configuration on startup."""
+    errors = []
+
+    # Check JWT secret
+    if settings.jwt_secret in [
+        "INSECURE-DEFAULT-CHANGE-ME",
+        "your-secret-key-change-in-production",
+    ]:
+        errors.append(
+            "CRITICAL: Using default JWT_SECRET! Set a secure random key in environment variables."
+        )
+
+    if len(settings.jwt_secret) < 32:
+        errors.append(
+            f"CRITICAL: JWT_SECRET too short ({len(settings.jwt_secret)} chars). Must be at least 32 characters."
+        )
+
+    # Check encryption key
+    if settings.encryption_key is None:
+        logger.warning(
+            "ENCRYPTION_KEY not set. API key encryption will use derived key (less secure)."
+        )
+    elif len(settings.encryption_key) < 32:
+        errors.append(
+            f"CRITICAL: ENCRYPTION_KEY too short ({len(settings.encryption_key)} chars). Must be at least 32 characters."
+        )
+
+    # Check database password in production
+    if settings.environment == "production":
+        if "password" in settings.database_url.lower() or "123" in settings.database_url:
+            logger.warning(
+                "Database URL contains weak password patterns. Use strong passwords in production."
+            )
+
+    # Fail fast if critical errors
+    if errors:
+        for error in errors:
+            logger.error(error)
+        raise RuntimeError(
+            f"Security validation failed with {len(errors)} error(s). Fix configuration and restart."
+        )
 
 
 # Create FastAPI app
