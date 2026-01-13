@@ -210,3 +210,7 @@ AIWendy supports two modes:
 - **Cloud/SaaS**: multi-tenancy, billing, enterprise SSO, analytics (activated only when `DEPLOYMENT_MODE=cloud`)
 
 See `docs/DEPLOYMENT_MODES.md` for details.
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=fretelli/AIWendy&type=Date)](https://star-history.com/#fretelli/AIWendy&Date)
