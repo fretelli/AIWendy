@@ -5,10 +5,11 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from core.database import get_db
-from domain.coach.models import ChatMessage, ChatSession, Coach, CoachStyle
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
+
+from core.database import get_db
+from domain.coach.models import ChatMessage, ChatSession, Coach, CoachStyle
 
 
 class CoachService:

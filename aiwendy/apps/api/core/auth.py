@@ -5,16 +5,16 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import bcrypt
-from config import get_settings
-from core.database import get_session
-from core.exceptions import (InvalidTokenError, TokenExpiredError,
-                             UserNotFoundError)
-from domain.user.models import User
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from config import get_settings
+from core.database import get_session
+from core.exceptions import InvalidTokenError, TokenExpiredError, UserNotFoundError
+from domain.user.models import User
 
 settings = get_settings()
 
@@ -148,10 +148,28 @@ async def get_current_user(
         if payload.get("type") != "access":
             raise InvalidTokenError()
 
-        # Get user ID
+        # Get user ID and session ID
         user_id = payload.get("sub")
+        session_id = payload.get("session_id")
+
         if user_id is None:
             raise InvalidTokenError()
+
+        # Validate session in Redis (if session_id exists in token)
+        if session_id:
+            from core.cache import get_redis_client
+
+            redis_client = get_redis_client()
+            session_key = f"session:{session_id}"
+            stored_user_id = redis_client.get(session_key)
+
+            # If session not found in Redis, it was revoked or expired
+            if not stored_user_id:
+                raise InvalidTokenError()
+
+            # Verify user_id matches
+            if str(stored_user_id) != str(user_id):
+                raise InvalidTokenError()
 
     except (InvalidTokenError, TokenExpiredError, JWTError):
         if not settings.auth_required:

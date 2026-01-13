@@ -10,6 +10,7 @@ from typing import Any, Callable, Optional, Union
 
 import redis
 import redis.asyncio as redis_async
+
 from config import get_settings
 from core.logging import get_logger
 

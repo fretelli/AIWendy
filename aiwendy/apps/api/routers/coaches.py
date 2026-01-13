@@ -5,16 +5,16 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.auth import get_current_user
 from core.database import get_session
 from core.i18n import Locale, get_request_locale, t
-from domain.coach.models import (ChatMessage, ChatSession, Coach, CoachStyle,
-                                 LLMProvider)
+from domain.coach.models import ChatMessage, ChatSession, Coach, CoachStyle, LLMProvider
 from domain.user.models import User
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, Field
 from services.coach_service import CoachService
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 # Pydantic models for request/response
@@ -255,8 +255,11 @@ async def list_coaches(
     result = await db.execute(query)
     coaches = result.scalars().all()
 
-    # Filter based on user subscription
-    # TODO: Check user subscription level and filter coaches
+    # TODO(feature): Implement subscription-based coach filtering
+    #   - Add subscription_tier field to User model (free/premium/elite)
+    #   - Filter coaches based on user.subscription_tier >= coach.required_tier
+    #   - Return 403 if user tries to access premium coach without subscription
+    # Currently all coaches are available to all users
 
     return [_localize_default_coach_response(coach, locale) for coach in coaches]
 

@@ -23,9 +23,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import logging
 
 import bcrypt
-from config import get_settings
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
+
+from config import get_settings
 
 
 def hash_password_simple(password: str) -> str:

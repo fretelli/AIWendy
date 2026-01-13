@@ -3,14 +3,15 @@
 import json
 from typing import Any, Dict, List
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+
 from core.auth import get_current_user
 from core.i18n import get_request_locale, t
 from core.logging import get_logger
 from domain.user.models import User
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
 from infrastructure.llm.ollama_provider import OllamaProvider
-from pydantic import BaseModel
 
 logger = get_logger(__name__)
 router = APIRouter()

@@ -5,8 +5,9 @@ import sys
 from typing import Any, Optional
 
 import structlog
-from config import get_settings
 from structlog.typing import FilteringBoundLogger
+
+from config import get_settings
 
 settings = get_settings()
 

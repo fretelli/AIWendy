@@ -3,11 +3,11 @@
 import uuid
 from datetime import datetime
 
-from core.database import Base
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import (Column, DateTime, ForeignKey, Index, Integer, String,
-                        Text)
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
+
+from core.database import Base
 
 
 class KnowledgeDocument(Base):

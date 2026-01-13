@@ -6,16 +6,20 @@ from pathlib import Path
 from typing import Optional
 from uuid import uuid4
 
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+
 from core.auth import get_current_user
 from core.i18n import get_request_locale, t
 from core.logging import get_logger
 from domain.user.models import User
-from fastapi import (APIRouter, Depends, File, HTTPException, Request,
-                     UploadFile)
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
-from services.file_extractor import (can_extract_text, extract_text,
-                                     get_file_category, get_file_size_limit)
+from services.file_extractor import (
+    can_extract_text,
+    extract_text,
+    get_file_category,
+    get_file_size_limit,
+)
 from services.storage_service import StorageProvider, get_storage_provider
 
 router = APIRouter()
@@ -251,8 +255,9 @@ async def transcribe_audio(
 
     # Use OpenAI Whisper API
     try:
-        from config import get_settings
         from openai import AsyncOpenAI
+
+        from config import get_settings
 
         settings = get_settings()
         if not settings.openai_api_key:

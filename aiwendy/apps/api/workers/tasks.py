@@ -6,10 +6,11 @@ from datetime import datetime
 from typing import Any, Dict
 
 from celery import Task
+from sqlalchemy import and_
+
 from core.database import SessionLocal
 from core.logging import get_logger
 from domain.user.models import SubscriptionTier, User, UserSession
-from sqlalchemy import and_
 from workers.celery_app import celery_app
 
 logger = get_logger(__name__)

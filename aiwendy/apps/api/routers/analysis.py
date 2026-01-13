@@ -7,6 +7,10 @@ from datetime import date, datetime, timedelta
 from typing import Any, Literal, Optional
 from uuid import UUID
 
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import and_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.auth import get_current_user
 from core.cache_keys import analysis_patterns_key, analysis_stats_key
 from core.cache_service import get_cache_service
@@ -14,9 +18,6 @@ from core.database import get_session
 from domain.journal.models import Journal, TradeResult
 from domain.journal.schemas import JournalStatistics
 from domain.user.models import User
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import and_, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
