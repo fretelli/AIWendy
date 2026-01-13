@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.auth import get_current_user
+from core.auth import get_authenticated_user, get_current_user
 from core.database import get_session
 from core.i18n import Locale, get_request_locale, t
 from domain.project.models import Project
@@ -82,7 +82,7 @@ async def create_project(
     request: ProjectCreateRequest,
     http_request: Request,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ):
     locale: Locale = get_request_locale(http_request)
     name = request.name.strip()
@@ -160,7 +160,7 @@ async def update_project(
     request: ProjectUpdateRequest,
     http_request: Request,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ):
     locale: Locale = get_request_locale(http_request)
     result = await session.execute(
@@ -229,7 +229,7 @@ async def delete_project(
     http_request: Request,
     hard_delete: bool = Query(False, description="Permanently delete the project"),
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ):
     locale: Locale = get_request_locale(http_request)
     result = await session.execute(

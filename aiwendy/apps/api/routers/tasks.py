@@ -13,7 +13,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.auth import get_current_user
+from core.auth import get_authenticated_user, get_current_user
 from core.cache_service import get_cache_service
 from core.database import get_session
 from core.i18n import get_request_locale, t
@@ -217,7 +217,7 @@ async def trigger_daily_report(
     http_request: Request,
     report_date: Optional[str] = None,
     project_id: Optional[UUID] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ) -> Dict[str, Any]:
     """
     Trigger daily report generation asynchronously.
@@ -258,7 +258,7 @@ async def trigger_weekly_report(
     http_request: Request,
     week_start: Optional[str] = None,
     project_id: Optional[UUID] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ) -> Dict[str, Any]:
     """
     Trigger weekly report generation asynchronously.
@@ -300,7 +300,7 @@ async def trigger_monthly_report(
     year: Optional[int] = None,
     month: Optional[int] = None,
     project_id: Optional[UUID] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ) -> Dict[str, Any]:
     """
     Trigger monthly report generation asynchronously.
@@ -343,7 +343,7 @@ async def trigger_knowledge_ingest(
     request: IngestKnowledgeRequest,
     http_request: Request,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ) -> Dict[str, Any]:
     """Create a knowledge document and ingest it asynchronously."""
     locale = get_request_locale(http_request)
@@ -543,7 +543,7 @@ async def get_scheduled_tasks(
 async def cancel_task(
     task_id: str,
     http_request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ) -> Dict[str, str]:
     """
     Cancel a running task.

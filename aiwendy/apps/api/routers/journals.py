@@ -19,7 +19,7 @@ from fastapi import (
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.auth import get_current_user
+from core.auth import get_authenticated_user, get_current_user
 from core.database import get_session
 from core.i18n import get_request_locale, t
 from core.logging import get_logger
@@ -68,7 +68,7 @@ async def create_journal_entry(
     entry: JournalCreate,
     http_request: Request,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ):
     """Create a new journal entry."""
     locale = get_request_locale(http_request)
@@ -223,7 +223,7 @@ async def import_journal_entries(
     dry_run: bool = Form(False),
     max_rows: int = Form(MAX_IMPORT_ROWS),
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ):
     """
     Import journal entries from a CSV/XLSX file using a client-provided column mapping.
@@ -353,7 +353,7 @@ async def update_journal_entry(
     entry: JournalUpdate,
     http_request: Request,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ):
     """Update journal entry."""
     locale = get_request_locale(http_request)
@@ -400,7 +400,7 @@ async def delete_journal_entry(
     journal_id: UUID,
     http_request: Request,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ):
     """Delete journal entry (soft delete)."""
     locale = get_request_locale(http_request)
@@ -431,7 +431,7 @@ async def create_quick_journal_entry(
     entry: QuickJournalEntry,
     http_request: Request,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ):
     """Create a quick journal entry for fast logging."""
     locale = get_request_locale(http_request)
@@ -473,7 +473,7 @@ async def analyze_journal_entry(
     journal_id: UUID,
     http_request: Request,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ):
     """Analyze a single journal entry with AI."""
     locale = get_request_locale(http_request)
