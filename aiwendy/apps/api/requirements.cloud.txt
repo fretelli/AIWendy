@@ -24,7 +24,7 @@ celery[redis]==5.4.0  # Already in base, but ensure redis extras
 flower==2.0.1  # For Celery monitoring (already in docker-compose)
 
 # ========== Security ==========
-cryptography==42.0.5  # For encryption of sensitive data
+cryptography==46.0.3  # For encryption of sensitive data
 python-decouple==3.8  # For secure config management
 
 # ========== Multi-tenancy ==========
