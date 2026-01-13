@@ -13,7 +13,7 @@ PyJWT==2.8.0  # For JWT handling in OAuth flows
 stripe==8.0.0  # For payment processing and subscription management
 
 # ========== Enhanced Monitoring ==========
-prometheus-client==0.20.0  # For Prometheus metrics
+prometheus-client==0.24.0  # For Prometheus metrics
 datadog==0.49.1  # For Datadog APM (optional)
 
 # ========== Rate Limiting ==========
