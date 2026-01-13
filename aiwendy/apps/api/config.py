@@ -48,7 +48,7 @@ class Settings(BaseSettings):
 
     # ========== Auth ==========
     jwt_secret: str = Field(
-        default="INSECURE-DEFAULT-CHANGE-ME",
+        default="INSECURE-DEFAULT-CHANGE-ME-32CHARS-MIN",
         min_length=32,
         description="JWT secret key - MUST be changed in production (min 32 chars)",
     )

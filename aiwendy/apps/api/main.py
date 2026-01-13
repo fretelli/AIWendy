@@ -83,8 +83,14 @@ def _validate_security_config():
     """Validate security configuration on startup."""
     errors = []
 
+    # Skip validation in test environment
+    if settings.environment in ["test", "testing"]:
+        logger.info("Skipping security validation in test environment")
+        return
+
     # Check JWT secret
     if settings.jwt_secret in [
+        "INSECURE-DEFAULT-CHANGE-ME-32CHARS-MIN",
         "INSECURE-DEFAULT-CHANGE-ME",
         "your-secret-key-change-in-production",
     ]:
