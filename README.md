@@ -120,6 +120,8 @@ Set `AIWENDY_AUTH_REQUIRED=0` for the API (enabled by default in `aiwendy/docker
 - Deployment modes: `aiwendy/docs/DEPLOYMENT_MODES.md`
 - Custom API setup: `aiwendy/docs/CUSTOM_API_SETUP.md`
 - Internationalization: `aiwendy/docs/I18N_GUIDE.md`
+- **Version Management**: `docs/VERSION_MANAGEMENT.md` ⭐ NEW
+- **Changelog**: `CHANGELOG.md`
 
 ## Contributing & security
 

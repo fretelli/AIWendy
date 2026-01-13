@@ -68,7 +68,13 @@ class JournalRepository:
             conditions = []
 
             if filter_params.symbol:
-                conditions.append(Journal.symbol.ilike(f"%{filter_params.symbol}%"))
+                # Escape SQL LIKE wildcards to prevent injection
+                symbol_escaped = (
+                    filter_params.symbol.replace("\\", "\\\\")
+                    .replace("%", "\\%")
+                    .replace("_", "\\_")
+                )
+                conditions.append(Journal.symbol.ilike(f"%{symbol_escaped}%", escape="\\"))
 
             if filter_params.project_id:
                 conditions.append(Journal.project_id == filter_params.project_id)

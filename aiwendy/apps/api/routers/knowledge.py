@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.auth import get_current_user
+from core.auth import get_authenticated_user, get_current_user
 from core.cache_keys import knowledge_search_key
 from core.cache_service import get_cache_service
 from core.database import get_session
@@ -89,7 +89,7 @@ async def create_document(
     request: CreateDocumentRequest,
     http_request: Request,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ):
     locale = get_request_locale(http_request)
     title = request.title.strip()
@@ -200,7 +200,7 @@ async def delete_document(
     http_request: Request,
     hard_delete: bool = Query(False),
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ):
     locale = get_request_locale(http_request)
     result = await session.execute(

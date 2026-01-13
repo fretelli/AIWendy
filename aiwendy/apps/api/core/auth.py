@@ -190,6 +190,72 @@ async def get_current_user(
     return user
 
 
+async def get_authenticated_user(
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    session: AsyncSession = Depends(get_session),
+) -> User:
+    """
+    Get authenticated user (never returns guest).
+    Use this for sensitive operations that should never allow guest access.
+    """
+    if credentials is None:
+        raise InvalidTokenError()
+
+    token = credentials.credentials
+
+    try:
+        payload = decode_token(token)
+
+        # Check token type
+        if payload.get("type") != "access":
+            raise InvalidTokenError()
+
+        # Get user ID and session ID
+        user_id = payload.get("sub")
+        session_id = payload.get("session_id")
+
+        if user_id is None:
+            raise InvalidTokenError()
+
+        # Validate session in Redis (if session_id exists in token)
+        if session_id:
+            from core.cache import get_redis_client
+
+            redis_client = get_redis_client()
+            session_key = f"session:{session_id}"
+            stored_user_id = redis_client.get(session_key)
+
+            # If session not found in Redis, it was revoked or expired
+            if not stored_user_id:
+                raise InvalidTokenError()
+
+            # Verify user_id matches
+            if str(stored_user_id) != str(user_id):
+                raise InvalidTokenError()
+
+    except (InvalidTokenError, TokenExpiredError, JWTError):
+        raise
+
+    # Get user from database
+    result = await session.execute(
+        select(User).where(User.id == user_id, User.is_active == True)
+    )
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        raise UserNotFoundError(user_id)
+
+    # Reject guest users
+    if user.email == GUEST_EMAIL:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="This operation requires authentication. Guest access not allowed.",
+        )
+
+    return user
+
+
 async def get_optional_user(
     request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(
