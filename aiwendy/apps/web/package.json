@@ -61,6 +61,10 @@
     "zod": "3.23.8",
     "zustand": "4.5.2"
   },
+  "overrides": {
+    "eslint-config-next": "14.2.4",
+    "eslint": "8.57.0"
+  },
   "devDependencies": {
     "@tailwindcss/forms": "0.5.7",
     "@tailwindcss/typography": "0.5.13",
