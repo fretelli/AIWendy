@@ -10,6 +10,7 @@ alembic==1.13.1
 asyncpg==0.29.0
 psycopg2-binary==2.9.9
 pgvector==0.2.5
+aiosqlite==0.20.0  # For SQLite async support in tests
 
 # ========== Redis & Celery ==========
 redis==5.0.4
