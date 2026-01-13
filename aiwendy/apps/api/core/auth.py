@@ -247,7 +247,7 @@ async def get_authenticated_user(
         raise UserNotFoundError(user_id)
 
     # Reject guest users
-    if user.email == "guest@aiwendy.local":
+    if user.email == GUEST_EMAIL:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="This operation requires authentication. Guest access not allowed.",
