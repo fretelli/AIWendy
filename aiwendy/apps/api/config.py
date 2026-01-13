@@ -47,13 +47,24 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
 
     # ========== Auth ==========
-    jwt_secret: str = "your-secret-key-change-in-production"
+    jwt_secret: str = Field(
+        default="INSECURE-DEFAULT-CHANGE-ME",
+        min_length=32,
+        description="JWT secret key - MUST be changed in production (min 32 chars)",
+    )
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 30
     jwt_refresh_expire_days: int = 7
     auth_required: bool = Field(
         default=True,
         validation_alias=AliasChoices("AIWENDY_AUTH_REQUIRED", "AUTH_REQUIRED"),
+    )
+
+    # Encryption key for API keys (separate from JWT secret)
+    encryption_key: Optional[str] = Field(
+        default=None,
+        min_length=32,
+        description="Encryption key for sensitive data (min 32 chars, base64 encoded)",
     )
 
     # ========== LLM API Keys ==========

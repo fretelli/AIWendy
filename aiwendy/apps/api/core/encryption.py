@@ -1,6 +1,7 @@
 """Encryption utilities for sensitive data."""
 
 import base64
+import hashlib
 import os
 from typing import Optional
 
@@ -17,13 +18,33 @@ class EncryptionService:
     def __init__(self, key: Optional[str] = None):
         """Initialize encryption service with key."""
         if key:
+            # Use provided key (should be base64 encoded Fernet key)
             self.cipher = Fernet(key.encode() if isinstance(key, str) else key)
+        elif settings.encryption_key:
+            # Use dedicated encryption key from settings
+            # Derive Fernet key using HKDF (proper key derivation)
+            derived_key = self._derive_fernet_key(settings.encryption_key)
+            self.cipher = Fernet(derived_key)
         else:
-            # Use JWT secret as base for encryption key
-            # In production, use a separate encryption key
-            key_base = settings.jwt_secret[:32].ljust(32, "0")
-            key_bytes = base64.urlsafe_b64encode(key_base.encode()[:32])
-            self.cipher = Fernet(key_bytes)
+            # Fallback: derive from JWT secret (less secure, but backwards compatible)
+            # This should trigger a warning in _validate_security_config()
+            derived_key = self._derive_fernet_key(settings.jwt_secret)
+            self.cipher = Fernet(derived_key)
+
+    def _derive_fernet_key(self, secret: str) -> bytes:
+        """Derive a Fernet-compatible key from a secret using HKDF."""
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
+        # Use HKDF to derive a proper 32-byte key
+        kdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=b"aiwendy-encryption-salt-v1",  # Static salt for deterministic key
+            info=b"api-key-encryption",
+        )
+        derived = kdf.derive(secret.encode())
+        return base64.urlsafe_b64encode(derived)
 
     def encrypt(self, data: str) -> str:
         """Encrypt a string and return base64 encoded result."""
