@@ -1,3 +1,14 @@
+# AIWendy Docker Compose Configuration
+# Version: 1.0.0
+#
+# Docker images are published to GitHub Container Registry (ghcr.io)
+# - API: ghcr.io/fretelli/aiwendy/api:latest
+# - Web: ghcr.io/fretelli/aiwendy/web:latest
+#
+# For production deployment, use specific version tags:
+# - ghcr.io/fretelli/aiwendy/api:v1.0.0
+# - ghcr.io/fretelli/aiwendy/web:v1.0.0
+
 version: "3.9"
 
 services:

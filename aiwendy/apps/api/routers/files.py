@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from core.auth import get_current_user
+from core.auth import get_authenticated_user, get_current_user
 from core.i18n import get_request_locale, t
 from core.logging import get_logger
 from domain.user.models import User
@@ -63,7 +63,7 @@ class TranscriptionResponse(BaseModel):
 async def upload_file(
     http_request: Request,
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
     storage: StorageProvider = Depends(get_storage_provider),
 ):
     """
@@ -106,10 +106,54 @@ async def upload_file(
 
     # Validate content type for images (security check)
     content_type = file.content_type or "application/octet-stream"
+
+    # Validate file extension
+    allowed_extensions = {
+        "image": {".jpg", ".jpeg", ".png", ".gif", ".webp"},
+        "document": {".pdf", ".doc", ".docx", ".txt", ".md"},
+        "audio": {".mp3", ".wav", ".ogg", ".m4a"},
+    }
+
+    file_ext = Path(file.filename).suffix.lower()
+    if file_category in allowed_extensions:
+        if file_ext not in allowed_extensions[file_category]:
+            raise HTTPException(
+                status_code=400,
+                detail=t(
+                    "errors.invalid_file_extension",
+                    locale,
+                    allowed=", ".join(allowed_extensions[file_category]),
+                ),
+            )
+
+    # Validate content type matches category
     if file_category == "image":
         if not content_type.startswith("image/"):
             raise HTTPException(
                 status_code=400, detail=t("errors.invalid_image_file", locale)
+            )
+
+        # Verify actual file content (magic bytes check)
+        try:
+            from PIL import Image
+
+            img = Image.open(io.BytesIO(content))
+            img.verify()  # Verify it's a valid image
+            # Re-open after verify (verify closes the file)
+            img = Image.open(io.BytesIO(content))
+
+            # Check image dimensions (prevent decompression bombs)
+            max_pixels = 50_000_000  # 50 megapixels
+            if img.width * img.height > max_pixels:
+                raise HTTPException(
+                    status_code=400,
+                    detail=t("errors.image_too_large", locale),
+                )
+        except Exception as e:
+            logger.warning(f"Image validation failed: {e}")
+            raise HTTPException(
+                status_code=400,
+                detail=t("errors.invalid_image_file", locale),
             )
 
     # Generate thumbnail for images
@@ -333,7 +377,7 @@ async def download_file(
 async def delete_file(
     http_request: Request,
     path: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
     storage: StorageProvider = Depends(get_storage_provider),
 ):
     """

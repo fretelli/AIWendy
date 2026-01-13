@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.auth import get_current_user
+from core.auth import get_authenticated_user, get_current_user
 from core.database import get_session
 from core.encryption import get_encryption_service
 from core.i18n import get_request_locale, t
@@ -52,7 +52,7 @@ async def get_current_user_profile(
 @router.put("/me")
 async def update_current_user_profile(
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ):
     """Update current user profile."""
     # TODO(feature): Implement user profile update
@@ -67,7 +67,7 @@ async def update_current_user_profile(
 
 @router.get("/me/api-keys")
 async def get_api_keys(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ) -> APIKeysResponse:
     """Get current user's API keys (masked)."""
     response = APIKeysResponse()
@@ -104,7 +104,7 @@ async def update_api_keys(
     keys: APIKeysUpdate,
     http_request: Request,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ) -> Dict[str, str]:
     """Update user's API keys."""
     locale = get_request_locale(http_request)
@@ -165,7 +165,7 @@ async def delete_api_key(
     provider: str,
     http_request: Request,
     session: AsyncSession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ) -> Dict[str, str]:
     """Delete a specific API key."""
     provider = provider.lower()

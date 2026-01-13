@@ -10,6 +10,23 @@ and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2
 
 ## [Unreleased]
 
+### Added
+- Poetry dependency management for Python backend
+- Dependabot configuration for automated dependency updates
+- `.npmrc` configuration for exact version locking
+- Automated CHANGELOG generation support
+
+### Changed
+- Unified Node.js dependency versions (removed caret ranges)
+- Updated `pyproject.toml` with complete Poetry configuration
+- Improved dependency management workflow
+
+### Security
+- Fixed SQL injection vulnerability in journal symbol search
+- Enhanced file upload validation with magic bytes verification
+- Implemented authentication bypass prevention for sensitive endpoints
+- Fixed guest email constant inconsistency
+
 ## [1.0.0] - 2026-01-11
 
 ### Added
@@ -36,6 +53,23 @@ Initial open-source release (Community edition).
 并遵循 [语义化版本](https://semver.org/spec/v2.0.0.html)。
 
 ## [未发布]
+
+### 新增
+- Python 后端 Poetry 依赖管理
+- Dependabot 自动化依赖更新配置
+- `.npmrc` 配置文件，锁定精确版本
+- 自动化 CHANGELOG 生成支持
+
+### 变更
+- 统一 Node.js 依赖版本（移除 caret 范围）
+- 更新 `pyproject.toml`，完整的 Poetry 配置
+- 改进依赖管理工作流
+
+### 安全
+- 修复交易日志符号搜索中的 SQL 注入漏洞
+- 增强文件上传验证（magic bytes 验证）
+- 实施敏感端点的认证绕过防护
+- 修复 guest 邮箱常量不一致问题
 
 ## [1.0.0] - 2026-01-11
 
