@@ -7,7 +7,7 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "09:00"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5  # Reduced from 10 to 5
     reviewers:
       - "fretelli"
     labels:
@@ -17,16 +17,100 @@ updates:
       prefix: "chore(deps)"
       include: "scope"
     groups:
-      radix-ui:
+      # UI Components
+      ui-components:
         patterns:
           - "@radix-ui/*"
+          - "lucide-react"
+          - "tailwind*"
+          - "class-variance-authority"
+          - "clsx"
+          - "tailwind-merge"
+          - "tailwindcss-animate"
+
+      # React Ecosystem
+      react-ecosystem:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "next"
+          - "next-*"
+          - "@types/react"
+          - "@types/react-dom"
+
+      # Forms and Validation
+      forms-validation:
+        patterns:
+          - "react-hook-form"
+          - "@hookform/*"
+          - "zod"
+
+      # State Management and Data Fetching
+      state-data:
+        patterns:
+          - "zustand"
+          - "axios"
+          - "ai"
+
+      # UI Utilities
+      ui-utilities:
+        patterns:
+          - "date-fns"
+          - "react-markdown"
+          - "remark-*"
+          - "react-syntax-highlighter"
+          - "@types/react-syntax-highlighter"
+
+      # Charts and Visualization
+      charts:
+        patterns:
+          - "recharts"
+          - "lightweight-charts"
+
+      # Authentication and Payments
+      auth-payments:
+        patterns:
+          - "next-auth"
+          - "@stripe/*"
+          - "js-cookie"
+          - "@types/js-cookie"
+
+      # Monitoring and Analytics
+      monitoring:
+        patterns:
+          - "@sentry/*"
+          - "posthog-js"
+
+      # Testing
       testing:
         patterns:
           - "@testing-library/*"
           - "jest*"
+
+      # Type Definitions
       types:
         patterns:
           - "@types/*"
+
+      # Development Tools
+      dev-tools:
+        patterns:
+          - "eslint*"
+          - "prettier*"
+          - "typescript"
+          - "autoprefixer"
+          - "postcss"
+
+      # Tailwind Plugins
+      tailwind-plugins:
+        patterns:
+          - "@tailwindcss/*"
+
+      # All other minor and patch updates
+      all-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
 
   # Backend (Python/pip)
   - package-ecosystem: "pip"
@@ -35,7 +119,7 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "09:00"
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 5  # Reduced from 10 to 5
     reviewers:
       - "fretelli"
     labels:
@@ -45,22 +129,90 @@ updates:
       prefix: "chore(deps)"
       include: "scope"
     groups:
-      fastapi:
+      # Backend Framework
+      backend-framework:
         patterns:
           - "fastapi*"
           - "uvicorn*"
           - "pydantic*"
+
+      # Database
       database:
         patterns:
           - "sqlalchemy*"
           - "alembic*"
           - "asyncpg*"
           - "psycopg2*"
+          - "pgvector*"
+
+      # Redis and Celery
+      redis-celery:
+        patterns:
+          - "redis*"
+          - "celery*"
+
+      # LLM SDKs
+      llm-sdks:
+        patterns:
+          - "openai*"
+          - "anthropic*"
+          - "tiktoken*"
+
+      # HTTP Clients
+      http-clients:
+        patterns:
+          - "httpx*"
+          - "aiohttp*"
+
+      # Authentication
+      auth:
+        patterns:
+          - "python-jose*"
+          - "passlib*"
+          - "python-multipart*"
+
+      # Monitoring
+      monitoring:
+        patterns:
+          - "sentry-sdk*"
+
+      # Utilities
+      utilities:
+        patterns:
+          - "python-dotenv*"
+          - "structlog*"
+          - "tenacity*"
+          - "aiofiles*"
+
+      # File Processing
+      file-processing:
+        patterns:
+          - "PyPDF2*"
+          - "python-docx*"
+          - "openpyxl*"
+          - "python-pptx*"
+
+      # Testing
       testing:
         patterns:
           - "pytest*"
           - "factory-boy*"
           - "faker*"
+
+      # Development Tools
+      dev-tools:
+        patterns:
+          - "black*"
+          - "isort*"
+          - "flake8*"
+          - "mypy*"
+          - "pre-commit*"
+
+      # All other minor and patch updates
+      all-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
 
   # GitHub Actions
   - package-ecosystem: "github-actions"
@@ -69,7 +221,7 @@ updates:
       interval: "weekly"
       day: "monday"
       time: "09:00"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3  # Keep low for actions
     reviewers:
       - "fretelli"
     labels:
