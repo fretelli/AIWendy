@@ -28,7 +28,7 @@ celery = "5.4.0"
 
 # LLM
 openai = "1.30.5"
-anthropic = "0.25.9"
+anthropic = "0.75.0"
 tiktoken = "0.7.0"
 
 # HTTP
