@@ -3,7 +3,7 @@
 <a id="zh-cn"></a>
 [中文](#zh-cn) | [English](#en)
 
-AIWendy 支持英文（`en`）与简体中文（`zh`）。
+KeelTrader 支持英文（`en`）与简体中文（`zh`）。
 
 更多文档见：`README.md`。
 
@@ -68,7 +68,7 @@ export default async function Page() {
 <a id="en"></a>
 ## English
 
-AIWendy supports English (`en`) and Simplified Chinese (`zh`).
+KeelTrader supports English (`en`) and Simplified Chinese (`zh`).
 
 More docs: `README.md`.
 

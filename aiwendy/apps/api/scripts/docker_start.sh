@@ -13,14 +13,14 @@ is_truthy() {
   esac
 }
 
-if is_truthy "${AIWENDY_AUTO_INIT_DB:-1}"; then
-  echo "[aiwendy] auto-init db schema..."
+if is_truthy "${KEELTRADER_AUTO_INIT_DB:-1}"; then
+  echo "[keeltrader] auto-init db schema..."
   python scripts/init_db_simple.py
   python scripts/add_journal_tables.py
 fi
 
-if is_truthy "${AIWENDY_AUTO_INIT_TEST_USERS:-0}"; then
-  echo "[aiwendy] auto-init test users..."
+if is_truthy "${KEELTRADER_AUTO_INIT_TEST_USERS:-0}"; then
+  echo "[keeltrader] auto-init test users..."
   python scripts/init_user_simple.py
 fi
 

@@ -26,7 +26,7 @@
   <rect x="90" y="92" width="1020" height="8" rx="4" fill="url(#accent)"/>
 
   <g font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial">
-    <text x="120" y="160" font-size="54" font-weight="800" fill="#e6edf7">AIWendy</text>
+    <text x="120" y="160" font-size="54" font-weight="800" fill="#e6edf7">KeelTrader</text>
     <text x="120" y="205" font-size="22" fill="#a9b6d6">AI-powered trading psychology coach · Next.js + FastAPI</text>
 
     <g>

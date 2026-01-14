@@ -35,7 +35,7 @@ def should_auto_init_db() -> bool:
     if settings.environment.lower() != "development":
         return False
 
-    env_value = os.getenv("AIWENDY_AUTO_INIT_DB")
+    env_value = os.getenv("KEELTRADER_AUTO_INIT_DB")
     if env_value is None:
         return True
     return _is_truthy(env_value)
