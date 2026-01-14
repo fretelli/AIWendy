@@ -28,7 +28,7 @@ redis = "5.0.4"
 celery = "5.4.0"
 
 # LLM
-openai = "1.30.5"
+openai = "2.15.0"
 anthropic = "0.25.9"
 tiktoken = "0.7.0"
 
