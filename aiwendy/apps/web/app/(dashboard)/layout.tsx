@@ -34,7 +34,7 @@ interface NavItem {
   translationKey: string;
 }
 
-const GUEST_EMAIL = 'guest@local.aiwendy';
+const GUEST_EMAIL = 'guest@local.keeltrader';
 
 const navItems: NavItem[] = [
   {
@@ -148,7 +148,7 @@ export default function DashboardLayout({
           {sidebarOpen && (
             <Link href="/dashboard" className="flex items-center gap-2">
               <Brain className="h-6 w-6 text-primary" />
-              <span className="text-lg font-bold">AIWendy</span>
+              <span className="text-lg font-bold">KeelTrader</span>
             </Link>
           )}
           <Button
@@ -244,7 +244,7 @@ export default function DashboardLayout({
             </Button>
             <Link href="/dashboard" className="flex items-center gap-2">
               <Brain className="h-6 w-6 text-primary" />
-              <span className="text-lg font-bold">AIWendy</span>
+              <span className="text-lg font-bold">KeelTrader</span>
             </Link>
             <div className="w-10" /> {/* Spacer for centering */}
           </header>

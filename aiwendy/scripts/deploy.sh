@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# AIWendy Production Deployment Script
+# KeelTrader Production Deployment Script
 
 set -e
 
 echo "============================================"
-echo "AIWendy Production Deployment"
+echo "KeelTrader Production Deployment"
 echo "============================================"
 
 # Parse arguments

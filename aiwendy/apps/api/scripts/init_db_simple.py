@@ -188,7 +188,7 @@ async def create_users_table():
 async def main():
     """Main function."""
     print("=" * 50)
-    print("AIWendy - Initialize Database (Simple)")
+    print("KeelTrader - Initialize Database (Simple)")
     print("=" * 50)
 
     try:

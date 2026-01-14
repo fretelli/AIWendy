@@ -84,7 +84,7 @@ async def create_user_sessions_table():
 async def main():
     """Main function."""
     print("=" * 50)
-    print("AIWendy - Create User Sessions Table")
+    print("KeelTrader - Create User Sessions Table")
     print("=" * 50)
 
     try:

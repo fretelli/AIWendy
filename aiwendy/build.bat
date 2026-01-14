@@ -1,5 +1,5 @@
 @echo off
-echo AIWendy Docker Build Script
+echo KeelTrader Docker Build Script
 echo ==========================
 echo.
 echo Choose build option:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Configure OneAPI proxy service for AIWendy."""
+"""Configure OneAPI proxy service for KeelTrader."""
 
 import asyncio
 import json
@@ -20,8 +20,8 @@ from core.logging import get_logger
 logger = get_logger(__name__)
 
 # OneAPI Configuration
-API_KEY = os.environ.get("AIWENDY_API_KEY", "")
-USER_EMAIL = os.environ.get("AIWENDY_USER_EMAIL", "admin@aiwendy.com")
+API_KEY = os.environ.get("KEELTRADER_API_KEY", "")
+USER_EMAIL = os.environ.get("KEELTRADER_USER_EMAIL", "admin@keeltrader.com")
 
 # Common OneAPI endpoints (adjust based on your deployment)
 ONEAPI_ENDPOINTS = [
@@ -194,10 +194,10 @@ async def save_oneapi_config(base_url: str):
 async def main():
     """Main configuration function."""
     print("=" * 60)
-    print("AIWendy - OneAPI Configuration")
+    print("KeelTrader - OneAPI Configuration")
     print("=" * 60)
     if not API_KEY:
-        print("❌ Missing API key. Set `AIWENDY_API_KEY` in your environment.")
+        print("❌ Missing API key. Set `KEELTRADER_API_KEY` in your environment.")
         return
     print(f"API Key: {API_KEY[:10]}...{API_KEY[-4:]}")
     print()
@@ -234,7 +234,7 @@ async def main():
             print("\n" + "=" * 60)
             print("🎉 Configuration Complete!")
             print("=" * 60)
-            print("\nYou can now use AIWendy with OneAPI:")
+            print("\nYou can now use KeelTrader with OneAPI:")
             print(f"1. Login at http://localhost:3000")
             print(f"2. Email: {USER_EMAIL}")
             print(f"3. Password: Admin@123")

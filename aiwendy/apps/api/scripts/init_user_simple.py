@@ -136,7 +136,7 @@ async def create_test_users():
 async def main():
     """Main function."""
     print("=" * 50)
-    print("AIWendy - Initialize Test Users (Simple Version)")
+    print("KeelTrader - Initialize Test Users (Simple Version)")
     print("=" * 50)
 
     try:

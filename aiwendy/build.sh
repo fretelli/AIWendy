@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Build script for AIWendy with optimization options
+# Build script for KeelTrader with optimization options
 
-echo "AIWendy Docker Build Script"
+echo "KeelTrader Docker Build Script"
 echo "=========================="
 echo ""
 echo "Choose build option:"

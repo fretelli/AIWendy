@@ -160,8 +160,8 @@ class CustomAPIProvider(LLMProvider):
             "auth_type": AuthType.BEARER,
             "chat_endpoint": "/v1/chat/completions",
             "extra_headers": {
-                "HTTP-Referer": "https://aiwendy.com",
-                "X-Title": "AIWendy Trading Coach",
+                "HTTP-Referer": "https://keeltrader.com",
+                "X-Title": "KeelTrader Trading Coach",
             },
         },
         "huggingface": {
@@ -197,7 +197,7 @@ class CustomAPIProvider(LLMProvider):
             "api_format": APIFormat.OPENAI,
             "auth_type": AuthType.BEARER,
             "chat_endpoint": "/v1/chat/completions",
-            "extra_headers": {"User-Agent": "AIWendy/2.0"},
+            "extra_headers": {"User-Agent": "KeelTrader/2.0"},
         },
         "xinference": {
             "base_url": "http://localhost:9997",

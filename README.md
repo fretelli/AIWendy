@@ -1,13 +1,13 @@
-# AIWendy
+# KeelTrader
 
 [English](#en) | [简体中文](README.zh-CN.md)
 
 <a id="en"></a>
 
-[![CI](https://github.com/fretelli/AIWendy/actions/workflows/ci.yml/badge.svg)](https://github.com/fretelli/AIWendy/actions/workflows/ci.yml)
+[![CI](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml/badge.svg)](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 
-AIWendy is an AI-powered performance coach for trading psychology (Web: Next.js, API: FastAPI). It's built around chat, knowledge base (RAG), and a "roundtable" multi-coach discussion mode.
+KeelTrader is an AI-powered performance coach for trading psychology (Web: Next.js, API: FastAPI). It's built around chat, knowledge base (RAG), and a "roundtable" multi-coach discussion mode.
 
 Disclaimer: for educational/research purposes only. This project is **not** investment advice.
 
@@ -28,12 +28,12 @@ In the TV series *Billions*, **Wendy Rhodes** is the in-house performance coach 
 - Retail traders and small institutions have zero access to this service
 - 80% of trading losses stem from psychological factors, not technical analysis
 
-**AIWendy's Vision**:
+**KeelTrader's Vision**:
 > Democratize Wendy Rhodes' capabilities through AI, giving every trader their own performance coach.
 
 ## Behavioral Finance 3.0 Positioning
 
-AIWendy represents the evolution of behavioral finance from theory to practice:
+KeelTrader represents the evolution of behavioral finance from theory to practice:
 
 | Generation | Focus | Limitation |
 |------------|-------|------------|
@@ -41,14 +41,14 @@ AIWendy represents the evolution of behavioral finance from theory to practice:
 | **2.0 Robo-Advisors** | Automated portfolio allocation | One-size-fits-all, ignores individual psychology |
 | **3.0 AI Performance Coach** | Real-time psychological intervention | Personalized, actionable, adaptive |
 
-### What Makes AIWendy Different
+### What Makes KeelTrader Different
 
 **Traditional Approach** (Behavioral Finance 1.0 & 2.0):
 - Read about loss aversion → Still panic sell during crashes
 - Know about confirmation bias → Still cherry-pick bullish news
 - Understand overconfidence → Still overtrade after wins
 
-**AIWendy's Approach** (Behavioral Finance 3.0):
+**KeelTrader's Approach** (Behavioral Finance 3.0):
 - **Real-time Intervention**: Detects emotional patterns in your journal entries and intervenes before you make mistakes
 - **Personalized Coaching**: Learns your specific psychological triggers and blind spots
 - **Actionable Guidance**: Not just "you have loss aversion" but "here's how to handle this specific trade decision right now"
@@ -60,11 +60,11 @@ AIWendy represents the evolution of behavioral finance from theory to practice:
 Academic Knowledge → [MISSING LINK] → Trading Performance
      (BF 1.0)                              (Your P&L)
                     ↓
-                AIWendy
+              KeelTrader
             (BF 3.0 Bridge)
 ```
 
-Most traders know the theory but fail in execution. AIWendy bridges this gap by providing:
+Most traders know the theory but fail in execution. KeelTrader bridges this gap by providing:
 1. **Moment-of-truth coaching**: When you're about to revenge trade, not after
 2. **Pattern recognition**: Spots your recurring mistakes before you do
 3. **Accountability partner**: Helps you stick to your trading plan when emotions run high
@@ -103,7 +103,7 @@ Full guide: `aiwendy/docs/SELF_HOSTING.md`
 
 ## Guest mode (no login)
 
-Set `AIWENDY_AUTH_REQUIRED=0` for the API (enabled by default in `aiwendy/docker-compose.yml`) to use the app without logging in.
+Set `KEELTRADER_AUTH_REQUIRED=0` for the API (enabled by default in `aiwendy/docker-compose.yml`) to use the app without logging in.
 
 ## Roadmap (community)
 
@@ -132,7 +132,7 @@ Set `AIWENDY_AUTH_REQUIRED=0` for the API (enabled by default in `aiwendy/docker
 
 ## Deployment modes (open core)
 
-AIWendy supports two modes:
+KeelTrader supports two modes:
 
 - **Self-hosted (default)**: open-source community edition
 - **Cloud/SaaS**: multi-tenancy, billing, enterprise SSO, analytics (activated only when `DEPLOYMENT_MODE=cloud`)
@@ -144,7 +144,7 @@ See `docs/DEPLOYMENT_MODES.md` for details.
 <a id="zh-cn"></a>
 ## 简体中文
 
-AIWendy 是一套面向交易心理与行为表现的 AI 教练系统（Web: Next.js，API: FastAPI）。核心能力围绕：对话、知识库（RAG）、以及“圆桌讨论”（多教练协作）。
+KeelTrader 是一套面向交易心理与行为表现的 AI 教练系统（Web: Next.js，API: FastAPI）。核心能力围绕：对话、知识库（RAG）、以及"圆桌讨论"（多教练协作）。
 
 免责声明：仅用于教育/研究目的，本项目 **不构成** 投资建议。
 
@@ -182,7 +182,7 @@ docker compose up -d --build
 
 ### 访客模式（免登录）
 
-将 API 的 `AIWENDY_AUTH_REQUIRED=0`（默认在 `aiwendy/docker-compose.yml` 已启用该能力）即可免登录体验。
+将 API 的 `KEELTRADER_AUTH_REQUIRED=0`（默认在 `aiwendy/docker-compose.yml` 已启用该能力）即可免登录体验。
 
 ### Roadmap（社区版）
 
@@ -206,7 +206,7 @@ docker compose up -d --build
 
 ### 部署模式（Open Core）
 
-AIWendy 支持两种模式：
+KeelTrader 支持两种模式：
 
 - **Self-Hosted（默认）**：开源社区版
 - **Cloud/SaaS**：多租户、计费、企业 SSO、分析（仅在 `DEPLOYMENT_MODE=cloud` 时启用）
@@ -215,4 +215,4 @@ AIWendy 支持两种模式：
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=fretelli/AIWendy&type=Date)](https://star-history.com/#fretelli/AIWendy&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=fretelli/KeelTrader&type=Date)](https://star-history.com/#fretelli/KeelTrader&Date)

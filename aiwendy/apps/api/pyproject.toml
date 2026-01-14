@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "aiwendy-api"
+name = "keeltrader-api"
 version = "0.1.0"
-description = "AIWendy API - AI-powered trading psychology coach"
-authors = ["AIWendy Team"]
+description = "KeelTrader API - AI-powered trading psychology coach"
+authors = ["KeelTrader Team"]
 readme = "README.md"
 license = "Apache-2.0"
 

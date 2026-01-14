@@ -140,15 +140,15 @@ export function generateMetadata(locale: Locale) {
   const isZh = locale === 'zh';
 
   return {
-    title: isZh ? 'AIWendy - 您的AI交易心理教练' : 'AIWendy - Your AI Trading Psychology Coach',
+    title: isZh ? 'KeelTrader - 您的AI交易心理教练' : 'KeelTrader - Your AI Trading Psychology Coach',
     description: isZh
-      ? 'AIWendy 是一个AI驱动的交易心理辅导平台，帮助交易者克服情绪障碍，提升交易表现。'
-      : 'AIWendy is an AI-powered trading psychology coaching platform that helps traders overcome emotional barriers and improve trading performance.',
+      ? 'KeelTrader 是一个AI驱动的交易心理辅导平台，帮助交易者克服情绪障碍，提升交易表现。'
+      : 'KeelTrader is an AI-powered trading psychology coaching platform that helps traders overcome emotional barriers and improve trading performance.',
     keywords: isZh
       ? ['交易心理', 'AI教练', '交易日志', '风险管理', '量化交易', '交易分析']
       : ['trading psychology', 'AI coach', 'trading journal', 'risk management', 'quantitative trading', 'trade analysis'],
     openGraph: {
-      title: isZh ? 'AIWendy - AI交易心理教练' : 'AIWendy - AI Trading Psychology Coach',
+      title: isZh ? 'KeelTrader - AI交易心理教练' : 'KeelTrader - AI Trading Psychology Coach',
       description: isZh
         ? '使用AI技术提升您的交易心理和表现'
         : 'Enhance your trading psychology and performance with AI',

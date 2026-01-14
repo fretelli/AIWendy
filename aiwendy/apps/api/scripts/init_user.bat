@@ -1,7 +1,7 @@
 @echo off
 echo.
 echo ========================================
-echo AIWendy - Initialize Test Users
+echo KeelTrader - Initialize Test Users
 echo ========================================
 echo.
 

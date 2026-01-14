@@ -1,9 +1,9 @@
-# AIWendy 部署模式指南
+# KeelTrader 部署模式指南
 
 <a id="zh-cn"></a>
 [中文](#zh-cn) | [English](#en)
 
-AIWendy 支持两种部署模式：
+KeelTrader 支持两种部署模式：
 
 1. **自托管模式（Self-Hosted）** - 开源社区版，适合个人和小团队
 2. **云托管模式（Cloud/SaaS）** - 托管服务版，提供多租户、计费、企业 SSO 等功能
@@ -39,7 +39,7 @@ DEPLOYMENT_MODE=self-hosted
 - ✅ 完全开源，Apache 2.0 许可证
 - ✅ 数据完全自主控制
 - ✅ 无使用限制
-- ✅ 可选禁用登录认证（`AIWENDY_AUTH_REQUIRED=0`）
+- ✅ 可选禁用登录认证（`KEELTRADER_AUTH_REQUIRED=0`）
 - ✅ 支持自定义 LLM API
 - ❌ 不包含计费功能
 - ❌ 不包含多租户隔离
@@ -380,7 +380,7 @@ A: 核心功能（AI 对话、知识库、交易日志、报告）在两种模�
 <a id="en"></a>
 ## English
 
-AIWendy supports two deployment modes:
+KeelTrader supports two deployment modes:
 
 1. **Self-hosted** (Self-Hosted) — open-source Community edition, best for individuals and small teams
 2. **Cloud-hosted** (Cloud/SaaS) — hosted service edition with multi-tenancy, billing, enterprise SSO, and more
@@ -416,7 +416,7 @@ Or leave it unset (default is `self-hosted`).
 - Fully open-source (Apache 2.0)
 - Full data control
 - No usage limits
-- Optional “no-login” guest mode (`AIWENDY_AUTH_REQUIRED=0`)
+- Optional “no-login” guest mode (`KEELTRADER_AUTH_REQUIRED=0`)
 - Supports custom LLM APIs
 - No billing system
 - No multi-tenant isolation

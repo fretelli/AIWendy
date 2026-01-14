@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     )
 
     # ========== Application ==========
-    app_name: str = "AIWendy"
+    app_name: str = "KeelTrader"
     app_version: str = "1.0.0"
     debug: bool = False
     environment: str = "development"
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     )
 
     # ========== Database ==========
-    database_url: str = "postgresql+asyncpg://aiwendy:password@localhost:5432/aiwendy"
+    database_url: str = "postgresql+asyncpg://keeltrader:password@localhost:5432/keeltrader"
     database_echo: bool = False
     database_pool_size: int = 20
     database_max_overflow: int = 10
@@ -57,7 +57,10 @@ class Settings(BaseSettings):
     jwt_refresh_expire_days: int = 7
     auth_required: bool = Field(
         default=True,
-        validation_alias=AliasChoices("AIWENDY_AUTH_REQUIRED", "AUTH_REQUIRED"),
+        validation_alias=AliasChoices(
+            "KEELTRADER_AUTH_REQUIRED",
+            "AUTH_REQUIRED"
+        ),
     )
 
     # Encryption key for API keys (separate from JWT secret)
