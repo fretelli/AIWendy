@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# AIWendy Setup Script
+# KeelTrader Setup Script
 # This script sets up the development environment
 
 set -e
 
 echo "============================================"
-echo "AIWendy Development Environment Setup"
+echo "KeelTrader Development Environment Setup"
 echo "============================================"
 
 # Check prerequisites

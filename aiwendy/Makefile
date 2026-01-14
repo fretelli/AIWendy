@@ -1,4 +1,4 @@
-# AIWendy Makefile
+# KeelTrader Makefile
 
 .PHONY: help setup dev test build deploy clean
 

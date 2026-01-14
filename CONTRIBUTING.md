@@ -3,7 +3,7 @@
 <a id="en"></a>
 [English](#en) | [中文](#zh-cn)
 
-Thanks for your interest in contributing to AIWendy!
+Thanks for your interest in contributing to KeelTrader!
 
 ## Branch Strategy
 
@@ -189,7 +189,7 @@ If you believe you found a security issue, please follow `SECURITY.md` instead o
 <a id="zh-cn"></a>
 ## 中文
 
-感谢你愿意为 AIWendy 做贡献！
+感谢你愿意为 KeelTrader 做贡献！
 
 ### 分支策略
 

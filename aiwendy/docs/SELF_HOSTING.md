@@ -31,7 +31,7 @@
 
 默认配置为免登录体验：
 
-- API：`.env` 中 `AIWENDY_AUTH_REQUIRED=0`
+- API：`.env` 中 `KEELTRADER_AUTH_REQUIRED=0`
 - Web：会自动检测后端是否支持 guest（不再依赖前端开关）
 
 验证方式（不带 token 直接访问）：
@@ -40,14 +40,14 @@
 
 如果你想在公网/生产环境强制登录：
 
-- 将 `.env` 设置为 `AIWENDY_AUTH_REQUIRED=1` 并重启：`docker compose up -d --build`
+- 将 `.env` 设置为 `KEELTRADER_AUTH_REQUIRED=1` 并重启：`docker compose up -d --build`
 
 ## 可选：自动初始化数据库与测试账号
 
 容器启动时可以自动执行初始化脚本（建议仅本地开发用）：
 
-- `AIWENDY_AUTO_INIT_DB=1`：自动初始化数据库结构（默认开启）
-- `AIWENDY_AUTO_INIT_TEST_USERS=1`：自动创建测试账号（默认关闭）
+- `KEELTRADER_AUTO_INIT_DB=1`：自动初始化数据库结构（默认开启）
+- `KEELTRADER_AUTO_INIT_TEST_USERS=1`：自动创建测试账号（默认关闭）
 
 手动执行（可选）：
 
@@ -56,7 +56,7 @@ docker exec aiwendy-api python scripts/init_db_simple.py
 docker exec aiwendy-api python scripts/init_user_simple.py
 ```
 
-如果开启了 `AIWENDY_AUTO_INIT_TEST_USERS=1`，测试账号为：
+如果开启了 `KEELTRADER_AUTO_INIT_TEST_USERS=1`，测试账号为：
 
 | Type | Email | Password | Access |
 |------|-------|----------|--------|
@@ -92,7 +92,7 @@ docker compose --profile workers up -d --build
 
 1. 先确认后端是否允许 guest：访问 `http://localhost:8000/api/v1/users/me`
 2. 若返回 401：
-   - 检查 `.env` 是否设置 `AIWENDY_AUTH_REQUIRED=0`
+   - 检查 `.env` 是否设置 `KEELTRADER_AUTH_REQUIRED=0`
    - 重新构建并启动：`docker compose up -d --build`
 3. 若之前登录过，建议清理浏览器 LocalStorage 中的 `aiwendy_access_token` / `aiwendy_refresh_token` 后刷新
 
@@ -142,7 +142,7 @@ docker compose --profile workers up -d --build
 
 The default config enables a no-login experience:
 
-- API: `AIWENDY_AUTH_REQUIRED=0` in `.env`
+- API: `KEELTRADER_AUTH_REQUIRED=0` in `.env`
 - Web: auto-detects whether the backend supports guest (no longer relies on a front-end flag)
 
 How to verify (call without a token):
@@ -151,14 +151,14 @@ How to verify (call without a token):
 
 If you want to enforce login in public/production:
 
-- Set `AIWENDY_AUTH_REQUIRED=1` in `.env` and restart: `docker compose up -d --build`
+- Set `KEELTRADER_AUTH_REQUIRED=1` in `.env` and restart: `docker compose up -d --build`
 
 ## Optional: auto-init DB and test accounts
 
 On container startup you can run init scripts automatically (recommended for local dev only):
 
-- `AIWENDY_AUTO_INIT_DB=1`: auto-initialize DB schema (enabled by default)
-- `AIWENDY_AUTO_INIT_TEST_USERS=1`: auto-create test accounts (disabled by default)
+- `KEELTRADER_AUTO_INIT_DB=1`: auto-initialize DB schema (enabled by default)
+- `KEELTRADER_AUTO_INIT_TEST_USERS=1`: auto-create test accounts (disabled by default)
 
 Manual run (optional):
 
@@ -167,7 +167,7 @@ docker exec aiwendy-api python scripts/init_db_simple.py
 docker exec aiwendy-api python scripts/init_user_simple.py
 ```
 
-If `AIWENDY_AUTO_INIT_TEST_USERS=1` is enabled, default test accounts are:
+If `KEELTRADER_AUTO_INIT_TEST_USERS=1` is enabled, default test accounts are:
 
 | Type | Email | Password | Access |
 |------|-------|----------|--------|
@@ -203,7 +203,7 @@ docker compose --profile workers up -d --build
 
 1. Confirm guest is allowed by backend: visit `http://localhost:8000/api/v1/users/me`
 2. If it returns 401:
-   - Check `.env` has `AIWENDY_AUTH_REQUIRED=0`
+   - Check `.env` has `KEELTRADER_AUTH_REQUIRED=0`
    - Rebuild and restart: `docker compose up -d --build`
 3. If you logged in before, clear LocalStorage keys `aiwendy_access_token` / `aiwendy_refresh_token` and refresh
 

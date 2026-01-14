@@ -1,37 +1,37 @@
-# AIWendy Docker Compose Configuration
+# KeelTrader Docker Compose Configuration
 # Version: 1.0.0
 #
 # Docker images are published to GitHub Container Registry (ghcr.io)
-# - API: ghcr.io/fretelli/aiwendy/api:latest
-# - Web: ghcr.io/fretelli/aiwendy/web:latest
+# - API: ghcr.io/fretelli/keeltrader/api:latest
+# - Web: ghcr.io/fretelli/keeltrader/web:latest
 #
 # For production deployment, use specific version tags:
-# - ghcr.io/fretelli/aiwendy/api:v1.0.0
-# - ghcr.io/fretelli/aiwendy/web:v1.0.0
+# - ghcr.io/fretelli/keeltrader/api:v1.0.0
+# - ghcr.io/fretelli/keeltrader/web:v1.0.0
 
 version: "3.9"
 
 services:
   db:
     image: docker.1ms.run/pgvector/pgvector:pg16
-    container_name: aiwendy-db
+    container_name: keeltrader-db
     environment:
-      POSTGRES_USER: aiwendy
+      POSTGRES_USER: keeltrader
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: aiwendy
+      POSTGRES_DB: keeltrader
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U aiwendy"]
+      test: ["CMD-SHELL", "pg_isready -U keeltrader"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: docker.1ms.run/library/redis:7.2-alpine
-    container_name: aiwendy-redis
+    container_name: keeltrader-redis
     ports:
       - "6379:6379"
     volumes:
@@ -46,16 +46,16 @@ services:
     build:
       context: ./apps/api
       dockerfile: Dockerfile
-    container_name: aiwendy-api
+    container_name: keeltrader-api
     environment:
-      - DATABASE_URL=postgresql+asyncpg://aiwendy:${DB_PASSWORD}@db:5432/aiwendy
+      - DATABASE_URL=postgresql+asyncpg://keeltrader:${DB_PASSWORD}@db:5432/keeltrader
       - REDIS_URL=redis://redis:6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - JWT_SECRET=${JWT_SECRET}
-      - AIWENDY_AUTH_REQUIRED=${AIWENDY_AUTH_REQUIRED:-0}
-      - AIWENDY_AUTO_INIT_DB=${AIWENDY_AUTO_INIT_DB:-1}
-      - AIWENDY_AUTO_INIT_TEST_USERS=${AIWENDY_AUTO_INIT_TEST_USERS:-0}
+      - KEELTRADER_AUTH_REQUIRED=${KEELTRADER_AUTH_REQUIRED:-0}
+      - KEELTRADER_AUTO_INIT_DB=${KEELTRADER_AUTO_INIT_DB:-1}
+      - KEELTRADER_AUTO_INIT_TEST_USERS=${KEELTRADER_AUTO_INIT_TEST_USERS:-0}
     ports:
       - "8000:8000"
     depends_on:
@@ -75,7 +75,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: http://api:8000
         NEXT_PUBLIC_AUTH_REQUIRED: "0"
-    container_name: aiwendy-web
+    container_name: keeltrader-web
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=http://api:8000
@@ -92,9 +92,9 @@ services:
     build:
       context: ./apps/api
       dockerfile: Dockerfile
-    container_name: aiwendy-worker
+    container_name: keeltrader-worker
     environment:
-      - DATABASE_URL=postgresql+asyncpg://aiwendy:${DB_PASSWORD}@db:5432/aiwendy
+      - DATABASE_URL=postgresql+asyncpg://keeltrader:${DB_PASSWORD}@db:5432/keeltrader
       - REDIS_URL=redis://redis:6379
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
@@ -109,9 +109,9 @@ services:
     build:
       context: ./apps/api
       dockerfile: Dockerfile
-    container_name: aiwendy-beat
+    container_name: keeltrader-beat
     environment:
-      - DATABASE_URL=postgresql+asyncpg://aiwendy:${DB_PASSWORD}@db:5432/aiwendy
+      - DATABASE_URL=postgresql+asyncpg://keeltrader:${DB_PASSWORD}@db:5432/keeltrader
       - REDIS_URL=redis://redis:6379
     depends_on:
       db:
