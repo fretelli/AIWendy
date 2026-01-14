@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo AIWendy Phase 2 初始化脚本
+echo KeelTrader Phase 2 初始化脚本
 echo ========================================
 echo.
 
@@ -15,7 +15,7 @@ if %errorlevel% neq 0 (
 
 REM 运行数据库迁移
 echo [2/3] 运行数据库迁移...
-cd /d C:\AIWendy\aiwendy
+cd /d C:\KeelTrader\aiwendy
 alembic upgrade head
 if %errorlevel% neq 0 (
     echo 错误: 数据库迁移失败
@@ -25,7 +25,7 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [3/3] 初始化教练数据...
-cd /d C:\AIWendy\aiwendy\apps\api
+cd /d C:\KeelTrader\aiwendy\apps\api
 python scripts\init_coaches.py
 if %errorlevel% neq 0 (
     echo 错误: 初始化教练数据失败

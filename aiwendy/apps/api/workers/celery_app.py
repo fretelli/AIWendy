@@ -9,7 +9,7 @@ settings = get_settings()
 
 # Create Celery app
 celery_app = Celery(
-    "aiwendy",
+    "keeltrader",
     broker=settings.redis_url,
     backend=settings.redis_url,
     include=[

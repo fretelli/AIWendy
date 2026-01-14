@@ -3,7 +3,7 @@
 <a id="zh-cn"></a>
 [中文](#zh-cn) | [English](#en)
 
-AIWendy 支持为每个用户配置 LLM 提供商（含 OpenAI 兼容网关与本地模型），并在聊天/分析等能力中使用。
+KeelTrader 支持为每个用户配置 LLM 提供商（含 OpenAI 兼容网关与本地模型），并在聊天/分析等能力中使用。
 
 更多文档见：`README.md`。
 
@@ -121,7 +121,7 @@ Content-Type: application/json
 <a id="en"></a>
 ## English
 
-AIWendy lets each user configure their own LLM provider (including OpenAI-compatible gateways and local models), and use it in chat/analysis features.
+KeelTrader lets each user configure their own LLM provider (including OpenAI-compatible gateways and local models), and use it in chat/analysis features.
 
 More docs: `README.md`.
 

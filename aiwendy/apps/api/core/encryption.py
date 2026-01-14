@@ -40,7 +40,7 @@ class EncryptionService:
         kdf = HKDF(
             algorithm=hashes.SHA256(),
             length=32,
-            salt=b"aiwendy-encryption-salt-v1",  # Static salt for deterministic key
+            salt=b"keeltrader-encryption-salt-v1",  # Static salt for deterministic key
             info=b"api-key-encryption",
         )
         derived = kdf.derive(secret.encode())

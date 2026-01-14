@@ -9,7 +9,7 @@
 
 ### Overview
 
-AIWendy uses modern dependency management tools and automated workflows to ensure reproducible builds and secure dependency updates.
+KeelTrader uses modern dependency management tools and automated workflows to ensure reproducible builds and secure dependency updates.
 
 ### Dependency Management
 
@@ -205,7 +205,7 @@ chore(deps): update fastapi to 0.111.0
 
 ### 概述
 
-AIWendy 使用现代化的依赖管理工具和自动化工作流，确保可复现的构建和安全的依赖更新。
+KeelTrader 使用现代化的依赖管理工具和自动化工作流，确保可复现的构建和安全的依赖更新。
 
 ### 依赖管理
 

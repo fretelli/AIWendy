@@ -32,7 +32,7 @@ function unique(values: string[]): string[] {
 
 function getApiBaseUrlCandidates(): string[] {
   const configuredRaw =
-    process.env.AIWENDY_API_URL ||
+    process.env.KEELTRADER_API_URL ||
     process.env.API_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
     '';

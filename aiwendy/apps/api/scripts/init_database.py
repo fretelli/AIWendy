@@ -50,7 +50,7 @@ async def init_database():
 async def main():
     """Main function."""
     print("=" * 50)
-    print("AIWendy - Initialize Database")
+    print("KeelTrader - Initialize Database")
     print("=" * 50)
 
     try:

@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
     _validate_security_config()
 
     # Startup
-    logger.info("Starting AIWendy API", version=settings.app_version)
+    logger.info("Starting KeelTrader API", version=settings.app_version)
 
     # Initialize database - Skip auto-creation due to model issues
     # await init_database()
@@ -76,7 +76,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    logger.info("Shutting down AIWendy API")
+    logger.info("Shutting down KeelTrader API")
 
 
 def _validate_security_config():

@@ -21,7 +21,7 @@ settings = get_settings()
 # JWT Bearer
 security = HTTPBearer(auto_error=False)
 
-GUEST_EMAIL = "guest@local.aiwendy"
+GUEST_EMAIL = "guest@local.keeltrader"
 
 
 async def _ensure_guest_user(session: AsyncSession) -> User:

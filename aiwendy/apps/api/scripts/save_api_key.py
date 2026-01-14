@@ -20,8 +20,8 @@ from core.logging import get_logger
 logger = get_logger(__name__)
 
 # Your API key (do not hardcode secrets in source control)
-API_KEY = os.environ.get("AIWENDY_API_KEY", "")
-USER_EMAIL = os.environ.get("AIWENDY_USER_EMAIL", "admin@aiwendy.com")
+API_KEY = os.environ.get("KEELTRADER_API_KEY", "")
+USER_EMAIL = os.environ.get("KEELTRADER_USER_EMAIL", "admin@keeltrader.com")
 
 
 async def save_api_key():
@@ -151,11 +151,11 @@ async def test_api_connection():
 async def main():
     """Main function."""
     print("=" * 60)
-    print("AIWendy - Save API Key Configuration")
+    print("KeelTrader - Save API Key Configuration")
     print("=" * 60)
 
     if not API_KEY:
-        print("❌ Missing API key. Set `AIWENDY_API_KEY` in your environment.")
+        print("❌ Missing API key. Set `KEELTRADER_API_KEY` in your environment.")
         sys.exit(1)
 
     # Test API first (optional)

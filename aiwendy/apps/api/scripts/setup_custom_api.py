@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Setup custom API endpoint for AIWendy."""
+"""Setup custom API endpoint for KeelTrader."""
 
 import asyncio
 import json
@@ -20,13 +20,13 @@ from core.logging import get_logger
 logger = get_logger(__name__)
 
 # Configuration
-API_KEY = os.environ.get("AIWENDY_API_KEY", "")
-USER_EMAIL = os.environ.get("AIWENDY_USER_EMAIL", "admin@aiwendy.com")
+API_KEY = os.environ.get("KEELTRADER_API_KEY", "")
+USER_EMAIL = os.environ.get("KEELTRADER_USER_EMAIL", "admin@keeltrader.com")
 
 # You can modify this URL to your actual OneAPI endpoint
 # 请将下面的URL修改为你的OneAPI服务地址
 CUSTOM_API_URL = os.environ.get(
-    "AIWENDY_CUSTOM_API_URL", "https://your-oneapi-service.com"
+    "KEELTRADER_CUSTOM_API_URL", "https://your-oneapi-service.com"
 )
 
 
@@ -196,10 +196,10 @@ async def test_connection(base_url: str):
 async def main():
     """Main function."""
     print("=" * 60)
-    print("AIWendy - Custom API Service Setup")
+    print("KeelTrader - Custom API Service Setup")
     print("=" * 60)
     if not API_KEY:
-        print("❌ Missing API key. Set `AIWENDY_API_KEY` in your environment.")
+        print("❌ Missing API key. Set `KEELTRADER_API_KEY` in your environment.")
         return
     print(f"API Key: {API_KEY[:10]}...{API_KEY[-4:]}")
 
@@ -245,7 +245,7 @@ async def main():
         print("=" * 60)
         print(f"\nService URL: {CUSTOM_API_URL}")
         print(f"Default Model: gpt-3.5-turbo")
-        print("\nYou can now login to AIWendy:")
+        print("\nYou can now login to KeelTrader:")
         print(f"  URL: http://localhost:3000")
         print(f"  Email: {USER_EMAIL}")
         print(f"  Password: Admin@123")

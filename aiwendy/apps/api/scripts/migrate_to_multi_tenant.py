@@ -132,7 +132,7 @@ async def main():
     settings = get_settings()
 
     print("=" * 60)
-    print("AIWendy Multi-Tenant Migration Script")
+    print("KeelTrader Multi-Tenant Migration Script")
     print("=" * 60)
 
     # Check deployment mode

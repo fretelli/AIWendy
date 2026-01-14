@@ -13,8 +13,7 @@ from fastapi import Request
 Locale = Literal["en", "zh"]
 
 DEFAULT_LOCALE: Final[Locale] = "en"
-LOCALE_COOKIE: Final[str] = "aiwendy-locale"
-LEGACY_LOCALE_COOKIE: Final[str] = "aiwendy_lang"
+LOCALE_COOKIE: Final[str] = "keeltrader-locale"
 
 
 def normalize_locale(value: Optional[str]) -> Locale:
@@ -27,9 +26,7 @@ def normalize_locale(value: Optional[str]) -> Locale:
 
 
 def get_request_locale(request: Request) -> Locale:
-    cookie_locale = request.cookies.get(LOCALE_COOKIE) or request.cookies.get(
-        LEGACY_LOCALE_COOKIE
-    )
+    cookie_locale = request.cookies.get(LOCALE_COOKIE)
     if cookie_locale:
         return normalize_locale(cookie_locale)
 

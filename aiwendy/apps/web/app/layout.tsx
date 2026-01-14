@@ -22,24 +22,24 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: {
       default: i18nMeta.title,
-      template: '%s | AIWendy',
+      template: '%s | KeelTrader',
     },
     description: i18nMeta.description,
     keywords: i18nMeta.keywords,
-    authors: [{ name: "AIWendy Team" }],
-    creator: 'AIWendy',
-    publisher: 'AIWendy',
+    authors: [{ name: "KeelTrader Team" }],
+    creator: 'KeelTrader',
+    publisher: 'KeelTrader',
     openGraph: {
       ...i18nMeta.openGraph,
-      url: "https://aiwendy.com",
-      siteName: "AIWendy",
+      url: "https://keeltrader.com",
+      siteName: "KeelTrader",
       type: "website",
       images: [
         {
           url: '/og-image.png',
           width: 1200,
           height: 630,
-          alt: 'AIWendy - AI Trading Psychology Coach',
+          alt: 'KeelTrader - AI Trading Psychology Coach',
         },
       ],
     },
@@ -48,7 +48,7 @@ export async function generateMetadata(): Promise<Metadata> {
       title: i18nMeta.title,
       description: i18nMeta.description,
       images: ['/twitter-image.png'],
-      creator: '@aiwendy',
+      creator: '@keeltrader',
     },
     robots: {
       index: true,
