@@ -7,7 +7,7 @@ Get your exchange connected in 5 minutes!
 ### 1. Run Database Migration
 
 ```bash
-cd aiwendy
+cd keeltrader
 alembic upgrade head
 
 # Or with Docker (automatic)
@@ -18,11 +18,11 @@ docker-compose down && docker-compose up --build
 
 ```bash
 # Backend
-cd aiwendy/apps/api
+cd keeltrader/apps/api
 python main.py
 
 # Frontend (in another terminal)
-cd aiwendy/apps/web
+cd keeltrader/apps/web
 npm run dev
 ```
 

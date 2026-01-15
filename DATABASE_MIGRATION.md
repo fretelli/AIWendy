@@ -17,7 +17,7 @@ docker-compose up --build
 #### Option 2: Manual Migration
 
 ```bash
-cd aiwendy
+cd keeltrader
 
 # Run the migration
 alembic upgrade head
@@ -42,7 +42,7 @@ psql postgresql://keeltrader:password@localhost:5432/keeltrader
 
 ### Migration Details
 
-**File:** `aiwendy/migrations/versions/010_create_exchange_connections.py`
+**File:** `keeltrader/migrations/versions/010_create_exchange_connections.py`
 
 **Changes:**
 - Creates `exchangetype` ENUM type
@@ -74,7 +74,7 @@ CREATE TABLE exchange_connections (
 To rollback this migration:
 
 ```bash
-cd aiwendy
+cd keeltrader
 alembic downgrade -1
 ```
 
