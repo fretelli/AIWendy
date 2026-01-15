@@ -10,7 +10,7 @@ python3-saml==1.16.0  # For SAML 2.0 SSO
 PyJWT==2.8.0  # For JWT handling in OAuth flows
 
 # ========== Billing ==========
-stripe==8.0.0  # For payment processing and subscription management
+stripe==14.1.0  # For payment processing and subscription management
 
 # ========== Enhanced Monitoring ==========
 prometheus-client==0.20.0  # For Prometheus metrics
