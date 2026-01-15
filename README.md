@@ -90,7 +90,7 @@ Most traders know the theory but fail in execution. KeelTrader bridges this gap 
 ## Quick start (self-host)
 
 ```bash
-cd aiwendy
+cd keeltrader
 Copy-Item .env.example .env   # PowerShell (or: cp .env.example .env)
 docker compose up -d --build
 ```
@@ -99,11 +99,11 @@ docker compose up -d --build
 - API health: `http://localhost:8000/api/health`
 - API docs: `http://localhost:8000/docs`
 
-Full guide: `aiwendy/docs/SELF_HOSTING.md`
+Full guide: `keeltrader/docs/SELF_HOSTING.md`
 
 ## Guest mode (no login)
 
-Set `KEELTRADER_AUTH_REQUIRED=0` for the API (enabled by default in `aiwendy/docker-compose.yml`) to use the app without logging in.
+Set `KEELTRADER_AUTH_REQUIRED=0` for the API (enabled by default in `keeltrader/docker-compose.yml`) to use the app without logging in.
 
 ## Roadmap (community)
 
@@ -113,13 +113,13 @@ Set `KEELTRADER_AUTH_REQUIRED=0` for the API (enabled by default in `aiwendy/doc
 
 ## Docs
 
-- Start here: `aiwendy/docs/README.md`
-- Architecture: `aiwendy/docs/ARCHITECTURE.md`
-- Deployment: `aiwendy/docs/DEPLOYMENT.md`
-- Self-hosting: `aiwendy/docs/SELF_HOSTING.md`
-- Deployment modes: `aiwendy/docs/DEPLOYMENT_MODES.md`
-- Custom API setup: `aiwendy/docs/CUSTOM_API_SETUP.md`
-- Internationalization: `aiwendy/docs/I18N_GUIDE.md`
+- Start here: `keeltrader/docs/README.md`
+- Architecture: `keeltrader/docs/ARCHITECTURE.md`
+- Deployment: `keeltrader/docs/DEPLOYMENT.md`
+- Self-hosting: `keeltrader/docs/SELF_HOSTING.md`
+- Deployment modes: `keeltrader/docs/DEPLOYMENT_MODES.md`
+- Custom API setup: `keeltrader/docs/CUSTOM_API_SETUP.md`
+- Internationalization: `keeltrader/docs/I18N_GUIDE.md`
 - **Version Management**: `docs/VERSION_MANAGEMENT.md` ⭐ NEW
 - **Changelog**: `CHANGELOG.md`
 
@@ -169,7 +169,7 @@ KeelTrader 是一套面向交易心理与行为表现的 AI 教练系统（Web: 
 ### 快速开始（自托管）
 
 ```bash
-cd aiwendy
+cd keeltrader
 Copy-Item .env.example .env   # PowerShell（或：cp .env.example .env）
 docker compose up -d --build
 ```
@@ -178,11 +178,11 @@ docker compose up -d --build
 - API 健康检查：`http://localhost:8000/api/health`
 - API 文档：`http://localhost:8000/docs`
 
-完整说明：`aiwendy/docs/SELF_HOSTING.md`
+完整说明：`keeltrader/docs/SELF_HOSTING.md`
 
 ### 访客模式（免登录）
 
-将 API 的 `KEELTRADER_AUTH_REQUIRED=0`（默认在 `aiwendy/docker-compose.yml` 已启用该能力）即可免登录体验。
+将 API 的 `KEELTRADER_AUTH_REQUIRED=0`（默认在 `keeltrader/docker-compose.yml` 已启用该能力）即可免登录体验。
 
 ### Roadmap（社区版）
 
@@ -194,9 +194,9 @@ docker compose up -d --build
 
 - 从这里开始：`docs/README.md`
 - 仓库导览：`docs/PROJECT_OVERVIEW.md`
-- 应用文档：`aiwendy/docs/README.md`
-- 架构：`aiwendy/docs/ARCHITECTURE.md`
-- 部署：`aiwendy/docs/DEPLOYMENT.md`
+- 应用文档：`keeltrader/docs/README.md`
+- 架构：`keeltrader/docs/ARCHITECTURE.md`
+- 部署：`keeltrader/docs/DEPLOYMENT.md`
 
 ### 贡献与安全
 

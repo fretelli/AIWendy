@@ -113,7 +113,7 @@ ENVIRONMENT=production
 AUTH_REQUIRED=true
 
 # 数据库（使用强密码）
-DATABASE_URL="postgresql://user:strong_password@localhost/aiwendy"
+DATABASE_URL="postgresql://user:strong_password@localhost/keeltrader"
 ```
 
 ### 测试安全修复

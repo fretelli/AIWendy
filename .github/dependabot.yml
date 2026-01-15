@@ -2,7 +2,7 @@ version: 2
 updates:
   # Frontend (Node.js/npm)
   - package-ecosystem: "npm"
-    directory: "/aiwendy/apps/web"
+    directory: "/keeltrader/apps/web"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -114,7 +114,7 @@ updates:
 
   # Backend (Python/pip)
   - package-ecosystem: "pip"
-    directory: "/aiwendy/apps/api"
+    directory: "/keeltrader/apps/api"
     schedule:
       interval: "weekly"
       day: "monday"

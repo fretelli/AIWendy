@@ -17,11 +17,11 @@ comment:
 flags:
   frontend:
     paths:
-      - aiwendy/apps/web/
+      - keeltrader/apps/web/
     carryforward: true
   backend:
     paths:
-      - aiwendy/apps/api/
+      - keeltrader/apps/api/
     carryforward: true
 
 ignore:

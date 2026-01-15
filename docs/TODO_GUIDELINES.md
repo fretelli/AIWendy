@@ -131,7 +131,7 @@ python scripts/scan_todos.py --category security
 
 ```python
 # TODO(#456): Implement user profile update
-#   See https://github.com/yourorg/aiwendy/issues/456
+#   See https://github.com/yourorg/keeltrader/issues/456
 ```
 
 ### 4. 完成后删除
@@ -239,9 +239,9 @@ By Category:
   feature: 4
 
 Top 10 Files:
-  aiwendy/apps/api/routers/auth.py: 1
-  aiwendy/apps/api/routers/chat.py: 2
-  aiwendy/apps/api/routers/coaches.py: 1
-  aiwendy/apps/api/routers/tasks.py: 1
-  aiwendy/apps/api/routers/users.py: 1
+  keeltrader/apps/api/routers/auth.py: 1
+  keeltrader/apps/api/routers/chat.py: 2
+  keeltrader/apps/api/routers/coaches.py: 1
+  keeltrader/apps/api/routers/tasks.py: 1
+  keeltrader/apps/api/routers/users.py: 1
 ```
