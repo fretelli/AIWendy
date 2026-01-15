@@ -123,6 +123,7 @@ class User(Base):
         "ReportSchedule", back_populates="user", uselist=False
     )
     sessions = relationship("UserSession", back_populates="user")
+    exchange_connections = relationship("ExchangeConnection", back_populates="user")
 
     # Indexes
     __table_args__ = (

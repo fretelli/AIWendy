@@ -5,6 +5,7 @@ from . import (
     auth,
     chat,
     coaches,
+    exchanges,
     files,
     health,
     journals,
@@ -16,6 +17,7 @@ from . import (
     reports,
     roundtable,
     tasks,
+    user_exchanges,
     users,
 )
 
@@ -29,6 +31,8 @@ __all__ = [
     "analysis",
     "ollama",
     "market_data",
+    "exchanges",
+    "user_exchanges",
     "reports",
     "llm_config",
     "projects",

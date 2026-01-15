@@ -74,6 +74,21 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
 
+    # ========== Market Data API Keys ==========
+    twelve_data_api_key: Optional[str] = None
+
+    # ========== Exchange API Keys ==========
+    # Binance
+    binance_api_key: Optional[str] = None
+    binance_api_secret: Optional[str] = None
+    # OKX
+    okx_api_key: Optional[str] = None
+    okx_api_secret: Optional[str] = None
+    okx_passphrase: Optional[str] = None
+    # Bybit
+    bybit_api_key: Optional[str] = None
+    bybit_api_secret: Optional[str] = None
+
     # ========== LLM Settings ==========
     llm_default_provider: str = "openai"
     llm_default_model: str = "gpt-4o-mini"

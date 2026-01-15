@@ -174,6 +174,9 @@ export default function SettingsPage() {
       <Tabs defaultValue="api-keys" className="space-y-4">
         <TabsList>
           <TabsTrigger value="api-keys">{t('settings.page.tabs.apiKeys')}</TabsTrigger>
+          <TabsTrigger value="exchanges" onClick={() => router.push('/settings/exchanges')}>
+            Exchanges
+          </TabsTrigger>
           <TabsTrigger value="profile">{t('settings.page.tabs.profile')}</TabsTrigger>
           <TabsTrigger value="preferences">{t('settings.page.tabs.preferences')}</TabsTrigger>
           <TabsTrigger value="llm" onClick={() => router.push('/settings/llm')}>
