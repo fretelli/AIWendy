@@ -18,13 +18,13 @@ KeelTrader uses modern dependency management tools and automated workflows to en
 **Tool**: Poetry
 
 **Files**:
-- `aiwendy/apps/api/pyproject.toml` - Project configuration and dependencies
-- `aiwendy/apps/api/poetry.lock` - Locked dependency versions
-- `aiwendy/apps/api/requirements.txt` - Generated for compatibility
+- `keeltrader/apps/api/pyproject.toml` - Project configuration and dependencies
+- `keeltrader/apps/api/poetry.lock` - Locked dependency versions
+- `keeltrader/apps/api/requirements.txt` - Generated for compatibility
 
 **Installation**:
 ```bash
-cd aiwendy/apps/api
+cd keeltrader/apps/api
 poetry install
 ```
 
@@ -57,13 +57,13 @@ poetry export -f requirements.txt --output requirements.txt --without-hashes
 **Tool**: npm
 
 **Files**:
-- `aiwendy/apps/web/package.json` - Project configuration and dependencies
-- `aiwendy/apps/web/package-lock.json` - Locked dependency versions
-- `aiwendy/apps/web/.npmrc` - npm configuration (exact versions)
+- `keeltrader/apps/web/package.json` - Project configuration and dependencies
+- `keeltrader/apps/web/package-lock.json` - Locked dependency versions
+- `keeltrader/apps/web/.npmrc` - npm configuration (exact versions)
 
 **Installation**:
 ```bash
-cd aiwendy/apps/web
+cd keeltrader/apps/web
 npm ci  # Use ci for reproducible builds
 ```
 
@@ -139,8 +139,8 @@ npm run release:dry-run
 **Registry**: GitHub Container Registry (ghcr.io)
 
 **Images**:
-- API: `ghcr.io/fretelli/aiwendy/api`
-- Web: `ghcr.io/fretelli/aiwendy/web`
+- API: `ghcr.io/fretelli/keeltrader/api`
+- Web: `ghcr.io/fretelli/keeltrader/web`
 
 **Tags**:
 - `latest` - Latest build from main branch
@@ -152,12 +152,12 @@ npm run release:dry-run
 **Usage**:
 ```bash
 # Pull specific version
-docker pull ghcr.io/fretelli/aiwendy/api:v1.0.0
+docker pull ghcr.io/fretelli/keeltrader/api:v1.0.0
 
 # Use in docker-compose.yml
 services:
   api:
-    image: ghcr.io/fretelli/aiwendy/api:v1.0.0
+    image: ghcr.io/fretelli/keeltrader/api:v1.0.0
 ```
 
 ### Commit Convention
@@ -214,13 +214,13 @@ KeelTrader 使用现代化的依赖管理工具和自动化工作流，确保可
 **工具**: Poetry
 
 **文件**:
-- `aiwendy/apps/api/pyproject.toml` - 项目配置和依赖
-- `aiwendy/apps/api/poetry.lock` - 锁定的依赖版本
-- `aiwendy/apps/api/requirements.txt` - 为兼容性生成
+- `keeltrader/apps/api/pyproject.toml` - 项目配置和依赖
+- `keeltrader/apps/api/poetry.lock` - 锁定的依赖版本
+- `keeltrader/apps/api/requirements.txt` - 为兼容性生成
 
 **安装**:
 ```bash
-cd aiwendy/apps/api
+cd keeltrader/apps/api
 poetry install
 ```
 
@@ -253,13 +253,13 @@ poetry export -f requirements.txt --output requirements.txt --without-hashes
 **工具**: npm
 
 **文件**:
-- `aiwendy/apps/web/package.json` - 项目配置和依赖
-- `aiwendy/apps/web/package-lock.json` - 锁定的依赖版本
-- `aiwendy/apps/web/.npmrc` - npm 配置（精确版本）
+- `keeltrader/apps/web/package.json` - 项目配置和依赖
+- `keeltrader/apps/web/package-lock.json` - 锁定的依赖版本
+- `keeltrader/apps/web/.npmrc` - npm 配置（精确版本）
 
 **安装**:
 ```bash
-cd aiwendy/apps/web
+cd keeltrader/apps/web
 npm ci  # 使用 ci 确保可复现构建
 ```
 
@@ -335,8 +335,8 @@ npm run release:dry-run
 **仓库**: GitHub Container Registry (ghcr.io)
 
 **镜像**:
-- API: `ghcr.io/fretelli/aiwendy/api`
-- Web: `ghcr.io/fretelli/aiwendy/web`
+- API: `ghcr.io/fretelli/keeltrader/api`
+- Web: `ghcr.io/fretelli/keeltrader/web`
 
 **标签**:
 - `latest` - main 分支的最新构建
@@ -348,12 +348,12 @@ npm run release:dry-run
 **使用**:
 ```bash
 # 拉取特定版本
-docker pull ghcr.io/fretelli/aiwendy/api:v1.0.0
+docker pull ghcr.io/fretelli/keeltrader/api:v1.0.0
 
 # 在 docker-compose.yml 中使用
 services:
   api:
-    image: ghcr.io/fretelli/aiwendy/api:v1.0.0
+    image: ghcr.io/fretelli/keeltrader/api:v1.0.0
 ```
 
 ### 提交规范
