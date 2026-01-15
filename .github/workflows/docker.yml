@@ -21,11 +21,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - context: ./aiwendy/apps/api
-            dockerfile: ./aiwendy/apps/api/Dockerfile
+          - context: ./keeltrader/apps/api
+            dockerfile: ./keeltrader/apps/api/Dockerfile
             image: api
-          - context: ./aiwendy/apps/web
-            dockerfile: ./aiwendy/apps/web/Dockerfile
+          - context: ./keeltrader/apps/web
+            dockerfile: ./keeltrader/apps/web/Dockerfile
             image: web
 
     steps:
