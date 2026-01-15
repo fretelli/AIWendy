@@ -3,7 +3,7 @@
 
 # Pre-commit hook is disabled for now
 # You can manually run linting before commit:
-# cd aiwendy/apps/web && npm run lint
-# cd aiwendy/apps/api && black . && isort .
+# cd keeltrader/apps/web && npm run lint
+# cd keeltrader/apps/api && black . && isort .
 
 echo "Pre-commit hook: Skipping automatic formatting (run manually if needed)"

@@ -90,7 +90,7 @@ KeelTrader 代表了行为金融学从理论到实践的演进：
 ## 快速开始（自托管）
 
 ```bash
-cd aiwendy
+cd keeltrader
 Copy-Item .env.example .env   # PowerShell（或：cp .env.example .env）
 docker compose up -d --build
 ```
@@ -99,11 +99,11 @@ docker compose up -d --build
 - API 健康检查：`http://localhost:8000/api/health`
 - API 文档：`http://localhost:8000/docs`
 
-完整说明：`aiwendy/docs/SELF_HOSTING.md`
+完整说明：`keeltrader/docs/SELF_HOSTING.md`
 
 ## 访客模式（免登录）
 
-将 API 的 `KEELTRADER_AUTH_REQUIRED=0`（默认在 `aiwendy/docker-compose.yml` 已启用该能力）即可免登录体验。
+将 API 的 `KEELTRADER_AUTH_REQUIRED=0`（默认在 `keeltrader/docker-compose.yml` 已启用该能力）即可免登录体验。
 
 ## Roadmap（社区版）
 
@@ -113,13 +113,13 @@ docker compose up -d --build
 
 ## 文档
 
-- 从这里开始：`aiwendy/docs/README.md`
-- 架构：`aiwendy/docs/ARCHITECTURE.md`
-- 部署：`aiwendy/docs/DEPLOYMENT.md`
-- 自托管：`aiwendy/docs/SELF_HOSTING.md`
-- 部署模式：`aiwendy/docs/DEPLOYMENT_MODES.md`
-- 自定义 API：`aiwendy/docs/CUSTOM_API_SETUP.md`
-- 国际化：`aiwendy/docs/I18N_GUIDE.md`
+- 从这里开始：`keeltrader/docs/README.md`
+- 架构：`keeltrader/docs/ARCHITECTURE.md`
+- 部署：`keeltrader/docs/DEPLOYMENT.md`
+- 自托管：`keeltrader/docs/SELF_HOSTING.md`
+- 部署模式：`keeltrader/docs/DEPLOYMENT_MODES.md`
+- 自定义 API：`keeltrader/docs/CUSTOM_API_SETUP.md`
+- 国际化：`keeltrader/docs/I18N_GUIDE.md`
 
 ## 贡献与安全
 
@@ -167,7 +167,7 @@ Disclaimer: for educational/research purposes only. This project is **not** inve
 ### Quick start (self-host)
 
 ```bash
-cd aiwendy
+cd keeltrader
 Copy-Item .env.example .env   # PowerShell (or: cp .env.example .env)
 docker compose up -d --build
 ```
@@ -176,11 +176,11 @@ docker compose up -d --build
 - API health: `http://localhost:8000/api/health`
 - API docs: `http://localhost:8000/docs`
 
-Full guide: `aiwendy/docs/SELF_HOSTING.md`
+Full guide: `keeltrader/docs/SELF_HOSTING.md`
 
 ### Guest mode (no login)
 
-Set `KEELTRADER_AUTH_REQUIRED=0` for the API (enabled by default in `aiwendy/docker-compose.yml`) to use the app without logging in.
+Set `KEELTRADER_AUTH_REQUIRED=0` for the API (enabled by default in `keeltrader/docker-compose.yml`) to use the app without logging in.
 
 ### Roadmap (community)
 
@@ -192,9 +192,9 @@ Set `KEELTRADER_AUTH_REQUIRED=0` for the API (enabled by default in `aiwendy/doc
 
 - Start here: `docs/README.md`
 - Repo map: `docs/PROJECT_OVERVIEW.md`
-- App docs: `aiwendy/docs/README.md`
-- Architecture: `aiwendy/docs/ARCHITECTURE.md`
-- Deployment: `aiwendy/docs/DEPLOYMENT.md`
+- App docs: `keeltrader/docs/README.md`
+- Architecture: `keeltrader/docs/ARCHITECTURE.md`
+- Deployment: `keeltrader/docs/DEPLOYMENT.md`
 
 ### Contributing & security
 
