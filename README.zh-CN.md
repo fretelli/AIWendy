@@ -1,5 +1,15 @@
 # KeelTrader
 
+<div align="center">
+
+### *面向交易心理的AI绩效教练*
+
+**Keel（龙骨）**: 如同船舶的龙骨在波涛汹涌中提供稳定性，KeelTrader 帮助您在波动的市场中保持心理平衡。
+
+</div>
+
+---
+
 [English](README.md) | [简体中文](README.zh-CN.md)
 
 [![CI](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml/badge.svg)](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml)
@@ -52,10 +62,11 @@ KeelTrader 代表了行为金融学从理论到实践的演进：
 - 理解过度自信 → 连赢后还是重仓梭哈
 
 **KeelTrader 的方法**（行为金融 3.0）：
-- **实时干预**：从交易日志中检测情绪模式，在你犯错之前介入
-- **个性化教练**：学习你的特定心理触发点和盲区
+- **对话式干预**：AI 教练与你讨论交易，帮助你反思日志中的情绪模式
+- **个性化教练**：构建针对交易心理不同方面的教练库
 - **可执行指导**：不是告诉你"你有损失厌恶"，而是"面对这笔交易决策，你应该这样做"
-- **持续学习**：根据对你真正有效的方法调整教练策略
+- **知识库（RAG）**：导入你自己的交易书籍、笔记和策略，获得情境化建议
+- *（规划中）* 实时模式检测和主动提醒
 
 ### 我们填补的空白
 
@@ -68,9 +79,10 @@ KeelTrader 代表了行为金融学从理论到实践的演进：
 ```
 
 大多数交易者懂理论但执行失败。KeelTrader 通过以下方式弥合这一鸿沟：
-1. **关键时刻教练**：在你准备报复性交易时介入，而不是事后诸葛亮
-2. **模式识别**：在你意识到之前就发现你的重复性错误
-3. **问责伙伴**：在情绪高涨时帮你坚持交易计划
+1. **反思式教练**：与 AI 教练一起回顾交易，识别情绪模式
+2. **日志分析**：跟踪交易决策并与专业教练讨论
+3. **问责伙伴**：多教练圆桌讨论帮助你从不同角度审视决策
+4. *（规划中）* 关键时刻提醒和主动模式识别
 
 ## 截图 / 演示
 
@@ -95,7 +107,7 @@ KeelTrader 代表了行为金融学从理论到实践的演进：
 ## 快速开始（自托管）
 
 ```bash
-cd aiwendy
+cd keeltrader
 Copy-Item .env.example .env   # PowerShell（或：cp .env.example .env）
 docker compose up -d --build
 ```
@@ -104,11 +116,11 @@ docker compose up -d --build
 - API 健康检查：`http://localhost:8000/api/health`
 - API 文档：`http://localhost:8000/docs`
 
-完整说明：`aiwendy/docs/SELF_HOSTING.md`
+完整说明：`keeltrader/docs/SELF_HOSTING.md`
 
 ## 访客模式（免登录）
 
-将 API 的 `KEELTRADER_AUTH_REQUIRED=0`（默认在 `aiwendy/docker-compose.yml` 已启用该能力）即可免登录体验。
+将 API 的 `KEELTRADER_AUTH_REQUIRED=0`（默认在 `keeltrader/docker-compose.yml` 已启用该能力）即可免登录体验。
 
 ## Roadmap（社区版）
 
@@ -118,13 +130,13 @@ docker compose up -d --build
 
 ## 文档
 
-- 从这里开始：`aiwendy/docs/README.md`
-- 架构：`aiwendy/docs/ARCHITECTURE.md`
-- 部署：`aiwendy/docs/DEPLOYMENT.md`
-- 自托管：`aiwendy/docs/SELF_HOSTING.md`
-- 部署模式：`aiwendy/docs/DEPLOYMENT_MODES.md`
-- 自定义 API：`aiwendy/docs/CUSTOM_API_SETUP.md`
-- 国际化：`aiwendy/docs/I18N_GUIDE.md`
+- 从这里开始：`keeltrader/docs/README.md`
+- 架构：`keeltrader/docs/ARCHITECTURE.md`
+- 部署：`keeltrader/docs/DEPLOYMENT.md`
+- 自托管：`keeltrader/docs/SELF_HOSTING.md`
+- 部署模式：`keeltrader/docs/DEPLOYMENT_MODES.md`
+- 自定义 API：`keeltrader/docs/CUSTOM_API_SETUP.md`
+- 国际化：`keeltrader/docs/I18N_GUIDE.md`
 
 ## 贡献与安全
 
@@ -172,7 +184,7 @@ Disclaimer: for educational/research purposes only. This project is **not** inve
 ### Quick start (self-host)
 
 ```bash
-cd aiwendy
+cd keeltrader
 Copy-Item .env.example .env   # PowerShell (or: cp .env.example .env)
 docker compose up -d --build
 ```
@@ -181,11 +193,11 @@ docker compose up -d --build
 - API health: `http://localhost:8000/api/health`
 - API docs: `http://localhost:8000/docs`
 
-Full guide: `aiwendy/docs/SELF_HOSTING.md`
+Full guide: `keeltrader/docs/SELF_HOSTING.md`
 
 ### Guest mode (no login)
 
-Set `KEELTRADER_AUTH_REQUIRED=0` for the API (enabled by default in `aiwendy/docker-compose.yml`) to use the app without logging in.
+Set `KEELTRADER_AUTH_REQUIRED=0` for the API (enabled by default in `keeltrader/docker-compose.yml`) to use the app without logging in.
 
 ### Roadmap (community)
 
@@ -197,9 +209,9 @@ Set `KEELTRADER_AUTH_REQUIRED=0` for the API (enabled by default in `aiwendy/doc
 
 - Start here: `docs/README.md`
 - Repo map: `docs/PROJECT_OVERVIEW.md`
-- App docs: `aiwendy/docs/README.md`
-- Architecture: `aiwendy/docs/ARCHITECTURE.md`
-- Deployment: `aiwendy/docs/DEPLOYMENT.md`
+- App docs: `keeltrader/docs/README.md`
+- Architecture: `keeltrader/docs/ARCHITECTURE.md`
+- Deployment: `keeltrader/docs/DEPLOYMENT.md`
 
 ### Contributing & security
 

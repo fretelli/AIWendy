@@ -5,7 +5,7 @@ Congratulations! The Exchange Connections UI is now fully set up and ready to us
 ## 📦 What Was Created
 
 ### 1. Main Exchange Settings Page
-**File:** `aiwendy/apps/web/app/(dashboard)/settings/exchanges/page.tsx`
+**File:** `keeltrader/apps/web/app/(dashboard)/settings/exchanges/page.tsx`
 
 **Features:**
 - ✅ View all exchange connections in a beautiful card grid
@@ -19,7 +19,7 @@ Congratulations! The Exchange Connections UI is now fully set up and ready to us
 - ✅ Support for all 5 exchanges (Binance, OKX, Bybit, Coinbase, Kraken)
 
 ### 2. API Integration
-**File:** `aiwendy/apps/web/lib/api/user-exchanges.ts`
+**File:** `keeltrader/apps/web/lib/api/user-exchanges.ts`
 
 **Methods:**
 - `getConnections()` - Fetch all user connections
@@ -78,12 +78,12 @@ When no connections exist:
 
 ```bash
 # Backend (Terminal 1)
-cd aiwendy/apps/api
+cd keeltrader/apps/api
 python main.py
 # Running on http://localhost:8000
 
 # Frontend (Terminal 2)
-cd aiwendy/apps/web
+cd keeltrader/apps/web
 npm run dev
 # Running on http://localhost:3000
 ```

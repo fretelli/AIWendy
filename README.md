@@ -1,5 +1,15 @@
 # KeelTrader
 
+<div align="center">
+
+### *An AI-powered performance coach for trading psychology*
+
+**Keel**: Like a ship's keel that provides stability in turbulent waters, KeelTrader helps you maintain psychological balance in volatile markets.
+
+</div>
+
+---
+
 [English](#en) | [简体中文](README.zh-CN.md)
 
 <a id="en"></a>
@@ -54,10 +64,11 @@ KeelTrader represents the evolution of behavioral finance from theory to practic
 - Understand overconfidence → Still overtrade after wins
 
 **KeelTrader's Approach** (Behavioral Finance 3.0):
-- **Real-time Intervention**: Detects emotional patterns in your journal entries and intervenes before you make mistakes
-- **Personalized Coaching**: Learns your specific psychological triggers and blind spots
+- **Conversational Intervention**: AI coaches discuss your trades and help you reflect on emotional patterns in your journal
+- **Personalized Coaching**: Build a library of coaches tailored to different aspects of your trading psychology
 - **Actionable Guidance**: Not just "you have loss aversion" but "here's how to handle this specific trade decision right now"
-- **Continuous Learning**: Adapts coaching strategies based on what actually works for you
+- **Knowledge Base (RAG)**: Import your own trading books, notes, and strategies for contextual advice
+- *(Planned)* Real-time pattern detection and proactive alerts
 
 ### The Gap We Fill
 
@@ -70,9 +81,10 @@ Academic Knowledge → [MISSING LINK] → Trading Performance
 ```
 
 Most traders know the theory but fail in execution. KeelTrader bridges this gap by providing:
-1. **Moment-of-truth coaching**: When you're about to revenge trade, not after
-2. **Pattern recognition**: Spots your recurring mistakes before you do
-3. **Accountability partner**: Helps you stick to your trading plan when emotions run high
+1. **Reflective coaching**: Review your trades with AI coaches to identify emotional patterns
+2. **Journal analysis**: Track your trading decisions and discuss them with specialized coaches
+3. **Accountability partner**: Multi-coach roundtable discussions help you examine decisions from different perspectives
+4. *(Planned)* Moment-of-truth alerts and proactive pattern recognition
 
 ## Screenshots
 
@@ -95,7 +107,7 @@ Most traders know the theory but fail in execution. KeelTrader bridges this gap 
 ## Quick start (self-host)
 
 ```bash
-cd aiwendy
+cd keeltrader
 Copy-Item .env.example .env   # PowerShell (or: cp .env.example .env)
 docker compose up -d --build
 ```
@@ -104,11 +116,11 @@ docker compose up -d --build
 - API health: `http://localhost:8000/api/health`
 - API docs: `http://localhost:8000/docs`
 
-Full guide: `aiwendy/docs/SELF_HOSTING.md`
+Full guide: `keeltrader/docs/SELF_HOSTING.md`
 
 ## Guest mode (no login)
 
-Set `KEELTRADER_AUTH_REQUIRED=0` for the API (enabled by default in `aiwendy/docker-compose.yml`) to use the app without logging in.
+Set `KEELTRADER_AUTH_REQUIRED=0` for the API (enabled by default in `keeltrader/docker-compose.yml`) to use the app without logging in.
 
 ## Roadmap (community)
 
@@ -118,13 +130,13 @@ Set `KEELTRADER_AUTH_REQUIRED=0` for the API (enabled by default in `aiwendy/doc
 
 ## Docs
 
-- Start here: `aiwendy/docs/README.md`
-- Architecture: `aiwendy/docs/ARCHITECTURE.md`
-- Deployment: `aiwendy/docs/DEPLOYMENT.md`
-- Self-hosting: `aiwendy/docs/SELF_HOSTING.md`
-- Deployment modes: `aiwendy/docs/DEPLOYMENT_MODES.md`
-- Custom API setup: `aiwendy/docs/CUSTOM_API_SETUP.md`
-- Internationalization: `aiwendy/docs/I18N_GUIDE.md`
+- Start here: `keeltrader/docs/README.md`
+- Architecture: `keeltrader/docs/ARCHITECTURE.md`
+- Deployment: `keeltrader/docs/DEPLOYMENT.md`
+- Self-hosting: `keeltrader/docs/SELF_HOSTING.md`
+- Deployment modes: `keeltrader/docs/DEPLOYMENT_MODES.md`
+- Custom API setup: `keeltrader/docs/CUSTOM_API_SETUP.md`
+- Internationalization: `keeltrader/docs/I18N_GUIDE.md`
 - **Version Management**: `docs/VERSION_MANAGEMENT.md` ⭐ NEW
 - **Changelog**: `CHANGELOG.md`
 
@@ -174,7 +186,7 @@ KeelTrader 是一套面向交易心理与行为表现的 AI 教练系统（Web: 
 ### 快速开始（自托管）
 
 ```bash
-cd aiwendy
+cd keeltrader
 Copy-Item .env.example .env   # PowerShell（或：cp .env.example .env）
 docker compose up -d --build
 ```
@@ -183,11 +195,11 @@ docker compose up -d --build
 - API 健康检查：`http://localhost:8000/api/health`
 - API 文档：`http://localhost:8000/docs`
 
-完整说明：`aiwendy/docs/SELF_HOSTING.md`
+完整说明：`keeltrader/docs/SELF_HOSTING.md`
 
 ### 访客模式（免登录）
 
-将 API 的 `KEELTRADER_AUTH_REQUIRED=0`（默认在 `aiwendy/docker-compose.yml` 已启用该能力）即可免登录体验。
+将 API 的 `KEELTRADER_AUTH_REQUIRED=0`（默认在 `keeltrader/docker-compose.yml` 已启用该能力）即可免登录体验。
 
 ### Roadmap（社区版）
 
@@ -199,9 +211,9 @@ docker compose up -d --build
 
 - 从这里开始：`docs/README.md`
 - 仓库导览：`docs/PROJECT_OVERVIEW.md`
-- 应用文档：`aiwendy/docs/README.md`
-- 架构：`aiwendy/docs/ARCHITECTURE.md`
-- 部署：`aiwendy/docs/DEPLOYMENT.md`
+- 应用文档：`keeltrader/docs/README.md`
+- 架构：`keeltrader/docs/ARCHITECTURE.md`
+- 部署：`keeltrader/docs/DEPLOYMENT.md`
 
 ### 贡献与安全
 

@@ -703,7 +703,7 @@ function ExchangeBalance({ exchange }: { exchange: string }) {
 **Solution:**
 ```bash
 # Install dependencies
-cd aiwendy/apps/api
+cd keeltrader/apps/api
 pip install -r requirements.txt
 
 # Or with Docker
