@@ -6,6 +6,11 @@
 
 [![CI](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml/badge.svg)](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/fretelli/KeelTrader?style=social)](https://github.com/fretelli/KeelTrader/stargazers)
+[![Last Commit](https://img.shields.io/github/last-commit/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader/commits/main)
+[![GitHub Issues](https://img.shields.io/github/issues/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader/issues)
+[![Top Language](https://img.shields.io/github/languages/top/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/fretelli/KeelTrader/pulls)
 
 KeelTrader is an AI-powered performance coach for trading psychology (Web: Next.js, API: FastAPI). It's built around chat, knowledge base (RAG), and a "roundtable" multi-coach discussion mode.
 
