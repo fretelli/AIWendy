@@ -8,6 +8,7 @@ from . import (
     exchanges,
     files,
     health,
+    intervention,
     journals,
     knowledge,
     llm_config,
@@ -42,4 +43,5 @@ __all__ = [
     "files",
     "roundtable",
     "notifications",
+    "intervention",
 ]

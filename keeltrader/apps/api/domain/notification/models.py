@@ -18,7 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
-from keeltrader.apps.api.core.database import Base
+from core.database import Base
 
 
 class NotificationType(str, enum.Enum):
