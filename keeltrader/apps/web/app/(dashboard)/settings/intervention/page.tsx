@@ -50,6 +50,7 @@ export default function InterventionSettingsPage() {
     if (user) {
       loadChecklists()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   const loadChecklists = async () => {
