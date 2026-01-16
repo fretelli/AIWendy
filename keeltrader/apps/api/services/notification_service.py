@@ -10,17 +10,18 @@ import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from keeltrader.apps.api.domain.notification.models import (
+from domain.notification.models import (
     Notification,
     NotificationChannel,
     NotificationPriority,
     NotificationType,
     DeviceToken,
 )
-from keeltrader.apps.api.domain.user.models import User
-from keeltrader.apps.api.core.config import settings
+from domain.user.models import User
+from config import get_settings
 
 logger = structlog.get_logger()
+settings = get_settings()
 
 
 class NotificationService:
