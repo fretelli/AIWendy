@@ -43,18 +43,18 @@ We follow Git Flow for branch management:
 
 The easiest way to run the full stack locally is Docker Compose:
 
-1. `cd aiwendy`
+1. `cd keeltrader`
 2. Copy env file: `Copy-Item .env.example .env` (PowerShell) or `cp .env.example .env`
 3. Start: `docker compose up -d --build`
 
-More details: `aiwendy/docs/SELF_HOSTING.md`
+More details: `keeltrader/docs/SELF_HOSTING.md`
 
 ## Development (split mode)
 
 You can also run DB/Redis in Docker and run the API/Web on your host:
 
-- API: `aiwendy/docs/DEPLOYMENT.md`
-- Web: `aiwendy/apps/web/package.json` scripts: `npm run dev`, `npm run lint`, `npm run type-check`
+- API: `keeltrader/docs/DEPLOYMENT.md`
+- Web: `keeltrader/apps/web/package.json` scripts: `npm run dev`, `npm run lint`, `npm run type-check`
 
 ## Development Setup
 
@@ -67,7 +67,7 @@ After cloning the repository, install dependencies:
 npm install
 
 # Install frontend dependencies
-cd aiwendy/apps/web
+cd keeltrader/apps/web
 npm install
 
 # Install backend dependencies (if not using Docker)
@@ -80,13 +80,13 @@ pip install pre-commit
 
 ```bash
 # Frontend tests
-cd aiwendy/apps/web
+cd keeltrader/apps/web
 npm run test              # Run tests
 npm run test:watch        # Watch mode
 npm run test:coverage     # With coverage
 
 # Backend tests
-cd aiwendy/apps/api
+cd keeltrader/apps/api
 pytest                    # Run all tests
 pytest tests/unit         # Unit tests only
 pytest --cov=.            # With coverage
@@ -102,12 +102,12 @@ The project uses automated code quality tools:
 Run checks manually:
 ```bash
 # Frontend
-cd aiwendy/apps/web
+cd keeltrader/apps/web
 npm run lint
 npm run type-check
 
 # Backend
-cd aiwendy/apps/api
+cd keeltrader/apps/api
 black .
 isort .
 flake8 .
@@ -229,18 +229,18 @@ If you believe you found a security issue, please follow `SECURITY.md` instead o
 
 最简单的本地运行方式是使用 Docker Compose：
 
-1. `cd aiwendy`
+1. `cd keeltrader`
 2. 复制环境变量文件：PowerShell 用 `Copy-Item .env.example .env`，macOS/Linux 用 `cp .env.example .env`
 3. 启动：`docker compose up -d --build`
 
-更多细节：`aiwendy/docs/SELF_HOSTING.md`
+更多细节：`keeltrader/docs/SELF_HOSTING.md`
 
 ### 开发（拆分模式）
 
 你也可以只用 Docker 跑 DB/Redis，然后在宿主机运行 API/Web：
 
-- API：`aiwendy/docs/DEPLOYMENT.md`
-- Web：参考 `aiwendy/apps/web/package.json` scripts：`npm run dev`、`npm run lint`、`npm run type-check`
+- API：`keeltrader/docs/DEPLOYMENT.md`
+- Web：参考 `keeltrader/apps/web/package.json` scripts：`npm run dev`、`npm run lint`、`npm run type-check`
 
 ### 开发环境设置
 
@@ -253,7 +253,7 @@ If you believe you found a security issue, please follow `SECURITY.md` instead o
 npm install
 
 # 安装前端依赖
-cd aiwendy/apps/web
+cd keeltrader/apps/web
 npm install
 
 # 安装后端依赖（如果不使用 Docker）
@@ -266,13 +266,13 @@ pip install pre-commit
 
 ```bash
 # 前端测试
-cd aiwendy/apps/web
+cd keeltrader/apps/web
 npm run test              # 运行测试
 npm run test:watch        # 监听模式
 npm run test:coverage     # 带覆盖率
 
 # 后端测试
-cd aiwendy/apps/api
+cd keeltrader/apps/api
 pytest                    # 运行所有测试
 pytest tests/unit         # 只运行单元测试
 pytest --cov=.            # 带覆盖率
@@ -288,12 +288,12 @@ pytest --cov=.            # 带覆盖率
 手动运行检查：
 ```bash
 # 前端
-cd aiwendy/apps/web
+cd keeltrader/apps/web
 npm run lint
 npm run type-check
 
 # 后端
-cd aiwendy/apps/api
+cd keeltrader/apps/api
 black .
 isort .
 flake8 .

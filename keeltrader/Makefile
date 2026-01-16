@@ -21,9 +21,9 @@ setup:
 dev:
 	@docker-compose up -d db redis
 	@echo "Starting backend and frontend..."
-	@tmux new-session -d -s aiwendy-api "cd apps/api && source venv/bin/activate && uvicorn main:app --reload"
-	@tmux new-session -d -s aiwendy-web "cd apps/web && npm run dev"
-	@echo "Services started in tmux sessions: aiwendy-api, aiwendy-web"
+	@tmux new-session -d -s keeltrader-api "cd apps/api && source venv/bin/activate && uvicorn main:app --reload"
+	@tmux new-session -d -s keeltrader-web "cd apps/web && npm run dev"
+	@echo "Services started in tmux sessions: keeltrader-api, keeltrader-web"
 
 # Run tests
 test:

@@ -18,13 +18,13 @@ echo "Service: $SERVICE"
 # Build Docker images
 if [ "$SERVICE" = "all" ] || [ "$SERVICE" = "api" ]; then
     echo "Building API Docker image..."
-    docker build -t aiwendy-api:latest ./apps/api
+    docker build -t keeltrader-api:latest ./apps/api
     echo "✅ API image built"
 fi
 
 if [ "$SERVICE" = "all" ] || [ "$SERVICE" = "web" ]; then
     echo "Building Web Docker image..."
-    docker build -t aiwendy-web:latest ./apps/web
+    docker build -t keeltrader-web:latest ./apps/web
     echo "✅ Web image built"
 fi
 
@@ -36,7 +36,7 @@ if [ "$ENVIRONMENT" = "production" ]; then
         echo "Deploying API to production..."
         # Add your deployment commands here
         # railway up --service api
-        # fly deploy --app aiwendy-api
+        # fly deploy --app keeltrader-api
         echo "✅ API deployed"
     fi
 

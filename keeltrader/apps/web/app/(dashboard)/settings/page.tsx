@@ -51,7 +51,7 @@ export default function SettingsPage() {
 
   const fetchAPIKeys = async () => {
     try {
-      const token = localStorage.getItem("aiwendy_access_token")
+      const token = localStorage.getItem("keeltrader_access_token")
       const response = await fetch(`${API_V1_PREFIX}/users/me/api-keys`, {
         headers: {
           Authorization: token ? `Bearer ${token}` : "",
@@ -79,7 +79,7 @@ export default function SettingsPage() {
   const updateAPIKeys = async () => {
     setSaving(true)
     try {
-      const token = localStorage.getItem("aiwendy_access_token")
+      const token = localStorage.getItem("keeltrader_access_token")
       const response = await fetch(`${API_V1_PREFIX}/users/me/api-keys`, {
         method: "PUT",
         headers: {
@@ -125,7 +125,7 @@ export default function SettingsPage() {
   const deleteAPIKey = async (provider: string) => {
     const providerLabel = provider === "openai" ? "OpenAI" : "Anthropic"
     try {
-      const token = localStorage.getItem("aiwendy_access_token")
+      const token = localStorage.getItem("keeltrader_access_token")
       const response = await fetch(`${API_V1_PREFIX}/users/me/api-keys/${provider}`, {
         method: "DELETE",
         headers: {

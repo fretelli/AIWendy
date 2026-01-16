@@ -76,7 +76,7 @@ export default function ReportDetailPage() {
     const fetchReport = async () => {
       setLoading(true)
       try {
-        const token = localStorage.getItem("aiwendy_access_token")
+        const token = localStorage.getItem("keeltrader_access_token")
         const response = await fetch(`${API_V1_PREFIX}/reports/${reportId}`, {
           headers: { Authorization: token ? `Bearer ${token}` : "" },
         })

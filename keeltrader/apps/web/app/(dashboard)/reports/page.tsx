@@ -84,7 +84,7 @@ export default function ReportsPage() {
 
   const fetchReports = async () => {
     try {
-      const token = localStorage.getItem("aiwendy_access_token")
+      const token = localStorage.getItem("keeltrader_access_token")
       const params = new URLSearchParams({ limit: "30" })
       if (projectId) params.set("project_id", projectId)
 
@@ -111,7 +111,7 @@ export default function ReportsPage() {
   const generateReport = async (reportType: string) => {
     setGenerating(reportType)
     try {
-      const token = localStorage.getItem("aiwendy_access_token")
+      const token = localStorage.getItem("keeltrader_access_token")
       const params = new URLSearchParams()
       if (projectId) params.set("project_id", projectId)
 

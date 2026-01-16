@@ -5,7 +5,7 @@ const nextConfig = {
 
   // Image optimization
   images: {
-    domains: ['localhost', 'aiwendy.com'],
+    domains: ['localhost', 'keeltrader.com'],
     formats: ['image/avif', 'image/webp'],
   },
 

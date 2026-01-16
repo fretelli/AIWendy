@@ -92,7 +92,7 @@ export const authApi = {
    * Get auth headers
    */
   getAuthHeaders(): HeadersInit {
-    const token = localStorage.getItem('aiwendy_access_token')
+    const token = localStorage.getItem('keeltrader_access_token')
     if (!token) {
       return {}
     }
@@ -107,7 +107,7 @@ export const authApi = {
  * Get auth headers (exported for use in other modules)
  */
 export function getAuthHeaders(): HeadersInit {
-  const token = localStorage.getItem('aiwendy_access_token')
+  const token = localStorage.getItem('keeltrader_access_token')
   if (!token) {
     return {}
   }

@@ -31,7 +31,7 @@ class ProjectsAPI {
   }
 
   private getHeaders() {
-    const token = localStorage.getItem('aiwendy_access_token')
+    const token = localStorage.getItem('keeltrader_access_token')
     return {
       'Content-Type': 'application/json',
       Authorization: token ? `Bearer ${token}` : '',

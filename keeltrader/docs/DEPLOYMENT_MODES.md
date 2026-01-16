@@ -48,7 +48,7 @@ DEPLOYMENT_MODE=self-hosted
 ### 快速开始
 
 ```bash
-cd aiwendy
+cd keeltrader
 cp .env.example .env
 # 编辑 .env 设置必要的配置
 docker compose up -d --build
@@ -146,7 +146,7 @@ STRIPE_PRICE_ID_ENTERPRISE=price_xxx
 
 ```bash
 # 运行迁移以创建租户表
-docker exec aiwendy-api alembic upgrade head
+docker exec keeltrader-api alembic upgrade head
 ```
 
 ### 适用场景
@@ -164,7 +164,7 @@ docker exec aiwendy-api alembic upgrade head
 ### 1. 备份数据
 
 ```bash
-docker exec aiwendy-postgres pg_dump -U aiwendy aiwendy > backup.sql
+docker exec keeltrader-postgres pg_dump -U keeltrader keeltrader > backup.sql
 ```
 
 ### 2. 更新配置
@@ -184,7 +184,7 @@ git pull
 docker compose up -d --build
 
 # 或手动运行迁移
-docker exec aiwendy-api alembic upgrade head
+docker exec keeltrader-api alembic upgrade head
 ```
 
 ### 4. 创建租户
@@ -192,7 +192,7 @@ docker exec aiwendy-api alembic upgrade head
 为现有用户创建租户：
 
 ```bash
-docker exec aiwendy-api python scripts/migrate_to_multi_tenant.py
+docker exec keeltrader-api python scripts/migrate_to_multi_tenant.py
 ```
 
 ### 5. 配置外部服务
@@ -339,7 +339,7 @@ pip install -r requirements.cloud.txt
 
 - GitHub Issues：请使用你 fork 后的仓库 Issues 页面
 - 社区论坛
-- 文档：`../aiwendy/docs/`
+- 文档：`../keeltrader/docs/`
 
 ### 云托管模式
 
@@ -425,7 +425,7 @@ Or leave it unset (default is `self-hosted`).
 ### Quick start
 
 ```bash
-cd aiwendy
+cd keeltrader
 cp .env.example .env
 # edit .env and fill required settings
 docker compose up -d --build
@@ -523,7 +523,7 @@ Cloud mode requires additional tables:
 
 ```bash
 # run migrations to create tenant tables
-docker exec aiwendy-api alembic upgrade head
+docker exec keeltrader-api alembic upgrade head
 ```
 
 ### Best for
@@ -541,7 +541,7 @@ If you’re already running the self-hosted version and want to migrate to cloud
 ### 1. Back up data
 
 ```bash
-docker exec aiwendy-postgres pg_dump -U aiwendy aiwendy > backup.sql
+docker exec keeltrader-postgres pg_dump -U keeltrader keeltrader > backup.sql
 ```
 
 ### 2. Update configuration
@@ -561,7 +561,7 @@ git pull
 docker compose up -d --build
 
 # or run migrations manually
-docker exec aiwendy-api alembic upgrade head
+docker exec keeltrader-api alembic upgrade head
 ```
 
 ### 4. Create tenants
@@ -569,7 +569,7 @@ docker exec aiwendy-api alembic upgrade head
 Create tenants for existing users:
 
 ```bash
-docker exec aiwendy-api python scripts/migrate_to_multi_tenant.py
+docker exec keeltrader-api python scripts/migrate_to_multi_tenant.py
 ```
 
 ### 5. Configure external services
@@ -714,7 +714,7 @@ pip install -r requirements.cloud.txt
 
 - GitHub Issues: use your fork’s Issues page
 - Community forum
-- Docs: `../aiwendy/docs/`
+- Docs: `../keeltrader/docs/`
 
 ### Cloud-hosted
 

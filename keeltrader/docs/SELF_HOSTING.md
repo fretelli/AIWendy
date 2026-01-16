@@ -36,7 +36,7 @@
 
 验证方式（不带 token 直接访问）：
 
-- `http://localhost:8000/api/v1/users/me` 应返回 `guest@local.aiwendy`
+- `http://localhost:8000/api/v1/users/me` 应返回 `guest@local.keeltrader`
 
 如果你想在公网/生产环境强制登录：
 
@@ -52,8 +52,8 @@
 手动执行（可选）：
 
 ```bash
-docker exec aiwendy-api python scripts/init_db_simple.py
-docker exec aiwendy-api python scripts/init_user_simple.py
+docker exec keeltrader-api python scripts/init_db_simple.py
+docker exec keeltrader-api python scripts/init_user_simple.py
 ```
 
 如果开启了 `KEELTRADER_AUTO_INIT_TEST_USERS=1`，测试账号为：
@@ -61,7 +61,7 @@ docker exec aiwendy-api python scripts/init_user_simple.py
 | Type | Email | Password | Access |
 |------|-------|----------|--------|
 | User | test@example.com | Test@1234 | Free |
-| Admin | admin@aiwendy.com | Admin@123 | Elite + Admin |
+| Admin | admin@keeltrader.com | Admin@123 | Elite + Admin |
 
 ## 访问地址
 
@@ -83,8 +83,8 @@ docker compose --profile workers up -d --build
 - 跟踪日志：`docker compose logs -f web api`
 - 停止：`docker compose down`
 - 停止并清空数据：`docker compose down -v`
-- 进入 API 容器：`docker exec -it aiwendy-api sh`
-- 进入数据库：`docker exec -it aiwendy-db psql -U aiwendy`
+- 进入 API 容器：`docker exec -it keeltrader-api sh`
+- 进入数据库：`docker exec -it keeltrader-db psql -U keeltrader`
 
 ## 常见问题
 
@@ -94,7 +94,7 @@ docker compose --profile workers up -d --build
 2. 若返回 401：
    - 检查 `.env` 是否设置 `KEELTRADER_AUTH_REQUIRED=0`
    - 重新构建并启动：`docker compose up -d --build`
-3. 若之前登录过，建议清理浏览器 LocalStorage 中的 `aiwendy_access_token` / `aiwendy_refresh_token` 后刷新
+3. 若之前登录过，建议清理浏览器 LocalStorage 中的 `keeltrader_access_token` / `keeltrader_refresh_token` 后刷新
 
 ### “Network error: unable to reach the API server”
 
@@ -147,7 +147,7 @@ The default config enables a no-login experience:
 
 How to verify (call without a token):
 
-- `http://localhost:8000/api/v1/users/me` should return `guest@local.aiwendy`
+- `http://localhost:8000/api/v1/users/me` should return `guest@local.keeltrader`
 
 If you want to enforce login in public/production:
 
@@ -163,8 +163,8 @@ On container startup you can run init scripts automatically (recommended for loc
 Manual run (optional):
 
 ```bash
-docker exec aiwendy-api python scripts/init_db_simple.py
-docker exec aiwendy-api python scripts/init_user_simple.py
+docker exec keeltrader-api python scripts/init_db_simple.py
+docker exec keeltrader-api python scripts/init_user_simple.py
 ```
 
 If `KEELTRADER_AUTO_INIT_TEST_USERS=1` is enabled, default test accounts are:
@@ -172,7 +172,7 @@ If `KEELTRADER_AUTO_INIT_TEST_USERS=1` is enabled, default test accounts are:
 | Type | Email | Password | Access |
 |------|-------|----------|--------|
 | User | test@example.com | Test@1234 | Free |
-| Admin | admin@aiwendy.com | Admin@123 | Elite + Admin |
+| Admin | admin@keeltrader.com | Admin@123 | Elite + Admin |
 
 ## URLs
 
@@ -194,8 +194,8 @@ docker compose --profile workers up -d --build
 - Tail logs: `docker compose logs -f web api`
 - Stop: `docker compose down`
 - Stop and wipe data: `docker compose down -v`
-- Enter API container: `docker exec -it aiwendy-api sh`
-- Enter DB: `docker exec -it aiwendy-db psql -U aiwendy`
+- Enter API container: `docker exec -it keeltrader-api sh`
+- Enter DB: `docker exec -it keeltrader-db psql -U keeltrader`
 
 ## FAQ
 
@@ -205,7 +205,7 @@ docker compose --profile workers up -d --build
 2. If it returns 401:
    - Check `.env` has `KEELTRADER_AUTH_REQUIRED=0`
    - Rebuild and restart: `docker compose up -d --build`
-3. If you logged in before, clear LocalStorage keys `aiwendy_access_token` / `aiwendy_refresh_token` and refresh
+3. If you logged in before, clear LocalStorage keys `keeltrader_access_token` / `keeltrader_refresh_token` and refresh
 
 ### “Network error: unable to reach the API server”
 

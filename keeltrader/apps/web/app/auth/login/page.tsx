@@ -63,8 +63,8 @@ export default function LoginPage() {
   }
 
   const handleContinueAsGuest = () => {
-    localStorage.removeItem('aiwendy_access_token')
-    localStorage.removeItem('aiwendy_refresh_token')
+    localStorage.removeItem('keeltrader_access_token')
+    localStorage.removeItem('keeltrader_refresh_token')
     router.push('/dashboard')
   }
 

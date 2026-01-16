@@ -126,8 +126,8 @@ export default function DashboardLayout({
 
   const handleLogout = async () => {
     // Clear auth tokens and redirect to login
-    localStorage.removeItem('aiwendy_access_token');
-    localStorage.removeItem('aiwendy_refresh_token');
+    localStorage.removeItem('keeltrader_access_token');
+    localStorage.removeItem('keeltrader_refresh_token');
     // Backwards-compat (older key)
     localStorage.removeItem('auth_token');
     router.push('/auth/login');

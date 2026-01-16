@@ -46,7 +46,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!ready) return;
-    const token = localStorage.getItem('aiwendy_access_token');
+    const token = localStorage.getItem('keeltrader_access_token');
 
     const fetchStats = async () => {
       try {

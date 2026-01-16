@@ -4,7 +4,7 @@
 
 ## Feature (4 items)
 
-### aiwendy\apps\api\routers\chat.py:835
+### keeltrader\apps\api\routers\chat.py:835
 **Type:** `TODO`
 **Description:** Implement session listing with pagination
 
@@ -18,7 +18,7 @@
 Placeholder endpoint - returns empty list
 ```
 
-### aiwendy\apps\api\routers\chat.py:852
+### keeltrader\apps\api\routers\chat.py:852
 **Type:** `TODO`
 **Description:** Implement session retrieval with messages
 
@@ -31,7 +31,7 @@ Placeholder endpoint - returns empty list
 Placeholder endpoint - returns empty session
 ```
 
-### aiwendy\apps\api\routers\coaches.py:258
+### keeltrader\apps\api\routers\coaches.py:258
 **Type:** `TODO`
 **Description:** Implement subscription-based coach filtering
 
@@ -43,7 +43,7 @@ Placeholder endpoint - returns empty session
 Currently all coaches are available to all users
 ```
 
-### aiwendy\apps\api\routers\users.py:58
+### keeltrader\apps\api\routers\users.py:58
 **Type:** `TODO`
 **Description:** Implement user profile update
 

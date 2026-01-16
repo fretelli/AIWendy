@@ -80,7 +80,7 @@ export function CoachSelector({
 
   const fetchCoaches = async () => {
     try {
-      const token = localStorage.getItem("aiwendy_access_token")
+      const token = localStorage.getItem("keeltrader_access_token")
       const response = await fetch(`${API_V1_PREFIX}/coaches`, {
         headers: {
           "Authorization": token ? `Bearer ${token}` : ""
