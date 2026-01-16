@@ -7,20 +7,20 @@ mixpanel==4.10.0  # For Mixpanel analytics (alternative to PostHog)
 
 # ========== Enterprise SSO ==========
 python3-saml==1.16.0  # For SAML 2.0 SSO
-PyJWT==2.8.0  # For JWT handling in OAuth flows
+PyJWT==2.10.1  # For JWT handling in OAuth flows
 
 # ========== Billing ==========
 stripe==8.0.0  # For payment processing and subscription management
 
 # ========== Enhanced Monitoring ==========
-prometheus-client==0.20.0  # For Prometheus metrics
-datadog==0.49.1  # For Datadog APM (optional)
+prometheus-client==0.24.1  # For Prometheus metrics
+datadog==0.52.1  # For Datadog APM (optional)
 
 # ========== Rate Limiting ==========
 slowapi==0.1.9  # Enhanced rate limiting for multi-tenant environments
 
 # ========== Background Jobs ==========
-celery[redis]==5.4.0  # Already in base, but ensure redis extras
+celery[redis]==5.6.2  # Already in base, but ensure redis extras
 flower==2.0.1  # For Celery monitoring (already in docker-compose)
 
 # ========== Security ==========
@@ -31,12 +31,12 @@ python-decouple==3.8  # For secure config management
 # No additional packages needed - handled by SQLAlchemy models
 
 # ========== Email ==========
-sendgrid==6.11.0  # For transactional emails (optional)
+sendgrid==6.12.5  # For transactional emails (optional)
 # OR
-boto3==1.34.69  # For AWS SES (alternative)
+boto3==1.42.29  # For AWS SES (alternative)
 
 # ========== Storage ==========
-boto3==1.34.69  # For S3 storage (optional, for file uploads)
+boto3==1.42.29  # For S3 storage (optional, for file uploads)
 google-cloud-storage==2.16.0  # For GCS storage (alternative)
 
 # ========== Compliance & Audit ==========
