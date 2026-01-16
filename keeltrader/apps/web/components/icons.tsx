@@ -8,7 +8,18 @@ import {
   Square,
   AlertCircle,
   MessageSquare,
-  RefreshCw
+  RefreshCw,
+  Plus,
+  Wallet,
+  Check,
+  Edit,
+  Trash,
+  Eye,
+  EyeOff,
+  AlertTriangle,
+  Bell,
+  BarChart,
+  FileText,
 } from "lucide-react"
 
 export type IconProps = React.SVGProps<SVGSVGElement>
@@ -24,6 +35,17 @@ export const Icons = {
   alertCircle: AlertCircle,
   messageSquare: MessageSquare,
   refresh: RefreshCw,
+  plus: Plus,
+  wallet: Wallet,
+  check: Check,
+  edit: Edit,
+  trash: Trash,
+  eye: Eye,
+  eyeOff: EyeOff,
+  alertTriangle: AlertTriangle,
+  bell: Bell,
+  barChart: BarChart,
+  fileText: FileText,
   google: (props: IconProps) => (
     <svg
       xmlns="http://www.w3.org/2000/svg"

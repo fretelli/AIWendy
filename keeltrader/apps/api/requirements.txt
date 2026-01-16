@@ -24,6 +24,10 @@ tiktoken==0.7.0
 # ========== HTTP ==========
 httpx==0.27.0
 aiohttp==3.9.5
+websockets==12.0
+
+# ========== Exchange Integration ==========
+ccxt==4.2.25
 
 # ========== Auth ==========
 python-jose[cryptography]==3.3.0

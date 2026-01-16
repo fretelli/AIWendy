@@ -74,6 +74,21 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
 
+    # ========== Market Data API Keys ==========
+    twelve_data_api_key: Optional[str] = None
+
+    # ========== Exchange API Keys ==========
+    # Binance
+    binance_api_key: Optional[str] = None
+    binance_api_secret: Optional[str] = None
+    # OKX
+    okx_api_key: Optional[str] = None
+    okx_api_secret: Optional[str] = None
+    okx_passphrase: Optional[str] = None
+    # Bybit
+    bybit_api_key: Optional[str] = None
+    bybit_api_secret: Optional[str] = None
+
     # ========== LLM Settings ==========
     llm_default_provider: str = "openai"
     llm_default_model: str = "gpt-4o-mini"
@@ -110,6 +125,24 @@ class Settings(BaseSettings):
     celery_result_serializer: str = "json"
     celery_accept_content: list[str] = ["json"]
     celery_timezone: str = "UTC"
+
+    # ========== Notifications ==========
+    # Firebase Cloud Messaging
+    fcm_server_key: Optional[str] = None
+    fcm_enabled: bool = False
+
+    # Email notifications
+    smtp_host: Optional[str] = None
+    smtp_port: int = 587
+    smtp_username: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from_email: Optional[str] = None
+    smtp_use_tls: bool = True
+
+    # SMS notifications (Twilio)
+    twilio_account_sid: Optional[str] = None
+    twilio_auth_token: Optional[str] = None
+    twilio_from_number: Optional[str] = None
 
     # ========== Feature Flags ==========
     feature_analytics_enabled: bool = True
