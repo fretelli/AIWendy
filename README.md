@@ -102,6 +102,10 @@ Most traders know the theory but fail in execution. KeelTrader bridges this gap 
 - **Attachments**: upload images/docs/audio (extract/transcribe where supported)
 - **Journaling + reports**: trading journal, analytics, scheduled reports (Celery)
 - **Journal import (CSV/XLSX)**: upload a file and map columns in the UI (works with different broker/export formats)
+- **Push notifications**: real-time alerts for pattern detection, risk warnings, and daily summaries (FCM, Email, SMS)
+- **Trading intervention system**: pre-trade checklists, real-time trade blocking based on risk limits, and proactive alerts
+- **Cognitive bias detection**: ML-powered detection of revenge trading, FOMO, overtrading, and other behavioral patterns
+- **Exchange integration**: connect to crypto exchanges (Binance, OKX, Bybit, Coinbase, Kraken) for automated trade import
 - **Self-hosted by default**: Docker Compose; optional cloud/SaaS mode via env flags
 
 ## Quick start (self-host)

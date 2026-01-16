@@ -12,6 +12,7 @@ from . import (
     knowledge,
     llm_config,
     market_data,
+    notifications,
     ollama,
     projects,
     reports,
@@ -40,4 +41,5 @@ __all__ = [
     "tasks",
     "files",
     "roundtable",
+    "notifications",
 ]
