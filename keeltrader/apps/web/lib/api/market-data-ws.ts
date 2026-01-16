@@ -178,21 +178,17 @@ export function useMarketDataWebSocket(
   symbol: string,
   options: MarketDataWSOptions = {}
 ) {
-  if (typeof window === 'undefined') {
-    // Server-side rendering
-    return {
-      price: null,
-      isConnected: false,
-      error: null,
-    }
-  }
-
   const [price, setPrice] = React.useState<PriceUpdate | null>(null)
   const [isConnected, setIsConnected] = React.useState(false)
   const [error, setError] = React.useState<Event | null>(null)
   const wsRef = React.useRef<MarketDataWebSocket | null>(null)
 
   React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      // Server-side rendering - skip WebSocket connection
+      return
+    }
+
     // Create WebSocket instance
     wsRef.current = new MarketDataWebSocket(symbol, {
       ...options,
@@ -222,7 +218,7 @@ export function useMarketDataWebSocket(
     return () => {
       wsRef.current?.disconnect()
     }
-  }, [symbol])
+  }, [symbol, options])
 
   return {
     price,

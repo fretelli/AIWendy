@@ -31,6 +31,7 @@ export default function NotificationsPage() {
     if (user) {
       loadNotifications()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, unreadOnly])
 
   const loadNotifications = async () => {
