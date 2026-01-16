@@ -2,14 +2,18 @@
 Market data API endpoints for charts
 """
 
+import logging
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from core.i18n import get_request_locale, t
 from services.market_data_service import MarketDataService
+from services.market_data_websocket import market_data_ws_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/market-data", tags=["market-data"])
 
@@ -234,7 +238,55 @@ async def search_symbols(
         )
 
 
+@router.websocket("/ws/{symbol}")
+async def websocket_endpoint(websocket: WebSocket, symbol: str):
+    """
+    WebSocket endpoint for real-time price updates
+
+    Args:
+        websocket: WebSocket connection
+        symbol: Stock symbol to subscribe to
+
+    Usage:
+        ws://localhost:8000/api/market-data/ws/AAPL
+    """
+    await websocket.accept()
+
+    try:
+        # Connect to Twelve Data if not already connected
+        if not market_data_ws_service.is_connected:
+            await market_data_ws_service.connect_to_twelve_data()
+
+        # Subscribe to the symbol
+        await market_data_ws_service.subscribe(websocket, symbol.upper())
+
+        # Keep connection alive and handle incoming messages
+        while True:
+            try:
+                # Wait for client messages (like unsubscribe requests)
+                data = await websocket.receive_json()
+
+                if data.get("action") == "unsubscribe":
+                    await market_data_ws_service.unsubscribe(websocket, symbol.upper())
+                    break
+                elif data.get("action") == "subscribe":
+                    new_symbol = data.get("symbol", "").upper()
+                    if new_symbol:
+                        await market_data_ws_service.subscribe(websocket, new_symbol)
+
+            except WebSocketDisconnect:
+                break
+            except Exception as e:
+                logger.error(f"Error handling WebSocket message: {e}")
+                break
+
+    finally:
+        # Clean up on disconnect
+        await market_data_ws_service.disconnect(websocket)
+
+
 @router.on_event("shutdown")
 async def shutdown():
     """Clean up resources on shutdown"""
     await market_data_service.close()
+    await market_data_ws_service.close()

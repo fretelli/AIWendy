@@ -1,9 +1,24 @@
 # KeelTrader
 
+<div align="center">
+
+### *面向交易心理的AI绩效教练*
+
+**Keel（龙骨）**: 如同船舶的龙骨在波涛汹涌中提供稳定性，KeelTrader 帮助您在波动的市场中保持心理平衡。
+
+</div>
+
+---
+
 [English](README.md) | [简体中文](README.zh-CN.md)
 
 [![CI](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml/badge.svg)](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/fretelli/KeelTrader?style=social)](https://github.com/fretelli/KeelTrader/stargazers)
+[![Last Commit](https://img.shields.io/github/last-commit/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader/commits/main)
+[![GitHub Issues](https://img.shields.io/github/issues/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader/issues)
+[![Top Language](https://img.shields.io/github/languages/top/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/fretelli/KeelTrader/pulls)
 
 KeelTrader 是一套面向交易心理与行为表现的 AI 教练系统（Web: Next.js，API: FastAPI）。核心能力围绕：对话、知识库（RAG）、以及"圆桌讨论"（多教练协作）。
 
@@ -47,10 +62,11 @@ KeelTrader 代表了行为金融学从理论到实践的演进：
 - 理解过度自信 → 连赢后还是重仓梭哈
 
 **KeelTrader 的方法**（行为金融 3.0）：
-- **实时干预**：从交易日志中检测情绪模式，在你犯错之前介入
-- **个性化教练**：学习你的特定心理触发点和盲区
+- **对话式干预**：AI 教练与你讨论交易，帮助你反思日志中的情绪模式
+- **个性化教练**：构建针对交易心理不同方面的教练库
 - **可执行指导**：不是告诉你"你有损失厌恶"，而是"面对这笔交易决策，你应该这样做"
-- **持续学习**：根据对你真正有效的方法调整教练策略
+- **知识库（RAG）**：导入你自己的交易书籍、笔记和策略，获得情境化建议
+- *（规划中）* 实时模式检测和主动提醒
 
 ### 我们填补的空白
 
@@ -63,9 +79,10 @@ KeelTrader 代表了行为金融学从理论到实践的演进：
 ```
 
 大多数交易者懂理论但执行失败。KeelTrader 通过以下方式弥合这一鸿沟：
-1. **关键时刻教练**：在你准备报复性交易时介入，而不是事后诸葛亮
-2. **模式识别**：在你意识到之前就发现你的重复性错误
-3. **问责伙伴**：在情绪高涨时帮你坚持交易计划
+1. **反思式教练**：与 AI 教练一起回顾交易，识别情绪模式
+2. **日志分析**：跟踪交易决策并与专业教练讨论
+3. **问责伙伴**：多教练圆桌讨论帮助你从不同角度审视决策
+4. *（规划中）* 关键时刻提醒和主动模式识别
 
 ## 截图 / 演示
 
@@ -85,6 +102,10 @@ KeelTrader 代表了行为金融学从理论到实践的演进：
 - **附件**：图片/文档/音频上传（按能力抽取/转写）
 - **交易日志 + 报告**：交易日志、统计、定时报表（Celery）
 - **交易日志导入（CSV/XLSX）**：支持上传文件并在页面中手动映射列（适配不同券商/平台格式）
+- **推送通知**：模式检测、风险警告和每日总结的实时警报（FCM、邮件、短信）
+- **交易干预系统**：交易前检查清单、基于风险限制的实时交易阻止和主动警报
+- **认知偏差检测**：基于机器学习的报复性交易、FOMO、过度交易等行为模式检测
+- **交易所集成**：连接加密货币交易所（Binance、OKX、Bybit、Coinbase、Kraken）自动导入交易
 - **默认可自托管**：Docker Compose 一键启动；也支持通过环境变量启用云端模式
 
 ## 快速开始（自托管）

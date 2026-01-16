@@ -1,11 +1,26 @@
 # KeelTrader
 
+<div align="center">
+
+### *An AI-powered performance coach for trading psychology*
+
+**Keel**: Like a ship's keel that provides stability in turbulent waters, KeelTrader helps you maintain psychological balance in volatile markets.
+
+</div>
+
+---
+
 [English](#en) | [简体中文](README.zh-CN.md)
 
 <a id="en"></a>
 
 [![CI](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml/badge.svg)](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/fretelli/KeelTrader?style=social)](https://github.com/fretelli/KeelTrader/stargazers)
+[![Last Commit](https://img.shields.io/github/last-commit/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader/commits/main)
+[![GitHub Issues](https://img.shields.io/github/issues/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader/issues)
+[![Top Language](https://img.shields.io/github/languages/top/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/fretelli/KeelTrader/pulls)
 
 KeelTrader is an AI-powered performance coach for trading psychology (Web: Next.js, API: FastAPI). It's built around chat, knowledge base (RAG), and a "roundtable" multi-coach discussion mode.
 
@@ -49,10 +64,11 @@ KeelTrader represents the evolution of behavioral finance from theory to practic
 - Understand overconfidence → Still overtrade after wins
 
 **KeelTrader's Approach** (Behavioral Finance 3.0):
-- **Real-time Intervention**: Detects emotional patterns in your journal entries and intervenes before you make mistakes
-- **Personalized Coaching**: Learns your specific psychological triggers and blind spots
+- **Conversational Intervention**: AI coaches discuss your trades and help you reflect on emotional patterns in your journal
+- **Personalized Coaching**: Build a library of coaches tailored to different aspects of your trading psychology
 - **Actionable Guidance**: Not just "you have loss aversion" but "here's how to handle this specific trade decision right now"
-- **Continuous Learning**: Adapts coaching strategies based on what actually works for you
+- **Knowledge Base (RAG)**: Import your own trading books, notes, and strategies for contextual advice
+- *(Planned)* Real-time pattern detection and proactive alerts
 
 ### The Gap We Fill
 
@@ -65,9 +81,10 @@ Academic Knowledge → [MISSING LINK] → Trading Performance
 ```
 
 Most traders know the theory but fail in execution. KeelTrader bridges this gap by providing:
-1. **Moment-of-truth coaching**: When you're about to revenge trade, not after
-2. **Pattern recognition**: Spots your recurring mistakes before you do
-3. **Accountability partner**: Helps you stick to your trading plan when emotions run high
+1. **Reflective coaching**: Review your trades with AI coaches to identify emotional patterns
+2. **Journal analysis**: Track your trading decisions and discuss them with specialized coaches
+3. **Accountability partner**: Multi-coach roundtable discussions help you examine decisions from different perspectives
+4. *(Planned)* Moment-of-truth alerts and proactive pattern recognition
 
 ## Screenshots
 
@@ -85,6 +102,10 @@ Most traders know the theory but fail in execution. KeelTrader bridges this gap 
 - **Attachments**: upload images/docs/audio (extract/transcribe where supported)
 - **Journaling + reports**: trading journal, analytics, scheduled reports (Celery)
 - **Journal import (CSV/XLSX)**: upload a file and map columns in the UI (works with different broker/export formats)
+- **Push notifications**: real-time alerts for pattern detection, risk warnings, and daily summaries (FCM, Email, SMS)
+- **Trading intervention system**: pre-trade checklists, real-time trade blocking based on risk limits, and proactive alerts
+- **Cognitive bias detection**: ML-powered detection of revenge trading, FOMO, overtrading, and other behavioral patterns
+- **Exchange integration**: connect to crypto exchanges (Binance, OKX, Bybit, Coinbase, Kraken) for automated trade import
 - **Self-hosted by default**: Docker Compose; optional cloud/SaaS mode via env flags
 
 ## Quick start (self-host)
