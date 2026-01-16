@@ -30,6 +30,7 @@ from routers import (
     knowledge,
     llm_config,
     market_data,
+    notifications,
     ollama,
     projects,
     reports,
@@ -229,6 +230,7 @@ app.include_router(llm_config.router, tags=["LLM Configuration"])
 app.include_router(market_data.router, tags=["Market Data"])
 app.include_router(exchanges.router, tags=["Exchanges"])
 app.include_router(user_exchanges.router, tags=["User Exchanges"])
+app.include_router(notifications.router, prefix="/api/v1", tags=["Notifications"])
 app.include_router(projects.router, prefix="/api/v1/projects", tags=["Projects"])
 app.include_router(
     knowledge.router, prefix="/api/v1/knowledge", tags=["Knowledge Base"]

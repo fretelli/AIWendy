@@ -126,6 +126,24 @@ class Settings(BaseSettings):
     celery_accept_content: list[str] = ["json"]
     celery_timezone: str = "UTC"
 
+    # ========== Notifications ==========
+    # Firebase Cloud Messaging
+    fcm_server_key: Optional[str] = None
+    fcm_enabled: bool = False
+
+    # Email notifications
+    smtp_host: Optional[str] = None
+    smtp_port: int = 587
+    smtp_username: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from_email: Optional[str] = None
+    smtp_use_tls: bool = True
+
+    # SMS notifications (Twilio)
+    twilio_account_sid: Optional[str] = None
+    twilio_auth_token: Optional[str] = None
+    twilio_from_number: Optional[str] = None
+
     # ========== Feature Flags ==========
     feature_analytics_enabled: bool = True
     feature_multi_coach_enabled: bool = True
