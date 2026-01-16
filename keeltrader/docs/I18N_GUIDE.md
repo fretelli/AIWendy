@@ -9,8 +9,8 @@ KeelTrader 支持英文（`en`）与简体中文（`zh`）。
 
 ## 语言偏好存储
 
-- Dashboard/i18n 系统使用 Cookie：`aiwendy-locale`（默认 1 年）
-- 少量旧页面仍使用 Cookie/Storage：`aiwendy_lang`（后续建议统一迁移）
+- Dashboard/i18n 系统使用 Cookie：`keeltrader-locale`（默认 1 年）
+- 少量旧页面仍使用 Cookie/Storage：`keeltrader_lang`（后续建议统一迁移）
 
 ## 在组件中使用（推荐：JSON 翻译）
 
@@ -48,8 +48,8 @@ export default async function Page() {
 
 编辑以下文件：
 
-- 英文：`aiwendy/apps/web/lib/i18n/translations/en.json`
-- 中文：`aiwendy/apps/web/lib/i18n/translations/zh.json`
+- 英文：`keeltrader/apps/web/lib/i18n/translations/en.json`
+- 中文：`keeltrader/apps/web/lib/i18n/translations/zh.json`
 
 建议：
 
@@ -59,7 +59,7 @@ export default async function Page() {
 
 ## 旧页面（TS 翻译，逐步淘汰）
 
-少量页面仍使用 `aiwendy/apps/web/lib/i18n.ts` + `aiwendy/apps/web/components/language-provider.tsx`。
+少量页面仍使用 `keeltrader/apps/web/lib/i18n.ts` + `keeltrader/apps/web/components/language-provider.tsx`。
 
 新功能优先使用 `@/lib/i18n/provider`（JSON 翻译）以减少分裂。
 
@@ -74,8 +74,8 @@ More docs: `README.md`.
 
 ### Locale preference storage
 
-- The dashboard i18n system uses a cookie: `aiwendy-locale` (default TTL: 1 year)
-- A few legacy pages still use cookie/storage: `aiwendy_lang` (recommended to gradually migrate to one approach)
+- The dashboard i18n system uses a cookie: `keeltrader-locale` (default TTL: 1 year)
+- A few legacy pages still use cookie/storage: `keeltrader_lang` (recommended to gradually migrate to one approach)
 
 ### Using i18n in components (recommended: JSON translations)
 
@@ -113,8 +113,8 @@ export default async function Page() {
 
 Edit:
 
-- English: `aiwendy/apps/web/lib/i18n/translations/en.json`
-- Chinese: `aiwendy/apps/web/lib/i18n/translations/zh.json`
+- English: `keeltrader/apps/web/lib/i18n/translations/en.json`
+- Chinese: `keeltrader/apps/web/lib/i18n/translations/zh.json`
 
 Recommendations:
 
@@ -124,7 +124,7 @@ Recommendations:
 
 ### Legacy pages (TS translations, gradually being phased out)
 
-Some pages still use `aiwendy/apps/web/lib/i18n.ts` + `aiwendy/apps/web/components/language-provider.tsx`.
+Some pages still use `keeltrader/apps/web/lib/i18n.ts` + `keeltrader/apps/web/components/language-provider.tsx`.
 
 For new features, prefer `@/lib/i18n/provider` (JSON translations) to reduce fragmentation.
 

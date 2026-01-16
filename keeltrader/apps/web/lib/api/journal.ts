@@ -13,7 +13,7 @@ import {
 const API_URL = '/api/proxy/v1';
 
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
-  const token = localStorage.getItem('aiwendy_access_token');
+  const token = localStorage.getItem('keeltrader_access_token');
   const headers = new Headers(options.headers);
 
   if (token) {

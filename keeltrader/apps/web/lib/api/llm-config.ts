@@ -104,7 +104,7 @@ export interface FetchModelsRequest {
 
 class LLMConfigApi {
   private getHeaders(): HeadersInit {
-    const token = localStorage.getItem('aiwendy_access_token')
+    const token = localStorage.getItem('keeltrader_access_token')
     return {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})

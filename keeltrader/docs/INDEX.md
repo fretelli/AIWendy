@@ -11,14 +11,14 @@
 - 自定义第三方 LLM / OpenAI 兼容 API：`../../docs/CUSTOM_API_SETUP.md`
 - 国际化（i18n）：`../../docs/I18N_GUIDE.md`
 - 项目状态（以代码为准）：`../../docs/PROJECT_STATUS.md`
-- 完整方案/设计文档（较长）：`../../docs/aiwendy-full-spec.md`
+- 完整方案/设计文档（较长）：`../../docs/keeltrader-full-spec.md`
 
 ---
 
 <a id="en"></a>
 ## English
 
-- Note: docs under `aiwendy/docs/` are kept bilingual (Chinese + English) within the same file where possible; use the links at the top to jump.
+- Note: docs under `keeltrader/docs/` are kept bilingual (Chinese + English) within the same file where possible; use the links at the top to jump.
 
 - Repo map (where to read code): `../../docs/PROJECT_OVERVIEW.md`
 - Self-hosting (Docker Compose): `SELF_HOSTING.md`
@@ -28,5 +28,5 @@
 - Custom third-party LLM / OpenAI-compatible API: `../../docs/CUSTOM_API_SETUP.md`
 - Internationalization (i18n): `../../docs/I18N_GUIDE.md`
 - Project status (source of truth is code): `../../docs/PROJECT_STATUS.md`
-- Full spec/design doc (long): `../../docs/aiwendy-full-spec.md`
+- Full spec/design doc (long): `../../docs/keeltrader-full-spec.md`
 
