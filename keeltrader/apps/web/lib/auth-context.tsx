@@ -80,7 +80,7 @@ export function useAuth() {
 
   React.useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem("aiwendy_access_token")
+      const token = localStorage.getItem("keeltrader_access_token")
 
       const fetchMe = async (headers?: Record<string, string>) => {
         try {
@@ -106,8 +106,8 @@ export function useAuth() {
 
       // 2) If token is invalid/expired, clear it and retry once without token (guest mode).
       if (token) {
-        localStorage.removeItem("aiwendy_access_token")
-        localStorage.removeItem("aiwendy_refresh_token")
+        localStorage.removeItem("keeltrader_access_token")
+        localStorage.removeItem("keeltrader_refresh_token")
 
         const second = await fetchMe(undefined)
         if (second?.ok) {
@@ -130,8 +130,8 @@ export function useAuth() {
     })
 
     if (typeof window !== "undefined") {
-      localStorage.setItem("aiwendy_access_token", data.access_token)
-      localStorage.setItem("aiwendy_refresh_token", data.refresh_token)
+      localStorage.setItem("keeltrader_access_token", data.access_token)
+      localStorage.setItem("keeltrader_refresh_token", data.refresh_token)
     }
 
     try {
@@ -164,8 +164,8 @@ export function useAuth() {
   )
 
   const logout = React.useCallback(() => {
-    localStorage.removeItem("aiwendy_access_token")
-    localStorage.removeItem("aiwendy_refresh_token")
+    localStorage.removeItem("keeltrader_access_token")
+    localStorage.removeItem("keeltrader_refresh_token")
     setUser(null)
   }, [])
 

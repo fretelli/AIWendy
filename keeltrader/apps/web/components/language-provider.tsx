@@ -43,14 +43,14 @@ export function LanguageProvider({
 
     const fromStorage =
       typeof window !== "undefined"
-        ? window.localStorage.getItem("aiwendy_lang")
+        ? window.localStorage.getItem("keeltrader_lang")
         : null
     if (fromStorage && isLanguage(fromStorage)) {
       setLanguage(fromStorage)
       return
     }
 
-    const fromCookie = readCookie("aiwendy_lang")
+    const fromCookie = readCookie("keeltrader_lang")
     if (fromCookie && isLanguage(fromCookie)) {
       setLanguage(fromCookie)
     }
@@ -59,11 +59,11 @@ export function LanguageProvider({
   React.useEffect(() => {
     if (typeof document === "undefined") return
     document.documentElement.lang = language
-    document.cookie = `aiwendy_lang=${encodeURIComponent(
+    document.cookie = `keeltrader_lang=${encodeURIComponent(
       language
     )}; Path=/; Max-Age=31536000; SameSite=Lax`
     try {
-      window.localStorage.setItem("aiwendy_lang", language)
+      window.localStorage.setItem("keeltrader_lang", language)
     } catch {
       // ignore
     }

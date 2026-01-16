@@ -7,7 +7,7 @@ Usage:
 
 This will create test users with:
     - test@example.com / Test@1234
-    - admin@aiwendy.com / Admin@123
+    - admin@keeltrader.com / Admin@123
 """
 
 import asyncio
@@ -53,7 +53,7 @@ TEST_USERS = [
         "subscription_tier": "free",
     },
     {
-        "email": "admin@aiwendy.com",
+        "email": "admin@keeltrader.com",
         "password": "Admin@123",
         "full_name": "Admin User",
         "subscription_tier": "elite",

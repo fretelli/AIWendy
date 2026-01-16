@@ -12,7 +12,7 @@ import { Icons } from '@/components/icons'
 import { useAuth } from '@/lib/auth-context'
 import { useI18n } from '@/components/language-provider'
 
-const GUEST_EMAIL = 'guest@local.aiwendy'
+const GUEST_EMAIL = 'guest@local.keeltrader'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')

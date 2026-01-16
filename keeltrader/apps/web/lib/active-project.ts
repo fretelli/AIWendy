@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-const ACTIVE_PROJECT_ID_KEY = 'aiwendy_active_project_id'
+const ACTIVE_PROJECT_ID_KEY = 'keeltrader_active_project_id'
 
 export function getActiveProjectId(): string | null {
   if (typeof window === 'undefined') return null

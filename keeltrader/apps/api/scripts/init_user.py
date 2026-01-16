@@ -57,7 +57,7 @@ TEST_USERS = [
         "subscription_tier": "free",
     },
     {
-        "email": "admin@aiwendy.com",
+        "email": "admin@keeltrader.com",
         "password": "Admin@123",
         "full_name": "Admin User",
         "subscription_tier": "elite",

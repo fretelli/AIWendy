@@ -24,7 +24,7 @@ export const languages = {
 } as const;
 
 // Cookie name for storing language preference
-export const LOCALE_COOKIE = 'aiwendy-locale';
+export const LOCALE_COOKIE = 'keeltrader-locale';
 
 // Language detection settings
 export const languageDetection = {
