@@ -8,7 +8,7 @@ import structlog
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from keeltrader.apps.api.domain.intervention.models import (
+from domain.intervention.models import (
     PreTradeChecklist,
     PreTradeChecklistCompletion,
     TradingIntervention,
@@ -16,9 +16,9 @@ from keeltrader.apps.api.domain.intervention.models import (
     InterventionAction,
     InterventionReason,
 )
-from keeltrader.apps.api.domain.journal.models import Journal
-from keeltrader.apps.api.services.notification_service import NotificationService
-from keeltrader.apps.api.domain.notification.models import NotificationType, NotificationPriority
+from domain.journal.models import Journal
+from services.notification_service import NotificationService
+from domain.notification.models import NotificationType, NotificationPriority
 
 logger = structlog.get_logger()
 

@@ -7,15 +7,15 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from keeltrader.apps.api.core.database import get_db
-from keeltrader.apps.api.core.auth import get_current_user
-from keeltrader.apps.api.domain.user.models import User
-from keeltrader.apps.api.domain.notification.models import (
+from core.database import get_db
+from core.auth import get_current_user
+from domain.user.models import User
+from domain.notification.models import (
     NotificationChannel,
     NotificationPriority,
     NotificationType,
 )
-from keeltrader.apps.api.services.notification_service import NotificationService
+from services.notification_service import NotificationService
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 

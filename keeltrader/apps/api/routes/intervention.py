@@ -7,10 +7,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from keeltrader.apps.api.core.database import get_db
-from keeltrader.apps.api.core.auth import get_current_user
-from keeltrader.apps.api.domain.user.models import User
-from keeltrader.apps.api.services.intervention_service import InterventionService
+from core.database import get_db
+from core.auth import get_current_user
+from domain.user.models import User
+from services.intervention_service import InterventionService
 
 router = APIRouter(prefix="/intervention", tags=["intervention"])
 

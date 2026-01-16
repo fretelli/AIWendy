@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional, Set
 import websockets
 from fastapi import WebSocket
 
-from ..config import get_settings
+from config import get_settings
 
 logger = logging.getLogger(__name__)
 
