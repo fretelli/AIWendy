@@ -177,6 +177,12 @@ export default function SettingsPage() {
           <TabsTrigger value="exchanges" onClick={() => router.push('/settings/exchanges')}>
             Exchanges
           </TabsTrigger>
+          <TabsTrigger value="notifications" onClick={() => router.push('/settings/notifications')}>
+            Notifications
+          </TabsTrigger>
+          <TabsTrigger value="intervention" onClick={() => router.push('/settings/intervention')}>
+            Intervention
+          </TabsTrigger>
           <TabsTrigger value="profile">{t('settings.page.tabs.profile')}</TabsTrigger>
           <TabsTrigger value="preferences">{t('settings.page.tabs.preferences')}</TabsTrigger>
           <TabsTrigger value="llm" onClick={() => router.push('/settings/llm')}>
