@@ -71,7 +71,7 @@ export default function ReportSchedulePage() {
     const fetchSchedule = async () => {
       setLoading(true)
       try {
-        const token = localStorage.getItem("aiwendy_access_token")
+        const token = localStorage.getItem("keeltrader_access_token")
         const res = await fetch(`${API_V1_PREFIX}/reports/schedule/current`, {
           headers: { Authorization: token ? `Bearer ${token}` : "" },
         })
@@ -97,7 +97,7 @@ export default function ReportSchedulePage() {
     if (!schedule) return
     setSaving(true)
     try {
-      const token = localStorage.getItem("aiwendy_access_token")
+      const token = localStorage.getItem("keeltrader_access_token")
       const res = await fetch(`${API_V1_PREFIX}/reports/schedule`, {
         method: "PUT",
         headers: {

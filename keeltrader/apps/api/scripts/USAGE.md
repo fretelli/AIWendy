@@ -10,7 +10,7 @@
 | Type | Email | Password | Tier |
 |------|-------|----------|------|
 | User | test@example.com | Test@1234 | Free |
-| Admin | admin@aiwendy.com | Admin@123 | Elite + Admin |
+| Admin | admin@keeltrader.com | Admin@123 | Elite + Admin |
 
 ## 运行方式
 
@@ -19,7 +19,7 @@
 多数情况下会在容器启动时自动初始化；如需手动执行：
 
 ```bash
-docker exec aiwendy-api python scripts/init_user_simple.py
+docker exec keeltrader-api python scripts/init_user_simple.py
 ```
 
 ### 本地运行 API
@@ -46,7 +46,7 @@ Quickly create default test accounts for development/self-testing (the script is
 | Type | Email | Password | Tier |
 |------|-------|----------|------|
 | User | test@example.com | Test@1234 | Free |
-| Admin | admin@aiwendy.com | Admin@123 | Elite + Admin |
+| Admin | admin@keeltrader.com | Admin@123 | Elite + Admin |
 
 ### How to run
 
@@ -55,7 +55,7 @@ Quickly create default test accounts for development/self-testing (the script is
 In most cases the container startup auto-initializes; to run manually:
 
 ```bash
-docker exec aiwendy-api python scripts/init_user_simple.py
+docker exec keeltrader-api python scripts/init_user_simple.py
 ```
 
 #### Running the API locally

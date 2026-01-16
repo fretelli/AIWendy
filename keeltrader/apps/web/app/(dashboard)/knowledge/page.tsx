@@ -92,7 +92,7 @@ export default function KnowledgePage() {
     setLoading(true)
     setError(null)
     try {
-      const token = localStorage.getItem("aiwendy_access_token")
+      const token = localStorage.getItem("keeltrader_access_token")
       const response = await fetch(`${API_V1_PREFIX}/tasks/knowledge/ingest`, {
         method: "POST",
         headers: {
