@@ -71,6 +71,52 @@ class ChatRequest(BaseModel):
     max_tokens: Optional[int] = 1000
 
 
+class SessionListItem(BaseModel):
+    """Chat session list item."""
+
+    id: UUID
+    coach_id: str
+    coach_name: str
+    title: Optional[str]
+    message_count: int
+    last_message_preview: Optional[str]
+    last_message_role: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class SessionListResponse(BaseModel):
+    """Response for session list."""
+
+    sessions: List[SessionListItem]
+    total: int
+    skip: int
+    limit: int
+
+
+class MessageDetail(BaseModel):
+    """Detailed chat message."""
+
+    id: UUID
+    role: str
+    content: str
+    created_at: datetime
+    has_attachments: bool
+
+
+class SessionDetailResponse(BaseModel):
+    """Response for session detail."""
+
+    id: UUID
+    coach_id: str
+    coach_name: str
+    title: Optional[str]
+    message_count: int
+    created_at: datetime
+    updated_at: datetime
+    messages: List[MessageDetail]
+
+
 def _get_user_llm_config(user: User, config_id: str) -> Optional[dict]:
     if not user.api_keys_encrypted:
         return None
@@ -826,33 +872,142 @@ async def chat_with_coach(
         raise HTTPException(status_code=500, detail=t("errors.internal", locale))
 
 
-@router.get("/sessions")
+@router.get("/sessions", response_model=SessionListResponse)
 async def list_chat_sessions(
+    skip: int = 0,
+    limit: int = 20,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """List user's chat sessions."""
-    # TODO(feature): Implement session listing with pagination
-    #   - Query ChatSession table: SELECT * FROM chat_sessions WHERE user_id = ?
-    #   - Add pagination params: skip, limit (default 20)
-    #   - Order by updated_at DESC
-    #   - Include message count and last message preview
-    #   - Return SessionListResponse with total count
-    # Placeholder endpoint - returns empty list
-    return {"sessions": [], "total": 0}
+    """List user's chat sessions with pagination."""
+    try:
+        # Count total sessions
+        count_stmt = select(ChatSession).where(
+            ChatSession.user_id == current_user.id
+        )
+        count_result = await session.execute(count_stmt)
+        total = len(count_result.scalars().all())
+
+        # Query sessions with pagination
+        stmt = (
+            select(ChatSession, Coach)
+            .join(Coach, ChatSession.coach_id == Coach.id)
+            .where(ChatSession.user_id == current_user.id)
+            .order_by(ChatSession.updated_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await session.execute(stmt)
+        sessions_data = result.all()
+
+        # Build response with message preview
+        sessions_list = []
+        for chat_session, coach in sessions_data:
+            # Get last message
+            last_msg_stmt = (
+                select(ChatMessageDB)
+                .where(ChatMessageDB.session_id == chat_session.id)
+                .order_by(ChatMessageDB.created_at.desc())
+                .limit(1)
+            )
+            last_msg_result = await session.execute(last_msg_stmt)
+            last_message = last_msg_result.scalar_one_or_none()
+
+            # Prepare preview
+            last_message_preview = None
+            last_message_role = None
+            if last_message:
+                # Truncate content to 100 characters
+                content = last_message.content or ""
+                last_message_preview = (
+                    content[:100] + "..." if len(content) > 100 else content
+                )
+                last_message_role = last_message.role
+
+            sessions_list.append(
+                SessionListItem(
+                    id=chat_session.id,
+                    coach_id=chat_session.coach_id,
+                    coach_name=coach.name,
+                    title=chat_session.title,
+                    message_count=chat_session.message_count,
+                    last_message_preview=last_message_preview,
+                    last_message_role=last_message_role,
+                    created_at=chat_session.created_at,
+                    updated_at=chat_session.updated_at,
+                )
+            )
+
+        return SessionListResponse(
+            sessions=sessions_list, total=total, skip=skip, limit=limit
+        )
+
+    except Exception as e:
+        logger.error(f"Error listing sessions: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to list sessions")
 
 
-@router.get("/sessions/{session_id}")
+@router.get("/sessions/{session_id}", response_model=SessionDetailResponse)
 async def get_chat_session(
-    session_id: str,
+    session_id: UUID,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """Get chat session details."""
-    # TODO(feature): Implement session retrieval with messages
-    #   - Query ChatSession by id and verify user_id matches current_user
-    #   - Load related ChatMessage records ordered by created_at
-    #   - Return 404 if session not found or doesn't belong to user
-    #   - Include coach info and session metadata
-    # Placeholder endpoint - returns empty session
-    return {"session_id": session_id, "messages": []}
+    """Get chat session details with messages."""
+    try:
+        # Query session and verify ownership
+        stmt = (
+            select(ChatSession, Coach)
+            .join(Coach, ChatSession.coach_id == Coach.id)
+            .where(
+                and_(
+                    ChatSession.id == session_id,
+                    ChatSession.user_id == current_user.id,
+                )
+            )
+        )
+        result = await session.execute(stmt)
+        session_data = result.first()
+
+        if not session_data:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        chat_session, coach = session_data
+
+        # Load messages ordered by created_at
+        messages_stmt = (
+            select(ChatMessageDB)
+            .where(ChatMessageDB.session_id == session_id)
+            .order_by(ChatMessageDB.created_at.asc())
+        )
+        messages_result = await session.execute(messages_stmt)
+        messages = messages_result.scalars().all()
+
+        # Build message list
+        messages_list = [
+            MessageDetail(
+                id=msg.id,
+                role=msg.role,
+                content=msg.content,
+                created_at=msg.created_at,
+                has_attachments=msg.has_attachments or False,
+            )
+            for msg in messages
+        ]
+
+        return SessionDetailResponse(
+            id=chat_session.id,
+            coach_id=chat_session.coach_id,
+            coach_name=coach.name,
+            title=chat_session.title,
+            message_count=chat_session.message_count,
+            created_at=chat_session.created_at,
+            updated_at=chat_session.updated_at,
+            messages=messages_list,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving session: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve session")
