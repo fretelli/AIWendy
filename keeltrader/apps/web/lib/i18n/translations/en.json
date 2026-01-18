@@ -170,7 +170,27 @@
     "verifyEmail": "Please verify your email",
     "emailSent": "Verification email sent",
     "loginSuccess": "Logged in successfully",
-    "logoutSuccess": "Logged out successfully"
+    "logoutSuccess": "Logged out successfully",
+    "reset": {
+      "title": "Reset Password",
+      "subtitle": "Enter your new password below",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm New Password",
+      "submit": "Reset Password",
+      "backToLogin": "Back to Login",
+      "missingToken": "Invalid or missing reset token",
+      "passwordMismatch": "Passwords do not match",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "error": "Failed to reset password",
+      "invalidTitle": "Invalid Reset Link",
+      "requestNew": "Request a new password reset link",
+      "success": {
+        "title": "Password Reset Successful",
+        "subtitle": "Your password has been reset",
+        "body": "You can now log in with your new password.",
+        "goToLogin": "Go to Login"
+      }
+    }
   },
   "dashboard": {
     "title": "Dashboard",
