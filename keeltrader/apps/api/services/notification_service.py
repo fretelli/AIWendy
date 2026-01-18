@@ -1,10 +1,13 @@
 """Notification service for sending push notifications, emails, and SMS."""
 
 import json
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from typing import Dict, List, Optional, Any
 from uuid import UUID
 from datetime import datetime
 
+import aiosmtplib
 import httpx
 import structlog
 from sqlalchemy import select
@@ -348,10 +351,88 @@ class NotificationService:
                 raise Exception(f"FCM error: {error}")
 
     async def _send_email(self, notification: Notification):
-        """Send email notification."""
-        # TODO: Implement email sending via SMTP or email service
-        logger.info("email_notification", notification_id=str(notification.id))
-        pass
+        """Send email notification via SMTP."""
+        try:
+            # Get user email
+            user = await self.db.get(User, notification.user_id)
+            if not user or not user.email:
+                logger.warning(
+                    "email_send_skipped_no_email",
+                    notification_id=str(notification.id),
+                )
+                return
+
+            # Get SMTP settings from config
+            smtp_host = getattr(settings, "smtp_host", None)
+            smtp_port = getattr(settings, "smtp_port", 587)
+            smtp_username = getattr(settings, "smtp_username", None)
+            smtp_password = getattr(settings, "smtp_password", None)
+            smtp_from_email = getattr(
+                settings, "smtp_from_email", "noreply@keeltrader.com"
+            )
+            smtp_from_name = getattr(settings, "smtp_from_name", "KeelTrader")
+            smtp_use_tls = getattr(settings, "smtp_use_tls", True)
+
+            if not smtp_host:
+                logger.warning(
+                    "email_send_skipped_not_configured",
+                    notification_id=str(notification.id),
+                )
+                return
+
+            # Create message
+            message = MIMEMultipart("alternative")
+            message["From"] = f"{smtp_from_name} <{smtp_from_email}>"
+            message["To"] = user.email
+            message["Subject"] = notification.title
+
+            # Create HTML and plain text versions
+            text_content = notification.body
+            html_content = f"""
+            <html>
+              <head></head>
+              <body>
+                <h2>{notification.title}</h2>
+                <p>{notification.body}</p>
+                <br>
+                <p style="color: #666; font-size: 12px;">
+                  This is an automated notification from KeelTrader.
+                </p>
+              </body>
+            </html>
+            """
+
+            # Attach both versions
+            part1 = MIMEText(text_content, "plain")
+            part2 = MIMEText(html_content, "html")
+            message.attach(part1)
+            message.attach(part2)
+
+            # Send email
+            async with aiosmtplib.SMTP(
+                hostname=smtp_host,
+                port=smtp_port,
+                use_tls=smtp_use_tls,
+            ) as smtp:
+                if smtp_username and smtp_password:
+                    await smtp.login(smtp_username, smtp_password)
+
+                await smtp.send_message(message)
+
+            logger.info(
+                "email_sent",
+                notification_id=str(notification.id),
+                recipient=user.email,
+            )
+
+        except Exception as e:
+            logger.error(
+                "email_send_failed",
+                notification_id=str(notification.id),
+                error=str(e),
+                exc_info=True,
+            )
+            raise
 
     async def _send_sms(self, notification: Notification):
         """Send SMS notification."""

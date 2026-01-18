@@ -279,6 +279,156 @@ def generate_monthly_report(
 
 
 @celery_app.task(bind=True, base=ReportTask)
+def generate_quarterly_report(
+    self,
+    user_id: str,
+    year: Optional[int] = None,
+    quarter: Optional[int] = None,
+    project_id: Optional[str] = None,
+    locale: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Generate a quarterly report."""
+    task_id = self.request.id
+    db = self._get_db()
+    now = datetime.utcnow()
+    try:
+        publish_task_event(
+            task_id, {"task_id": task_id, "state": "STARTED", "ready": False}
+        )
+        user_uuid = UUID(user_id)
+        project_uuid = UUID(project_id) if project_id else None
+
+        if not year or not quarter:
+            # Default to last quarter
+            today = date.today()
+            current_quarter = (today.month - 1) // 3 + 1
+            if current_quarter == 1:
+                year = today.year - 1
+                quarter = 4
+            else:
+                year = today.year
+                quarter = current_quarter - 1
+
+        service = ReportService(db)
+        report = service.generate_quarterly_report(
+            user_id=user_uuid,
+            year=year,
+            quarter=quarter,
+            locale=locale,
+            project_id=project_uuid,
+        )
+
+        _invalidate_user_report_caches(user_id)
+        logger.info(
+            "quarterly_report_generated", user_id=user_id, report_id=str(report.id)
+        )
+        payload = {
+            "status": "success",
+            "report_id": str(report.id),
+            "report_type": "quarterly",
+            "created_at": report.created_at.isoformat() if report.created_at else None,
+        }
+        publish_task_event(
+            task_id,
+            {
+                "task_id": task_id,
+                "state": "SUCCESS",
+                "ready": True,
+                "successful": True,
+                "result": payload,
+            },
+        )
+        return payload
+    except Exception as e:
+        db.rollback()
+        logger.error("quarterly_report_failed", user_id=user_id, error=str(e))
+        publish_task_event(
+            task_id,
+            {
+                "task_id": task_id,
+                "state": "FAILURE",
+                "ready": True,
+                "successful": False,
+                "error": str(e),
+            },
+        )
+        return {"status": "error", "error": str(e)}
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, base=ReportTask)
+def generate_yearly_report(
+    self,
+    user_id: str,
+    year: Optional[int] = None,
+    project_id: Optional[str] = None,
+    locale: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Generate a yearly report."""
+    task_id = self.request.id
+    db = self._get_db()
+    now = datetime.utcnow()
+    try:
+        publish_task_event(
+            task_id, {"task_id": task_id, "state": "STARTED", "ready": False}
+        )
+        user_uuid = UUID(user_id)
+        project_uuid = UUID(project_id) if project_id else None
+
+        if not year:
+            # Default to last year
+            today = date.today()
+            year = today.year - 1
+
+        service = ReportService(db)
+        report = service.generate_yearly_report(
+            user_id=user_uuid,
+            year=year,
+            locale=locale,
+            project_id=project_uuid,
+        )
+
+        _invalidate_user_report_caches(user_id)
+        logger.info(
+            "yearly_report_generated", user_id=user_id, report_id=str(report.id)
+        )
+        payload = {
+            "status": "success",
+            "report_id": str(report.id),
+            "report_type": "yearly",
+            "created_at": report.created_at.isoformat() if report.created_at else None,
+        }
+        publish_task_event(
+            task_id,
+            {
+                "task_id": task_id,
+                "state": "SUCCESS",
+                "ready": True,
+                "successful": True,
+                "result": payload,
+            },
+        )
+        return payload
+    except Exception as e:
+        db.rollback()
+        logger.error("yearly_report_failed", user_id=user_id, error=str(e))
+        publish_task_event(
+            task_id,
+            {
+                "task_id": task_id,
+                "state": "FAILURE",
+                "ready": True,
+                "successful": False,
+                "error": str(e),
+            },
+        )
+        return {"status": "error", "error": str(e)}
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, base=ReportTask)
 def generate_scheduled_reports(self) -> Dict[str, Any]:
     """Trigger due scheduled reports for all active schedules."""
     db = self._get_db()

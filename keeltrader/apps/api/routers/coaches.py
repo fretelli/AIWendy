@@ -255,13 +255,22 @@ async def list_coaches(
     result = await db.execute(query)
     coaches = result.scalars().all()
 
-    # TODO(feature): Implement subscription-based coach filtering
-    #   - Add subscription_tier field to User model (free/premium/elite)
-    #   - Filter coaches based on user.subscription_tier >= coach.required_tier
-    #   - Return 403 if user tries to access premium coach without subscription
-    # Currently all coaches are available to all users
+    # Filter coaches based on user subscription tier
+    tier_levels = {"free": 0, "pro": 1, "elite": 2, "enterprise": 3}
+    user_tier_level = tier_levels.get(current_user.subscription_tier.value, 0)
 
-    return [_localize_default_coach_response(coach, locale) for coach in coaches]
+    filtered_coaches = []
+    for coach in coaches:
+        coach_min_tier = coach.min_subscription_tier or "free"
+        coach_tier_level = tier_levels.get(coach_min_tier, 0)
+
+        # User can access coach if their tier is >= coach's minimum tier
+        if user_tier_level >= coach_tier_level:
+            filtered_coaches.append(coach)
+
+    return [
+        _localize_default_coach_response(coach, locale) for coach in filtered_coaches
+    ]
 
 
 @router.get("/default", response_model=CoachResponse)

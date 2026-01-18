@@ -1,32 +1,52 @@
 """
-Market data service for fetching price data for charts
+Market data service for fetching price data for charts with multi-source support.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-import httpx
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from config import get_settings
+from services.market_data_adapters import (
+    AlphaVantageAdapter,
+    MarketDataAdapter,
+    MockDataAdapter,
+    TwelveDataAdapter,
+    YahooFinanceAdapter,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class MarketDataService:
-    """Service for fetching and managing market data"""
+    """Service for fetching and managing market data with fallback support."""
 
     def __init__(self):
         settings = get_settings()
-        self.base_url = "https://api.twelvedata.com"
-        self.api_key = settings.twelve_data_api_key
-        self.client = httpx.AsyncClient(timeout=30.0)
 
-        if self.api_key:
-            logger.info("Twelve Data API key configured - using real market data")
-        else:
-            logger.info("No Twelve Data API key - using mock data")
+        # Initialize all available adapters
+        self.adapters: List[MarketDataAdapter] = []
+
+        # Priority order: Twelve Data > Alpha Vantage > Yahoo Finance > Mock
+        twelve_data_key = getattr(settings, "twelve_data_api_key", None)
+        if twelve_data_key:
+            self.adapters.append(TwelveDataAdapter(twelve_data_key))
+            logger.info("Twelve Data adapter initialized")
+
+        alpha_vantage_key = getattr(settings, "alpha_vantage_api_key", None)
+        if alpha_vantage_key:
+            self.adapters.append(AlphaVantageAdapter(alpha_vantage_key))
+            logger.info("Alpha Vantage adapter initialized")
+
+        # Yahoo Finance is always available (no API key required)
+        self.adapters.append(YahooFinanceAdapter())
+        logger.info("Yahoo Finance adapter initialized")
+
+        # Mock data as final fallback
+        self.adapters.append(MockDataAdapter())
+        logger.info("Mock data adapter initialized as fallback")
+
+        logger.info(f"Market data service initialized with {len(self.adapters)} data sources")
 
     async def get_historical_data(
         self,
@@ -37,7 +57,7 @@ class MarketDataService:
         end_date: Optional[datetime] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Fetch historical price data for a symbol
+        Fetch historical price data for a symbol with automatic fallback.
 
         Args:
             symbol: Stock symbol (e.g., "AAPL", "SPY")
@@ -49,152 +69,38 @@ class MarketDataService:
         Returns:
             List of OHLCV data points
         """
-        try:
-            # Use real API if key is configured, otherwise use mock data
-            if self.api_key:
-                return await self._fetch_real_data(symbol, interval, outputsize, start_date, end_date)
-            else:
-                return await self._generate_mock_data(symbol, interval, outputsize)
-        except Exception as e:
-            logger.error(f"Error fetching market data: {e}")
-            # Fallback to mock data on error
-            logger.info("Falling back to mock data")
-            return await self._generate_mock_data(symbol, interval, outputsize)
+        # Try each adapter in priority order
+        for adapter in self.adapters:
+            if not adapter.is_available():
+                continue
 
-    async def _fetch_real_data(
-        self,
-        symbol: str,
-        interval: str,
-        outputsize: int,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
-    ) -> List[Dict[str, Any]]:
-        """Fetch real market data from Twelve Data API"""
-        try:
-            params = {
-                "symbol": symbol,
-                "interval": interval,
-                "outputsize": outputsize,
-                "apikey": self.api_key,
-            }
+            try:
+                logger.info(f"Attempting to fetch data from {adapter.__class__.__name__}")
+                data = await adapter.get_historical_data(
+                    symbol=symbol,
+                    interval=interval,
+                    outputsize=outputsize,
+                    start_date=start_date,
+                    end_date=end_date,
+                )
 
-            if start_date:
-                params["start_date"] = start_date.strftime("%Y-%m-%d")
-            if end_date:
-                params["end_date"] = end_date.strftime("%Y-%m-%d")
+                if data:
+                    logger.info(
+                        f"Successfully fetched {len(data)} points from {adapter.__class__.__name__}"
+                    )
+                    return data
 
-            response = await self.client.get(
-                f"{self.base_url}/time_series",
-                params=params,
-            )
-            response.raise_for_status()
-            data = response.json()
+            except Exception as e:
+                logger.warning(f"{adapter.__class__.__name__} failed: {e}, trying next source")
+                continue
 
-            # Check for API errors
-            if "status" in data and data["status"] == "error":
-                logger.error(f"Twelve Data API error: {data.get('message', 'Unknown error')}")
-                raise Exception(data.get("message", "API error"))
-
-            # Parse the response
-            values = data.get("values", [])
-            if not values:
-                logger.warning(f"No data returned for symbol {symbol}")
-                return []
-
-            # Convert to our format (time ascending order)
-            result = []
-            for item in reversed(values):  # Twelve Data returns newest first
-                result.append({
-                    "time": item.get("datetime"),
-                    "open": float(item.get("open", 0)),
-                    "high": float(item.get("high", 0)),
-                    "low": float(item.get("low", 0)),
-                    "close": float(item.get("close", 0)),
-                    "volume": int(item.get("volume", 0)),
-                })
-
-            logger.info(f"Fetched {len(result)} data points for {symbol}")
-            return result
-
-        except httpx.HTTPError as e:
-            logger.error(f"HTTP error fetching real data: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Error fetching real data: {e}")
-            raise
-
-    async def _generate_mock_data(
-        self, symbol: str, interval: str, outputsize: int
-    ) -> List[Dict[str, Any]]:
-        """Generate mock OHLCV data for testing"""
-        import random
-        from datetime import datetime, timedelta
-
-        data = []
-        now = datetime.now()
-
-        # Determine time delta based on interval
-        delta_map = {
-            "1min": timedelta(minutes=1),
-            "5min": timedelta(minutes=5),
-            "15min": timedelta(minutes=15),
-            "30min": timedelta(minutes=30),
-            "1h": timedelta(hours=1),
-            "1day": timedelta(days=1),
-            "1week": timedelta(weeks=1),
-            "1month": timedelta(days=30),
-        }
-
-        delta = delta_map.get(interval, timedelta(days=1))
-        current_time = now - (delta * outputsize)
-
-        # Generate base price based on symbol
-        base_price = 100.0
-        if symbol == "SPY":
-            base_price = 450.0
-        elif symbol == "AAPL":
-            base_price = 180.0
-        elif symbol == "TSLA":
-            base_price = 250.0
-
-        current_price = base_price
-
-        for i in range(outputsize):
-            # Generate realistic OHLC data
-            volatility = 0.02
-            trend = random.choice([-1, 1]) * random.random() * 0.01
-
-            open_price = current_price
-            close_price = open_price * (
-                1 + trend + volatility * (random.random() - 0.5)
-            )
-            high_price = max(open_price, close_price) * (
-                1 + volatility * random.random() * 0.5
-            )
-            low_price = min(open_price, close_price) * (
-                1 - volatility * random.random() * 0.5
-            )
-            volume = random.randint(100000, 10000000)
-
-            data.append(
-                {
-                    "time": current_time.isoformat(),
-                    "open": round(open_price, 2),
-                    "high": round(high_price, 2),
-                    "low": round(low_price, 2),
-                    "close": round(close_price, 2),
-                    "volume": volume,
-                }
-            )
-
-            current_price = close_price
-            current_time += delta
-
-        return data
+        # If all adapters fail, return empty list
+        logger.error(f"All data sources failed for symbol {symbol}")
+        return []
 
     async def get_real_time_price(self, symbol: str) -> Optional[Dict[str, Any]]:
         """
-        Get real-time price for a symbol
+        Get real-time price for a symbol with automatic fallback.
 
         Args:
             symbol: Stock symbol
@@ -202,87 +108,32 @@ class MarketDataService:
         Returns:
             Current price data
         """
-        try:
-            if self.api_key:
-                return await self._fetch_real_time_price(symbol)
-            else:
-                return await self._generate_mock_price(symbol)
-        except Exception as e:
-            logger.error(f"Error fetching real-time price: {e}")
-            # Fallback to mock data
-            return await self._generate_mock_price(symbol)
+        # Try each adapter in priority order
+        for adapter in self.adapters:
+            if not adapter.is_available():
+                continue
 
-    async def _fetch_real_time_price(self, symbol: str) -> Optional[Dict[str, Any]]:
-        """Fetch real-time price from Twelve Data API"""
-        try:
-            params = {
-                "symbol": symbol,
-                "apikey": self.api_key,
-            }
+            try:
+                logger.info(
+                    f"Attempting to fetch real-time price from {adapter.__class__.__name__}"
+                )
+                data = await adapter.get_real_time_price(symbol)
 
-            response = await self.client.get(
-                f"{self.base_url}/price",
-                params=params,
-            )
-            response.raise_for_status()
-            data = response.json()
+                if data:
+                    logger.info(
+                        f"Successfully fetched real-time price from {adapter.__class__.__name__}"
+                    )
+                    return data
 
-            # Check for API errors
-            if "status" in data and data["status"] == "error":
-                logger.error(f"Twelve Data API error: {data.get('message', 'Unknown error')}")
-                raise Exception(data.get("message", "API error"))
+            except Exception as e:
+                logger.warning(
+                    f"{adapter.__class__.__name__} real-time failed: {e}, trying next source"
+                )
+                continue
 
-            # Get quote data for additional info
-            quote_params = {
-                "symbol": symbol,
-                "apikey": self.api_key,
-            }
-            quote_response = await self.client.get(
-                f"{self.base_url}/quote",
-                params=quote_params,
-            )
-            quote_data = quote_response.json() if quote_response.status_code == 200 else {}
-
-            price = float(data.get("price", 0))
-            change = float(quote_data.get("change", 0))
-            change_percent = float(quote_data.get("percent_change", 0))
-            volume = int(quote_data.get("volume", 0))
-
-            return {
-                "symbol": symbol,
-                "price": round(price, 2),
-                "change": round(change, 2),
-                "change_percent": round(change_percent, 2),
-                "timestamp": datetime.now().isoformat(),
-                "volume": volume,
-            }
-
-        except Exception as e:
-            logger.error(f"Error fetching real-time price: {e}")
-            raise
-
-    async def _generate_mock_price(self, symbol: str) -> Dict[str, Any]:
-        """Generate mock real-time price data"""
-        import random
-
-        base_price = 100.0
-        if symbol == "SPY":
-            base_price = 450.0
-        elif symbol == "AAPL":
-            base_price = 180.0
-        elif symbol == "TSLA":
-            base_price = 250.0
-
-        current_price = base_price * (1 + random.random() * 0.02 - 0.01)
-
-        return {
-            "symbol": symbol,
-            "price": round(current_price, 2),
-            "change": round(random.random() * 5 - 2.5, 2),
-            "change_percent": round(random.random() * 2 - 1, 2),
-            "timestamp": datetime.now().isoformat(),
-            "volume": random.randint(100000, 10000000),
-        }
+        # If all adapters fail, return None
+        logger.error(f"All data sources failed for real-time price of {symbol}")
+        return None
 
     async def get_technical_indicators(
         self,
@@ -413,5 +264,9 @@ class MarketDataService:
         return rsi_data
 
     async def close(self):
-        """Close the HTTP client"""
-        await self.client.aclose()
+        """Close all HTTP clients in adapters."""
+        for adapter in self.adapters:
+            try:
+                await adapter.close()
+            except Exception as e:
+                logger.error(f"Error closing adapter {adapter.__class__.__name__}: {e}")

@@ -224,6 +224,112 @@ class ReportService:
             locale=resolved_locale,
         )
 
+    def generate_quarterly_report(
+        self,
+        user_id: UUID,
+        year: Optional[int] = None,
+        quarter: Optional[int] = None,
+        locale: Optional[str] = None,
+        *,
+        project_id: Optional[UUID] = None,
+    ) -> Report:
+        """Generate quarterly report for a user."""
+        resolved_locale = self._resolve_report_locale(user_id, locale)
+        if not year or not quarter:
+            # Default to last quarter
+            today = date.today()
+            current_quarter = (today.month - 1) // 3 + 1
+            if current_quarter == 1:
+                year = today.year - 1
+                quarter = 4
+            else:
+                year = today.year
+                quarter = current_quarter - 1
+
+        # Calculate quarter start and end dates
+        start_month = (quarter - 1) * 3 + 1
+        period_start = date(year, start_month, 1)
+
+        # Get last day of quarter
+        end_month = quarter * 3
+        if end_month == 12:
+            period_end = date(year, 12, 31)
+        else:
+            period_end = date(year, end_month + 1, 1) - timedelta(days=1)
+
+        project_name = (
+            self._get_project_name(user_id, project_id) if project_id else None
+        )
+
+        quarter_label = f"Q{quarter}"
+        if resolved_locale == "zh":
+            title = f"{year}年第{quarter}季度报告"
+        else:
+            title = f"{quarter_label} {year} Report"
+
+        if project_name:
+            title = t(
+                "reports.title.with_project",
+                resolved_locale,
+                title=title,
+                project=project_name,
+            )
+
+        return self._generate_report(
+            user_id=user_id,
+            report_type=ReportType.QUARTERLY,
+            period_start=period_start,
+            period_end=period_end,
+            title=title,
+            project_id=project_id,
+            locale=resolved_locale,
+        )
+
+    def generate_yearly_report(
+        self,
+        user_id: UUID,
+        year: Optional[int] = None,
+        locale: Optional[str] = None,
+        *,
+        project_id: Optional[UUID] = None,
+    ) -> Report:
+        """Generate yearly report for a user."""
+        resolved_locale = self._resolve_report_locale(user_id, locale)
+        if not year:
+            # Default to last year
+            today = date.today()
+            year = today.year - 1
+
+        period_start = date(year, 1, 1)
+        period_end = date(year, 12, 31)
+
+        project_name = (
+            self._get_project_name(user_id, project_id) if project_id else None
+        )
+
+        if resolved_locale == "zh":
+            title = f"{year}年度报告"
+        else:
+            title = f"{year} Annual Report"
+
+        if project_name:
+            title = t(
+                "reports.title.with_project",
+                resolved_locale,
+                title=title,
+                project=project_name,
+            )
+
+        return self._generate_report(
+            user_id=user_id,
+            report_type=ReportType.YEARLY,
+            period_start=period_start,
+            period_end=period_end,
+            title=title,
+            project_id=project_id,
+            locale=resolved_locale,
+        )
+
     def _generate_report(
         self,
         user_id: UUID,

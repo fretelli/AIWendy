@@ -33,6 +33,9 @@ ccxt==4.2.25
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.9
+google-auth==2.29.0
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
 
 # ========== Monitoring ==========
 sentry-sdk[fastapi]==2.3.1
@@ -42,6 +45,8 @@ python-dotenv==1.0.1
 structlog==24.1.0
 tenacity==8.2.3
 aiofiles==24.1.0
+aiosmtplib==3.0.1
+email-validator==2.1.0
 
 # ========== File Processing ==========
 PyPDF2==3.0.1
