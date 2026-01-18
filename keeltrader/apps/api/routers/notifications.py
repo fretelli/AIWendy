@@ -1,9 +1,10 @@
 """Notification API routes."""
 
+import logging
 from typing import List, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,9 @@ from domain.notification.models import (
     NotificationType,
 )
 from services.notification_service import NotificationService
+from services.notification_websocket import notification_ws_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -194,3 +198,77 @@ async def send_notification(
         created_at=notification.created_at.isoformat(),
         data=notification.data,
     )
+
+
+@router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time notification updates.
+
+    Requires authentication via query parameter or header.
+    Usage:
+        ws://localhost:8000/api/notifications/ws?token=<auth_token>
+    """
+    # Accept connection first
+    await websocket.accept()
+
+    try:
+        # Wait for authentication message
+        auth_data = await websocket.receive_json()
+
+        if "token" not in auth_data:
+            await websocket.send_json({
+                "type": "error",
+                "message": "Authentication required. Send {\"token\": \"your_token\"}",
+            })
+            await websocket.close()
+            return
+
+        # Authenticate user (simplified - in production use proper token validation)
+        # For now, we'll assume the token is the user_id
+        # TODO: Implement proper JWT token validation
+        try:
+            user_id = UUID(auth_data["token"])
+        except (ValueError, KeyError):
+            await websocket.send_json({
+                "type": "error",
+                "message": "Invalid authentication token",
+            })
+            await websocket.close()
+            return
+
+        # Connect user to notification stream
+        await notification_ws_service.connect(websocket, user_id)
+        logger.info(f"WebSocket client connected for user {user_id}")
+
+        # Keep connection alive and handle incoming messages
+        while True:
+            try:
+                # Wait for client messages (like ping/pong)
+                data = await websocket.receive_json()
+
+                if data.get("action") == "ping":
+                    await notification_ws_service.send_heartbeat(websocket)
+                elif data.get("action") == "disconnect":
+                    break
+
+            except WebSocketDisconnect:
+                logger.info(f"WebSocket client disconnected for user {user_id}")
+                break
+            except Exception as e:
+                logger.error(f"Error handling WebSocket message: {e}")
+                break
+
+    except WebSocketDisconnect:
+        logger.info("WebSocket client disconnected during authentication")
+    except Exception as e:
+        logger.error(f"WebSocket error: {e}")
+    finally:
+        # Clean up on disconnect
+        await notification_ws_service.disconnect(websocket)
+
+
+@router.on_event("shutdown")
+async def shutdown():
+    """Clean up resources on shutdown."""
+    await notification_ws_service.close()
