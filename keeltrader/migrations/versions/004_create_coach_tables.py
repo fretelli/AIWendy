@@ -1,7 +1,7 @@
 """Create coach tables
 
 Revision ID: 004
-Revises: 003
+Revises: 001
 Create Date: 2024-12-30
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers
 revision = "004"
-down_revision = "003"
+down_revision = "001"
 branch_labels = None
 depends_on = None
 

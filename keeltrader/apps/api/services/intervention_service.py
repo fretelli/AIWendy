@@ -1,13 +1,14 @@
 """Trading intervention service for real-time trade blocking and alerts."""
 
 from typing import Dict, List, Optional, Any
-from uuid import UUID
+from uuid import UUID, uuid4
 from datetime import datetime, timedelta
 
 import structlog
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from domain.analysis.models import BehaviorPattern
 from domain.intervention.models import (
     PreTradeChecklist,
     PreTradeChecklistCompletion,
@@ -18,7 +19,6 @@ from domain.intervention.models import (
 )
 from domain.journal.models import Journal
 from services.notification_service import NotificationService
-from domain.notification.models import NotificationType, NotificationPriority
 
 logger = structlog.get_logger()
 
@@ -48,6 +48,20 @@ class InterventionService:
         """
         # Get active trading session
         session = await self._get_or_create_session(user_id)
+        gate_token = trade_data.get("gate_token")
+        if gate_token:
+            gate_result = await self._consume_trade_gate(user_id, gate_token)
+            if gate_result:
+                return {
+                    "allowed": True,
+                    "action": InterventionAction.NONE,
+                    "reason": None,
+                    "message": "Trade allowed (gate confirmed)",
+                    "intervention_id": None,
+                    "gate_required": False,
+                    "gate_token": gate_token,
+                    "gate_expires_at": None,
+                }
 
         # Check 1: Daily loss limit
         if session.max_daily_loss_limit and session.session_pnl <= -session.max_daily_loss_limit:
@@ -57,13 +71,10 @@ class InterventionService:
                 action=InterventionAction.BLOCK_TRADE,
                 message=f"Daily loss limit reached (${abs(session.session_pnl / 100):.2f}). Trading blocked for today.",
             )
-            return {
-                "allowed": False,
-                "action": InterventionAction.BLOCK_TRADE,
-                "reason": InterventionReason.DAILY_LOSS_LIMIT_REACHED,
-                "message": intervention.message,
-                "intervention_id": intervention.id,
-            }
+            return self._build_intervention_response(
+                intervention=intervention,
+                session=session,
+            )
 
         # Check 2: Max trades per day
         if session.max_trades_per_day and session.trades_count >= session.max_trades_per_day:
@@ -73,20 +84,17 @@ class InterventionService:
                 action=InterventionAction.BLOCK_TRADE,
                 message=f"Maximum trades per day reached ({session.trades_count}). Take a break.",
             )
-            return {
-                "allowed": False,
-                "action": InterventionAction.BLOCK_TRADE,
-                "reason": InterventionReason.OVERTRADING_DETECTED,
-                "message": intervention.message,
-                "intervention_id": intervention.id,
-            }
+            return self._build_intervention_response(
+                intervention=intervention,
+                session=session,
+            )
 
         # Check 3: Position size check
         position_size = trade_data.get("position_size", 0)
         entry_price = trade_data.get("entry_price", 0)
         trade_value = position_size * entry_price
 
-        # Warn if position size is unusually large (>10% of typical)
+        # Warn if position size is unusually large (>2x of typical)
         avg_position_value = await self._get_average_position_value(user_id)
         if avg_position_value > 0 and trade_value > avg_position_value * 2:
             intervention = await self._create_intervention(
@@ -96,15 +104,27 @@ class InterventionService:
                 message=f"Position size (${trade_value:.2f}) is 2x larger than your average. Please confirm.",
                 details={"trade_value": trade_value, "avg_value": avg_position_value},
             )
-            return {
-                "allowed": False,
-                "action": InterventionAction.REQUIRE_CONFIRMATION,
-                "reason": InterventionReason.POSITION_SIZE_TOO_LARGE,
-                "message": intervention.message,
-                "intervention_id": intervention.id,
-            }
+            return self._build_intervention_response(
+                intervention=intervention,
+                session=session,
+            )
 
-        # Check 4: Recent losses (revenge trading detection)
+        # Check 4: Recent behavior patterns (risk)
+        behavior_risk = await self._get_recent_behavior_risk(user_id)
+        if behavior_risk:
+            intervention = await self._create_intervention(
+                user_id=user_id,
+                reason=InterventionReason.EMOTIONAL_STATE_POOR,
+                action=InterventionAction.WARN_USER,
+                message=behavior_risk["message"],
+                details=behavior_risk["details"],
+            )
+            return self._build_intervention_response(
+                intervention=intervention,
+                session=session,
+            )
+
+        # Check 5: Recent losses (revenge trading detection)
         recent_losses = await self._count_recent_consecutive_losses(user_id)
         if recent_losses >= 3:
             intervention = await self._create_intervention(
@@ -113,15 +133,12 @@ class InterventionService:
                 action=InterventionAction.WARN_USER,
                 message=f"You've had {recent_losses} consecutive losses. Take a break to avoid revenge trading.",
             )
-            return {
-                "allowed": True,  # Warn but allow
-                "action": InterventionAction.WARN_USER,
-                "reason": InterventionReason.REVENGE_TRADING_DETECTED,
-                "message": intervention.message,
-                "intervention_id": intervention.id,
-            }
+            return self._build_intervention_response(
+                intervention=intervention,
+                session=session,
+            )
 
-        # Check 5: Required checklist completion
+        # Check 6: Required checklist completion
         checklist_result = await self._check_required_checklists(user_id)
         if not checklist_result["completed"]:
             intervention = await self._create_intervention(
@@ -131,14 +148,12 @@ class InterventionService:
                 message="Please complete your pre-trade checklist before trading.",
                 details=checklist_result,
             )
-            return {
-                "allowed": False,
-                "action": InterventionAction.BLOCK_TRADE,
-                "reason": InterventionReason.CHECKLIST_INCOMPLETE,
-                "message": intervention.message,
-                "intervention_id": intervention.id,
-                "checklist_required": True,
-            }
+            response = self._build_intervention_response(
+                intervention=intervention,
+                session=session,
+            )
+            response["checklist_required"] = True
+            return response
 
         # All checks passed
         return {
@@ -147,6 +162,9 @@ class InterventionService:
             "reason": None,
             "message": "Trade allowed",
             "intervention_id": None,
+            "gate_required": False,
+            "gate_token": None,
+            "gate_expires_at": None,
         }
 
     async def acknowledge_intervention(
@@ -167,6 +185,75 @@ class InterventionService:
 
         await self.db.commit()
         return True
+
+    def _build_intervention_response(
+        self,
+        intervention: TradingIntervention,
+        session: TradingSession,
+    ) -> Dict[str, Any]:
+        """Build response payload for an intervention, honoring gate settings."""
+        enforce_gate = (
+            session.enforce_trade_block
+            and intervention.action in [InterventionAction.WARN_USER, InterventionAction.REQUIRE_CONFIRMATION]
+        )
+
+        action = (
+            InterventionAction.REQUIRE_CONFIRMATION
+            if enforce_gate
+            else intervention.action
+        )
+
+        allowed = action == InterventionAction.WARN_USER and not enforce_gate
+        if intervention.action == InterventionAction.BLOCK_TRADE:
+            allowed = False
+
+        return {
+            "allowed": allowed,
+            "action": action,
+            "reason": intervention.reason,
+            "message": intervention.message,
+            "intervention_id": intervention.id,
+            "gate_required": action == InterventionAction.REQUIRE_CONFIRMATION,
+            "gate_token": None,
+            "gate_expires_at": None,
+        }
+
+    async def open_trade_gate(
+        self,
+        intervention_id: UUID,
+        user_id: UUID,
+        user_notes: Optional[str] = None,
+    ) -> Optional[TradingIntervention]:
+        """Open a temporary trade gate for an intervention."""
+        intervention = await self.db.get(TradingIntervention, intervention_id)
+        if not intervention or intervention.user_id != user_id:
+            return None
+        if intervention.action == InterventionAction.BLOCK_TRADE:
+            return None
+
+        now = datetime.utcnow()
+        if (
+            intervention.gate_token
+            and intervention.gate_expires_at
+            and intervention.gate_expires_at > now
+            and intervention.gate_used_at is None
+        ):
+            return intervention
+
+        session = await self._get_or_create_session(user_id)
+        intervention.user_acknowledged = True
+        intervention.user_proceeded = True
+        intervention.user_notes = user_notes
+        intervention.acknowledged_at = now
+        intervention.gate_token = uuid4()
+        intervention.gate_expires_at = now + timedelta(
+            minutes=session.gate_timeout_minutes or 15
+        )
+        intervention.gate_used_at = None
+
+        await self.db.commit()
+        await self.db.refresh(intervention)
+        return intervention
 
     async def create_checklist(
         self,
@@ -234,6 +321,8 @@ class InterventionService:
         user_id: UUID,
         max_daily_loss_limit: Optional[int] = None,
         max_trades_per_day: Optional[int] = None,
+        enforce_trade_block: bool = False,
+        gate_timeout_minutes: Optional[int] = None,
     ) -> TradingSession:
         """Start a new trading session."""
         # End any existing active sessions
@@ -243,6 +332,8 @@ class InterventionService:
             user_id=user_id,
             max_daily_loss_limit=max_daily_loss_limit,
             max_trades_per_day=max_trades_per_day,
+            enforce_trade_block=enforce_trade_block,
+            gate_timeout_minutes=gate_timeout_minutes or 15,
         )
         self.db.add(session)
         await self.db.commit()
@@ -344,7 +435,11 @@ class InterventionService:
         if not trades:
             return 0
 
-        total_value = sum(t.entry_price * t.quantity for t in trades if t.entry_price and t.quantity)
+        total_value = sum(
+            t.entry_price * t.position_size
+            for t in trades
+            if t.entry_price and t.position_size
+        )
         return total_value / len(trades)
 
     async def _count_recent_consecutive_losses(self, user_id: UUID) -> int:
@@ -360,12 +455,70 @@ class InterventionService:
 
         consecutive_losses = 0
         for trade in trades:
-            if trade.pnl and trade.pnl < 0:
+            if trade.pnl_amount is not None and trade.pnl_amount < 0:
                 consecutive_losses += 1
             else:
                 break
 
         return consecutive_losses
+
+    async def _consume_trade_gate(self, user_id: UUID, gate_token: str) -> bool:
+        """Validate and consume a gate token."""
+        try:
+            token_uuid = UUID(str(gate_token))
+        except Exception:
+            return False
+
+        now = datetime.utcnow()
+        query = select(TradingIntervention).where(
+            TradingIntervention.user_id == user_id,
+            TradingIntervention.gate_token == token_uuid,
+            TradingIntervention.gate_expires_at.isnot(None),
+            TradingIntervention.gate_expires_at > now,
+            TradingIntervention.gate_used_at.is_(None),
+        )
+        result = await self.db.execute(query)
+        intervention = result.scalar_one_or_none()
+        if not intervention:
+            return False
+
+        intervention.gate_used_at = now
+        await self.db.commit()
+        return True
+
+    async def _get_recent_behavior_risk(self, user_id: UUID) -> Optional[Dict[str, Any]]:
+        """Return recent behavior risk summary if present."""
+        since = datetime.utcnow() - timedelta(hours=24)
+        query = (
+            select(BehaviorPattern)
+            .where(
+                BehaviorPattern.user_id == user_id,
+                BehaviorPattern.detected_at >= since,
+                BehaviorPattern.resolved_at.is_(None),
+            )
+            .order_by(BehaviorPattern.detected_at.desc())
+            .limit(5)
+        )
+        result = await self.db.execute(query)
+        patterns = list(result.scalars().all())
+
+        if not patterns:
+            return None
+
+        top = max(patterns, key=lambda p: p.severity or p.confidence_score or 0)
+        severity = top.severity or max(1, int((top.confidence_score or 0) * 5))
+
+        message = (
+            f"Recent behavioral risk detected (severity {severity}/5). "
+            "Consider a brief pause or checklist before trading."
+        )
+
+        details = {
+            "severity": severity,
+            "pattern_types": [p.pattern_type.value for p in patterns],
+            "confidence_scores": [p.confidence_score for p in patterns],
+        }
+        return {"message": message, "details": details}
 
     async def _check_required_checklists(self, user_id: UUID) -> Dict[str, Any]:
         """Check if required checklists are completed today."""
