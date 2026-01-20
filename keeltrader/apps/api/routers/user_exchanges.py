@@ -32,6 +32,9 @@ class CreateExchangeConnectionRequest(BaseModel):
     api_secret: str = Field(..., min_length=10, description="Exchange API secret")
     passphrase: Optional[str] = Field(None, description="Passphrase (for OKX, etc.)")
     is_testnet: bool = Field(False, description="Whether this is a testnet connection")
+    sync_symbols: Optional[List[str]] = Field(
+        None, description="Optional list of symbols to sync"
+    )
 
 
 class UpdateExchangeConnectionRequest(BaseModel):
@@ -42,6 +45,9 @@ class UpdateExchangeConnectionRequest(BaseModel):
     api_secret: Optional[str] = Field(None, min_length=10, description="New API secret")
     passphrase: Optional[str] = Field(None, description="New passphrase")
     is_active: Optional[bool] = Field(None, description="Active status")
+    sync_symbols: Optional[List[str]] = Field(
+        None, description="Optional list of symbols to sync"
+    )
 
 
 class ExchangeConnectionResponse(BaseModel):
@@ -54,7 +60,9 @@ class ExchangeConnectionResponse(BaseModel):
     is_active: bool
     is_testnet: bool
     last_sync_at: Optional[str]
+    last_trade_sync_at: Optional[str]
     last_error: Optional[str]
+    sync_symbols: List[str] = []
     created_at: str
     updated_at: str
 
@@ -127,6 +135,7 @@ async def create_exchange_connection(
             passphrase=request.passphrase,
             name=request.name,
             is_testnet=request.is_testnet,
+            sync_symbols=request.sync_symbols,
         )
 
         return service.mask_connection(connection)
@@ -202,6 +211,7 @@ async def update_exchange_connection(
             api_secret=request.api_secret,
             passphrase=request.passphrase,
             is_active=request.is_active,
+            sync_symbols=request.sync_symbols,
         )
 
         if not connection:

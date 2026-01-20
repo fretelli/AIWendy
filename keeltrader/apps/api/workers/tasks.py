@@ -15,6 +15,7 @@ from domain.user.models import SubscriptionTier, User, UserSession
 from domain.journal.models import Journal
 from domain.analytics.ml_analytics import MLAnalytics
 from tasks.notification_tasks import send_pattern_alert_task, send_risk_alert_task
+from services.trade_sync_service import TradeSyncService
 from workers.celery_app import celery_app
 
 logger = get_logger(__name__)
@@ -291,6 +292,28 @@ def monitor_risk_alerts(self) -> Dict[str, Any]:
     except Exception as e:
         db.rollback()
         logger.error("monitor_risk_alerts_failed", error=str(e), exc_info=True)
+        return {"status": "error", "error": str(e), "timestamp": now.isoformat()}
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, base=DatabaseTask)
+def sync_exchange_trades(self) -> Dict[str, Any]:
+    """Sync exchange trades into raw storage and journals."""
+    db = self._get_db()
+    now = datetime.utcnow()
+    try:
+        service = TradeSyncService(db)
+        result = service.sync_all_connections()
+        logger.info("sync_exchange_trades_done", result=result)
+        return {
+            "status": "success",
+            "result": result,
+            "timestamp": now.isoformat(),
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error("sync_exchange_trades_failed", error=str(e), exc_info=True)
         return {"status": "error", "error": str(e), "timestamp": now.isoformat()}
     finally:
         db.close()

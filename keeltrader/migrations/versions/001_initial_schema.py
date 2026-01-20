@@ -108,62 +108,6 @@ def upgrade() -> None:
     op.create_index("ix_journal_entries_user_id", "journal_entries", ["user_id"])
     op.create_index("ix_journal_entries_created_at", "journal_entries", ["created_at"])
 
-    # Create chat_sessions table
-    op.create_table(
-        "chat_sessions",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "user_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("users.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("title", sa.String(200), nullable=True),
-        sa.Column("coach_type", sa.String(50), default="general", nullable=False),
-        sa.Column("is_active", sa.Boolean(), default=True, nullable=False),
-        sa.Column("context", postgresql.JSONB, default=dict, nullable=False),
-        sa.Column("metadata", postgresql.JSONB, default=dict, nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column("ended_at", sa.DateTime(timezone=True), nullable=True),
-    )
-    op.create_index("ix_chat_sessions_user_id", "chat_sessions", ["user_id"])
-    op.create_index("ix_chat_sessions_created_at", "chat_sessions", ["created_at"])
-
-    # Create chat_messages table
-    op.create_table(
-        "chat_messages",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "session_id",
-            postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("chat_sessions.id", ondelete="CASCADE"),
-            nullable=False,
-        ),
-        sa.Column("role", sa.String(20), nullable=False),
-        sa.Column("content", sa.Text(), nullable=False),
-        sa.Column("attachments", postgresql.JSONB, default=list, nullable=False),
-        sa.Column("metadata", postgresql.JSONB, default=dict, nullable=False),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-    )
-    op.create_index("ix_chat_messages_session_id", "chat_messages", ["session_id"])
-    op.create_index("ix_chat_messages_created_at", "chat_messages", ["created_at"])
-
     # Create mood_analyses table
     op.create_table(
         "mood_analyses",
@@ -232,8 +176,6 @@ def downgrade() -> None:
     # Drop tables
     op.drop_table("journal_analyses")
     op.drop_table("mood_analyses")
-    op.drop_table("chat_messages")
-    op.drop_table("chat_sessions")
     op.drop_table("journal_entries")
     op.drop_table("users")
 

@@ -11,16 +11,26 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-# Add project root to path
-sys.path.append(str(Path(__file__).parent.parent))
+# Add API package root to path for top-level imports (config/core/domain).
+project_root = Path(__file__).parent.parent
+api_path = project_root / "apps" / "api"
+sys.path.insert(0, str(api_path if api_path.exists() else project_root))
 
-from apps.api.config import get_settings
-from apps.api.core.database import Base
-from apps.api.domain.analysis.models import JournalAnalysis, MoodAnalysis
-from apps.api.domain.coach.models import ChatMessage, ChatSession
-from apps.api.domain.journal.models import JournalEntry
-# Import all models to ensure they're registered with Base
-from apps.api.domain.user.models import User
+from config import get_settings
+from core.database import Base
+
+# Import model modules to register them with Base metadata.
+from domain.analysis import models as analysis_models  # noqa: F401
+from domain.coach import models as coach_models  # noqa: F401
+from domain.exchange import models as exchange_models  # noqa: F401
+from domain.intervention import models as intervention_models  # noqa: F401
+from domain.journal import models as journal_models  # noqa: F401
+from domain.knowledge import models as knowledge_models  # noqa: F401
+from domain.notification import models as notification_models  # noqa: F401
+from domain.project import models as project_models  # noqa: F401
+from domain.report import models as report_models  # noqa: F401
+from domain.tenant import models as tenant_models  # noqa: F401
+from domain.user import models as user_models  # noqa: F401
 
 # Get settings
 settings = get_settings()

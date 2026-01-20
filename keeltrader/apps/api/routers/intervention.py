@@ -21,6 +21,7 @@ class CheckTradeRequest(BaseModel):
     direction: str
     position_size: float
     entry_price: float
+    gate_token: Optional[UUID] = None
 
 
 class CheckTradeResponse(BaseModel):
@@ -30,6 +31,9 @@ class CheckTradeResponse(BaseModel):
     message: str
     intervention_id: Optional[UUID]
     checklist_required: bool = False
+    gate_required: bool = False
+    gate_token: Optional[UUID] = None
+    gate_expires_at: Optional[str] = None
 
 
 class AcknowledgeInterventionRequest(BaseModel):
@@ -69,9 +73,21 @@ class CompleteChecklistRequest(BaseModel):
     responses: Dict[str, Any]
 
 
+class OpenGateRequest(BaseModel):
+    user_notes: Optional[str] = None
+
+
+class OpenGateResponse(BaseModel):
+    intervention_id: UUID
+    gate_token: UUID
+    gate_expires_at: str
+
+
 class StartSessionRequest(BaseModel):
     max_daily_loss_limit: Optional[int] = None  # In cents
     max_trades_per_day: Optional[int] = None
+    enforce_trade_block: bool = False
+    gate_timeout_minutes: Optional[int] = 15
 
 
 class SessionResponse(BaseModel):
@@ -81,6 +97,8 @@ class SessionResponse(BaseModel):
     session_pnl: int
     max_daily_loss_limit: Optional[int]
     max_trades_per_day: Optional[int]
+    enforce_trade_block: bool
+    gate_timeout_minutes: int
     started_at: str
 
     class Config:
@@ -101,6 +119,7 @@ async def check_trade(
         "direction": request.direction,
         "position_size": request.position_size,
         "entry_price": request.entry_price,
+        "gate_token": request.gate_token,
     }
 
     result = await service.check_trade_allowed(
@@ -228,6 +247,8 @@ async def start_session(
         user_id=current_user.id,
         max_daily_loss_limit=request.max_daily_loss_limit,
         max_trades_per_day=request.max_trades_per_day,
+        enforce_trade_block=request.enforce_trade_block,
+        gate_timeout_minutes=request.gate_timeout_minutes,
     )
 
     return SessionResponse(
@@ -237,5 +258,35 @@ async def start_session(
         session_pnl=session.session_pnl,
         max_daily_loss_limit=session.max_daily_loss_limit,
         max_trades_per_day=session.max_trades_per_day,
+        enforce_trade_block=session.enforce_trade_block,
+        gate_timeout_minutes=session.gate_timeout_minutes,
         started_at=session.started_at.isoformat(),
+    )
+
+
+@router.post("/interventions/{intervention_id}/gate", response_model=OpenGateResponse)
+async def open_trade_gate(
+    intervention_id: UUID,
+    request: OpenGateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Open a temporary trade gate for an intervention."""
+    service = InterventionService(db)
+    intervention = await service.open_trade_gate(
+        intervention_id=intervention_id,
+        user_id=current_user.id,
+        user_notes=request.user_notes,
+    )
+
+    if not intervention or not intervention.gate_token or not intervention.gate_expires_at:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Intervention not found or gate not available",
+        )
+
+    return OpenGateResponse(
+        intervention_id=intervention.id,
+        gate_token=intervention.gate_token,
+        gate_expires_at=intervention.gate_expires_at.isoformat(),
     )

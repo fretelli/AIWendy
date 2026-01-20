@@ -31,14 +31,12 @@ def should_auto_init_db() -> bool:
     """Return True when we should auto-bootstrap the DB schema."""
     settings = get_settings()
 
-    # Safety: only auto-init in development by default.
-    if settings.environment.lower() != "development":
-        return False
-
     env_value = os.getenv("KEELTRADER_AUTO_INIT_DB")
-    if env_value is None:
-        return True
-    return _is_truthy(env_value)
+    if env_value is not None:
+        return _is_truthy(env_value)
+
+    # Safety: only auto-init in development by default.
+    return settings.environment.lower() == "development"
 
 
 async def ensure_dev_schema() -> None:
@@ -175,6 +173,225 @@ async def ensure_dev_schema() -> None:
             )
         )
 
+        # Notifications
+        await conn.execute(
+            text(
+                """
+                DO $$ BEGIN
+                    CREATE TYPE notificationtype AS ENUM (
+                        'pattern_detected',
+                        'risk_alert',
+                        'daily_summary',
+                        'weekly_report',
+                        'trade_reminder',
+                        'goal_achieved',
+                        'rule_violation'
+                    );
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                DO $$ BEGIN
+                    CREATE TYPE notificationchannel AS ENUM ('push', 'email', 'sms', 'in_app');
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                DO $$ BEGIN
+                    CREATE TYPE notificationpriority AS ENUM ('low', 'normal', 'high', 'urgent');
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+                """
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS device_tokens (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id UUID NOT NULL REFERENCES users(id),
+                    token VARCHAR(500) NOT NULL UNIQUE,
+                    platform VARCHAR(20) NOT NULL,
+                    device_name VARCHAR(200),
+                    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+                    last_used_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+                    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+                );
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_device_tokens_user_id ON device_tokens(user_id);"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_device_tokens_token ON device_tokens(token);"
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id UUID NOT NULL REFERENCES users(id),
+                    type notificationtype NOT NULL,
+                    title VARCHAR(200) NOT NULL,
+                    body TEXT NOT NULL,
+                    data JSON,
+                    channel notificationchannel NOT NULL,
+                    priority notificationpriority DEFAULT 'normal' NOT NULL,
+                    is_sent BOOLEAN DEFAULT FALSE NOT NULL,
+                    is_read BOOLEAN DEFAULT FALSE NOT NULL,
+                    sent_at TIMESTAMPTZ,
+                    read_at TIMESTAMPTZ,
+                    error_message TEXT,
+                    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+                    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+                );
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_notifications_user_id ON notifications(user_id);"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_notifications_is_read ON notifications(is_read);"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_notifications_created_at ON notifications(created_at);"
+            )
+        )
+
+        # Tenants (cloud multi-tenancy)
+        await conn.execute(
+            text(
+                """
+                DO $$ BEGIN
+                    CREATE TYPE tenantplan AS ENUM ('free', 'starter', 'professional', 'enterprise');
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                DO $$ BEGIN
+                    CREATE TYPE tenantstatus AS ENUM ('active', 'suspended', 'trial', 'cancelled');
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                DO $$ BEGIN
+                    CREATE TYPE tenantrole AS ENUM ('owner', 'admin', 'member', 'guest');
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+                """
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS tenants (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    name VARCHAR(255) NOT NULL,
+                    slug VARCHAR(100) UNIQUE NOT NULL,
+                    domain VARCHAR(255),
+                    logo_url TEXT,
+                    description TEXT,
+                    plan tenantplan NOT NULL DEFAULT 'free',
+                    status tenantstatus NOT NULL DEFAULT 'trial',
+                    stripe_customer_id VARCHAR(255) UNIQUE,
+                    stripe_subscription_id VARCHAR(255),
+                    subscription_expires_at TIMESTAMPTZ,
+                    trial_ends_at TIMESTAMPTZ,
+                    max_users INTEGER DEFAULT 5,
+                    max_projects INTEGER DEFAULT 10,
+                    max_storage_gb INTEGER DEFAULT 5,
+                    max_api_calls_per_month INTEGER DEFAULT 10000,
+                    current_users INTEGER DEFAULT 0,
+                    current_projects INTEGER DEFAULT 0,
+                    current_storage_gb INTEGER DEFAULT 0,
+                    current_api_calls_this_month INTEGER DEFAULT 0,
+                    settings JSON DEFAULT '{"sso_enabled": false, "enforce_2fa": false, "ip_whitelist": [], "allowed_email_domains": []}'::json,
+                    billing_email VARCHAR(255),
+                    billing_address JSON,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW(),
+                    deleted_at TIMESTAMPTZ
+                );
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_tenants_slug_active ON tenants(slug, is_active);"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_tenants_status ON tenants(status, plan);"
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS tenant_members (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    tenant_id UUID NOT NULL REFERENCES tenants(id),
+                    user_id UUID NOT NULL REFERENCES users(id),
+                    role tenantrole NOT NULL DEFAULT 'member',
+                    is_active BOOLEAN DEFAULT TRUE,
+                    invited_by UUID REFERENCES users(id),
+                    invitation_accepted_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_tenant_members_tenant_user ON tenant_members(tenant_id, user_id);"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_tenant_members_user_active ON tenant_members(user_id, is_active);"
+            )
+        )
+
         # Projects (workspaces)
         await conn.execute(
             text(
@@ -221,7 +438,7 @@ async def ensure_dev_schema() -> None:
             text(
                 """
                 DO $$ BEGIN
-                    CREATE TYPE coachstyle AS ENUM ('EMPATHETIC', 'DISCIPLINED', 'ANALYTICAL', 'MOTIVATIONAL', 'SOCRATIC');
+                    CREATE TYPE coachstyle AS ENUM ('empathetic', 'disciplined', 'analytical', 'motivational', 'socratic');
                 EXCEPTION
                     WHEN duplicate_object THEN null;
                 END $$;
@@ -302,7 +519,7 @@ async def ensure_dev_schema() -> None:
                     'Wendy Rhodes',
                     '温和共情型教练，专注于情绪管理和心理韧性',
                     'Wendy 是一位资深交易心理教练，擅长帮助交易者处理情绪波动、克服恐惧与贪婪。',
-                    'EMPATHETIC',
+                    'empathetic',
                     '["温暖","耐心","理解力强","洞察力深","支持性强"]'::json,
                     '["情绪管理","心理韧性","信心重建","压力调节","创伤修复"]'::json,
                     'zh',
@@ -322,7 +539,7 @@ async def ensure_dev_schema() -> None:
                     'Marcus Steel',
                     '严厉纪律型教练，强调风控和执行力',
                     'Marcus Steel 是一位前对冲基金经理，现专注于交易纪律培训。',
-                    'DISCIPLINED',
+                    'disciplined',
                     '["严格","直接","果断","要求高","结果导向"]'::json,
                     '["风险管理","纪律执行","止损策略","规则制定","习惯养成"]'::json,
                     'zh',
@@ -342,7 +559,7 @@ async def ensure_dev_schema() -> None:
                     'Dr. Sophia Chen',
                     '数据分析型教练，用数据驱动决策',
                     'Dr. Sophia Chen 拥有金融工程博士学位，专注于量化分析和数据驱动的交易改进。',
-                    'ANALYTICAL',
+                    'analytical',
                     '["理性","精确","客观","系统化","数据导向"]'::json,
                     '["绩效分析","模式识别","统计优化","回测分析","量化改进"]'::json,
                     'zh',
@@ -362,7 +579,7 @@ async def ensure_dev_schema() -> None:
                     'Alex Thunder',
                     '激励鼓舞型教练，激发潜能和斗志',
                     'Alex Thunder 是一位充满激情的励志教练，曾帮助数百位交易者重燃斗志。',
-                    'MOTIVATIONAL',
+                    'motivational',
                     '["激情","乐观","鼓舞人心","充满能量","积极向上"]'::json,
                     '["信心建设","目标设定","动力激发","成功心态","突破限制"]'::json,
                     'zh',
@@ -382,7 +599,7 @@ async def ensure_dev_schema() -> None:
                     'Socrates',
                     '苏格拉底式教练，通过提问引导自我发现',
                     '以古希腊哲学家苏格拉底命名，这位教练采用经典的苏格拉底式提问法。',
-                    'SOCRATIC',
+                    'socratic',
                     '["智慧","耐心","深刻","引导性","哲学性"]'::json,
                     '["自我认知","批判思维","深度反思","信念挑战","智慧培养"]'::json,
                     'zh',
@@ -484,6 +701,31 @@ async def ensure_dev_schema() -> None:
                 ALTER TABLE chat_messages
                 ADD COLUMN IF NOT EXISTS has_attachments BOOLEAN DEFAULT FALSE;
                 """
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS chat_attachments (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    message_id UUID NOT NULL REFERENCES chat_messages(id),
+                    attachment_type VARCHAR(20) NOT NULL,
+                    file_name VARCHAR(255) NOT NULL,
+                    file_size INTEGER NOT NULL,
+                    mime_type VARCHAR(100) NOT NULL,
+                    storage_path TEXT NOT NULL,
+                    extracted_text TEXT,
+                    transcription TEXT,
+                    thumbnail_base64 TEXT,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_chat_attachments_message ON chat_attachments(message_id);"
             )
         )
 
@@ -937,6 +1179,314 @@ async def ensure_dev_schema() -> None:
             )
         )
 
+        # Exchange connections + raw trades
+        await conn.execute(
+            text(
+                """
+                DO $$ BEGIN
+                    CREATE TYPE exchangetype AS ENUM ('binance', 'okx', 'bybit', 'coinbase', 'kraken');
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+                """
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS exchange_connections (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    exchange_type exchangetype NOT NULL,
+                    name VARCHAR(100),
+                    api_key_encrypted TEXT NOT NULL,
+                    api_secret_encrypted TEXT NOT NULL,
+                    passphrase_encrypted TEXT,
+                    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+                    is_testnet BOOLEAN DEFAULT FALSE NOT NULL,
+                    sync_symbols JSONB DEFAULT '[]'::jsonb,
+                    last_sync_at TIMESTAMPTZ,
+                    last_trade_sync_at TIMESTAMPTZ,
+                    last_error TEXT,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                """
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                ALTER TABLE exchange_connections
+                ADD COLUMN IF NOT EXISTS sync_symbols JSONB DEFAULT '[]'::jsonb,
+                ADD COLUMN IF NOT EXISTS last_trade_sync_at TIMESTAMPTZ;
+                """
+            )
+        )
+
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_exchange_connections_user_id ON exchange_connections(user_id);"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS idx_exchange_connections_user_exchange ON exchange_connections(user_id, exchange_type);"
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS exchange_trades (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    exchange_connection_id UUID NOT NULL REFERENCES exchange_connections(id) ON DELETE CASCADE,
+                    journal_id UUID REFERENCES journals(id) ON DELETE SET NULL,
+                    exchange_trade_id VARCHAR(200) NOT NULL,
+                    symbol VARCHAR(50) NOT NULL,
+                    side VARCHAR(10),
+                    price FLOAT,
+                    amount FLOAT,
+                    cost FLOAT,
+                    fee_cost FLOAT,
+                    fee_currency VARCHAR(20),
+                    fee_rate FLOAT,
+                    trade_timestamp TIMESTAMPTZ,
+                    raw JSONB,
+                    is_imported BOOLEAN DEFAULT FALSE NOT NULL,
+                    imported_at TIMESTAMPTZ,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                """
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS ix_exchange_trades_connection_trade_id
+                ON exchange_trades(exchange_connection_id, exchange_trade_id);
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                CREATE INDEX IF NOT EXISTS ix_exchange_trades_user_time
+                ON exchange_trades(user_id, trade_timestamp);
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_exchange_trades_symbol ON exchange_trades(symbol);"
+            )
+        )
+
+        # Trading interventions + checklists
+        await conn.execute(
+            text(
+                """
+                DO $$ BEGIN
+                    CREATE TYPE interventionaction AS ENUM (
+                        'block_trade',
+                        'warn_user',
+                        'require_confirmation',
+                        'suggest_alternative',
+                        'none'
+                    );
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                """
+                DO $$ BEGIN
+                    CREATE TYPE interventionreason AS ENUM (
+                        'revenge_trading_detected',
+                        'overtrading_detected',
+                        'excessive_risk',
+                        'emotional_state_poor',
+                        'rule_violation',
+                        'position_size_too_large',
+                        'daily_loss_limit_reached',
+                        'checklist_incomplete'
+                    );
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+                """
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS pre_trade_checklists (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    name VARCHAR(200) NOT NULL,
+                    description TEXT,
+                    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+                    is_required BOOLEAN DEFAULT FALSE NOT NULL,
+                    items JSONB NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                """
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS pre_trade_checklist_completions (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    checklist_id UUID NOT NULL REFERENCES pre_trade_checklists(id) ON DELETE CASCADE,
+                    journal_id UUID REFERENCES journals(id) ON DELETE SET NULL,
+                    responses JSONB NOT NULL,
+                    all_required_completed BOOLEAN NOT NULL,
+                    completed_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                """
+            )
+        )
+
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_pre_trade_checklists_user ON pre_trade_checklists(user_id);"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_pre_trade_checklist_completions_user ON pre_trade_checklist_completions(user_id);"
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS trading_interventions (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    reason interventionreason NOT NULL,
+                    action interventionaction NOT NULL,
+                    message TEXT NOT NULL,
+                    details JSONB,
+                    user_acknowledged BOOLEAN DEFAULT FALSE NOT NULL,
+                    user_proceeded BOOLEAN DEFAULT FALSE NOT NULL,
+                    user_notes TEXT,
+                    gate_token UUID,
+                    gate_expires_at TIMESTAMPTZ,
+                    gate_used_at TIMESTAMPTZ,
+                    journal_id UUID REFERENCES journals(id) ON DELETE SET NULL,
+                    triggered_at TIMESTAMPTZ DEFAULT NOW(),
+                    acknowledged_at TIMESTAMPTZ
+                );
+                """
+            )
+        )
+
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_trading_interventions_user_triggered ON trading_interventions(user_id, triggered_at);"
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS trading_sessions (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+                    trades_count INTEGER DEFAULT 0 NOT NULL,
+                    session_pnl INTEGER DEFAULT 0 NOT NULL,
+                    max_daily_loss_limit INTEGER,
+                    max_trades_per_day INTEGER,
+                    enforce_trade_block BOOLEAN DEFAULT FALSE NOT NULL,
+                    gate_timeout_minutes INTEGER DEFAULT 15 NOT NULL,
+                    started_at TIMESTAMPTZ DEFAULT NOW(),
+                    ended_at TIMESTAMPTZ
+                );
+                """
+            )
+        )
+
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_trading_sessions_user_active ON trading_sessions(user_id, is_active);"
+            )
+        )
+
+        # Behavior pattern storage
+        await conn.execute(
+            text(
+                """
+                DO $$ BEGIN
+                    CREATE TYPE patterntype AS ENUM (
+                        'revenge_trading',
+                        'overtrading',
+                        'fear_of_loss',
+                        'greed',
+                        'fomo',
+                        'analysis_paralysis',
+                        'confirmation_bias',
+                        'anchoring_bias',
+                        'emotional_trading',
+                        'discipline_breach'
+                    );
+                EXCEPTION
+                    WHEN duplicate_object THEN null;
+                END $$;
+                """
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS behavior_patterns (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    journal_id UUID REFERENCES journals(id) ON DELETE SET NULL,
+                    session_id UUID REFERENCES chat_sessions(id) ON DELETE SET NULL,
+                    pattern_type patterntype NOT NULL,
+                    confidence_score FLOAT NOT NULL,
+                    severity INTEGER,
+                    context JSONB,
+                    trigger_conditions JSONB,
+                    evidence JSONB DEFAULT '[]'::jsonb,
+                    related_trades JSONB DEFAULT '[]'::jsonb,
+                    intervention_suggested TEXT,
+                    intervention_accepted BOOLEAN,
+                    intervention_result TEXT,
+                    detected_at TIMESTAMPTZ DEFAULT NOW(),
+                    resolved_at TIMESTAMPTZ
+                );
+                """
+            )
+        )
+
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_behavior_patterns_user_type ON behavior_patterns(user_id, pattern_type);"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_behavior_patterns_detected ON behavior_patterns(detected_at);"
+            )
+        )
+
         # Reports (periodic reports)
         await conn.execute(
             text(
@@ -949,6 +1499,89 @@ async def ensure_dev_schema() -> None:
                 """
             )
         )
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS analysis_reports (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id UUID NOT NULL REFERENCES users(id),
+                    report_type reporttype NOT NULL,
+                    period_start TIMESTAMPTZ NOT NULL,
+                    period_end TIMESTAMPTZ NOT NULL,
+                    total_trades INTEGER DEFAULT 0,
+                    winning_trades INTEGER DEFAULT 0,
+                    losing_trades INTEGER DEFAULT 0,
+                    breakeven_trades INTEGER DEFAULT 0,
+                    win_rate FLOAT,
+                    profit_factor FLOAT,
+                    sharpe_ratio FLOAT,
+                    max_drawdown FLOAT,
+                    total_pnl FLOAT,
+                    avg_win FLOAT,
+                    avg_loss FLOAT,
+                    best_trade FLOAT,
+                    worst_trade FLOAT,
+                    avg_emotion_score FLOAT,
+                    avg_confidence_score FLOAT,
+                    avg_stress_score FLOAT,
+                    rule_violation_rate FLOAT,
+                    detected_patterns JSON DEFAULT '[]'::json,
+                    pattern_frequencies JSON DEFAULT '{}'::json,
+                    pattern_insights JSON DEFAULT '{}'::json,
+                    ai_summary TEXT,
+                    ai_recommendations JSON DEFAULT '[]'::json,
+                    ai_strengths JSON DEFAULT '[]'::json,
+                    ai_weaknesses JSON DEFAULT '[]'::json,
+                    ai_action_items JSON DEFAULT '[]'::json,
+                    key_insights JSON DEFAULT '[]'::json,
+                    coaching_notes TEXT,
+                    generated_at TIMESTAMPTZ DEFAULT NOW(),
+                    viewed_at TIMESTAMPTZ
+                );
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_analysis_reports_user_type ON analysis_reports(user_id, report_type);"
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_analysis_reports_period ON analysis_reports(period_start, period_end);"
+            )
+        )
+
+        await conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS performance_metrics (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    user_id UUID NOT NULL REFERENCES users(id),
+                    metric_date TIMESTAMPTZ NOT NULL,
+                    daily_pnl FLOAT,
+                    daily_trades INTEGER DEFAULT 0,
+                    daily_win_rate FLOAT,
+                    cumulative_pnl FLOAT,
+                    cumulative_trades INTEGER DEFAULT 0,
+                    account_balance FLOAT,
+                    daily_var FLOAT,
+                    daily_max_drawdown FLOAT,
+                    avg_emotion FLOAT,
+                    avg_confidence FLOAT,
+                    rule_violations INTEGER DEFAULT 0,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                """
+            )
+        )
+        await conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_performance_metrics_user_date ON performance_metrics(user_id, metric_date);"
+            )
+        )
+
         await conn.execute(
             text(
                 """
