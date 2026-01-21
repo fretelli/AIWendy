@@ -33,6 +33,7 @@ class UserExchangeService:
         passphrase: Optional[str] = None,
         name: Optional[str] = None,
         is_testnet: bool = False,
+        sync_symbols: Optional[List[str]] = None,
     ) -> ExchangeConnection:
         """
         Create a new exchange connection for a user
@@ -65,6 +66,7 @@ class UserExchangeService:
             api_secret_encrypted=api_secret_encrypted,
             passphrase_encrypted=passphrase_encrypted,
             is_testnet=is_testnet,
+            sync_symbols=sync_symbols or [],
         )
 
         connection = await self.repository.create(connection)
@@ -122,6 +124,7 @@ class UserExchangeService:
         api_secret: Optional[str] = None,
         passphrase: Optional[str] = None,
         is_active: Optional[bool] = None,
+        sync_symbols: Optional[List[str]] = None,
     ) -> Optional[ExchangeConnection]:
         """
         Update an exchange connection
@@ -157,6 +160,9 @@ class UserExchangeService:
 
         if is_active is not None:
             connection.is_active = is_active
+
+        if sync_symbols is not None:
+            connection.sync_symbols = sync_symbols
 
         connection = await self.repository.update(connection)
         logger.info(f"Updated exchange connection {connection_id} for user {user_id}")
@@ -316,7 +322,11 @@ class UserExchangeService:
             "is_active": connection.is_active,
             "is_testnet": connection.is_testnet,
             "last_sync_at": connection.last_sync_at.isoformat() if connection.last_sync_at else None,
+            "last_trade_sync_at": connection.last_trade_sync_at.isoformat()
+            if connection.last_trade_sync_at
+            else None,
             "last_error": connection.last_error,
+            "sync_symbols": connection.sync_symbols or [],
             "created_at": connection.created_at.isoformat(),
             "updated_at": connection.updated_at.isoformat(),
         }

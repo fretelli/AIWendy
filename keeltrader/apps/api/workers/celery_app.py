@@ -1,5 +1,7 @@
 """Celery application configuration."""
 
+from datetime import timedelta
+
 from celery import Celery
 from celery.schedules import crontab
 
@@ -55,3 +57,9 @@ celery_app.conf.beat_schedule = {
         ),  # Weekly on Sunday at 4 AM
     },
 }
+
+if settings.trade_sync_enabled:
+    celery_app.conf.beat_schedule["sync-exchange-trades"] = {
+        "task": "workers.tasks.sync_exchange_trades",
+        "schedule": timedelta(seconds=settings.trade_sync_interval_seconds),
+    }

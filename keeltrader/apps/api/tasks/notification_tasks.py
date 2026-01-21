@@ -1,5 +1,6 @@
 """Celery tasks for sending notifications."""
 
+import asyncio
 from uuid import UUID
 from typing import Dict, Any, List, Optional
 
@@ -8,6 +9,7 @@ import structlog
 
 from keeltrader.apps.api.core.database import get_db_context
 from keeltrader.apps.api.services.notification_service import NotificationService
+from keeltrader.apps.api.services.notification_websocket import notification_ws_service
 from keeltrader.apps.api.domain.notification.models import (
     NotificationChannel,
     NotificationPriority,
@@ -70,6 +72,7 @@ def send_pattern_alert_task(
     """Send pattern detection alert."""
     try:
         async def _send():
+            # Send via database notification service
             async with get_db_context() as db:
                 service = NotificationService(db)
                 await service.send_pattern_alert(
@@ -80,7 +83,15 @@ def send_pattern_alert_task(
                     recommendations=recommendations,
                 )
 
-        import asyncio
+            # Send via WebSocket for real-time push
+            await notification_ws_service.send_pattern_alert(
+                user_id=UUID(user_id),
+                pattern_type=pattern_type,
+                description=description,
+                confidence=confidence,
+                recommendations=recommendations,
+            )
+
         asyncio.run(_send())
 
         logger.info(
@@ -107,6 +118,7 @@ def send_risk_alert_task(
     """Send risk alert notification."""
     try:
         async def _send():
+            # Send via database notification service
             async with get_db_context() as db:
                 service = NotificationService(db)
                 await service.send_risk_alert(
@@ -116,7 +128,14 @@ def send_risk_alert_task(
                     action_required=action_required,
                 )
 
-        import asyncio
+            # Send via WebSocket for real-time push
+            await notification_ws_service.send_risk_alert(
+                user_id=UUID(user_id),
+                risk_level=risk_level,
+                message=message,
+                action_required=action_required,
+            )
+
         asyncio.run(_send())
 
         logger.info(
@@ -138,6 +157,7 @@ def send_daily_summary_task(user_id: str, stats: Dict[str, Any]):
     """Send daily trading summary."""
     try:
         async def _send():
+            # Send via database notification service
             async with get_db_context() as db:
                 service = NotificationService(db)
                 await service.send_daily_summary(
@@ -145,7 +165,12 @@ def send_daily_summary_task(user_id: str, stats: Dict[str, Any]):
                     stats=stats,
                 )
 
-        import asyncio
+            # Send via WebSocket for real-time push
+            await notification_ws_service.send_daily_summary(
+                user_id=UUID(user_id),
+                stats=stats,
+            )
+
         asyncio.run(_send())
 
         logger.info(

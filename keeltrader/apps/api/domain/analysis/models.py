@@ -31,7 +31,7 @@ class ReportType(str, enum.Enum):
     WEEKLY = "weekly"
     MONTHLY = "monthly"
     QUARTERLY = "quarterly"
-    CUSTOM = "custom"
+    YEARLY = "yearly"
 
 
 class PatternType(str, enum.Enum):

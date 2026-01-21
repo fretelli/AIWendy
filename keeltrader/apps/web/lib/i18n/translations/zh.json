@@ -170,7 +170,27 @@
     "verifyEmail": "请验证您的邮箱",
     "emailSent": "验证邮件已发送",
     "loginSuccess": "登录成功",
-    "logoutSuccess": "退出登录成功"
+    "logoutSuccess": "退出登录成功",
+    "reset": {
+      "title": "重置密码",
+      "subtitle": "请输入您的新密码",
+      "newPassword": "新密码",
+      "confirmPassword": "确认新密码",
+      "submit": "重置密码",
+      "backToLogin": "返回登录",
+      "missingToken": "无效或缺失的重置令牌",
+      "passwordMismatch": "两次输入的密码不一致",
+      "passwordTooShort": "密码至少需要8个字符",
+      "error": "重置密码失败",
+      "invalidTitle": "无效的重置链接",
+      "requestNew": "请求新的密码重置链接",
+      "success": {
+        "title": "密码重置成功",
+        "subtitle": "您的密码已重置",
+        "body": "您现在可以使用新密码登录了。",
+        "goToLogin": "前往登录"
+      }
+    }
   },
   "dashboard": {
     "title": "仪表板",
