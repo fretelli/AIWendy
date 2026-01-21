@@ -1,13 +1,14 @@
 """User management endpoints."""
 
 import re
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.auth import get_authenticated_user, get_current_user
+from core.auth import get_authenticated_user, get_current_user, hash_password
 from core.database import get_session
 from core.encryption import get_encryption_service
 from core.i18n import get_request_locale, t
@@ -17,6 +18,43 @@ from domain.user.models import User
 router = APIRouter()
 logger = get_logger(__name__)
 encryption = get_encryption_service()
+
+
+class UserUpdateRequest(BaseModel):
+    """User profile update request."""
+
+    full_name: Optional[str] = None
+    display_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+    timezone: Optional[str] = None
+    language: Optional[str] = None
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
+    trading_types: Optional[List[str]] = None
+    main_concern: Optional[str] = None
+    preferred_coach_id: Optional[str] = None
+    preferred_coach_style: Optional[str] = None
+    notification_preferences: Optional[Dict] = None
+    privacy_settings: Optional[Dict] = None
+
+
+class UserResponse(BaseModel):
+    """User profile response."""
+
+    id: str
+    email: str
+    full_name: Optional[str]
+    display_name: Optional[str]
+    timezone: str
+    language: str
+    bio: Optional[str]
+    avatar_url: Optional[str]
+    subscription_tier: str
+    trading_types: List[str]
+    main_concern: Optional[str]
+    preferred_coach_id: Optional[str]
+    preferred_coach_style: Optional[str]
 
 
 class APIKeysUpdate(BaseModel):
@@ -49,20 +87,100 @@ async def get_current_user_profile(
     }
 
 
-@router.put("/me")
+@router.put("/me", response_model=UserResponse)
 async def update_current_user_profile(
+    update_data: UserUpdateRequest,
+    http_request: Request,
     session: AsyncSession = Depends(get_session),
     current_user: User = Depends(get_authenticated_user),
 ):
     """Update current user profile."""
-    # TODO(feature): Implement user profile update
-    #   - Create UserUpdateRequest schema (name, email, timezone, locale, etc.)
-    #   - Validate email uniqueness if changed
-    #   - Hash password if password field is provided
-    #   - Update user record in database
-    #   - Return updated UserResponse
-    # Placeholder endpoint
-    return {"message": "Profile update endpoint - to be implemented"}
+    locale = get_request_locale(http_request)
+
+    try:
+        # Update email if provided and different
+        if update_data.email and update_data.email != current_user.email:
+            # Check email uniqueness
+            stmt = select(User).where(User.email == update_data.email)
+            result = await session.execute(stmt)
+            existing_user = result.scalar_one_or_none()
+
+            if existing_user:
+                raise HTTPException(
+                    status_code=400,
+                    detail=t("errors.email_already_exists", locale),
+                )
+            current_user.email = update_data.email
+            logger.info(f"User {current_user.id} changed email to {update_data.email}")
+
+        # Update password if provided
+        if update_data.password:
+            if len(update_data.password) < 8:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Password must be at least 8 characters",
+                )
+            current_user.hashed_password = hash_password(update_data.password)
+            logger.info(f"User {current_user.id} changed password")
+
+        # Update profile fields
+        if update_data.full_name is not None:
+            current_user.full_name = update_data.full_name
+        if update_data.display_name is not None:
+            current_user.display_name = update_data.display_name
+        if update_data.timezone is not None:
+            current_user.timezone = update_data.timezone
+        if update_data.language is not None:
+            current_user.language = update_data.language
+        if update_data.bio is not None:
+            current_user.bio = update_data.bio
+        if update_data.avatar_url is not None:
+            current_user.avatar_url = update_data.avatar_url
+        if update_data.trading_types is not None:
+            current_user.trading_types = update_data.trading_types
+        if update_data.main_concern is not None:
+            current_user.main_concern = update_data.main_concern
+        if update_data.preferred_coach_id is not None:
+            current_user.preferred_coach_id = update_data.preferred_coach_id
+        if update_data.preferred_coach_style is not None:
+            current_user.preferred_coach_style = update_data.preferred_coach_style
+        if update_data.notification_preferences is not None:
+            current_user.notification_preferences = update_data.notification_preferences
+        if update_data.privacy_settings is not None:
+            current_user.privacy_settings = update_data.privacy_settings
+
+        # Save to database
+        session.add(current_user)
+        await session.commit()
+        await session.refresh(current_user)
+
+        logger.info(f"User {current_user.id} profile updated successfully")
+
+        # Return updated profile
+        return UserResponse(
+            id=str(current_user.id),
+            email=current_user.email,
+            full_name=current_user.full_name,
+            display_name=current_user.display_name,
+            timezone=current_user.timezone,
+            language=current_user.language,
+            bio=current_user.bio,
+            avatar_url=current_user.avatar_url,
+            subscription_tier=current_user.subscription_tier.value,
+            trading_types=current_user.trading_types or [],
+            main_concern=current_user.main_concern,
+            preferred_coach_id=current_user.preferred_coach_id,
+            preferred_coach_style=current_user.preferred_coach_style,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating user profile: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=t("errors.failed_update_profile", locale),
+        )
 
 
 @router.get("/me/api-keys")

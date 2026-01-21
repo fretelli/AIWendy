@@ -127,6 +127,9 @@ class TradingIntervention(Base):
     user_acknowledged = Column(Boolean, default=False, nullable=False)
     user_proceeded = Column(Boolean, default=False, nullable=False)  # Did user proceed despite warning?
     user_notes = Column(Text, nullable=True)
+    gate_token = Column(UUID(as_uuid=True), nullable=True)
+    gate_expires_at = Column(DateTime(timezone=True), nullable=True)
+    gate_used_at = Column(DateTime(timezone=True), nullable=True)
 
     # Associated trade (if any)
     journal_id = Column(UUID(as_uuid=True), ForeignKey("journals.id"), nullable=True)
@@ -154,6 +157,8 @@ class TradingSession(Base):
     # Risk metrics
     max_daily_loss_limit = Column(Integer, nullable=True)  # In cents
     max_trades_per_day = Column(Integer, nullable=True)
+    enforce_trade_block = Column(Boolean, default=False, nullable=False)
+    gate_timeout_minutes = Column(Integer, default=15, nullable=False)
 
     # Timestamps
     started_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)

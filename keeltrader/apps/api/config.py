@@ -149,6 +149,28 @@ class Settings(BaseSettings):
     feature_multi_coach_enabled: bool = True
     feature_voice_enabled: bool = False
 
+    # ========== Trade Sync ==========
+    trade_sync_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("TRADE_SYNC_ENABLED", "trade_sync_enabled"),
+    )
+    trade_sync_interval_seconds: int = Field(
+        default=60,
+        validation_alias=AliasChoices(
+            "TRADE_SYNC_INTERVAL_SECONDS", "trade_sync_interval_seconds"
+        ),
+    )
+    trade_sync_default_limit: int = Field(
+        default=200,
+        validation_alias=AliasChoices("TRADE_SYNC_DEFAULT_LIMIT", "trade_sync_default_limit"),
+    )
+    trade_sync_import_to_journal: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "TRADE_SYNC_IMPORT_TO_JOURNAL", "trade_sync_import_to_journal"
+        ),
+    )
+
     # ========== Cloud-Only Features ==========
     # Multi-tenancy (enabled only in cloud mode)
     multi_tenancy_enabled: bool = Field(default=False)

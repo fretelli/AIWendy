@@ -65,6 +65,8 @@ services:
         condition: service_healthy
     volumes:
       - ./apps/api:/app
+      - ./alembic.ini:/app/alembic.ini
+      - ./migrations:/app/migrations
       - uploads_data:/app/uploads
     command: sh scripts/docker_start.sh
 
