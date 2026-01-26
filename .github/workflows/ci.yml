@@ -31,7 +31,7 @@ jobs:
       - run: npm run build
       - name: Upload coverage
         if: always()
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ./keeltrader/apps/web/coverage/lcov.info
           flags: frontend
@@ -61,7 +61,7 @@ jobs:
       - run: python -m compileall .
       - name: Upload coverage
         if: always()
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
         with:
           files: ./keeltrader/apps/api/coverage.xml
           flags: backend
