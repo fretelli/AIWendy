@@ -73,7 +73,6 @@ def upgrade():
         sa.Column(
             "project_id",
             postgresql.UUID(as_uuid=True),
-            sa.ForeignKey("projects.id"),
             nullable=True,
         ),
         sa.Column(
