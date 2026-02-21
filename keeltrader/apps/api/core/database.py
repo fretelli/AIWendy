@@ -126,6 +126,23 @@ async def init_database() -> None:
         raise
 
 
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
+    """Async context manager for database sessions (used by Celery tasks)."""
+    async with async_session() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """Get database session."""
     async with async_session() as session:
