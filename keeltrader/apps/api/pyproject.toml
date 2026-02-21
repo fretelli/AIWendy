@@ -24,7 +24,7 @@ pgvector = "0.2.5"
 aiosqlite = "0.20.0"  # For SQLite async support in tests
 
 # Redis & Celery
-redis = "5.0.4"
+redis = "7.1.0"
 celery = "5.4.0"
 
 # LLM
