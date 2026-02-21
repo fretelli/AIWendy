@@ -7,10 +7,10 @@ from typing import Dict, Any, List, Optional
 from celery import shared_task
 import structlog
 
-from keeltrader.apps.api.core.database import get_db_context
-from keeltrader.apps.api.services.notification_service import NotificationService
-from keeltrader.apps.api.services.notification_websocket import notification_ws_service
-from keeltrader.apps.api.domain.notification.models import (
+from core.database import get_db_context
+from services.notification_service import NotificationService
+from services.notification_websocket import notification_ws_service
+from domain.notification.models import (
     NotificationChannel,
     NotificationPriority,
     NotificationType,
