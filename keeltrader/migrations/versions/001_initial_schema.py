@@ -40,7 +40,7 @@ def upgrade() -> None:
         sa.Column(
             "subscription_tier",
             postgresql.ENUM(
-                "free", "pro", "elite", "enterprise", name="subscriptiontier"
+                "free", "pro", "elite", "enterprise", name="subscriptiontier", create_type=False
             ),
             default="free",
             nullable=False,
@@ -84,7 +84,7 @@ def upgrade() -> None:
                 "neutral",
                 "positive",
                 "very_positive",
-                name="moodtype",
+                name="moodtype", create_type=False,
             ),
             nullable=True,
         ),

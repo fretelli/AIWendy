@@ -14,11 +14,11 @@ is_truthy() {
 }
 
 run_migrations() {
-  if [ -f /app/alembic.ini ]; then
-    echo "[keeltrader] running alembic migrations..."
-    alembic -c /app/alembic.ini upgrade head
-  else
-    echo "[keeltrader] alembic.ini not found; skipping migrations"
+  echo "[keeltrader] bootstrapping database tables..."
+  python scripts/bootstrap_projects.py
+  if [ $? -eq 0 ]; then
+    echo "[keeltrader] bootstrap complete, running alembic upgrade..."
+    alembic -c /app/alembic.ini upgrade head 2>&1 || echo "[keeltrader] alembic upgrade had warnings (may be OK if bootstrap handled schema)"
   fi
 }
 

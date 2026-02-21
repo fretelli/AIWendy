@@ -47,6 +47,7 @@ tenacity==8.2.3
 aiofiles==24.1.0
 aiosmtplib==3.0.1
 email-validator==2.1.0
+joblib
 
 # ========== File Processing ==========
 PyPDF2==3.0.1
