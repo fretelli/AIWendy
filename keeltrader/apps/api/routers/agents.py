@@ -61,8 +61,16 @@ async def list_agents():
         from apps.agents.orchestrator import create_orchestrator
         from apps.agents.technical import create_technical_analyst
         from apps.agents.executor import create_executor
+        from apps.agents.psychology import create_psychology_coach
+        from apps.agents.guardian import create_guardian
 
-        agents = [create_orchestrator(), create_technical_analyst(), create_executor()]
+        agents = [
+            create_orchestrator(),
+            create_technical_analyst(),
+            create_executor(),
+            create_psychology_coach(),
+            create_guardian(),
+        ]
         return [
             AgentStatusResponse(
                 agent_id=a.config.agent_id,
@@ -150,6 +158,12 @@ async def chat_with_agent(req: AgentChatRequest):
         elif req.agent_id == "executor":
             from apps.agents.executor import create_executor
             agent = create_executor()
+        elif req.agent_id in ("psychology", "psychology-coach", "coach"):
+            from apps.agents.psychology import create_psychology_coach
+            agent = create_psychology_coach()
+        elif req.agent_id == "guardian":
+            from apps.agents.guardian import create_guardian
+            agent = create_guardian()
         else:
             raise HTTPException(status_code=400, detail=f"Unknown agent: {req.agent_id}")
 

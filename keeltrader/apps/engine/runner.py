@@ -77,6 +77,8 @@ class EventEngine:
         from ..agents.orchestrator import create_orchestrator
         from ..agents.technical import create_technical_analyst
         from ..agents.executor import create_executor
+        from ..agents.psychology import create_psychology_coach
+        from ..agents.guardian import create_guardian
 
         # Use the LiteLLM model prefix for routing
         orchestrator_model = os.environ.get(
@@ -88,6 +90,12 @@ class EventEngine:
         executor_model = os.environ.get(
             "EXECUTOR_MODEL", "anthropic/claude-haiku-4-5-20251001"
         )
+        coach_model = os.environ.get(
+            "COACH_MODEL", "anthropic/claude-sonnet-4-20250514"
+        )
+        guardian_model = os.environ.get(
+            "GUARDIAN_MODEL", "anthropic/claude-sonnet-4-20250514"
+        )
 
         orchestrator = create_orchestrator(model=orchestrator_model)
         self._dispatcher.register_agent(orchestrator)
@@ -97,6 +105,12 @@ class EventEngine:
 
         executor = create_executor(model=executor_model)
         self._dispatcher.register_agent(executor)
+
+        psychology = create_psychology_coach(model=coach_model)
+        self._dispatcher.register_agent(psychology)
+
+        guardian = create_guardian(model=guardian_model)
+        self._dispatcher.register_agent(guardian)
 
         logger.info(
             "Agent registration complete. Registered: %d agents — %s",
