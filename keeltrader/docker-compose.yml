@@ -10,8 +10,8 @@ services:
 
   api:
     build:
-      context: ./apps
-      dockerfile: api/Dockerfile
+      context: .
+      dockerfile: apps/api/Dockerfile
     container_name: keeltrader-api
     restart: unless-stopped
     mem_limit: 512m
@@ -86,8 +86,8 @@ services:
 
   worker:
     build:
-      context: ./apps
-      dockerfile: api/Dockerfile
+      context: .
+      dockerfile: apps/api/Dockerfile
     container_name: keeltrader-worker
     restart: unless-stopped
     mem_limit: 384m
@@ -111,8 +111,8 @@ services:
 
   beat:
     build:
-      context: ./apps
-      dockerfile: api/Dockerfile
+      context: .
+      dockerfile: apps/api/Dockerfile
     container_name: keeltrader-beat
     restart: unless-stopped
     mem_limit: 128m

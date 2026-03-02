@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy and install API requirements first for caching
-COPY api/requirements.txt /app/requirements-api.txt
+COPY apps/api/requirements.txt /app/requirements-api.txt
 RUN pip install --no-cache-dir -r /app/requirements-api.txt
 
 # Install Agent Matrix dependencies (pydantic-ai, ccxt, numpy, etc.)
@@ -21,8 +21,12 @@ RUN pip install --no-cache-dir \
     numpy>=1.24.0 \
     redis>=5.0.0 2>/dev/null || true
 
-# Copy all apps code (context = ./apps)
-COPY . /app/apps/
+# Copy all apps code (context = repo root)
+COPY apps/ /app/apps/
+
+# Copy Alembic config and migrations for database schema management
+COPY alembic.ini /app/alembic.ini
+COPY migrations/ /app/migrations/
 
 # Symlink API code to /app for backward compatibility (existing imports use bare module names)
 RUN for item in /app/apps/api/*; do \
