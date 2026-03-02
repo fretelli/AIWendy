@@ -60,8 +60,9 @@ async def list_agents():
     try:
         from apps.agents.orchestrator import create_orchestrator
         from apps.agents.technical import create_technical_analyst
+        from apps.agents.executor import create_executor
 
-        agents = [create_orchestrator(), create_technical_analyst()]
+        agents = [create_orchestrator(), create_technical_analyst(), create_executor()]
         return [
             AgentStatusResponse(
                 agent_id=a.config.agent_id,
@@ -146,6 +147,9 @@ async def chat_with_agent(req: AgentChatRequest):
         elif req.agent_id in ("technical", "technical-analyst"):
             from apps.agents.technical import create_technical_analyst
             agent = create_technical_analyst()
+        elif req.agent_id == "executor":
+            from apps.agents.executor import create_executor
+            agent = create_executor()
         else:
             raise HTTPException(status_code=400, detail=f"Unknown agent: {req.agent_id}")
 
