@@ -1,6 +1,6 @@
 """Portfolio tools — get_positions, get_balance, get_open_orders, get_trade_history.
 
-Wraps CCXT for account/portfolio data. Requires authenticated exchange instances.
+Wraps ExchangeAdapter for account/portfolio data. Requires authenticated instances.
 """
 
 from __future__ import annotations
@@ -9,39 +9,29 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any
 
-import ccxt.async_support as ccxt
-
-from ._proxy import apply_proxy
+from ..exchange import ExchangeAdapter, create_adapter
 
 logger = logging.getLogger(__name__)
 
-# Authenticated exchange instances per user
-_user_exchanges: dict[str, ccxt.Exchange] = {}
+# Authenticated adapter instances per user (managed by factory cache)
 
 
-async def _get_user_exchange(
+async def _get_user_adapter(
     exchange_name: str,
     api_key: str,
     api_secret: str,
     passphrase: str | None = None,
     trading_mode: str = "swap",
-) -> ccxt.Exchange:
-    """Get or create an authenticated CCXT exchange instance."""
-    cache_key = f"{exchange_name}:{api_key[:8]}:{trading_mode}"
-    if cache_key not in _user_exchanges:
-        exchange_class = getattr(ccxt, exchange_name, None)
-        if exchange_class is None:
-            raise ValueError(f"Unknown exchange: {exchange_name}")
-        config: dict[str, Any] = apply_proxy({
-            "apiKey": api_key,
-            "secret": api_secret,
-            "enableRateLimit": True,
-            "options": {"defaultType": trading_mode},
-        })
-        if passphrase:
-            config["password"] = passphrase
-        _user_exchanges[cache_key] = exchange_class(config)
-    return _user_exchanges[cache_key]
+) -> ExchangeAdapter:
+    """Get or create an authenticated exchange adapter instance."""
+    return create_adapter(
+        exchange_name=exchange_name,
+        api_key=api_key,
+        api_secret=api_secret,
+        passphrase=passphrase,
+        trading_mode=trading_mode,
+        use_cache=True,
+    )
 
 
 async def get_balance(
@@ -64,17 +54,15 @@ async def get_balance(
         Dict with total, free, used balances per currency
     """
     try:
-        ex = await _get_user_exchange(exchange_name, api_key, api_secret, passphrase, trading_mode)
-        balance = await ex.fetch_balance()
-        # Filter out zero balances
+        adapter = await _get_user_adapter(exchange_name, api_key, api_secret, passphrase, trading_mode)
+        balances = await adapter.fetch_balance()
         non_zero = {}
-        for currency, amounts in balance.get("total", {}).items():
-            if amounts and float(amounts) > 0:
-                non_zero[currency] = {
-                    "total": float(balance["total"].get(currency, 0)),
-                    "free": float(balance["free"].get(currency, 0)),
-                    "used": float(balance["used"].get(currency, 0)),
-                }
+        for b in balances:
+            non_zero[b.currency] = {
+                "total": b.total,
+                "free": b.free,
+                "used": b.used,
+            }
         return {
             "exchange": exchange_name,
             "balances": non_zero,
@@ -109,28 +97,24 @@ async def get_positions(
     if trading_mode == "spot":
         return [{"info": "Spot mode — no futures positions. Use get_balance() to check holdings."}]
     try:
-        ex = await _get_user_exchange(exchange_name, api_key, api_secret, passphrase, trading_mode)
-        symbols = [symbol] if symbol else None
-        positions = await ex.fetch_positions(symbols)
-        result = []
-        for pos in positions:
-            size = float(pos.get("contracts", 0) or 0)
-            if size == 0:
-                continue
-            result.append({
-                "symbol": pos.get("symbol"),
-                "side": pos.get("side"),
-                "size": size,
-                "notional": float(pos.get("notional", 0) or 0),
-                "entry_price": float(pos.get("entryPrice", 0) or 0),
-                "mark_price": float(pos.get("markPrice", 0) or 0),
-                "unrealized_pnl": float(pos.get("unrealizedPnl", 0) or 0),
-                "leverage": float(pos.get("leverage", 1) or 1),
-                "liquidation_price": pos.get("liquidationPrice"),
-                "margin_mode": pos.get("marginMode"),
-                "timestamp": pos.get("datetime"),
-            })
-        return result
+        adapter = await _get_user_adapter(exchange_name, api_key, api_secret, passphrase, trading_mode)
+        positions = await adapter.fetch_positions(symbol)
+        return [
+            {
+                "symbol": pos.symbol,
+                "side": pos.side,
+                "size": pos.size,
+                "notional": pos.notional,
+                "entry_price": pos.entry_price,
+                "mark_price": pos.mark_price,
+                "unrealized_pnl": pos.unrealized_pnl,
+                "leverage": pos.leverage,
+                "liquidation_price": pos.liquidation_price,
+                "margin_mode": pos.margin_mode,
+                "timestamp": pos.timestamp,
+            }
+            for pos in positions
+        ]
     except Exception as e:
         logger.error("get_positions failed on %s: %s", exchange_name, e)
         return []
@@ -158,20 +142,20 @@ async def get_open_orders(
         List of order dicts
     """
     try:
-        ex = await _get_user_exchange(exchange_name, api_key, api_secret, passphrase, trading_mode)
-        orders = await ex.fetch_open_orders(symbol)
+        adapter = await _get_user_adapter(exchange_name, api_key, api_secret, passphrase, trading_mode)
+        orders = await adapter.fetch_open_orders(symbol)
         return [
             {
-                "id": o.get("id"),
-                "symbol": o.get("symbol"),
-                "side": o.get("side"),
-                "type": o.get("type"),
-                "price": o.get("price"),
-                "amount": o.get("amount"),
-                "filled": o.get("filled"),
-                "remaining": o.get("remaining"),
-                "status": o.get("status"),
-                "timestamp": o.get("datetime"),
+                "id": o.id,
+                "symbol": o.symbol,
+                "side": o.side,
+                "type": o.order_type,
+                "price": o.price,
+                "amount": o.amount,
+                "filled": o.filled,
+                "remaining": o.remaining,
+                "status": o.status,
+                "timestamp": o.timestamp,
             }
             for o in orders
         ]
@@ -204,20 +188,20 @@ async def get_trade_history(
         List of trade dicts
     """
     try:
-        ex = await _get_user_exchange(exchange_name, api_key, api_secret, passphrase, trading_mode)
+        adapter = await _get_user_adapter(exchange_name, api_key, api_secret, passphrase, trading_mode)
         since = int((datetime.utcnow() - timedelta(days=days)).timestamp() * 1000)
-        trades = await ex.fetch_my_trades(symbol, since=since, limit=100)
+        trades = await adapter.fetch_my_trades(symbol, since=since, limit=100)
         return [
             {
-                "id": t.get("id"),
-                "symbol": t.get("symbol"),
-                "side": t.get("side"),
-                "price": float(t.get("price", 0)),
-                "amount": float(t.get("amount", 0)),
-                "cost": float(t.get("cost", 0)),
-                "fee": t.get("fee", {}).get("cost"),
-                "fee_currency": t.get("fee", {}).get("currency"),
-                "timestamp": t.get("datetime"),
+                "id": t.id,
+                "symbol": t.symbol,
+                "side": t.side,
+                "price": t.price,
+                "amount": t.amount,
+                "cost": t.cost,
+                "fee": t.fee_cost,
+                "fee_currency": t.fee_currency,
+                "timestamp": t.timestamp,
             }
             for t in trades
         ]
