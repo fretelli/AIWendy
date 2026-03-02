@@ -1,0 +1,16 @@
+# Exchange WebSocket
+ccxt==4.2.25
+
+# Redis
+redis==5.0.4
+
+# Database
+sqlalchemy==2.0.30
+asyncpg==0.29.0
+
+# Models
+pydantic==2.10.6
+
+# Utils
+structlog==24.1.0
+python-dotenv==1.0.1
