@@ -51,6 +51,13 @@ TOOL_CATEGORIES: dict[str, list[str]] = {
         "cancel_order",
         "close_position",
     ],
+    "ibkr": [
+        "search_contracts",
+        "get_option_chain",
+        "get_option_greeks",
+        "get_margin_requirements",
+        "get_market_hours",
+    ],
 }
 
 # Agent type → allowed tool categories
@@ -60,14 +67,15 @@ AGENT_TOOL_MAP: dict[str, list[str]] = {
     "sentiment": ["market", "memory"],
     "fundamental": ["market", "memory"],
     "psychology": ["memory", "communication"],
-    "guardian": ["market", "portfolio", "memory", "communication"],
-    "executor": ["market", "portfolio", "execution", "communication"],
+    "guardian": ["market", "portfolio", "memory", "communication", "ibkr"],
+    "executor": ["market", "portfolio", "execution", "communication", "ibkr"],
 }
 
 
 def _get_tool_functions() -> dict[str, Callable]:
     """Lazy-load all tool functions."""
     from . import analysis, communication, execution, market, portfolio
+    from . import ibkr_tools
     from ..memory import tools as memory_tools
 
     return {
@@ -98,6 +106,12 @@ def _get_tool_functions() -> dict[str, Callable]:
         "send_telegram": communication.send_telegram,
         "request_confirmation": communication.request_confirmation,
         "delegate_to_agent": communication.delegate_to_agent,
+        # IBKR tools
+        "search_contracts": ibkr_tools.search_contracts,
+        "get_option_chain": ibkr_tools.get_option_chain,
+        "get_option_greeks": ibkr_tools.get_option_greeks,
+        "get_margin_requirements": ibkr_tools.get_margin_requirements,
+        "get_market_hours": ibkr_tools.get_market_hours,
     }
 
 
