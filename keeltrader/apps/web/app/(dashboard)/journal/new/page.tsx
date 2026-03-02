@@ -15,21 +15,20 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
-const ruleViolationLabels: Record<RuleViolationType, { zh: string; en: string }> = {
-  [RuleViolationType.EARLY_EXIT]: { zh: '提前止盈', en: 'Take profit early' },
-  [RuleViolationType.LATE_EXIT]: { zh: '晚止损', en: 'Stop loss too late' },
-  [RuleViolationType.NO_STOP_LOSS]: { zh: '没有止损', en: 'No stop loss' },
-  [RuleViolationType.OVER_LEVERAGE]: { zh: '过度杠杆', en: 'Over leverage' },
-  [RuleViolationType.REVENGE_TRADE]: { zh: '报复性交易', en: 'Revenge trading' },
-  [RuleViolationType.FOMO]: { zh: '追涨杀跌', en: 'Chasing / panic selling' },
-  [RuleViolationType.POSITION_SIZE]: { zh: '仓位过大', en: 'Position too large' },
-  [RuleViolationType.OTHER]: { zh: '其他', en: 'Other' },
+const ruleViolationKeys: Record<RuleViolationType, string> = {
+  [RuleViolationType.EARLY_EXIT]: 'journalNew.ruleViolations.earlyExit',
+  [RuleViolationType.LATE_EXIT]: 'journalNew.ruleViolations.lateExit',
+  [RuleViolationType.NO_STOP_LOSS]: 'journalNew.ruleViolations.noStopLoss',
+  [RuleViolationType.OVER_LEVERAGE]: 'journalNew.ruleViolations.overLeverage',
+  [RuleViolationType.REVENGE_TRADE]: 'journalNew.ruleViolations.revengeTrade',
+  [RuleViolationType.FOMO]: 'journalNew.ruleViolations.fomo',
+  [RuleViolationType.POSITION_SIZE]: 'journalNew.ruleViolations.positionSize',
+  [RuleViolationType.OTHER]: 'journalNew.ruleViolations.other',
 };
 
 export default function NewJournalEntry() {
   const router = useRouter();
-  const { locale } = useI18n();
-  const isZh = locale === 'zh';
+  const { t } = useI18n();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,7 +90,7 @@ export default function NewJournalEntry() {
       await journalApi.create({ ...formData, project_id: projectId || undefined });
       router.push('/journal');
     } catch (err) {
-      setError(err instanceof Error ? err.message : (isZh ? '创建日记失败' : 'Failed to create journal entry'));
+      setError(err instanceof Error ? err.message : t('journalNew.createFailed'));
     } finally {
       setIsSubmitting(false);
     }
@@ -133,50 +132,50 @@ export default function NewJournalEntry() {
   return (
     <div className="min-h-screen bg-muted/40 p-4">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">{isZh ? '新建交易日记' : 'New Journal Entry'}</h1>
+        <h1 className="text-2xl font-bold mb-6">{t('journalNew.title')}</h1>
 
         <form onSubmit={handleSubmit} className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 space-y-6">
           {/* Basic Trade Information */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">{isZh ? '交易信息' : 'Trade Info'}</h2>
+            <h2 className="text-lg font-semibold">{t('journalNew.tradeInfo')}</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '交易标的 *' : 'Symbol *'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.symbol')}</label>
                 <Input
                   type="text"
                   required
-                  placeholder={isZh ? '如: AAPL, BTCUSDT' : 'e.g. AAPL, BTCUSDT'}
+                  placeholder={t('journalNew.symbolPlaceholder')}
                   value={formData.symbol}
                   onChange={e => setFormData(prev => ({ ...prev, symbol: e.target.value }))}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '市场' : 'Market'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.market')}</label>
                 <Input
                   type="text"
-                  placeholder={isZh ? '如: stocks, crypto' : 'e.g. stocks, crypto'}
+                  placeholder={t('journalNew.marketPlaceholder')}
                   value={formData.market}
                   onChange={e => setFormData(prev => ({ ...prev, market: e.target.value }))}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '方向 *' : 'Direction *'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.direction')}</label>
                 <select
                   value={formData.direction}
                   onChange={e => setFormData(prev => ({ ...prev, direction: e.target.value as TradeDirection }))}
                   className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 >
-                  <option value={TradeDirection.LONG}>{isZh ? '做多' : 'Long'}</option>
-                  <option value={TradeDirection.SHORT}>{isZh ? '做空' : 'Short'}</option>
+                  <option value={TradeDirection.LONG}>{t('journalNew.long')}</option>
+                  <option value={TradeDirection.SHORT}>{t('journalNew.short')}</option>
                 </select>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">{isZh ? '交易日期' : 'Trade Date'}</label>
+              <label className="block text-sm font-medium mb-1">{t('journalNew.tradeDate')}</label>
               <Input
                 type="datetime-local"
                 value={formData.trade_date}
@@ -187,11 +186,11 @@ export default function NewJournalEntry() {
 
           {/* Entry/Exit Information */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">{isZh ? '入场/出场' : 'Entry / Exit'}</h2>
+            <h2 className="text-lg font-semibold">{t('journalNew.entryExit')}</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '入场价格' : 'Entry Price'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.entryPrice')}</label>
                 <Input
                   type="number"
                   step="0.00001"
@@ -201,7 +200,7 @@ export default function NewJournalEntry() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '仓位大小' : 'Position Size'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.positionSize')}</label>
                 <Input
                   type="number"
                   step="0.00001"
@@ -211,7 +210,7 @@ export default function NewJournalEntry() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '入场时间' : 'Entry Time'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.entryTime')}</label>
                 <Input
                   type="datetime-local"
                   value={formData.entry_time}
@@ -222,7 +221,7 @@ export default function NewJournalEntry() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '出场价格' : 'Exit Price'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.exitPrice')}</label>
                 <Input
                   type="number"
                   step="0.00001"
@@ -232,7 +231,7 @@ export default function NewJournalEntry() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '出场时间' : 'Exit Time'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.exitTime')}</label>
                 <Input
                   type="datetime-local"
                   value={formData.exit_time}
@@ -241,16 +240,16 @@ export default function NewJournalEntry() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '交易结果' : 'Result'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.result')}</label>
                 <select
                   value={formData.result}
                   onChange={e => setFormData(prev => ({ ...prev, result: e.target.value as TradeResult }))}
                   className="w-full h-10 px-3 py-2 border border-input rounded-md bg-background text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                 >
-                  <option value={TradeResult.OPEN}>{isZh ? '进行中' : 'Open'}</option>
-                  <option value={TradeResult.WIN}>{isZh ? '盈利' : 'Win'}</option>
-                  <option value={TradeResult.LOSS}>{isZh ? '亏损' : 'Loss'}</option>
-                  <option value={TradeResult.BREAKEVEN}>{isZh ? '平局' : 'Breakeven'}</option>
+                  <option value={TradeResult.OPEN}>{t('journalNew.resultOpen')}</option>
+                  <option value={TradeResult.WIN}>{t('journalNew.resultWin')}</option>
+                  <option value={TradeResult.LOSS}>{t('journalNew.resultLoss')}</option>
+                  <option value={TradeResult.BREAKEVEN}>{t('journalNew.resultBreakeven')}</option>
                 </select>
               </div>
             </div>
@@ -258,11 +257,11 @@ export default function NewJournalEntry() {
 
           {/* Risk Management */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">{isZh ? '风险管理' : 'Risk Management'}</h2>
+            <h2 className="text-lg font-semibold">{t('journalNew.riskManagement')}</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '止损价' : 'Stop Loss'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.stopLoss')}</label>
                 <Input
                   type="number"
                   step="0.00001"
@@ -272,7 +271,7 @@ export default function NewJournalEntry() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '止盈价' : 'Take Profit'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.takeProfit')}</label>
                 <Input
                   type="number"
                   step="0.00001"
@@ -282,7 +281,7 @@ export default function NewJournalEntry() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '风险回报比' : 'Risk/Reward'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.riskReward')}</label>
                 <Input
                   type="number"
                   step="0.01"
@@ -295,49 +294,49 @@ export default function NewJournalEntry() {
 
           {/* Psychology & Emotions */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">{isZh ? '心理与情绪' : 'Psychology & Emotions'}</h2>
+            <h2 className="text-lg font-semibold">{t('journalNew.psychology')}</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '交易前情绪 (1-5)' : 'Emotion Before (1-5)'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.emotionBefore')}</label>
                 <Input
                   type="number"
                   min="1"
                   max="5"
                   value={formData.emotion_before || ''}
                   onChange={e => setFormData(prev => ({ ...prev, emotion_before: parseInt(e.target.value) || undefined }))}
-                  placeholder={isZh ? '1=焦虑, 5=平静' : '1=Anxious, 5=Calm'}
+                  placeholder={t('journalNew.emotionScale')}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '交易中情绪 (1-5)' : 'Emotion During (1-5)'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.emotionDuring')}</label>
                 <Input
                   type="number"
                   min="1"
                   max="5"
                   value={formData.emotion_during || ''}
                   onChange={e => setFormData(prev => ({ ...prev, emotion_during: parseInt(e.target.value) || undefined }))}
-                  placeholder={isZh ? '1=焦虑, 5=平静' : '1=Anxious, 5=Calm'}
+                  placeholder={t('journalNew.emotionScale')}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '交易后情绪 (1-5)' : 'Emotion After (1-5)'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.emotionAfter')}</label>
                 <Input
                   type="number"
                   min="1"
                   max="5"
                   value={formData.emotion_after || ''}
                   onChange={e => setFormData(prev => ({ ...prev, emotion_after: parseInt(e.target.value) || undefined }))}
-                  placeholder={isZh ? '1=焦虑, 5=平静' : '1=Anxious, 5=Calm'}
+                  placeholder={t('journalNew.emotionScale')}
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '信心水平 (1-5)' : 'Confidence (1-5)'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.confidence')}</label>
                 <Input
                   type="number"
                   min="1"
@@ -348,7 +347,7 @@ export default function NewJournalEntry() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">{isZh ? '压力水平 (1-5)' : 'Stress (1-5)'}</label>
+                <label className="block text-sm font-medium mb-1">{t('journalNew.stress')}</label>
                 <Input
                   type="number"
                   min="1"
@@ -369,20 +368,20 @@ export default function NewJournalEntry() {
                     rule_violations: checked ? [] : prev.rule_violations
                   }))}
                 />
-                {isZh ? '遵守了交易规则' : 'Followed trading rules'}
+                {t('journalNew.followedRules')}
               </label>
 
               {!formData.followed_rules && (
                 <div className="mt-2 space-y-2">
-                  <p className="text-sm text-muted-foreground">{isZh ? '违反的规则：' : 'Rule violations:'}</p>
+                  <p className="text-sm text-muted-foreground">{t('journalNew.ruleViolationsLabel')}</p>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {Object.entries(ruleViolationLabels).map(([key, label]) => (
+                    {Object.entries(ruleViolationKeys).map(([key, translationKey]) => (
                       <label key={key} className="flex items-center gap-2 text-sm">
                         <Checkbox
                           checked={formData.rule_violations.includes(key as RuleViolationType)}
                           onCheckedChange={() => handleRuleViolationChange(key as RuleViolationType)}
                         />
-                        {isZh ? label.zh : label.en}
+                        {t(translationKey as any)}
                       </label>
                     ))}
                   </div>
@@ -393,10 +392,10 @@ export default function NewJournalEntry() {
 
           {/* Notes & Analysis */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">{isZh ? '笔记与分析' : 'Notes & Analysis'}</h2>
+            <h2 className="text-lg font-semibold">{t('journalNew.notesAnalysis')}</h2>
 
             <div>
-              <label className="block text-sm font-medium mb-1">{isZh ? '策略名称' : 'Strategy'}</label>
+              <label className="block text-sm font-medium mb-1">{t('journalNew.strategy')}</label>
               <Input
                 type="text"
                 value={formData.strategy_name}
@@ -405,51 +404,51 @@ export default function NewJournalEntry() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">{isZh ? '入场理由' : 'Entry Rationale'}</label>
+              <label className="block text-sm font-medium mb-1">{t('journalNew.entryRationale')}</label>
               <Textarea
                 rows={3}
                 value={formData.setup_description}
                 onChange={e => setFormData(prev => ({ ...prev, setup_description: e.target.value }))}
-                placeholder={isZh ? '描述为什么要进入这个交易...' : 'Why did you enter this trade...?'}
+                placeholder={t('journalNew.entryRationalePlaceholder')}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">{isZh ? '出场理由' : 'Exit Rationale'}</label>
+              <label className="block text-sm font-medium mb-1">{t('journalNew.exitRationale')}</label>
               <Textarea
                 rows={3}
                 value={formData.exit_reason}
                 onChange={e => setFormData(prev => ({ ...prev, exit_reason: e.target.value }))}
-                placeholder={isZh ? '描述为什么要退出这个交易...' : 'Why did you exit this trade...?'}
+                placeholder={t('journalNew.exitRationalePlaceholder')}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">{isZh ? '经验教训' : 'Lessons Learned'}</label>
+              <label className="block text-sm font-medium mb-1">{t('journalNew.lessonsLearned')}</label>
               <Textarea
                 rows={3}
                 value={formData.lessons_learned}
                 onChange={e => setFormData(prev => ({ ...prev, lessons_learned: e.target.value }))}
-                placeholder={isZh ? '这次交易学到了什么...' : 'What did you learn from this trade...?'}
+                placeholder={t('journalNew.lessonsPlaceholder')}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">{isZh ? '其他笔记' : 'Notes'}</label>
+              <label className="block text-sm font-medium mb-1">{t('journalNew.otherNotes')}</label>
               <Textarea
                 rows={4}
                 value={formData.notes}
                 onChange={e => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                placeholder={isZh ? '任何其他想要记录的内容...' : 'Anything else you want to record...'}
+                placeholder={t('journalNew.otherNotesPlaceholder')}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">{isZh ? '标签' : 'Tags'}</label>
+              <label className="block text-sm font-medium mb-1">{t('journalNew.tags')}</label>
               <Input
                 type="text"
                 onKeyDown={handleTagInput}
-                placeholder={isZh ? '输入标签后按回车或逗号添加' : 'Type a tag and press Enter or comma to add'}
+                placeholder={t('journalNew.tagsPlaceholder')}
               />
               {formData.tags.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -487,14 +486,14 @@ export default function NewJournalEntry() {
               onClick={() => router.push('/journal')}
               className="px-6 py-2 rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground"
             >
-              {isZh ? '取消' : 'Cancel'}
+              {t('journalNew.cancel')}
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
               className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
             >
-              {isSubmitting ? (isZh ? '保存中...' : 'Saving...') : (isZh ? '保存日记' : 'Save entry')}
+              {isSubmitting ? t('journalNew.saving') : t('journalNew.saveEntry')}
             </button>
           </div>
         </form>

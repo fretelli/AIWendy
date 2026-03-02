@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Icons } from '@/components/icons'
 import { useAuth } from '@/lib/auth-context'
-import { useI18n } from '@/components/language-provider'
+import { useI18n } from '@/lib/i18n/provider'
 
 const GUEST_EMAIL = 'guest@local.keeltrader'
 
@@ -56,7 +56,7 @@ export default function LoginPage() {
       await login(email, password)
       router.push('/dashboard')
     } catch (err: any) {
-      setError(err.message || t('auth.login.error'))
+      setError(err.message || t('landing.auth.login.error'))
     } finally {
       setIsLoading(false)
     }
@@ -89,15 +89,15 @@ export default function LoginPage() {
         className="absolute left-4 top-4 md:left-8 md:top-8"
       >
         <Icons.chevronLeft className="mr-2 h-4 w-4 inline" />
-        {t('auth.back')}
+        {t('landing.auth.back')}
       </Link>
 
       <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">{t('auth.login.title')}</CardTitle>
+            <CardTitle className="text-2xl text-center">{t('landing.auth.login.title')}</CardTitle>
             <CardDescription className="text-center">
-              {t('auth.login.subtitle')}
+              {t('landing.auth.login.subtitle')}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
@@ -145,7 +145,7 @@ export default function LoginPage() {
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-background px-2 text-muted-foreground">
-                  {t('auth.orContinueWith')}
+                  {t('landing.auth.orContinueWith')}
                 </span>
               </div>
             </div>
@@ -153,7 +153,7 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit}>
               <div className="grid gap-2">
                 <div className="grid gap-1">
-                  <Label htmlFor="email">{t('auth.email')}</Label>
+                  <Label htmlFor="email">{t('landing.auth.email')}</Label>
                   <Input
                     id="email"
                     placeholder="name@example.com"
@@ -168,7 +168,7 @@ export default function LoginPage() {
                   />
                 </div>
                 <div className="grid gap-1">
-                  <Label htmlFor="password">{t('auth.password')}</Label>
+                  <Label htmlFor="password">{t('landing.auth.password')}</Label>
                   <Input
                     id="password"
                     type="password"
@@ -183,7 +183,7 @@ export default function LoginPage() {
                   {isLoading && (
                     <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
                   )}
-                  {t('auth.login.submit')}
+                  {t('landing.auth.login.submit')}
                 </Button>
               </div>
             </form>
@@ -194,14 +194,14 @@ export default function LoginPage() {
                 href="/auth/forgot-password"
                 className="underline underline-offset-4 hover:text-primary"
               >
-                {t('auth.login.forgot')}
+                {t('landing.auth.login.forgot')}
               </Link>
               {' · '}
               <Link
                 href="/auth/register"
                 className="underline underline-offset-4 hover:text-primary"
               >
-                {t('auth.login.noAccount')}
+                {t('landing.auth.login.noAccount')}
               </Link>
             </div>
           </CardFooter>

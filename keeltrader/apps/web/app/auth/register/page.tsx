@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Icons } from '@/components/icons'
 import { useAuth } from '@/lib/auth-context'
-import { useI18n } from '@/components/language-provider'
+import { useI18n } from '@/lib/i18n/provider'
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
@@ -32,17 +32,17 @@ export default function RegisterPage() {
 
     // Validation
     if (password !== confirmPassword) {
-      setError(t('auth.register.validation.passwordMismatch'))
+      setError(t('landing.auth.register.validation.passwordMismatch'))
       return
     }
 
     if (password.length < 8) {
-      setError(t('auth.register.validation.passwordTooShort'))
+      setError(t('landing.auth.register.validation.passwordTooShort'))
       return
     }
 
     if (!agreeToTerms) {
-      setError(t('auth.register.validation.mustAgree'))
+      setError(t('landing.auth.register.validation.mustAgree'))
       return
     }
 
@@ -53,7 +53,7 @@ export default function RegisterPage() {
       await login(email, password)
       router.push('/dashboard')
     } catch (err: any) {
-      setError(err.message || t('auth.register.error'))
+      setError(err.message || t('landing.auth.register.error'))
     } finally {
       setIsLoading(false)
     }
@@ -80,15 +80,15 @@ export default function RegisterPage() {
         className="absolute left-4 top-4 md:left-8 md:top-8"
       >
         <Icons.chevronLeft className="mr-2 h-4 w-4 inline" />
-        {t('auth.back')}
+        {t('landing.auth.back')}
       </Link>
 
       <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">{t('auth.register.title')}</CardTitle>
+            <CardTitle className="text-2xl text-center">{t('landing.auth.register.title')}</CardTitle>
             <CardDescription className="text-center">
-              {t('auth.register.subtitle')}
+              {t('landing.auth.register.subtitle')}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
@@ -119,7 +119,7 @@ export default function RegisterPage() {
               </div>
               <div className="relative flex justify-center text-xs uppercase">
                 <span className="bg-background px-2 text-muted-foreground">
-                  {t('auth.orContinueWith')}
+                  {t('landing.auth.orContinueWith')}
                 </span>
               </div>
             </div>
@@ -127,7 +127,7 @@ export default function RegisterPage() {
             <form onSubmit={handleSubmit}>
               <div className="grid gap-2">
                 <div className="grid gap-1">
-                  <Label htmlFor="fullName">{t('auth.register.fullName')}</Label>
+                  <Label htmlFor="fullName">{t('landing.auth.register.fullName')}</Label>
                   <Input
                     id="fullName"
                     placeholder="John Doe"
@@ -142,7 +142,7 @@ export default function RegisterPage() {
                   />
                 </div>
                 <div className="grid gap-1">
-                  <Label htmlFor="email">{t('auth.email')}</Label>
+                  <Label htmlFor="email">{t('landing.auth.email')}</Label>
                   <Input
                     id="email"
                     placeholder="name@example.com"
@@ -157,7 +157,7 @@ export default function RegisterPage() {
                   />
                 </div>
                 <div className="grid gap-1">
-                  <Label htmlFor="password">{t('auth.password')}</Label>
+                  <Label htmlFor="password">{t('landing.auth.password')}</Label>
                   <Input
                     id="password"
                     type="password"
@@ -169,7 +169,7 @@ export default function RegisterPage() {
                   />
                 </div>
                 <div className="grid gap-1">
-                  <Label htmlFor="confirmPassword">{t('auth.register.confirmPassword')}</Label>
+                  <Label htmlFor="confirmPassword">{t('landing.auth.register.confirmPassword')}</Label>
                   <Input
                     id="confirmPassword"
                     type="password"
@@ -191,12 +191,12 @@ export default function RegisterPage() {
                     htmlFor="terms"
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
-                    {t('auth.register.termsPrefix')}{' '}
+                    {t('landing.auth.register.termsPrefix')}{' '}
                     <Link
                       href="/terms"
                       className="underline underline-offset-4 hover:text-primary"
                     >
-                      {t('auth.register.termsLink')}
+                      {t('landing.auth.register.termsLink')}
                     </Link>
                   </label>
                 </div>
@@ -204,19 +204,19 @@ export default function RegisterPage() {
                   {isLoading && (
                     <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
                   )}
-                  {t('auth.register.submit')}
+                  {t('landing.auth.register.submit')}
                 </Button>
               </div>
             </form>
           </CardContent>
           <CardFooter>
             <div className="text-sm text-muted-foreground text-center w-full">
-              {t('auth.register.hasAccount')}{' '}
+              {t('landing.auth.register.hasAccount')}{' '}
               <Link
                 href="/auth/login"
                 className="underline underline-offset-4 hover:text-primary"
               >
-                {t('auth.login.submit')}
+                {t('landing.auth.login.submit')}
               </Link>
             </div>
           </CardFooter>

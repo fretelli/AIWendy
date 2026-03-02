@@ -227,15 +227,15 @@
       "neutral": "一般",
       "stressed": "紧张"
     },
-    "sampleUserName": "??",
-    "percentage": "???",
-    "recoveryTime": "????",
-    "recoveryDays": "{days} ?",
-    "suggestionsIntro": "???????????AI ?????",
+    "sampleUserName": "小明",
+    "percentage": "百分比",
+    "recoveryTime": "恢复时间",
+    "recoveryDays": "{days} 天",
+    "suggestionsIntro": "根据您最近的交易表现，AI 教练建议：",
     "suggestionsItems": {
-      "keepStrategy": "?????????????",
-      "trailingStops": "??????????????",
-      "reviewJournal": "???????????????"
+      "keepStrategy": "继续使用当前的风险管理策略",
+      "trailingStops": "考虑对盈利交易使用追踪止损",
+      "reviewJournal": "回顾日志以识别成功的交易模式"
     }
   },
   "journal": {
@@ -287,27 +287,53 @@
     "addFirstEntry": "添加您的第一笔交易记录",
     "importPage": {
       "fields": {
-        "dateTime": "??/??"
+        "dateTime": "日期/时间"
       },
       "errors": {
-        "requiredFields": "??????????????????"
+        "requiredFields": "请先映射必填字段（标的、方向）。"
       },
       "toasts": {
-        "imported": "???????{created}???{skipped}"
+        "imported": "导入完成：新增 {created}，跳过 {skipped}"
       },
-      "uploadTitle": "????",
-      "uploadHelp": "?? CSV / XLSX??????????????????????",
-      "strictMode": "??????????????",
-      "dryRun": "???????????",
-      "columnMapping": "???",
-      "selectColumn": "???",
-      "skipColumn": "???",
-      "validate": "??",
-      "startImport": "????",
-      "resultSummary": "?????{created}???{skipped}",
-      "viewJournal": "??????",
-      "previewTitle": "???????"
-    }
+      "uploadTitle": "上传文件",
+      "uploadHelp": "支持 CSV / XLSX 格式。使用下方列映射适配不同券商格式。",
+      "strictMode": "遇到第一个错误时停止（严格模式）",
+      "dryRun": "仅验证（不实际导入）",
+      "columnMapping": "列映射",
+      "selectColumn": "选择列",
+      "skipColumn": "跳过",
+      "validate": "验证",
+      "startImport": "开始导入",
+      "resultSummary": "结果：新增 {created}，跳过 {skipped}",
+      "viewJournal": "查看交易日志",
+      "previewTitle": "预览（前几行）"
+    },
+    "columns": {
+      "date": "日期",
+      "direction": "方向",
+      "result": "结果",
+      "rules": "规则",
+      "confidence": "信心"
+    },
+    "results": {
+      "win": "盈利",
+      "loss": "亏损",
+      "breakeven": "持平",
+      "open": "进行中"
+    },
+    "rulesStatus": {
+      "followed": "遵守",
+      "violated": "违反"
+    },
+    "errors": {
+      "load": "加载日志失败",
+      "delete": "删除日志失败"
+    },
+    "confirmDelete": {
+      "title": "确定删除？",
+      "description": "此操作不可撤销，将永久删除该日志条目。"
+    },
+    "pagination": "第 {current} 页，共 {total} 页"
   },
   "coaches": {
     "title": "AI教练",
@@ -361,14 +387,32 @@
       "challenging": "挑战型",
       "nurturing": "培育型",
       "direct": "直接型",
-      "patient": "耐心型"
+      "patient": "耐心型",
+      "data-driven": "数据驱动",
+      "encouraging": "鼓励型",
+      "energetic": "活力型",
+      "logical": "逻辑型",
+      "philosophical": "哲学型",
+      "questioning": "提问型",
+      "reflective": "反思型",
+      "strict": "严格型",
+      "systematic": "系统型",
+      "understanding": "理解型"
     },
     "specialties": {
       "riskManagement": "风险管理",
       "emotionalControl": "情绪控制",
       "strategyDevelopment": "策略开发",
       "performanceOptimization": "表现优化",
-      "mindsetCoaching": "心态辅导"
+      "mindsetCoaching": "心态辅导",
+      "discipline": "交易纪律",
+      "emotional-support": "情绪支持",
+      "motivation": "动力激励",
+      "performance": "绩效分析",
+      "psychology": "交易心理",
+      "risk-management": "风险管理",
+      "self-discovery": "自我发现",
+      "technical-analysis": "技术分析"
     },
     "features": {
       "voice": "语音交互",
@@ -435,6 +479,26 @@
         "saveFailed": "保存失败"
       },
       "chatSessionTitle": "与教练对话 - {datetime}"
+    },
+    "aboutCoach": "关于教练",
+    "avgRating": "平均评分",
+    "bio": "简介",
+    "coachSelected": "教练选择成功",
+    "free": "免费",
+    "language": "语言",
+    "myCoaches": "我的教练",
+    "noRating": "暂无评分",
+    "personalityTraits": "个性特征",
+    "premium": "高级",
+    "selectThisCoach": "选择此教练",
+    "totalSessions": "总会话数",
+    "viewProfile": "查看档案",
+    "styleNames": {
+      "empathetic": "温和共情",
+      "disciplined": "严厉纪律",
+      "analytical": "数据分析",
+      "motivational": "激励鼓舞",
+      "socratic": "苏格拉底式"
     }
   },
   "chat": {
@@ -800,5 +864,300 @@
     "months_ago": "{count}个月前",
     "year_ago": "1年前",
     "years_ago": "{count}年前"
+  },
+  "roundtable": {
+    "title": "圆桌讨论",
+    "subtitle": "多位 AI 教练共同为您分析问题，提供多角度建议",
+    "moderatorMode": "主持人模式",
+    "roundsBadge": "{rounds} 轮互辩（{style}）",
+    "moderatorSubtitle": "主持：{moderator} | 嘉宾：{coaches}",
+    "rounds": "互辩轮数",
+    "styleLabel": "风格",
+    "converge": "收敛纠错",
+    "clash": "对立辩论",
+    "convergeBadge": "收敛",
+    "clashBadge": "对立",
+    "endDiscussion": "结束讨论",
+    "emptyState": "开始您的圆桌讨论，多位教练将轮流为您提供见解",
+    "thinking": "教练们正在思考...",
+    "overrideEnabled": "已启用本条消息覆盖设置（仅生效一次）",
+    "usingSession": "使用会话设置",
+    "useSession": "使用会话设置",
+    "overrideMsg": "覆盖本条消息",
+    "ended": "该讨论已结束",
+    "inputPlaceholder": "输入您的问题，教练们会轮流给出建议...",
+    "uploadFailed": "上传文件失败",
+    "invalidSession": "错误：会话 ID 无效，请刷新页面重试。",
+    "genericError": "发生错误，请稍后重试。",
+    "coach": "教练",
+    "moderator": "主持人",
+    "typing": "输入中...",
+    "roundIndicator": "第 {round} 轮讨论",
+    "coachCount": "{count} 位教练",
+    "selectCoaches": "选择 {min}-{max} 位教练参与讨论",
+    "selected": "已选择",
+    "selectMinCoaches": "请至少选择 {min} 位教练",
+    "history": "历史记录",
+    "sessionCount": "{count} 个讨论",
+    "messageCount": "{count} 条消息",
+    "active": "进行中",
+    "sessionEnded": "已结束",
+    "noSessions": "暂无讨论记录",
+    "presets": "预设组合",
+    "custom": "自定义选择",
+    "discussionMode": "讨论模式",
+    "freeDiscussion": "自由讨论",
+    "freeDescription": "教练们按顺序轮流发言，各抒己见",
+    "moderatorDescription": "由主持人控制节奏、总结要点、引导深入",
+    "chooseModerator": "选择主持人",
+    "dedicatedModerator": "专属主持人",
+    "dedicatedModeratorDesc": "专属主持人将保持中立，不参与具体建议",
+    "dualRoleDesc": "该教练将同时担任主持人和讨论者双重角色",
+    "sessionSettings": "会话设置（可选）",
+    "sessionSettingsDesc": "创建时可选，进入会话后也可以随时修改",
+    "startRoundtable": "开始圆桌讨论",
+    "moderatorTypes": {
+      "response": "回复",
+      "opening": "开场",
+      "summary": "本轮总结",
+      "closing": "讨论总结"
+    },
+    "kbTiming": {
+      "off": "关闭",
+      "message": "按消息",
+      "round": "按轮次",
+      "coach": "按教练",
+      "moderator": "仅主持人"
+    }
+  },
+  "journalNew": {
+    "title": "新建交易日记",
+    "tradeInfo": "交易信息",
+    "symbol": "交易标的 *",
+    "symbolPlaceholder": "如: AAPL, BTCUSDT",
+    "market": "市场",
+    "marketPlaceholder": "如: stocks, crypto",
+    "direction": "方向 *",
+    "long": "做多",
+    "short": "做空",
+    "tradeDate": "交易日期",
+    "entryExit": "入场/出场",
+    "entryPrice": "入场价格",
+    "positionSize": "仓位大小",
+    "entryTime": "入场时间",
+    "exitPrice": "出场价格",
+    "exitTime": "出场时间",
+    "result": "交易结果",
+    "resultOpen": "进行中",
+    "resultWin": "盈利",
+    "resultLoss": "亏损",
+    "resultBreakeven": "平局",
+    "riskManagement": "风险管理",
+    "stopLoss": "止损价",
+    "takeProfit": "止盈价",
+    "riskReward": "风险回报比",
+    "psychology": "心理与情绪",
+    "emotionBefore": "交易前情绪 (1-5)",
+    "emotionDuring": "交易中情绪 (1-5)",
+    "emotionAfter": "交易后情绪 (1-5)",
+    "emotionScale": "1=焦虑, 5=平静",
+    "confidence": "信心水平 (1-5)",
+    "stress": "压力水平 (1-5)",
+    "followedRules": "遵守了交易规则",
+    "ruleViolationsLabel": "违反的规则：",
+    "notesAnalysis": "笔记与分析",
+    "strategy": "策略名称",
+    "entryRationale": "入场理由",
+    "entryRationalePlaceholder": "描述为什么要进入这个交易...",
+    "exitRationale": "出场理由",
+    "exitRationalePlaceholder": "描述为什么要退出这个交易...",
+    "lessonsLearned": "经验教训",
+    "lessonsPlaceholder": "这次交易学到了什么...",
+    "otherNotes": "其他笔记",
+    "otherNotesPlaceholder": "任何其他想要记录的内容...",
+    "tags": "标签",
+    "tagsPlaceholder": "输入标签后按回车或逗号添加",
+    "cancel": "取消",
+    "saving": "保存中...",
+    "saveEntry": "保存日记",
+    "createFailed": "创建日记失败",
+    "ruleViolations": {
+      "earlyExit": "提前止盈",
+      "lateExit": "晚止损",
+      "noStopLoss": "没有止损",
+      "overLeverage": "过度杠杆",
+      "revengeTrade": "报复性交易",
+      "fomo": "追涨杀跌",
+      "positionSize": "仓位过大",
+      "other": "其他"
+    }
+  },
+  "coachSelector": {
+    "loadFailed": "无法加载教练列表",
+    "loading": "加载中...",
+    "noCoaches": "暂无可用教练"
+  },
+  "landing": {
+    "language": {
+      "enShort": "EN",
+      "zhShort": "中文"
+    },
+    "hero": {
+      "title": "AI 交易心理教练",
+      "subtitle": "像《Billions》里的 Wendy Rhodes 一样，帮助你保持冷静、提升一致性与交易表现。",
+      "cta": {
+        "startFree": "免费开始",
+        "signIn": "登录",
+        "tryDemo": "直接体验",
+        "getStarted": "开始使用"
+      }
+    },
+    "features": {
+      "title": "核心功能",
+      "realtime": {
+        "title": "实时情绪支持",
+        "desc": "盘中低延迟心理支持，帮助你冷静应对市场波动。"
+      },
+      "patterns": {
+        "title": "行为模式分析",
+        "desc": "识别 FOMO、报复性交易等陷阱，并给出个性化改进建议。"
+      },
+      "review": {
+        "title": "交易日志与复盘",
+        "desc": "深度分析每笔交易背后的心理状态，找出影响盈亏的情绪因素。"
+      },
+      "risk": {
+        "title": "风险心态管理",
+        "desc": "培养健康风险意识，克服过度自信与损失厌恶。"
+      }
+    },
+    "cta": {
+      "title": "准备好提升你的交易心理了吗？",
+      "subtitle": "加入数千名交易者，用 AI 教练提升你的表现。",
+      "button": "立即免费开始"
+    },
+    "pricing": {
+      "title": "选择你的计划",
+      "periodMonthly": "/月",
+      "free": {
+        "desc": "适合尝试体验",
+        "feature1": "每天 3 次交易日志",
+        "feature2": "基础 AI 洞察",
+        "feature3": "3 个基础教练",
+        "cta": "开始使用"
+      },
+      "pro": {
+        "desc": "专业交易者首选",
+        "feature1": "无限交易日志",
+        "feature2": "无限 AI 教练对话",
+        "feature3": "全部教练解锁",
+        "feature4": "周度分析报告",
+        "cta": "立即升级"
+      },
+      "elite": {
+        "desc": "机构级服务",
+        "feature1": "包含 Pro 全部功能",
+        "feature2": "优先响应",
+        "feature3": "月度深度报告",
+        "feature4": "每月 1 次人工教练",
+        "cta": "联系我们"
+      }
+    },
+    "auth": {
+      "back": "返回",
+      "orContinueWith": "或使用",
+      "email": "邮箱",
+      "password": "密码",
+      "login": {
+        "title": "欢迎回来",
+        "subtitle": "输入邮箱和密码登录",
+        "submit": "登录",
+        "forgot": "忘记密码？",
+        "noAccount": "没有账号？注册",
+        "error": "登录失败，请重试。"
+      },
+      "register": {
+        "title": "创建账号",
+        "subtitle": "填写信息开始使用",
+        "fullName": "姓名",
+        "confirmPassword": "确认密码",
+        "termsPrefix": "我已阅读并同意",
+        "termsLink": "用户条款",
+        "submit": "注册",
+        "hasAccount": "已有账号？",
+        "error": "注册失败，请重试。",
+        "validation": {
+          "passwordMismatch": "两次输入的密码不一致",
+          "passwordTooShort": "密码至少 8 位",
+          "mustAgree": "请先同意用户条款"
+        }
+      },
+      "forgot": {
+        "title": "重置密码",
+        "subtitle": "输入邮箱，我们会发送重置链接",
+        "submit": "发送重置邮件",
+        "error": "发送失败，请重试。",
+        "backToLogin": "返回登录",
+        "success": {
+          "title": "请查收邮件",
+          "subtitle": "我们已向 {email} 发送重置链接",
+          "body": "如果 {email} 存在对应账号，你将在几分钟内收到包含重置说明的邮件。",
+          "noEmail": "没收到邮件？请检查垃圾箱，或",
+          "tryDifferent": "换个邮箱再试"
+        }
+      },
+      "reset": {
+        "title": "重置密码",
+        "subtitle": "请输入您的新密码",
+        "newPassword": "新密码",
+        "confirmPassword": "确认新密码",
+        "submit": "重置密码",
+        "backToLogin": "返回登录",
+        "missingToken": "无效或缺失的重置令牌",
+        "passwordMismatch": "两次输入的密码不一致",
+        "passwordTooShort": "密码至少需要 8 个字符",
+        "error": "重置密码失败",
+        "invalidTitle": "无效的重置链接",
+        "requestNew": "请求新的密码重置链接",
+        "success": {
+          "title": "密码重置成功",
+          "subtitle": "您的密码已重置",
+          "body": "您现在可以使用新密码登录了。",
+          "goToLogin": "前往登录"
+        }
+      }
+    },
+    "app": {
+      "dashboard": {
+        "title": "控制台",
+        "subtitle": "你已进入应用（占位页）。",
+        "tipTitle": "提示",
+        "chat": "进入聊天",
+        "journal": "交易日志",
+        "home": "返回首页",
+        "tip": "登录/注册需要后端 API 在 http://localhost:8000 运行（或设置 NEXT_PUBLIC_API_URL）。"
+      },
+      "chat": {
+        "title": "聊天（占位）",
+        "body": "这里后续可以接入对话 UI / 流式输出等。"
+      },
+      "backToDashboard": "返回控制台",
+      "journal": {
+        "title": "交易日志（占位）",
+        "body": "这里后续可以接入日志记录、复盘、统计等功能。"
+      },
+      "onboarding": {
+        "title": "新手引导（占位）",
+        "toDashboard": "进入控制台",
+        "toLogin": "去登录"
+      }
+    }
+  },
+  "meta": {
+    "title": "KeelTrader - 您的AI交易心理教练",
+    "description": "KeelTrader 是一个AI驱动的交易心理辅导平台，帮助交易者克服情绪障碍，提升交易表现。",
+    "keywords": "交易心理,AI教练,交易日志,风险管理,量化交易,交易分析",
+    "ogTitle": "KeelTrader - AI交易心理教练",
+    "ogDescription": "使用AI技术提升您的交易心理和表现"
   }
 }

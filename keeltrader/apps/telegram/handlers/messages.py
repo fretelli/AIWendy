@@ -7,6 +7,8 @@ import logging
 from aiogram import Router
 from aiogram.types import Message
 
+from ..i18n import t
+
 logger = logging.getLogger(__name__)
 router = Router(name="messages")
 
@@ -25,8 +27,5 @@ async def on_message(message: Message) -> None:
 
     # TODO: Route to Orchestrator agent via event bus
     # For now, echo back with placeholder
-    await message.answer(
-        f"🔄 <b>处理中...</b>\n\n"
-        f"正在将你的消息路由到 Orchestrator Agent...\n\n"
-        f"<i>Agent Matrix 功能开发中。</i>"
-    )
+    uid = message.from_user.id
+    await message.answer(t("msg.processing", uid))
