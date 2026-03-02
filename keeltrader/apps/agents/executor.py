@@ -1,7 +1,8 @@
-"""Executor Agent — trade execution through 8-layer safety barrier.
+"""Executor Agent — trade execution through safety barrier.
 
-Places orders via CCXT, manages ghost trades, tracks execution audit trail.
-All orders pass through ExecutionService safety checks.
+Places orders via Exchange Adapter (CCXT / IBKR), manages ghost trades,
+tracks execution audit trail.  All orders pass through ExecutionService
+safety checks.
 """
 
 from __future__ import annotations
@@ -28,7 +29,7 @@ def create_executor(
     config = AgentConfig(
         agent_id="executor",
         name="Executor",
-        description="Trade execution via CCXT with 8-layer safety barrier",
+        description="Trade execution via Exchange Adapter (CCXT/IBKR) with safety barrier",
         agent_type="executor",
         model=model,
         temperature=0.1,  # Low temperature for precise execution
@@ -42,7 +43,7 @@ def create_executor(
         trust_level=2,  # CONFIRM — needs user approval for real trades
         max_order_usd=1000.0,
         daily_limit=10,
-        allowed_symbols=["BTC/USDT", "ETH/USDT", "SOL/USDT", "BNB/USDT"],
+        allowed_symbols=[],  # Empty = allow all symbols (filtered by exchange adapter)
         cooldown_seconds=60,
         is_active=True,
     )
