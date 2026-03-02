@@ -34,6 +34,17 @@ class ExchangeType(str, enum.Enum):
     KRAKEN = "kraken"
 
 
+class TradingMode(str, enum.Enum):
+    """Trading mode: spot or swap (perpetual futures)."""
+
+    SPOT = "spot"
+    SWAP = "swap"
+
+
+# Exchanges that only support spot trading
+SPOT_ONLY_EXCHANGES = {ExchangeType.COINBASE, ExchangeType.KRAKEN}
+
+
 class ExchangeConnection(Base):
     """User's exchange API connection."""
 
@@ -59,6 +70,7 @@ class ExchangeConnection(Base):
     # Settings
     is_active = Column(Boolean, default=True, nullable=False)
     is_testnet = Column(Boolean, default=False, nullable=False)  # Testnet vs production
+    trading_mode = Column(Enum(TradingMode), nullable=False, server_default="swap")
     sync_symbols = Column(JSON, default=list)
 
     # Metadata

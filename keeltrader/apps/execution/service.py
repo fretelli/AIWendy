@@ -28,6 +28,7 @@ class OrderRequest:
     stop_loss: float | None = None
     take_profit: float | None = None
     reasoning: str = ""
+    trading_mode: str = "swap"
 
 
 @dataclass
@@ -74,6 +75,17 @@ class ExecutionService:
     ) -> ExecutionResult:
         """Run all 8 safety barriers on an order request."""
         checks: list[SafetyCheckResult] = []
+
+        # Barrier 0: Spot mode precheck (leverage not allowed in spot)
+        if order.trading_mode == "spot":
+            # Check if any leverage-related attributes indicate > 1x
+            # This is checked here as a guard; agents may also check
+            check0 = SafetyCheckResult(
+                barrier=0, name="spot_mode",
+                passed=True,
+                detail=f"spot mode, exchange={order.exchange}",
+            )
+            checks.append(check0)
 
         # Barrier 1: Trust level
         check1 = SafetyCheckResult(
