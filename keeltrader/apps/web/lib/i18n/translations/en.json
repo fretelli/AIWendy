@@ -407,7 +407,10 @@
       "energetic": "Energetic",
       "questioning": "Questioning",
       "reflective": "Reflective",
-      "philosophical": "Philosophical"
+      "philosophical": "Philosophical",
+      "challenging": "Challenging",
+      "direct": "Direct",
+      "nurturing": "Nurturing"
     },
     "specialties": {
       "emotional-support": "Emotional Support",
@@ -417,7 +420,12 @@
       "self-discovery": "Self-Discovery",
       "psychology": "Trading Psychology",
       "discipline": "Trading Discipline",
-      "performance": "Performance Analysis"
+      "performance": "Performance Analysis",
+      "emotionalControl": "Emotional Control",
+      "mindsetCoaching": "Mindset Coaching",
+      "performanceOptimization": "Performance Optimization",
+      "riskManagement": "Risk Management",
+      "strategyDevelopment": "Strategy Development"
     },
     "description": {
       "wendy": "Empathetic coach focusing on emotional intelligence and psychological support",
@@ -469,6 +477,28 @@
         "saveFailed": "Failed to save"
       },
       "chatSessionTitle": "Chat - {datetime}"
+    },
+    "actions": {
+      "activate": "Activate",
+      "customize": "Customize",
+      "deactivate": "Deactivate",
+      "duplicate": "Duplicate",
+      "export": "Export Settings",
+      "import": "Import Settings",
+      "share": "Share"
+    },
+    "features": {
+      "voice": "Voice Interaction",
+      "video": "Video Call",
+      "analytics": "Analytics Report",
+      "exercises": "Practice Exercises",
+      "resources": "Learning Resources"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "training": "Training",
+      "updating": "Updating"
     }
   },
   "chat": {
@@ -634,7 +664,14 @@
     "title": "Settings",
     "account": "Account Settings",
     "trading": "Trading Settings",
-    "notifications": "Notifications",
+    "notifications": {
+      "email": "Email Notifications",
+      "push": "Push Notifications",
+      "sms": "SMS Alerts",
+      "tradingAlerts": "Trading Alerts",
+      "reportAlerts": "Report Alerts",
+      "systemAlerts": "System Alerts"
+    },
     "privacy": "Privacy & Security",
     "api": "API Keys",
     "integrations": "Integrations",
@@ -653,14 +690,6 @@
     "maxLossPerDay": "Max Loss Per Day",
     "maxLossPerTrade": "Max Loss Per Trade",
     "positionSizing": "Position Sizing",
-    "notifications": {
-      "email": "Email Notifications",
-      "push": "Push Notifications",
-      "sms": "SMS Alerts",
-      "tradingAlerts": "Trading Alerts",
-      "reportAlerts": "Report Alerts",
-      "systemAlerts": "System Alerts"
-    },
     "twoFactor": "Two-Factor Authentication",
     "changePassword": "Change Password",
     "sessions": "Active Sessions",
@@ -835,5 +864,300 @@
     "months_ago": "{count} months ago",
     "year_ago": "1 year ago",
     "years_ago": "{count} years ago"
+  },
+  "roundtable": {
+    "title": "Roundtable",
+    "subtitle": "Multiple AI coaches analyze your question and provide perspectives.",
+    "moderatorMode": "Moderator mode",
+    "roundsBadge": "{rounds} rounds ({style})",
+    "moderatorSubtitle": "Moderator: {moderator} | Coaches: {coaches}",
+    "rounds": "Rounds",
+    "styleLabel": "Style",
+    "converge": "Converge & refine",
+    "clash": "Debate / clash",
+    "convergeBadge": "Converge",
+    "clashBadge": "Clash",
+    "endDiscussion": "End discussion",
+    "emptyState": "Start a roundtable: multiple coaches will take turns sharing insights.",
+    "thinking": "Coaches are thinking...",
+    "overrideEnabled": "Message overrides enabled (apply once)",
+    "usingSession": "Using session settings",
+    "useSession": "Use session",
+    "overrideMsg": "Override",
+    "ended": "This discussion has ended",
+    "inputPlaceholder": "Ask your question. Coaches will respond in turns...",
+    "uploadFailed": "Failed to upload file",
+    "invalidSession": "Error: invalid session ID. Please refresh and try again.",
+    "genericError": "Something went wrong. Please try again.",
+    "coach": "Coach",
+    "moderator": "Moderator",
+    "typing": "Typing...",
+    "roundIndicator": "Round {round}",
+    "coachCount": "{count} coaches",
+    "selectCoaches": "Select {min}-{max} coaches to join",
+    "selected": "Selected",
+    "selectMinCoaches": "Please select at least {min} coaches",
+    "history": "History",
+    "sessionCount": "{count} sessions",
+    "messageCount": "{count} messages",
+    "active": "Active",
+    "sessionEnded": "Ended",
+    "noSessions": "No discussions yet",
+    "presets": "Presets",
+    "custom": "Custom",
+    "discussionMode": "Discussion mode",
+    "freeDiscussion": "Free discussion",
+    "freeDescription": "Coaches take turns sharing their views.",
+    "moderatorDescription": "A moderator manages pace, summarizes, and guides deeper.",
+    "chooseModerator": "Choose moderator",
+    "dedicatedModerator": "Dedicated moderator",
+    "dedicatedModeratorDesc": "The dedicated moderator stays neutral and won't provide specific advice.",
+    "dualRoleDesc": "This coach will act as both moderator and participant.",
+    "sessionSettings": "Session settings (optional)",
+    "sessionSettingsDesc": "Optional at creation; can be changed anytime in the session.",
+    "startRoundtable": "Start roundtable",
+    "moderatorTypes": {
+      "response": "Response",
+      "opening": "Opening",
+      "summary": "Round Summary",
+      "closing": "Closing Summary"
+    },
+    "kbTiming": {
+      "off": "Off",
+      "message": "Per message",
+      "round": "Per round",
+      "coach": "Per coach",
+      "moderator": "Moderator only"
+    }
+  },
+  "journalNew": {
+    "title": "New Journal Entry",
+    "tradeInfo": "Trade Info",
+    "symbol": "Symbol *",
+    "symbolPlaceholder": "e.g. AAPL, BTCUSDT",
+    "market": "Market",
+    "marketPlaceholder": "e.g. stocks, crypto",
+    "direction": "Direction *",
+    "long": "Long",
+    "short": "Short",
+    "tradeDate": "Trade Date",
+    "entryExit": "Entry / Exit",
+    "entryPrice": "Entry Price",
+    "positionSize": "Position Size",
+    "entryTime": "Entry Time",
+    "exitPrice": "Exit Price",
+    "exitTime": "Exit Time",
+    "result": "Result",
+    "resultOpen": "Open",
+    "resultWin": "Win",
+    "resultLoss": "Loss",
+    "resultBreakeven": "Breakeven",
+    "riskManagement": "Risk Management",
+    "stopLoss": "Stop Loss",
+    "takeProfit": "Take Profit",
+    "riskReward": "Risk/Reward",
+    "psychology": "Psychology & Emotions",
+    "emotionBefore": "Emotion Before (1-5)",
+    "emotionDuring": "Emotion During (1-5)",
+    "emotionAfter": "Emotion After (1-5)",
+    "emotionScale": "1=Anxious, 5=Calm",
+    "confidence": "Confidence (1-5)",
+    "stress": "Stress (1-5)",
+    "followedRules": "Followed trading rules",
+    "ruleViolationsLabel": "Rule violations:",
+    "notesAnalysis": "Notes & Analysis",
+    "strategy": "Strategy",
+    "entryRationale": "Entry Rationale",
+    "entryRationalePlaceholder": "Why did you enter this trade...?",
+    "exitRationale": "Exit Rationale",
+    "exitRationalePlaceholder": "Why did you exit this trade...?",
+    "lessonsLearned": "Lessons Learned",
+    "lessonsPlaceholder": "What did you learn from this trade...?",
+    "otherNotes": "Notes",
+    "otherNotesPlaceholder": "Anything else you want to record...",
+    "tags": "Tags",
+    "tagsPlaceholder": "Type a tag and press Enter or comma to add",
+    "cancel": "Cancel",
+    "saving": "Saving...",
+    "saveEntry": "Save entry",
+    "createFailed": "Failed to create journal entry",
+    "ruleViolations": {
+      "earlyExit": "Take profit early",
+      "lateExit": "Stop loss too late",
+      "noStopLoss": "No stop loss",
+      "overLeverage": "Over leverage",
+      "revengeTrade": "Revenge trading",
+      "fomo": "Chasing / panic selling",
+      "positionSize": "Position too large",
+      "other": "Other"
+    }
+  },
+  "coachSelector": {
+    "loadFailed": "Failed to load coach list",
+    "loading": "Loading...",
+    "noCoaches": "No coaches available"
+  },
+  "landing": {
+    "language": {
+      "enShort": "EN",
+      "zhShort": "中文"
+    },
+    "hero": {
+      "title": "AI Trading Psychology Coach",
+      "subtitle": "Like Wendy Rhodes in \"Billions\" — helping you stay calm, consistent, and perform better.",
+      "cta": {
+        "startFree": "Start free",
+        "signIn": "Sign in",
+        "tryDemo": "Try demo",
+        "getStarted": "Get Started"
+      }
+    },
+    "features": {
+      "title": "Core features",
+      "realtime": {
+        "title": "Real-time emotional support",
+        "desc": "In-the-moment psychological coaching with low latency to help you respond calmly to volatility."
+      },
+      "patterns": {
+        "title": "Behavior pattern analysis",
+        "desc": "Detect FOMO, revenge trading, and other pitfalls — get personalized improvement suggestions."
+      },
+      "review": {
+        "title": "Trade journaling & review",
+        "desc": "Deep dive into your mental state behind every trade and identify the emotional drivers of P/L."
+      },
+      "risk": {
+        "title": "Risk mindset coaching",
+        "desc": "Build healthy risk awareness and overcome overconfidence and loss aversion."
+      }
+    },
+    "cta": {
+      "title": "Ready to level up your trading psychology?",
+      "subtitle": "Join thousands of traders and improve your performance with AI coaching.",
+      "button": "Start free"
+    },
+    "pricing": {
+      "title": "Choose your plan",
+      "periodMonthly": "/mo",
+      "free": {
+        "desc": "Best for getting started",
+        "feature1": "3 journal entries per day",
+        "feature2": "Basic AI insights",
+        "feature3": "3 starter coaches",
+        "cta": "Get started"
+      },
+      "pro": {
+        "desc": "Best for serious traders",
+        "feature1": "Unlimited journaling",
+        "feature2": "Unlimited AI coaching chat",
+        "feature3": "All coaches unlocked",
+        "feature4": "Weekly analysis report",
+        "cta": "Upgrade now"
+      },
+      "elite": {
+        "desc": "Institutional-grade support",
+        "feature1": "Everything in Pro",
+        "feature2": "Priority response",
+        "feature3": "Monthly deep-dive report",
+        "feature4": "1 human coaching session/month",
+        "cta": "Contact us"
+      }
+    },
+    "auth": {
+      "back": "Back",
+      "orContinueWith": "Or continue with",
+      "email": "Email",
+      "password": "Password",
+      "login": {
+        "title": "Welcome back",
+        "subtitle": "Enter your email and password to sign in",
+        "submit": "Sign in",
+        "forgot": "Forgot your password?",
+        "noAccount": "Don't have an account? Sign up",
+        "error": "Failed to sign in. Please try again."
+      },
+      "register": {
+        "title": "Create an account",
+        "subtitle": "Enter your information to get started",
+        "fullName": "Full name",
+        "confirmPassword": "Confirm password",
+        "termsPrefix": "I agree to the",
+        "termsLink": "terms and conditions",
+        "submit": "Create account",
+        "hasAccount": "Already have an account?",
+        "error": "Failed to create account. Please try again.",
+        "validation": {
+          "passwordMismatch": "Passwords do not match",
+          "passwordTooShort": "Password must be at least 8 characters long",
+          "mustAgree": "You must agree to the terms and conditions"
+        }
+      },
+      "forgot": {
+        "title": "Reset password",
+        "subtitle": "Enter your email address and we'll send you a reset link",
+        "submit": "Send reset email",
+        "error": "Failed to send reset email. Please try again.",
+        "backToLogin": "Back to login",
+        "success": {
+          "title": "Check your email",
+          "subtitle": "We've sent a reset link to {email}",
+          "body": "If an account exists for {email}, you'll receive an email with reset instructions within a few minutes.",
+          "noEmail": "Didn't receive the email? Check spam or",
+          "tryDifferent": "Try a different email"
+        }
+      },
+      "reset": {
+        "title": "Reset password",
+        "subtitle": "Enter your new password below",
+        "newPassword": "New password",
+        "confirmPassword": "Confirm new password",
+        "submit": "Reset password",
+        "backToLogin": "Back to login",
+        "missingToken": "Invalid or missing reset token",
+        "passwordMismatch": "Passwords do not match",
+        "passwordTooShort": "Password must be at least 8 characters",
+        "error": "Failed to reset password. Please try again.",
+        "invalidTitle": "Invalid reset link",
+        "requestNew": "Request a new password reset link",
+        "success": {
+          "title": "Password reset successful",
+          "subtitle": "Your password has been reset",
+          "body": "You can now log in with your new password.",
+          "goToLogin": "Go to login"
+        }
+      }
+    },
+    "app": {
+      "dashboard": {
+        "title": "Dashboard",
+        "subtitle": "You're in (placeholder page).",
+        "tipTitle": "Tip",
+        "chat": "Go to chat",
+        "journal": "Go to journal",
+        "home": "Home",
+        "tip": "Login/register requires the backend API running at http://localhost:8000 (or set NEXT_PUBLIC_API_URL)."
+      },
+      "chat": {
+        "title": "Chat (placeholder)",
+        "body": "This page will host the chat UI and streaming output."
+      },
+      "backToDashboard": "Back to dashboard",
+      "journal": {
+        "title": "Journal (placeholder)",
+        "body": "This page will host journaling, review, and analytics."
+      },
+      "onboarding": {
+        "title": "Onboarding (placeholder)",
+        "toDashboard": "Go to dashboard",
+        "toLogin": "Go to login"
+      }
+    }
+  },
+  "meta": {
+    "title": "KeelTrader - Your AI Trading Psychology Coach",
+    "description": "KeelTrader is an AI-powered trading psychology coaching platform that helps traders overcome emotional barriers and improve trading performance.",
+    "keywords": "trading psychology,AI coach,trading journal,risk management,quantitative trading,trade analysis",
+    "ogTitle": "KeelTrader - AI Trading Psychology Coach",
+    "ogDescription": "Enhance your trading psychology and performance with AI"
   }
 }

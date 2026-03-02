@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Icons } from '@/components/icons'
-import { useI18n } from '@/components/language-provider'
+import { useI18n } from '@/lib/i18n/provider'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -34,12 +34,12 @@ export default function ForgotPasswordPage() {
       })
 
       if (!response.ok) {
-        throw new Error(t('auth.forgot.error'))
+        throw new Error(t('landing.auth.forgot.error'))
       }
 
       setIsSubmitted(true)
     } catch (err: any) {
-      setError(err.message || t('auth.forgot.error'))
+      setError(err.message || t('landing.auth.forgot.error'))
     } finally {
       setIsLoading(false)
     }
@@ -50,21 +50,21 @@ export default function ForgotPasswordPage() {
       <div className="container flex h-screen w-screen flex-col items-center justify-center">
         <Card className="sm:w-[450px]">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">{t('auth.forgot.success.title')}</CardTitle>
+            <CardTitle className="text-2xl text-center">{t('landing.auth.forgot.success.title')}</CardTitle>
             <CardDescription className="text-center">
-              {t('auth.forgot.success.subtitle', { email })}
+              {t('landing.auth.forgot.success.subtitle', { email })}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <Alert>
               <Icons.mail className="h-4 w-4" />
               <AlertDescription>
-                {t('auth.forgot.success.body', { email })}
+                {t('landing.auth.forgot.success.body', { email })}
               </AlertDescription>
             </Alert>
             <div className="text-center space-y-2">
               <p className="text-sm text-muted-foreground">
-                {t('auth.forgot.success.noEmail')}
+                {t('landing.auth.forgot.success.noEmail')}
               </p>
               <Button
                 variant="ghost"
@@ -73,12 +73,12 @@ export default function ForgotPasswordPage() {
                   setEmail('')
                 }}
               >
-                {t('auth.forgot.success.tryDifferent')}
+                {t('landing.auth.forgot.success.tryDifferent')}
               </Button>
             </div>
             <Link href="/auth/login">
               <Button variant="outline" className="w-full">
-                {t('auth.forgot.backToLogin')}
+                {t('landing.auth.forgot.backToLogin')}
               </Button>
             </Link>
           </CardContent>
@@ -94,15 +94,15 @@ export default function ForgotPasswordPage() {
         className="absolute left-4 top-4 md:left-8 md:top-8"
       >
         <Icons.chevronLeft className="mr-2 h-4 w-4 inline" />
-        {t('auth.forgot.backToLogin')}
+        {t('landing.auth.forgot.backToLogin')}
       </Link>
 
       <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">{t('auth.forgot.title')}</CardTitle>
+            <CardTitle className="text-2xl text-center">{t('landing.auth.forgot.title')}</CardTitle>
             <CardDescription className="text-center">
-              {t('auth.forgot.subtitle')}
+              {t('landing.auth.forgot.subtitle')}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
@@ -115,7 +115,7 @@ export default function ForgotPasswordPage() {
             <form onSubmit={handleSubmit}>
               <div className="grid gap-2">
                 <div className="grid gap-1">
-                  <Label htmlFor="email">{t('auth.email')}</Label>
+                  <Label htmlFor="email">{t('landing.auth.email')}</Label>
                   <Input
                     id="email"
                     placeholder="name@example.com"
@@ -133,7 +133,7 @@ export default function ForgotPasswordPage() {
                   {isLoading && (
                     <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
                   )}
-                  {t('auth.forgot.submit')}
+                  {t('landing.auth.forgot.submit')}
                 </Button>
               </div>
             </form>

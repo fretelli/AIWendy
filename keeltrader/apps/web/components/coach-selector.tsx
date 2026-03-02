@@ -38,31 +38,12 @@ const styleIcons: Record<string, any> = {
   socratic: HelpCircle
 }
 
-function getStyleName(style: string, isZh: boolean): string {
-  const zh: Record<string, string> = {
-    empathetic: "温和共情",
-    disciplined: "严厉纪律",
-    analytical: "数据分析",
-    motivational: "激励鼓舞",
-    socratic: "苏格拉底",
-  }
-  const en: Record<string, string> = {
-    empathetic: "Empathetic",
-    disciplined: "Disciplined",
-    analytical: "Analytical",
-    motivational: "Motivational",
-    socratic: "Socratic",
-  }
-  return (isZh ? zh : en)[style] || style
-}
-
 export function CoachSelector({
   selectedCoachId = "wendy",
   onCoachChange,
   className
 }: CoachSelectorProps) {
-  const { locale } = useI18n()
-  const isZh = locale === "zh"
+  const { t } = useI18n()
   const [coaches, setCoaches] = useState<Coach[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null)
@@ -94,14 +75,13 @@ export function CoachSelector({
       const data = await response.json()
       setCoaches(data)
 
-      // 设置默认教练
       if (data.length > 0) {
         const defaultCoach = data.find((c: Coach) => c.id === selectedCoachId) || data[0]
         setSelectedCoach(defaultCoach)
       }
     } catch (error) {
       console.error("Error fetching coaches:", error)
-      toast.error(isZh ? "无法加载教练列表" : "Failed to load coach list")
+      toast.error(t('coachSelector.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -119,7 +99,7 @@ export function CoachSelector({
     return (
       <Select disabled>
         <SelectTrigger className={className}>
-          <SelectValue placeholder={isZh ? "加载中..." : "Loading..."} />
+          <SelectValue placeholder={t('coachSelector.loading')} />
         </SelectTrigger>
       </Select>
     )
@@ -129,7 +109,7 @@ export function CoachSelector({
     return (
       <Select disabled>
         <SelectTrigger className={className}>
-          <SelectValue placeholder={isZh ? "暂无可用教练" : "No coaches available"} />
+          <SelectValue placeholder={t('coachSelector.noCoaches')} />
         </SelectTrigger>
       </Select>
     )
@@ -150,7 +130,7 @@ export function CoachSelector({
             </Avatar>
             <span className="font-medium">{selectedCoach.name}</span>
             <Badge variant="secondary" className="text-xs">
-              {getStyleName(selectedCoach.style, isZh)}
+              {t(`coaches.coachStyles.${selectedCoach.style}` as any)}
             </Badge>
             {selectedCoach.is_premium && (
               <Badge variant="outline" className="text-xs">
@@ -176,7 +156,7 @@ export function CoachSelector({
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium">{coach.name}</span>
                     <Badge variant="secondary" className="text-xs">
-                      {getStyleName(coach.style, isZh)}
+                      {t(`coaches.coachStyles.${coach.style}` as any)}
                     </Badge>
                     {coach.is_premium && (
                       <Badge variant="outline" className="text-xs">

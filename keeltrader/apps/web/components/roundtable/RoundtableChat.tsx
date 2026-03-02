@@ -47,8 +47,7 @@ export function RoundtableChat({
   className,
   onSessionEnd,
 }: RoundtableChatProps) {
-  const { locale } = useI18n()
-  const isZh = locale === "zh"
+  const { locale, t } = useI18n()
   const [messages, setMessages] = useState<RoundtableMessage[]>(initialMessages)
   const [input, setInput] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -123,7 +122,7 @@ export function RoundtableChat({
 
     if (!response.ok) {
       const data = await response.json().catch(() => ({}))
-      throw new Error(data.detail || (isZh ? "上传文件失败" : "Failed to upload file"))
+      throw new Error(data.detail || t('roundtable.uploadFailed'))
     }
 
     return response.json()
@@ -247,9 +246,7 @@ export function RoundtableChat({
           session_id: "",
           coach_id: null,
           role: "assistant",
-          content: isZh
-            ? "错误：会话 ID 无效，请刷新页面重试。"
-            : "Error: invalid session ID. Please refresh and try again.",
+          content: t('roundtable.invalidSession'),
           message_type: "response",
           created_at: new Date().toISOString(),
         },
@@ -318,7 +315,7 @@ export function RoundtableChat({
         session_id: session.id,
         coach_id: null,
         role: "assistant",
-        content: message || (isZh ? "发生错误，请稍后重试。" : "Something went wrong. Please try again."),
+        content: message || t('roundtable.genericError'),
         message_type: "response",
         created_at: new Date().toISOString(),
       }
@@ -481,32 +478,31 @@ export function RoundtableChat({
           </div>
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{session.title || (isZh ? "圆桌讨论" : "Roundtable")}</span>
+              <span className="text-sm font-medium">{session.title || t('roundtable.title')}</span>
               {session.discussion_mode === "moderated" && (
                 <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
-                  {isZh ? "主持人模式" : "Moderator mode"}
+                  {t('roundtable.moderatorMode')}
                 </Badge>
               )}
               {session.discussion_mode === "free" && (
                 <Badge variant="outline" className="text-xs bg-primary/5 text-primary border-primary/20">
-                  {isZh
-                    ? `${maxRounds} 轮互辩（${debateStyle === "converge" ? "收敛" : "对立"}）`
-                    : `${maxRounds} rounds (${debateStyle === "converge" ? "Converge" : "Clash"})`}
+                  {t('roundtable.roundsBadge', { rounds: maxRounds, style: debateStyle === "converge" ? t('roundtable.convergeBadge') : t('roundtable.clashBadge') })}
                 </Badge>
               )}
             </div>
             <div className="text-xs text-muted-foreground">
               {session.discussion_mode === "moderated" && session.moderator
-                ? isZh
-                  ? `主持：${session.moderator.name} | 嘉宾：${session.coaches?.map((c) => c.name).join("、")}`
-                  : `Moderator: ${session.moderator.name} | Coaches: ${session.coaches?.map((c) => c.name).join(", ")}`
-                : session.coaches?.map((c) => c.name).join(isZh ? "、" : ", ")}
+                ? t('roundtable.moderatorSubtitle', {
+                    moderator: session.moderator.name,
+                    coaches: session.coaches?.map((c) => c.name).join(locale === "zh" ? "、" : ", ") || ""
+                  })
+                : session.coaches?.map((c) => c.name).join(locale === "zh" ? "、" : ", ")}
             </div>
           </div>
           {session.discussion_mode === "free" && session.is_active && (
             <div className="hidden lg:flex items-center gap-3">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">{isZh ? "互辩轮数" : "Rounds"}</span>
+                <span className="text-xs text-muted-foreground">{t('roundtable.rounds')}</span>
                 <Select value={String(maxRounds)} onValueChange={(v) => setMaxRounds(Number(v))}>
                   <SelectTrigger className="h-8 w-[88px]">
                     <SelectValue />
@@ -519,14 +515,14 @@ export function RoundtableChat({
                 </Select>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground">{isZh ? "风格" : "Style"}</span>
+                <span className="text-xs text-muted-foreground">{t('roundtable.styleLabel')}</span>
                 <Select value={debateStyle} onValueChange={(v) => setDebateStyle(v as any)}>
                   <SelectTrigger className="h-8 w-[112px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="converge">{isZh ? "收敛纠错" : "Converge & refine"}</SelectItem>
-                    <SelectItem value="clash">{isZh ? "对立辩论" : "Debate / clash"}</SelectItem>
+                    <SelectItem value="converge">{t('roundtable.converge')}</SelectItem>
+                    <SelectItem value="clash">{t('roundtable.clash')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -534,7 +530,7 @@ export function RoundtableChat({
           )}
           {session.is_active && onSessionEnd && (
             <Button variant="ghost" size="sm" onClick={onSessionEnd}>
-              {isZh ? "结束讨论" : "End discussion"}
+              {t('roundtable.endDiscussion')}
             </Button>
           )}
         </div>
@@ -546,9 +542,7 @@ export function RoundtableChat({
           {messages.length === 0 && !isLoading && (
             <div className="text-center py-12">
               <p className="text-muted-foreground">
-                {isZh
-                  ? "开始您的圆桌讨论，多位教练将轮流为您提供见解"
-                  : "Start a roundtable: multiple coaches will take turns sharing insights."}
+                {t('roundtable.emptyState')}
               </p>
             </div>
           )}
@@ -594,7 +588,7 @@ export function RoundtableChat({
           {isLoading && Object.keys(streamingResponses).length === 0 && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Icons.spinner className="h-4 w-4 animate-spin" />
-              {isZh ? "教练们正在思考..." : "Coaches are thinking..."}
+              {t('roundtable.thinking')}
             </div>
           )}
 
@@ -607,8 +601,8 @@ export function RoundtableChat({
         <div className="mb-3 flex items-center justify-between">
           <div className="text-xs text-muted-foreground">
             {overrideEnabled
-              ? (isZh ? "已启用本条消息覆盖设置（仅生效一次）" : "Message overrides enabled (apply once)")
-              : (isZh ? "使用会话设置" : "Using session settings")}
+              ? t('roundtable.overrideEnabled')
+              : t('roundtable.usingSession')}
           </div>
           <Button
             variant="outline"
@@ -616,7 +610,7 @@ export function RoundtableChat({
             disabled={isLoading || !session.is_active}
             onClick={() => setOverrideEnabled((v) => !v)}
           >
-            {overrideEnabled ? (isZh ? "使用会话设置" : "Use session") : (isZh ? "覆盖本条消息" : "Override")}
+            {overrideEnabled ? t('roundtable.useSession') : t('roundtable.overrideMsg')}
           </Button>
         </div>
 
@@ -634,11 +628,11 @@ export function RoundtableChat({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="off">{isZh ? "关闭" : "Off"}</SelectItem>
-                    <SelectItem value="message">{isZh ? "按消息" : "Per message"}</SelectItem>
-                    <SelectItem value="round">{isZh ? "按轮次" : "Per round"}</SelectItem>
-                    <SelectItem value="coach">{isZh ? "按教练" : "Per coach"}</SelectItem>
-                    <SelectItem value="moderator">{isZh ? "仅主持人" : "Moderator only"}</SelectItem>
+                    <SelectItem value="off">{t('roundtable.kbTiming.off')}</SelectItem>
+                    <SelectItem value="message">{t('roundtable.kbTiming.message')}</SelectItem>
+                    <SelectItem value="round">{t('roundtable.kbTiming.round')}</SelectItem>
+                    <SelectItem value="coach">{t('roundtable.kbTiming.coach')}</SelectItem>
+                    <SelectItem value="moderator">{t('roundtable.kbTiming.moderator')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -680,7 +674,7 @@ export function RoundtableChat({
         )}
         {!session.is_active && (
           <p className="text-xs text-muted-foreground mt-2">
-            {isZh ? "该讨论已结束" : "This discussion has ended"}
+            {t('roundtable.ended')}
           </p>
         )}
 
@@ -690,7 +684,7 @@ export function RoundtableChat({
             onChange={setInput}
             onSend={handleSend}
             isLoading={isLoading}
-            placeholder={isZh ? "输入您的问题，教练们会轮流给出建议..." : "Ask your question. Coaches will respond in turns..."}
+            placeholder={t('roundtable.inputPlaceholder')}
             className="mt-2"
           />
         )}
