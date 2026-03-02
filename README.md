@@ -105,7 +105,8 @@ Most traders know the theory but fail in execution. KeelTrader bridges this gap 
 - **Push notifications**: real-time alerts for pattern detection, risk warnings, and daily summaries (FCM, Email, SMS)
 - **Trading intervention system**: pre-trade checklists, real-time trade blocking based on risk limits, and proactive alerts
 - **Cognitive bias detection**: ML-powered detection of revenge trading, FOMO, overtrading, and other behavioral patterns
-- **Exchange integration**: connect to crypto exchanges (Binance, OKX, Bybit, Coinbase, Kraken) for automated trade import
+- **Exchange integration**: connect to crypto exchanges (Binance, OKX, Bybit, Coinbase, Kraken) with trading mode awareness (spot / perpetual futures per connection)
+- **Agent Matrix** (optional profile): multi-agent trading system — Orchestrator, Technical Analyst, Executor, Psychology Coach, Guardian — with 8-layer safety barrier, ghost trading, and Telegram bot interface
 - **Self-hosted by default**: Docker Compose; optional cloud/SaaS mode via env flags
 
 ## Quick start (self-host)
@@ -185,6 +186,8 @@ KeelTrader 是一套面向交易心理与行为表现的 AI 教练系统（Web: 
 - **附件**：图片/文档/音频上传（按能力抽取/转写）
 - **交易日志 + 报告**：交易日志、统计、定时报表（Celery）
 - **交易日志导入（CSV/XLSX）**：支持上传文件并在页面中手动映射列（适配不同券商/平台格式）
+- **交易所集成**：连接加密交易所（Binance、OKX、Bybit、Coinbase、Kraken），支持按连接配置交易模式（现货 / 永续合约）
+- **Agent Matrix（可选 profile）**：多 Agent 交易系统 — 协调器、技术分析师、执行器、心理教练、风控守卫 — 含 8 层安全屏障、模拟交易、Telegram 机器人
 - **默认可自托管**：Docker Compose 一键启动；也支持通过环境变量启用云端模式
 
 ### 快速开始（自托管）
