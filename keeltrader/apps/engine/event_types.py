@@ -87,7 +87,7 @@ class Event(BaseModel):
             "source": self.source,
             "user_id": str(self.user_id) if self.user_id else "",
             "agent_id": self.agent_id or "",
-            "payload": self.model_dump_json(include={"payload"}).strip('{"payload":').rstrip("}") if self.payload else "{}",
+            "payload": __import__("json").dumps(self.payload) if self.payload else "{}",
             "timestamp": self.timestamp.isoformat(),
             "correlation_id": str(self.correlation_id),
             "causation_id": str(self.causation_id) if self.causation_id else "",

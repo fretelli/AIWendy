@@ -19,6 +19,7 @@ from core.i18n import get_request_locale, t
 from core.logging import setup_logging
 from core.middleware import AuthMiddleware, LoggingMiddleware, RateLimitMiddleware
 from routers import (
+    agents,
     analysis,
     auth,
     chat,
@@ -240,6 +241,7 @@ app.include_router(
 app.include_router(files.router, prefix="/api/v1/files", tags=["Files"])
 app.include_router(roundtable.router, prefix="/api/v1/roundtable", tags=["Roundtable"])
 app.include_router(tasks.router)
+app.include_router(agents.router, prefix="/api/v1/agent-matrix", tags=["Agent Matrix"])
 
 
 # Root endpoint

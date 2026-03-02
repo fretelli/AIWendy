@@ -73,18 +73,30 @@ class EventEngine:
         logger.info("Event engine stopped.")
 
     async def _register_agents(self) -> None:
-        """Register all active agents with the dispatcher.
+        """Register all active agents with the dispatcher."""
+        from ..agents.orchestrator import create_orchestrator
+        from ..agents.technical import create_technical_analyst
 
-        TODO: Load agent configs from database and instantiate.
-        For now, agents are registered programmatically.
-        """
-        # Import and register agents here
-        # Example:
-        # from ..agents.orchestrator import OrchestratorAgent
-        # orch = OrchestratorAgent(config=...)
-        # self._dispatcher.register_agent(orch)
-        logger.info("Agent registration complete. Registered: %d agents",
-                     len(self._dispatcher.registered_agents) if self._dispatcher else 0)
+        model_base = self._litellm_base
+        # Use the LiteLLM model prefix for routing
+        orchestrator_model = os.environ.get(
+            "ORCHESTRATOR_MODEL", "anthropic/claude-sonnet-4-20250514"
+        )
+        analyst_model = os.environ.get(
+            "ANALYST_MODEL", "anthropic/claude-haiku-4-5-20251001"
+        )
+
+        orchestrator = create_orchestrator(model=orchestrator_model)
+        self._dispatcher.register_agent(orchestrator)
+
+        technical = create_technical_analyst(model=analyst_model)
+        self._dispatcher.register_agent(technical)
+
+        logger.info(
+            "Agent registration complete. Registered: %d agents — %s",
+            len(self._dispatcher.registered_agents),
+            list(self._dispatcher.registered_agents.keys()),
+        )
 
     async def _event_loop(self) -> None:
         """Main event processing loop."""
