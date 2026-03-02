@@ -1,6 +1,6 @@
 """Market data tools — get_price, get_klines, calc_indicators.
 
-Wraps CCXT for exchange data and computes technical indicators.
+Wraps ExchangeAdapter for exchange data and computes technical indicators.
 These tools are registered on PydanticAI agents via the registry.
 """
 
@@ -10,25 +10,21 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any
 
-import ccxt.async_support as ccxt
 import numpy as np
 
-from ._proxy import apply_proxy
+from ..exchange import ExchangeAdapter, create_adapter
 
 logger = logging.getLogger(__name__)
 
-# Shared exchange instances (lazy init)
-_exchanges: dict[str, ccxt.Exchange] = {}
+# Shared adapter instances (lazy init, public data only)
+_adapters: dict[str, ExchangeAdapter] = {}
 
 
-async def _get_exchange(name: str = "okx") -> ccxt.Exchange:
-    """Get or create a CCXT exchange instance (public data only, no API keys)."""
-    if name not in _exchanges:
-        exchange_class = getattr(ccxt, name, None)
-        if exchange_class is None:
-            raise ValueError(f"Unknown exchange: {name}")
-        _exchanges[name] = exchange_class(apply_proxy({"enableRateLimit": True}))
-    return _exchanges[name]
+async def _get_exchange(name: str = "okx") -> ExchangeAdapter:
+    """Get or create a public-data exchange adapter (no API keys)."""
+    if name not in _adapters:
+        _adapters[name] = create_adapter(name, use_cache=True)
+    return _adapters[name]
 
 
 async def get_price(
@@ -39,26 +35,26 @@ async def get_price(
 
     Args:
         symbol: Trading pair (e.g., "BTC/USDT")
-        exchange: Exchange name (default: binance)
+        exchange: Exchange name (default: okx)
 
     Returns:
         Dict with symbol, price, bid, ask, timestamp, change_24h
     """
-    ex = await _get_exchange(exchange)
+    adapter = await _get_exchange(exchange)
     try:
-        ticker = await ex.fetch_ticker(symbol)
+        ticker = await adapter.fetch_ticker(symbol)
         return {
             "symbol": symbol,
             "exchange": exchange,
-            "price": ticker.get("last"),
-            "bid": ticker.get("bid"),
-            "ask": ticker.get("ask"),
-            "high_24h": ticker.get("high"),
-            "low_24h": ticker.get("low"),
-            "volume_24h": ticker.get("baseVolume"),
-            "change_24h": ticker.get("change"),
-            "change_pct_24h": ticker.get("percentage"),
-            "timestamp": ticker.get("datetime"),
+            "price": ticker.last,
+            "bid": ticker.bid,
+            "ask": ticker.ask,
+            "high_24h": ticker.high_24h,
+            "low_24h": ticker.low_24h,
+            "volume_24h": ticker.volume_24h,
+            "change_24h": ticker.change_24h,
+            "change_pct_24h": ticker.change_pct_24h,
+            "timestamp": ticker.timestamp,
         }
     except Exception as e:
         logger.error("get_price failed for %s on %s: %s", symbol, exchange, e)
@@ -82,10 +78,10 @@ async def get_klines(
     Returns:
         List of candle dicts with time, open, high, low, close, volume
     """
-    ex = await _get_exchange(exchange)
+    adapter = await _get_exchange(exchange)
     limit = min(limit, 500)
     try:
-        ohlcv = await ex.fetch_ohlcv(symbol, timeframe=interval, limit=limit)
+        ohlcv = await adapter.fetch_ohlcv(symbol, timeframe=interval, limit=limit)
         return [
             {
                 "time": datetime.utcfromtimestamp(c[0] / 1000).isoformat(),
@@ -118,9 +114,9 @@ async def get_orderbook(
     Returns:
         Dict with bids, asks, spread
     """
-    ex = await _get_exchange(exchange)
+    adapter = await _get_exchange(exchange)
     try:
-        book = await ex.fetch_order_book(symbol, limit=depth)
+        book = await adapter.fetch_order_book(symbol, limit=depth)
         best_bid = book["bids"][0][0] if book["bids"] else 0
         best_ask = book["asks"][0][0] if book["asks"] else 0
         return {
@@ -152,17 +148,9 @@ async def get_funding_rate(
     """
     if trading_mode == "spot":
         return {"symbol": symbol, "info": "Funding rate not applicable in spot mode"}
-    ex = await _get_exchange(exchange)
+    adapter = await _get_exchange(exchange)
     try:
-        funding = await ex.fetch_funding_rate(symbol)
-        return {
-            "symbol": symbol,
-            "funding_rate": funding.get("fundingRate"),
-            "funding_timestamp": funding.get("fundingDatetime"),
-            "next_funding_time": funding.get("nextFundingDatetime"),
-            "mark_price": funding.get("markPrice"),
-            "index_price": funding.get("indexPrice"),
-        }
+        return await adapter.fetch_funding_rate(symbol)
     except Exception as e:
         logger.error("get_funding_rate failed for %s: %s", symbol, e)
         return {"symbol": symbol, "error": str(e)}

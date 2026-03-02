@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
-import ccxt
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -81,10 +80,10 @@ class TradeSyncService:
 
     def sync_connection(self, connection: ExchangeConnection) -> SyncResult:
         """Sync trades for a single exchange connection."""
-        exchange = self._build_exchange(connection)
+        adapter = self._build_exchange(connection)
         try:
             symbols = connection.sync_symbols or []
-            trades = self._fetch_trades(exchange, symbols, connection.last_trade_sync_at)
+            trades = self._fetch_trades(adapter, symbols, connection.last_trade_sync_at)
 
             trade_rows = [self._build_trade_row(connection, trade) for trade in trades]
             inserted = self._insert_trades(trade_rows)
@@ -106,30 +105,23 @@ class TradeSyncService:
                 warnings=[],
             )
         finally:
-            if hasattr(exchange, "close"):
-                try:
-                    exchange.close()
-                except Exception:
-                    pass
+            pass  # Adapter lifecycle managed by factory cache or GC
 
-    def _build_exchange(self, connection: ExchangeConnection) -> ccxt.Exchange:
+    def _build_exchange(self, connection: ExchangeConnection):
+        """Build an exchange adapter for a connection."""
+        from apps.exchange.factory import create_adapter
+
         creds = self._decrypt_credentials(connection)
-        exchange_class = getattr(ccxt, connection.exchange_type.value)
-        exchange_config: Dict[str, Any] = {
-            "apiKey": creds["api_key"],
-            "secret": creds["api_secret"],
-            "enableRateLimit": True,
-        }
-
-        if creds.get("passphrase"):
-            exchange_config["password"] = creds["passphrase"]
-
-        if connection.is_testnet:
-            exchange_config["options"] = {"defaultType": "future"}
-            if hasattr(exchange_class, "set_sandbox_mode"):
-                exchange_config["sandbox"] = True
-
-        return exchange_class(exchange_config)
+        mode = connection.trading_mode.value if connection.trading_mode else "swap"
+        return create_adapter(
+            exchange_name=connection.exchange_type.value,
+            api_key=creds["api_key"],
+            api_secret=creds["api_secret"],
+            passphrase=creds.get("passphrase"),
+            trading_mode=mode,
+            is_testnet=connection.is_testnet,
+            use_cache=False,
+        )
 
     def _decrypt_credentials(self, connection: ExchangeConnection) -> Dict[str, Any]:
         return {
@@ -144,30 +136,52 @@ class TradeSyncService:
 
     def _fetch_trades(
         self,
-        exchange: ccxt.Exchange,
+        adapter,
         symbols: List[str],
         last_sync_at: Optional[datetime],
     ) -> List[Dict[str, Any]]:
+        from apps.exchange.ccxt_adapter import CcxtAdapter
+
         since = last_sync_at or (datetime.utcnow() - timedelta(days=7))
         since_ms = int(since.timestamp() * 1000)
 
         trades: List[Dict[str, Any]] = []
-        if symbols:
-            for symbol in symbols:
-                trades.extend(
-                    exchange.fetch_my_trades(
-                        symbol=symbol,
-                        since=since_ms,
-                        limit=self.settings.trade_sync_default_limit,
+
+        # Use sync wrapper for CCXT adapters (this service is synchronous)
+        if isinstance(adapter, CcxtAdapter):
+            if symbols:
+                for symbol in symbols:
+                    trades.extend(
+                        adapter.fetch_my_trades_sync(
+                            symbol=symbol,
+                            since=since_ms,
+                            limit=self.settings.trade_sync_default_limit,
+                        )
                     )
+                return trades
+            try:
+                trades = adapter.fetch_my_trades_sync(
+                    since=since_ms,
+                    limit=self.settings.trade_sync_default_limit,
                 )
+            except Exception as exc:
+                logger.warning("trade_sync_symbols_required", error=str(exc))
             return trades
 
+        # For future async adapters, use asyncio
+        import asyncio
+        if symbols:
+            for symbol in symbols:
+                result = asyncio.get_event_loop().run_until_complete(
+                    adapter.fetch_my_trades(symbol=symbol, since=since_ms, limit=self.settings.trade_sync_default_limit)
+                )
+                trades.extend([t.raw for t in result])
+            return trades
         try:
-            trades = exchange.fetch_my_trades(
-                since=since_ms,
-                limit=self.settings.trade_sync_default_limit,
+            result = asyncio.get_event_loop().run_until_complete(
+                adapter.fetch_my_trades(since=since_ms, limit=self.settings.trade_sync_default_limit)
             )
+            trades = [t.raw for t in result]
         except Exception as exc:
             logger.warning("trade_sync_symbols_required", error=str(exc))
         return trades
