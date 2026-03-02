@@ -67,7 +67,7 @@ AGENT_TOOL_MAP: dict[str, list[str]] = {
 
 def _get_tool_functions() -> dict[str, Callable]:
     """Lazy-load all tool functions."""
-    from . import analysis, communication, market, portfolio
+    from . import analysis, communication, execution, market, portfolio
     from ..memory import tools as memory_tools
 
     return {
@@ -90,6 +90,10 @@ def _get_tool_functions() -> dict[str, Callable]:
         "memory_search": memory_tools.memory_search,
         "memory_update": memory_tools.memory_update,
         "memory_forget": memory_tools.memory_forget,
+        # Execution tools
+        "place_order": execution.place_order,
+        "cancel_order": execution.cancel_order,
+        "close_position": execution.close_position,
         # Communication tools
         "send_telegram": communication.send_telegram,
         "request_confirmation": communication.request_confirmation,

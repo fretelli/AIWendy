@@ -76,8 +76,8 @@ class EventEngine:
         """Register all active agents with the dispatcher."""
         from ..agents.orchestrator import create_orchestrator
         from ..agents.technical import create_technical_analyst
+        from ..agents.executor import create_executor
 
-        model_base = self._litellm_base
         # Use the LiteLLM model prefix for routing
         orchestrator_model = os.environ.get(
             "ORCHESTRATOR_MODEL", "anthropic/claude-sonnet-4-20250514"
@@ -85,12 +85,18 @@ class EventEngine:
         analyst_model = os.environ.get(
             "ANALYST_MODEL", "anthropic/claude-haiku-4-5-20251001"
         )
+        executor_model = os.environ.get(
+            "EXECUTOR_MODEL", "anthropic/claude-haiku-4-5-20251001"
+        )
 
         orchestrator = create_orchestrator(model=orchestrator_model)
         self._dispatcher.register_agent(orchestrator)
 
         technical = create_technical_analyst(model=analyst_model)
         self._dispatcher.register_agent(technical)
+
+        executor = create_executor(model=executor_model)
+        self._dispatcher.register_agent(executor)
 
         logger.info(
             "Agent registration complete. Registered: %d agents — %s",
