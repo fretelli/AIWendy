@@ -10,10 +10,9 @@ import logging
 from typing import Any
 from uuid import uuid4
 
-import ccxt.async_support as ccxt
 import redis.asyncio as aioredis
 
-from ._proxy import apply_proxy
+from ..exchange import create_adapter
 from ..execution.permissions import ExecutionPermission, TrustLevel
 from ..execution.service import ExecutionResult, ExecutionService, OrderRequest
 
@@ -160,38 +159,24 @@ async def _execute_order(
     api_secret: str,
     passphrase: str | None,
 ) -> dict[str, Any]:
-    """Actually execute an order on the exchange via CCXT."""
+    """Actually execute an order on the exchange via adapter."""
     try:
-        exchange_class = getattr(ccxt, order.exchange, None)
-        if exchange_class is None:
-            return {"success": False, "error": f"Unknown exchange: {order.exchange}"}
-
-        config: dict[str, Any] = apply_proxy({
-            "apiKey": api_key,
-            "secret": api_secret,
-            "enableRateLimit": True,
-            "options": {"defaultType": order.trading_mode},
-        })
-        if passphrase:
-            config["password"] = passphrase
-
-        ex = exchange_class(config)
+        adapter = create_adapter(
+            exchange_name=order.exchange,
+            api_key=api_key,
+            api_secret=api_secret,
+            passphrase=passphrase,
+            trading_mode=order.trading_mode,
+            use_cache=False,  # Fresh instance per execution for safety
+        )
         try:
-            if order.order_type == "market":
-                result = await ex.create_order(
-                    symbol=order.symbol,
-                    type="market",
-                    side=order.side,
-                    amount=order.amount,
-                )
-            else:
-                result = await ex.create_order(
-                    symbol=order.symbol,
-                    type="limit",
-                    side=order.side,
-                    amount=order.amount,
-                    price=order.price,
-                )
+            result = await adapter.create_order(
+                symbol=order.symbol,
+                order_type=order.order_type,
+                side=order.side,
+                amount=order.amount,
+                price=order.price,
+            )
 
             # Increment daily order count
             if _redis:
@@ -201,25 +186,25 @@ async def _execute_order(
 
             return {
                 "success": True,
-                "order_id": result.get("id"),
+                "order_id": result.id,
                 "symbol": order.symbol,
                 "side": order.side,
                 "type": order.order_type,
                 "amount": order.amount,
-                "price": result.get("price"),
-                "status": result.get("status"),
+                "price": result.price,
+                "status": result.status,
                 "ccxt_response": {
-                    "id": result.get("id"),
-                    "status": result.get("status"),
-                    "filled": result.get("filled"),
-                    "remaining": result.get("remaining"),
-                    "cost": result.get("cost"),
-                    "average": result.get("average"),
-                    "datetime": result.get("datetime"),
+                    "id": result.id,
+                    "status": result.status,
+                    "filled": result.filled,
+                    "remaining": result.remaining,
+                    "cost": result.cost,
+                    "average": result.average,
+                    "datetime": result.timestamp,
                 },
             }
         finally:
-            await ex.close()
+            await adapter.close()
 
     except Exception as e:
         logger.error("Order execution failed: %s", e)
@@ -247,29 +232,23 @@ async def cancel_order(
         trading_mode: "spot" or "swap"
     """
     try:
-        exchange_class = getattr(ccxt, exchange_name, None)
-        if exchange_class is None:
-            return {"success": False, "error": f"Unknown exchange: {exchange_name}"}
-
-        config: dict[str, Any] = apply_proxy({
-            "apiKey": api_key,
-            "secret": api_secret,
-            "enableRateLimit": True,
-            "options": {"defaultType": trading_mode},
-        })
-        if passphrase:
-            config["password"] = passphrase
-
-        ex = exchange_class(config)
+        adapter = create_adapter(
+            exchange_name=exchange_name,
+            api_key=api_key,
+            api_secret=api_secret,
+            passphrase=passphrase,
+            trading_mode=trading_mode,
+            use_cache=False,
+        )
         try:
-            result = await ex.cancel_order(order_id, symbol)
+            result = await adapter.cancel_order(order_id, symbol)
             return {
                 "success": True,
                 "order_id": order_id,
                 "status": result.get("status", "cancelled"),
             }
         finally:
-            await ex.close()
+            await adapter.close()
     except Exception as e:
         logger.error("Cancel order failed: %s", e)
         return {"success": False, "error": str(e)}
@@ -290,7 +269,7 @@ async def close_position(
     Args:
         exchange_name: Exchange name
         symbol: Trading pair
-        side: Current position side ("buy"/"long" → sell to close, "sell"/"short" → buy to close)
+        side: Current position side ("buy"/"long" -> sell to close, "sell"/"short" -> buy to close)
         amount: Amount to close (None = full position)
         api_key: Exchange API key
         api_secret: Exchange API secret
@@ -304,34 +283,28 @@ async def close_position(
     close_side = "sell" if side in ("buy", "long") else "buy"
 
     try:
-        exchange_class = getattr(ccxt, exchange_name, None)
-        if exchange_class is None:
-            return {"success": False, "error": f"Unknown exchange: {exchange_name}"}
-
-        config: dict[str, Any] = apply_proxy({
-            "apiKey": api_key,
-            "secret": api_secret,
-            "enableRateLimit": True,
-            "options": {"defaultType": trading_mode},
-        })
-        if passphrase:
-            config["password"] = passphrase
-
-        ex = exchange_class(config)
+        adapter = create_adapter(
+            exchange_name=exchange_name,
+            api_key=api_key,
+            api_secret=api_secret,
+            passphrase=passphrase,
+            trading_mode=trading_mode,
+            use_cache=False,
+        )
         try:
             # If no amount specified, fetch current position size
             if amount is None:
-                positions = await ex.fetch_positions([symbol])
+                positions = await adapter.fetch_positions(symbol)
                 for pos in positions:
-                    if pos.get("symbol") == symbol:
-                        amount = abs(float(pos.get("contracts", 0) or 0))
+                    if pos.symbol == symbol:
+                        amount = abs(pos.size)
                         break
                 if not amount:
                     return {"success": False, "error": "No open position found"}
 
-            result = await ex.create_order(
+            result = await adapter.create_order(
                 symbol=symbol,
-                type="market",
+                order_type="market",
                 side=close_side,
                 amount=amount,
             )
@@ -340,11 +313,11 @@ async def close_position(
                 "symbol": symbol,
                 "close_side": close_side,
                 "amount": amount,
-                "order_id": result.get("id"),
-                "status": result.get("status"),
+                "order_id": result.id,
+                "status": result.status,
             }
         finally:
-            await ex.close()
+            await adapter.close()
     except Exception as e:
         logger.error("Close position failed: %s", e)
         return {"success": False, "error": str(e)}

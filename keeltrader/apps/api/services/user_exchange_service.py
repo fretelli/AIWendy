@@ -233,31 +233,29 @@ class UserExchangeService:
                 else None
             )
 
-            # Try to create exchange instance and fetch balance
-            import ccxt
+            # Create adapter and test connection
+            from apps.exchange.factory import create_adapter
+            from apps.exchange.ccxt_adapter import CcxtAdapter
 
-            exchange_class = getattr(ccxt, connection.exchange_type.value)
-            exchange_config = {
-                "apiKey": api_key,
-                "secret": api_secret,
-                "enableRateLimit": True,
-            }
-
-            if passphrase:
-                exchange_config["password"] = passphrase
-
-            # Set trading mode (spot or swap/future)
             mode = connection.trading_mode.value if connection.trading_mode else "swap"
-            exchange_config["options"] = {"defaultType": mode}
+            adapter = create_adapter(
+                exchange_name=connection.exchange_type.value,
+                api_key=api_key,
+                api_secret=api_secret,
+                passphrase=passphrase,
+                trading_mode=mode,
+                is_testnet=connection.is_testnet,
+                use_cache=False,
+            )
 
-            if connection.is_testnet:
-                if hasattr(exchange_class, "set_sandbox_mode"):
-                    exchange_config["sandbox"] = True
-
-            exchange = exchange_class(exchange_config)
-
-            # Test API call
-            balance = exchange.fetch_balance()
+            # Test API call (sync for CCXT adapters)
+            if isinstance(adapter, CcxtAdapter):
+                balance = adapter.fetch_balance_sync()
+            else:
+                # For future async-only adapters, we'd await
+                import asyncio
+                balances = asyncio.get_event_loop().run_until_complete(adapter.fetch_balance())
+                balance = {"total": {b.currency: b.total for b in balances}}
 
             # Update last_sync_at
             connection.last_sync_at = datetime.utcnow()

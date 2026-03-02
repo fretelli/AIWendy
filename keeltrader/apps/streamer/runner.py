@@ -1,6 +1,6 @@
-"""Market data streamer — CCXT polling-based price monitoring with event emission.
+"""Market data streamer — polling-based price monitoring with event emission.
 
-Uses CCXT REST API polling (not WebSocket) for reliability. Monitors configured
+Uses ExchangeAdapter for exchange abstraction. Monitors configured
 symbols and emits price events to Redis Streams when alert conditions trigger.
 """
 
@@ -12,9 +12,9 @@ import os
 import signal
 from typing import Any
 
-import ccxt.async_support as ccxt
 import redis.asyncio as aioredis
 
+from ..exchange import ExchangeAdapter, create_adapter
 from .price_monitor import PriceAlert, PriceMonitor
 
 logger = logging.getLogger(__name__)
@@ -28,6 +28,9 @@ DEFAULT_WATCHLIST = [
 # Polling interval in seconds
 POLL_INTERVAL = int(os.environ.get("STREAMER_POLL_INTERVAL", "30"))
 
+# Default exchange for streaming
+STREAMER_EXCHANGE = os.environ.get("STREAMER_EXCHANGE", "okx")
+
 
 class MarketStreamer:
     """Market data streamer with price monitoring and event emission.
@@ -40,7 +43,7 @@ class MarketStreamer:
         self._redis_url = redis_url
         self._db_url = db_url
         self._redis: aioredis.Redis | None = None
-        self._exchange: ccxt.Exchange | None = None
+        self._adapter: ExchangeAdapter | None = None
         self._monitor = PriceMonitor()
         self._running = False
         self._watchlist: list[str] = list(DEFAULT_WATCHLIST)
@@ -53,14 +56,8 @@ class MarketStreamer:
         # Initialize Redis
         self._redis = aioredis.from_url(self._redis_url, decode_responses=False)
 
-        # Initialize exchange (public data only)
-        exchange_config: dict[str, Any] = {"enableRateLimit": True}
-        # Use proxy if configured (for GFW bypass)
-        http_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
-        if http_proxy:
-            exchange_config["aiohttp_proxy"] = http_proxy
-            logger.info("Using proxy: %s", http_proxy)
-        self._exchange = ccxt.okx(exchange_config)
+        # Initialize exchange adapter (public data only, no auth)
+        self._adapter = create_adapter(STREAMER_EXCHANGE, use_cache=True)
 
         # Load watchlist from Redis (user-configured symbols)
         await self._load_watchlist()
@@ -70,8 +67,8 @@ class MarketStreamer:
 
         self._running = True
         logger.info(
-            "Market streamer started. Watching %d symbols, poll interval %ds",
-            len(self._watchlist), POLL_INTERVAL,
+            "Market streamer started. Watching %d symbols on %s, poll interval %ds",
+            len(self._watchlist), STREAMER_EXCHANGE, POLL_INTERVAL,
         )
 
         try:
@@ -84,9 +81,9 @@ class MarketStreamer:
     async def stop(self) -> None:
         """Stop the market streamer."""
         self._running = False
-        if self._exchange:
-            await self._exchange.close()
-            self._exchange = None
+        if self._adapter:
+            await self._adapter.close()
+            self._adapter = None
         if self._redis:
             await self._redis.aclose()
             self._redis = None
@@ -106,13 +103,13 @@ class MarketStreamer:
 
     async def _init_alerts(self) -> None:
         """Initialize price alerts — fetch current prices and set default alerts."""
-        if not self._exchange:
+        if not self._adapter:
             return
 
         for symbol in self._watchlist:
             try:
-                ticker = await self._exchange.fetch_ticker(symbol)
-                price = ticker.get("last", 0)
+                ticker = await self._adapter.fetch_ticker(symbol)
+                price = ticker.last or 0
                 if price:
                     self._monitor.update_price(symbol, price)
                     self._monitor.add_default_alerts(symbol)
@@ -161,13 +158,13 @@ class MarketStreamer:
 
     async def _poll_prices(self) -> None:
         """Fetch current prices for all watched symbols."""
-        if not self._exchange:
+        if not self._adapter:
             return
 
         for symbol in self._watchlist:
             try:
-                ticker = await self._exchange.fetch_ticker(symbol)
-                price = ticker.get("last", 0)
+                ticker = await self._adapter.fetch_ticker(symbol)
+                price = ticker.last or 0
                 if not price:
                     continue
 
