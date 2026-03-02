@@ -13,6 +13,8 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
+const authRequired = process.env.NEXT_PUBLIC_AUTH_REQUIRED === "1"
+
 export default function HomePage() {
   const { t } = useI18n()
 
@@ -27,21 +29,31 @@ export default function HomePage() {
             {t("home.hero.subtitle")}
           </p>
           <div className="flex gap-4 justify-center">
-            <Link href="/dashboard">
-              <Button size="lg" variant="secondary" className="px-8">
-                {t("home.hero.cta.tryDemo")}
-              </Button>
-            </Link>
-            <Link href="/auth/register">
-              <Button size="lg" className="px-8">
-                {t("home.hero.cta.startFree")}
-              </Button>
-            </Link>
-            <Link href="/auth/login">
-              <Button size="lg" variant="outline" className="px-8">
-                {t("home.hero.cta.signIn")}
-              </Button>
-            </Link>
+            {authRequired ? (
+              <>
+                <Link href="/dashboard">
+                  <Button size="lg" variant="secondary" className="px-8">
+                    {t("home.hero.cta.tryDemo")}
+                  </Button>
+                </Link>
+                <Link href="/auth/register">
+                  <Button size="lg" className="px-8">
+                    {t("home.hero.cta.startFree")}
+                  </Button>
+                </Link>
+                <Link href="/auth/login">
+                  <Button size="lg" variant="outline" className="px-8">
+                    {t("home.hero.cta.signIn")}
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <Link href="/dashboard">
+                <Button size="lg" className="px-8">
+                  {t("home.hero.cta.getStarted")}
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
       </section>
@@ -99,9 +111,9 @@ export default function HomePage() {
           <p className="text-xl text-muted-foreground mb-8">
             {t("home.cta.subtitle")}
           </p>
-          <Link href="/auth/register">
+          <Link href={authRequired ? "/auth/register" : "/dashboard"}>
             <Button size="lg" className="px-12">
-              {t("home.cta.button")}
+              {authRequired ? t("home.cta.button") : t("home.hero.cta.getStarted")}
             </Button>
           </Link>
         </div>
