@@ -15,19 +15,25 @@ class ExchangeService:
     """Service for interacting with cryptocurrency exchanges"""
 
     def __init__(self):
-        from apps.exchange.factory import create_adapter  # noqa: F811
-        from apps.exchange.ccxt_adapter import CcxtAdapter  # noqa: F811
+        try:
+            from apps.exchange.factory import create_adapter
+            from apps.exchange.ccxt_adapter import CcxtAdapter
 
-        self._create_adapter = create_adapter
-        self._CcxtAdapter = CcxtAdapter
+            self._create_adapter = create_adapter
+            self._CcxtAdapter = CcxtAdapter
+        except ImportError:
+            logger.warning("apps.exchange not available, exchange features disabled")
+            self._create_adapter = None
+            self._CcxtAdapter = None
 
         settings = get_settings()
         self.adapters: Dict[str, Any] = {}
 
-        # Initialize configured exchanges
-        self._init_binance(settings)
-        self._init_okx(settings)
-        self._init_bybit(settings)
+        # Initialize configured exchanges (skip if exchange module unavailable)
+        if self._create_adapter:
+            self._init_binance(settings)
+            self._init_okx(settings)
+            self._init_bybit(settings)
 
         logger.info(f"Initialized {len(self.adapters)} exchanges: {list(self.adapters.keys())}")
 
