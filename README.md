@@ -123,9 +123,11 @@ docker compose up -d --build
 
 Full guide: `keeltrader/docs/SELF_HOSTING.md`
 
-## Guest mode (no login)
+## Authentication
 
-Set `KEELTRADER_AUTH_REQUIRED=0` for the API (enabled by default in `keeltrader/docker-compose.yml`) to use the app without logging in.
+Login is required by default (`KEELTRADER_AUTH_REQUIRED=1`). Set `KEELTRADER_AUTO_INIT_TEST_USERS=1` to create test accounts on first startup.
+
+To disable login and use guest mode, set `KEELTRADER_AUTH_REQUIRED=0` in `.env` and rebuild the web image with `NEXT_PUBLIC_AUTH_REQUIRED=0`.
 
 ## Roadmap (community)
 
@@ -204,9 +206,11 @@ docker compose up -d --build
 
 完整说明：`keeltrader/docs/SELF_HOSTING.md`
 
-### 访客模式（免登录）
+### 认证
 
-将 API 的 `KEELTRADER_AUTH_REQUIRED=0`（默认在 `keeltrader/docker-compose.yml` 已启用该能力）即可免登录体验。
+默认需要登录（`KEELTRADER_AUTH_REQUIRED=1`）。设置 `KEELTRADER_AUTO_INIT_TEST_USERS=1` 可在首次启动时创建测试账号。
+
+如需免登录访客模式，将 `.env` 中 `KEELTRADER_AUTH_REQUIRED=0`，并以 `NEXT_PUBLIC_AUTH_REQUIRED=0` 重新构建 web 镜像。
 
 ### Roadmap（社区版）
 
