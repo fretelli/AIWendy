@@ -32,17 +32,24 @@ class ExchangeType(str, enum.Enum):
     BYBIT = "bybit"
     COINBASE = "coinbase"
     KRAKEN = "kraken"
+    IBKR = "ibkr"
 
 
 class TradingMode(str, enum.Enum):
-    """Trading mode: spot or swap (perpetual futures)."""
+    """Trading mode."""
 
     SPOT = "spot"
     SWAP = "swap"
+    STOCK = "stock"
+    OPTION = "option"
+    FUTURE = "future"
 
 
 # Exchanges that only support spot trading
 SPOT_ONLY_EXCHANGES = {ExchangeType.COINBASE, ExchangeType.KRAKEN}
+
+# IBKR supported trading modes
+IBKR_TRADING_MODES = {TradingMode.STOCK, TradingMode.OPTION, TradingMode.FUTURE}
 
 
 class ExchangeConnection(Base):
@@ -72,6 +79,7 @@ class ExchangeConnection(Base):
     is_testnet = Column(Boolean, default=False, nullable=False)  # Testnet vs production
     trading_mode = Column(Enum(TradingMode), nullable=False, server_default="swap")
     sync_symbols = Column(JSON, default=list)
+    credentials_extra = Column(JSON, nullable=True)  # IBKR: gateway_host, port, client_id, etc.
 
     # Metadata
     last_sync_at = Column(DateTime, nullable=True)
@@ -116,6 +124,8 @@ class ExchangeTrade(Base):
     fee_currency = Column(String(20), nullable=True)
     fee_rate = Column(Float, nullable=True)
     trade_timestamp = Column(DateTime(timezone=True), nullable=True)
+
+    asset_class = Column(String(20), nullable=True, server_default="crypto")  # crypto, stock, option, future
 
     raw = Column(JSON, nullable=True)
     is_imported = Column(Boolean, default=False, nullable=False)
