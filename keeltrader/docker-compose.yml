@@ -186,6 +186,9 @@ services:
       - LITELLM_API_KEY=${LITELLM_API_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - HTTP_PROXY=http://172.17.0.1:10808
+      - HTTPS_PROXY=http://172.17.0.1:10808
+      - NO_PROXY=services-redis,172.17.0.1,localhost,127.0.0.1
 
   market-streamer:
     build:

@@ -11,6 +11,8 @@ from typing import Any
 
 import ccxt.async_support as ccxt
 
+from ._proxy import apply_proxy
+
 logger = logging.getLogger(__name__)
 
 # Authenticated exchange instances per user
@@ -29,11 +31,11 @@ async def _get_user_exchange(
         exchange_class = getattr(ccxt, exchange_name, None)
         if exchange_class is None:
             raise ValueError(f"Unknown exchange: {exchange_name}")
-        config: dict[str, Any] = {
+        config: dict[str, Any] = apply_proxy({
             "apiKey": api_key,
             "secret": api_secret,
             "enableRateLimit": True,
-        }
+        })
         if passphrase:
             config["password"] = passphrase
         _user_exchanges[cache_key] = exchange_class(config)

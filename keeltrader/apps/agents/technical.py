@@ -65,7 +65,7 @@ class TechnicalAnalystAgent(BaseAgent):
             ctx: RunContext[AgentDependencies],
             symbol: str,
             timeframe: str = "1h",
-            exchange: str = "binance",
+            exchange: str = "okx",
         ) -> dict[str, Any]:
             """Run full technical analysis on a symbol.
 
@@ -84,7 +84,7 @@ class TechnicalAnalystAgent(BaseAgent):
         async def analyze_multiple_timeframes(
             ctx: RunContext[AgentDependencies],
             symbol: str,
-            exchange: str = "binance",
+            exchange: str = "okx",
         ) -> dict[str, Any]:
             """Analyze a symbol across 15m, 1h, 4h, 1d timeframes.
 
@@ -102,7 +102,7 @@ class TechnicalAnalystAgent(BaseAgent):
             symbol: str,
             side: str,
             timeframe: str = "1h",
-            exchange: str = "binance",
+            exchange: str = "okx",
         ) -> dict[str, Any]:
             """Evaluate a potential trade setup with scoring.
 
@@ -124,7 +124,7 @@ class TechnicalAnalystAgent(BaseAgent):
         async def find_key_levels(
             ctx: RunContext[AgentDependencies],
             symbol: str,
-            exchange: str = "binance",
+            exchange: str = "okx",
         ) -> dict[str, Any]:
             """Identify key support and resistance levels.
 
