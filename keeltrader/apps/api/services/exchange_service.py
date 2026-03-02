@@ -6,8 +6,6 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from apps.exchange.factory import create_adapter
-from apps.exchange.ccxt_adapter import CcxtAdapter
 from config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -17,8 +15,14 @@ class ExchangeService:
     """Service for interacting with cryptocurrency exchanges"""
 
     def __init__(self):
+        from apps.exchange.factory import create_adapter  # noqa: F811
+        from apps.exchange.ccxt_adapter import CcxtAdapter  # noqa: F811
+
+        self._create_adapter = create_adapter
+        self._CcxtAdapter = CcxtAdapter
+
         settings = get_settings()
-        self.adapters: Dict[str, CcxtAdapter] = {}
+        self.adapters: Dict[str, Any] = {}
 
         # Initialize configured exchanges
         self._init_binance(settings)
@@ -31,7 +35,7 @@ class ExchangeService:
         """Initialize Binance exchange"""
         if settings.binance_api_key and settings.binance_api_secret:
             try:
-                adapter = create_adapter(
+                adapter = self._create_adapter(
                     exchange_name="binance",
                     api_key=settings.binance_api_key,
                     api_secret=settings.binance_api_secret,
@@ -47,7 +51,7 @@ class ExchangeService:
         """Initialize OKX exchange"""
         if settings.okx_api_key and settings.okx_api_secret and settings.okx_passphrase:
             try:
-                adapter = create_adapter(
+                adapter = self._create_adapter(
                     exchange_name="okx",
                     api_key=settings.okx_api_key,
                     api_secret=settings.okx_api_secret,
@@ -63,7 +67,7 @@ class ExchangeService:
         """Initialize Bybit exchange"""
         if settings.bybit_api_key and settings.bybit_api_secret:
             try:
-                adapter = create_adapter(
+                adapter = self._create_adapter(
                     exchange_name="bybit",
                     api_key=settings.bybit_api_key,
                     api_secret=settings.bybit_api_secret,
@@ -87,7 +91,7 @@ class ExchangeService:
         try:
             adapter = self.adapters[exchange_name]
             # Use sync wrapper since this service historically uses sync CCXT
-            if isinstance(adapter, CcxtAdapter):
+            if isinstance(adapter, self._CcxtAdapter):
                 balance = adapter.fetch_balance_sync()
             else:
                 balances = await adapter.fetch_balance()
@@ -127,7 +131,7 @@ class ExchangeService:
             adapter = self.adapters[exchange_name]
 
             # Check if exchange supports positions via underlying CCXT
-            if isinstance(adapter, CcxtAdapter) and not adapter.exchange.has["fetchPositions"]:
+            if isinstance(adapter, self._CcxtAdapter) and not adapter.exchange.has["fetchPositions"]:
                 logger.warning(f"{exchange_name} does not support positions API")
                 return []
 
@@ -240,7 +244,7 @@ class ExchangeService:
             adapter = self.adapters[exchange_name]
 
             # Access underlying CCXT for market loading (adapter-specific)
-            if isinstance(adapter, CcxtAdapter):
+            if isinstance(adapter, self._CcxtAdapter):
                 markets = adapter.exchange.load_markets()
             else:
                 return []
