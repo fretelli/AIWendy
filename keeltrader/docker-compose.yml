@@ -12,6 +12,7 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    image: keeltrader-api:latest
     container_name: keeltrader-api
     restart: unless-stopped
     mem_limit: 512m
@@ -85,9 +86,7 @@ services:
       # API 路由优先级更高（PathPrefix 更长），web 兜底
 
   worker:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
+    image: keeltrader-api:latest
     container_name: keeltrader-worker
     restart: unless-stopped
     mem_limit: 384m
@@ -110,9 +109,7 @@ services:
     command: celery -A workers.celery_app worker --loglevel=info
 
   beat:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
+    image: keeltrader-api:latest
     container_name: keeltrader-beat
     restart: unless-stopped
     mem_limit: 128m
