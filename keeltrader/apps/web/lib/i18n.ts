@@ -18,6 +18,7 @@ export const en = {
   "home.hero.cta.startFree": "Start free",
   "home.hero.cta.signIn": "Sign in",
   "home.hero.cta.tryDemo": "Try demo",
+  "home.hero.cta.getStarted": "Get Started",
 
   "home.features.title": "Core features",
   "home.features.realtime.title": "Real-time emotional support",
@@ -150,6 +151,7 @@ export const zh: Record<MessageKey, string> = {
   "home.hero.cta.startFree": "免费开始",
   "home.hero.cta.signIn": "登录",
   "home.hero.cta.tryDemo": "直接体验",
+  "home.hero.cta.getStarted": "开始使用",
 
   "home.features.title": "核心功能",
   "home.features.realtime.title": "实时情绪支持",
