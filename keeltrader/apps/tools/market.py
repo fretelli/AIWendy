@@ -138,16 +138,20 @@ async def get_orderbook(
 async def get_funding_rate(
     symbol: str,
     exchange: str = "okx",
+    trading_mode: str = "swap",
 ) -> dict[str, Any]:
     """Get current funding rate for perpetual contracts.
 
     Args:
         symbol: Trading pair (e.g., "BTC/USDT")
         exchange: Exchange name
+        trading_mode: "spot" or "swap"
 
     Returns:
         Dict with funding_rate, next_funding_time
     """
+    if trading_mode == "spot":
+        return {"symbol": symbol, "info": "Funding rate not applicable in spot mode"}
     ex = await _get_exchange(exchange)
     try:
         funding = await ex.fetch_funding_rate(symbol)

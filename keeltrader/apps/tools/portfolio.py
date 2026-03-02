@@ -24,9 +24,10 @@ async def _get_user_exchange(
     api_key: str,
     api_secret: str,
     passphrase: str | None = None,
+    trading_mode: str = "swap",
 ) -> ccxt.Exchange:
     """Get or create an authenticated CCXT exchange instance."""
-    cache_key = f"{exchange_name}:{api_key[:8]}"
+    cache_key = f"{exchange_name}:{api_key[:8]}:{trading_mode}"
     if cache_key not in _user_exchanges:
         exchange_class = getattr(ccxt, exchange_name, None)
         if exchange_class is None:
@@ -35,6 +36,7 @@ async def _get_user_exchange(
             "apiKey": api_key,
             "secret": api_secret,
             "enableRateLimit": True,
+            "options": {"defaultType": trading_mode},
         })
         if passphrase:
             config["password"] = passphrase
@@ -47,6 +49,7 @@ async def get_balance(
     api_key: str,
     api_secret: str,
     passphrase: str | None = None,
+    trading_mode: str = "swap",
 ) -> dict[str, Any]:
     """Get account balance.
 
@@ -55,12 +58,13 @@ async def get_balance(
         api_key: Exchange API key
         api_secret: Exchange API secret
         passphrase: Exchange passphrase (OKX)
+        trading_mode: "spot" or "swap"
 
     Returns:
         Dict with total, free, used balances per currency
     """
     try:
-        ex = await _get_user_exchange(exchange_name, api_key, api_secret, passphrase)
+        ex = await _get_user_exchange(exchange_name, api_key, api_secret, passphrase, trading_mode)
         balance = await ex.fetch_balance()
         # Filter out zero balances
         non_zero = {}
@@ -87,6 +91,7 @@ async def get_positions(
     api_secret: str,
     passphrase: str | None = None,
     symbol: str | None = None,
+    trading_mode: str = "swap",
 ) -> list[dict[str, Any]]:
     """Get open positions (futures/perpetual).
 
@@ -96,12 +101,15 @@ async def get_positions(
         api_secret: Exchange API secret
         passphrase: Exchange passphrase
         symbol: Optional filter for specific symbol
+        trading_mode: "spot" or "swap"
 
     Returns:
         List of position dicts
     """
+    if trading_mode == "spot":
+        return [{"info": "Spot mode — no futures positions. Use get_balance() to check holdings."}]
     try:
-        ex = await _get_user_exchange(exchange_name, api_key, api_secret, passphrase)
+        ex = await _get_user_exchange(exchange_name, api_key, api_secret, passphrase, trading_mode)
         symbols = [symbol] if symbol else None
         positions = await ex.fetch_positions(symbols)
         result = []
@@ -134,6 +142,7 @@ async def get_open_orders(
     api_secret: str,
     passphrase: str | None = None,
     symbol: str | None = None,
+    trading_mode: str = "swap",
 ) -> list[dict[str, Any]]:
     """Get open orders.
 
@@ -143,12 +152,13 @@ async def get_open_orders(
         api_secret: Exchange API secret
         passphrase: Exchange passphrase
         symbol: Optional filter for specific symbol
+        trading_mode: "spot" or "swap"
 
     Returns:
         List of order dicts
     """
     try:
-        ex = await _get_user_exchange(exchange_name, api_key, api_secret, passphrase)
+        ex = await _get_user_exchange(exchange_name, api_key, api_secret, passphrase, trading_mode)
         orders = await ex.fetch_open_orders(symbol)
         return [
             {
@@ -177,6 +187,7 @@ async def get_trade_history(
     passphrase: str | None = None,
     symbol: str | None = None,
     days: int = 7,
+    trading_mode: str = "swap",
 ) -> list[dict[str, Any]]:
     """Get trade history.
 
@@ -187,12 +198,13 @@ async def get_trade_history(
         passphrase: Exchange passphrase
         symbol: Optional filter
         days: Number of days to look back
+        trading_mode: "spot" or "swap"
 
     Returns:
         List of trade dicts
     """
     try:
-        ex = await _get_user_exchange(exchange_name, api_key, api_secret, passphrase)
+        ex = await _get_user_exchange(exchange_name, api_key, api_secret, passphrase, trading_mode)
         since = int((datetime.utcnow() - timedelta(days=days)).timestamp() * 1000)
         trades = await ex.fetch_my_trades(symbol, since=since, limit=100)
         return [

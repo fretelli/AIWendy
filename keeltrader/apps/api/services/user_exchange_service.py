@@ -10,7 +10,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.encryption import get_encryption_service
-from domain.exchange.models import ExchangeConnection, ExchangeType
+from domain.exchange.models import ExchangeConnection, ExchangeType, TradingMode, SPOT_ONLY_EXCHANGES
 from domain.exchange.repository import ExchangeConnectionRepository
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ class UserExchangeService:
         passphrase: Optional[str] = None,
         name: Optional[str] = None,
         is_testnet: bool = False,
+        trading_mode: str = "swap",
         sync_symbols: Optional[List[str]] = None,
     ) -> ExchangeConnection:
         """
@@ -46,10 +47,15 @@ class UserExchangeService:
             passphrase: Optional passphrase for exchanges like OKX
             name: Optional user-defined name
             is_testnet: Whether this is a testnet connection
+            trading_mode: "spot" or "swap"
 
         Returns:
             Created exchange connection
         """
+        # Validate trading_mode for spot-only exchanges
+        if exchange_type in SPOT_ONLY_EXCHANGES and trading_mode != "spot":
+            raise ValueError(f"{exchange_type.value} only supports spot trading")
+
         # Encrypt credentials
         api_key_encrypted = self.encryption.encrypt(api_key)
         api_secret_encrypted = self.encryption.encrypt(api_secret)
@@ -66,6 +72,7 @@ class UserExchangeService:
             api_secret_encrypted=api_secret_encrypted,
             passphrase_encrypted=passphrase_encrypted,
             is_testnet=is_testnet,
+            trading_mode=TradingMode(trading_mode),
             sync_symbols=sync_symbols or [],
         )
 
@@ -124,6 +131,7 @@ class UserExchangeService:
         api_secret: Optional[str] = None,
         passphrase: Optional[str] = None,
         is_active: Optional[bool] = None,
+        trading_mode: Optional[str] = None,
         sync_symbols: Optional[List[str]] = None,
     ) -> Optional[ExchangeConnection]:
         """
@@ -137,6 +145,7 @@ class UserExchangeService:
             api_secret: Optional new API secret
             passphrase: Optional new passphrase
             is_active: Optional new active status
+            trading_mode: Optional new trading mode ("spot" or "swap")
 
         Returns:
             Updated connection if successful
@@ -160,6 +169,11 @@ class UserExchangeService:
 
         if is_active is not None:
             connection.is_active = is_active
+
+        if trading_mode is not None:
+            if connection.exchange_type in SPOT_ONLY_EXCHANGES and trading_mode != "spot":
+                raise ValueError(f"{connection.exchange_type.value} only supports spot trading")
+            connection.trading_mode = TradingMode(trading_mode)
 
         if sync_symbols is not None:
             connection.sync_symbols = sync_symbols
@@ -232,9 +246,11 @@ class UserExchangeService:
             if passphrase:
                 exchange_config["password"] = passphrase
 
+            # Set trading mode (spot or swap/future)
+            mode = connection.trading_mode.value if connection.trading_mode else "swap"
+            exchange_config["options"] = {"defaultType": mode}
+
             if connection.is_testnet:
-                exchange_config["options"] = {"defaultType": "future"}
-                # Enable testnet mode if supported
                 if hasattr(exchange_class, "set_sandbox_mode"):
                     exchange_config["sandbox"] = True
 
@@ -299,6 +315,7 @@ class UserExchangeService:
                 else None
             ),
             "is_testnet": connection.is_testnet,
+            "trading_mode": connection.trading_mode.value if connection.trading_mode else "swap",
         }
 
     def mask_connection(self, connection: ExchangeConnection) -> dict:
@@ -321,6 +338,7 @@ class UserExchangeService:
             "api_key_masked": self.encryption.mask_api_key(api_key),
             "is_active": connection.is_active,
             "is_testnet": connection.is_testnet,
+            "trading_mode": connection.trading_mode.value if connection.trading_mode else "swap",
             "last_sync_at": connection.last_sync_at.isoformat() if connection.last_sync_at else None,
             "last_trade_sync_at": connection.last_trade_sync_at.isoformat()
             if connection.last_trade_sync_at

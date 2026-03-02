@@ -83,13 +83,24 @@ class GuardianAgent(BaseAgent):
                 stop_loss: Stop-loss price (required for approval)
                 leverage: Leverage multiplier
             """
+            trading_mode = ctx.deps.extra.get("trading_mode", "swap")
+
             result: dict[str, Any] = {
                 "symbol": symbol,
                 "side": side,
+                "trading_mode": trading_mode,
                 "decision": "REJECT",
                 "reasons": [],
                 "risk_metrics": {},
             }
+
+            # Spot mode checks
+            if trading_mode == "spot":
+                if leverage > 1:
+                    result["reasons"].append("现货模式不支持杠杆")
+                    return result
+                if side == "sell":
+                    result["risk_metrics"]["warning"] = "现货卖出 — 请确认持有该资产"
 
             # Position value
             position_value = amount * entry_price

@@ -86,6 +86,10 @@ class ExecutorAgent(BaseAgent):
                 take_profit: Take profit price
                 reasoning: Reasoning for the trade
             """
+            trading_mode = ctx.deps.extra.get("trading_mode", "swap")
+            if trading_mode == "spot" and side == "sell":
+                return {"success": False, "error": "现货模式不支持做空，请使用 buy 方向开仓"}
+
             from ..execution.ghost import GhostTradingService
             import redis.asyncio as aioredis
 

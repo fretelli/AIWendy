@@ -45,6 +45,7 @@ async def place_order(
     api_secret: str = "",
     passphrase: str | None = None,
     permission: ExecutionPermission | None = None,
+    trading_mode: str = "swap",
 ) -> dict[str, Any]:
     """Place an order through the 8-layer safety barrier.
 
@@ -84,6 +85,7 @@ async def place_order(
         stop_loss=stop_loss,
         take_profit=take_profit,
         reasoning=reasoning,
+        trading_mode=trading_mode,
     )
 
     # Use default permission if not provided
@@ -168,6 +170,7 @@ async def _execute_order(
             "apiKey": api_key,
             "secret": api_secret,
             "enableRateLimit": True,
+            "options": {"defaultType": order.trading_mode},
         })
         if passphrase:
             config["password"] = passphrase
@@ -230,6 +233,7 @@ async def cancel_order(
     api_key: str,
     api_secret: str,
     passphrase: str | None = None,
+    trading_mode: str = "swap",
 ) -> dict[str, Any]:
     """Cancel an open order.
 
@@ -240,6 +244,7 @@ async def cancel_order(
         api_key: Exchange API key
         api_secret: Exchange API secret
         passphrase: Exchange passphrase
+        trading_mode: "spot" or "swap"
     """
     try:
         exchange_class = getattr(ccxt, exchange_name, None)
@@ -250,6 +255,7 @@ async def cancel_order(
             "apiKey": api_key,
             "secret": api_secret,
             "enableRateLimit": True,
+            "options": {"defaultType": trading_mode},
         })
         if passphrase:
             config["password"] = passphrase
@@ -277,6 +283,7 @@ async def close_position(
     api_key: str = "",
     api_secret: str = "",
     passphrase: str | None = None,
+    trading_mode: str = "swap",
 ) -> dict[str, Any]:
     """Close a position (full or partial) with a market order.
 
@@ -288,7 +295,11 @@ async def close_position(
         api_key: Exchange API key
         api_secret: Exchange API secret
         passphrase: Exchange passphrase
+        trading_mode: "spot" or "swap"
     """
+    if trading_mode == "spot":
+        return {"success": False, "error": "Spot mode has no positions to close. Use place_order with side='sell' to sell holdings."}
+
     # Determine close side
     close_side = "sell" if side in ("buy", "long") else "buy"
 
@@ -301,6 +312,7 @@ async def close_position(
             "apiKey": api_key,
             "secret": api_secret,
             "enableRateLimit": True,
+            "options": {"defaultType": trading_mode},
         })
         if passphrase:
             config["password"] = passphrase

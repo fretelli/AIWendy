@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.auth import get_current_user
 from core.database import get_session
 from core.i18n import get_request_locale, t
-from domain.exchange.models import ExchangeType
+from domain.exchange.models import ExchangeType, SPOT_ONLY_EXCHANGES
 from domain.user.models import User
 from services.user_exchange_service import UserExchangeService
 
@@ -32,6 +32,7 @@ class CreateExchangeConnectionRequest(BaseModel):
     api_secret: str = Field(..., min_length=10, description="Exchange API secret")
     passphrase: Optional[str] = Field(None, description="Passphrase (for OKX, etc.)")
     is_testnet: bool = Field(False, description="Whether this is a testnet connection")
+    trading_mode: Optional[str] = Field(None, description="Trading mode: spot or swap")
     sync_symbols: Optional[List[str]] = Field(
         None, description="Optional list of symbols to sync"
     )
@@ -45,6 +46,7 @@ class UpdateExchangeConnectionRequest(BaseModel):
     api_secret: Optional[str] = Field(None, min_length=10, description="New API secret")
     passphrase: Optional[str] = Field(None, description="New passphrase")
     is_active: Optional[bool] = Field(None, description="Active status")
+    trading_mode: Optional[str] = Field(None, description="Trading mode: spot or swap")
     sync_symbols: Optional[List[str]] = Field(
         None, description="Optional list of symbols to sync"
     )
@@ -59,6 +61,7 @@ class ExchangeConnectionResponse(BaseModel):
     api_key_masked: str
     is_active: bool
     is_testnet: bool
+    trading_mode: str
     last_sync_at: Optional[str]
     last_trade_sync_at: Optional[str]
     last_error: Optional[str]
@@ -126,6 +129,18 @@ async def create_exchange_connection(
     try:
         service = UserExchangeService(session)
 
+        # Infer trading_mode for spot-only exchanges
+        is_spot_only = request.exchange_type in SPOT_ONLY_EXCHANGES
+        if is_spot_only:
+            if request.trading_mode == "swap":
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{request.exchange_type.value} only supports spot trading",
+                )
+            trading_mode = "spot"
+        else:
+            trading_mode = request.trading_mode or "swap"
+
         # Create connection
         connection = await service.create_connection(
             user_id=current_user.id,
@@ -135,11 +150,14 @@ async def create_exchange_connection(
             passphrase=request.passphrase,
             name=request.name,
             is_testnet=request.is_testnet,
+            trading_mode=trading_mode,
             sync_symbols=request.sync_symbols,
         )
 
         return service.mask_connection(connection)
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating exchange connection: {e}")
         raise HTTPException(
@@ -211,6 +229,7 @@ async def update_exchange_connection(
             api_secret=request.api_secret,
             passphrase=request.passphrase,
             is_active=request.is_active,
+            trading_mode=request.trading_mode,
             sync_symbols=request.sync_symbols,
         )
 
