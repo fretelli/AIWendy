@@ -36,6 +36,7 @@ class EventEngine:
         self._dispatcher: EventDispatcher | None = None
         self._running = False
         self._consumer_name = f"engine-{os.getpid()}"
+        self._events_processed = 0
 
     @property
     def bus(self) -> EventBus:
@@ -118,6 +119,34 @@ class EventEngine:
             list(self._dispatcher.registered_agents.keys()),
         )
 
+    async def _heartbeat(self) -> None:
+        """Publish heartbeat to Redis every 30 seconds for health monitoring."""
+        import json
+        from datetime import datetime
+
+        while self._running:
+            try:
+                agent_count = (
+                    len(self._dispatcher.registered_agents)
+                    if self._dispatcher
+                    else 0
+                )
+                status = {
+                    "consumer": self._consumer_name,
+                    "running": self._running,
+                    "agents": agent_count,
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "events_processed": self._events_processed,
+                }
+                await self._bus.redis.set(
+                    "keeltrader:engine:heartbeat",
+                    json.dumps(status),
+                    ex=60,  # Expires in 60s (missed 2 beats = stale)
+                )
+            except Exception as e:
+                logger.debug("Heartbeat failed: %s", e)
+            await asyncio.sleep(30)
+
     async def _event_loop(self) -> None:
         """Main event processing loop."""
         deps = AgentDependencies(
@@ -127,39 +156,46 @@ class EventEngine:
             litellm_key=self._litellm_key,
         )
 
-        while self._running:
-            try:
-                events = await self._bus.read_new(
-                    consumer_name=self._consumer_name,
-                    count=10,
-                    block_ms=5000,
-                )
+        # Start heartbeat in background
+        heartbeat_task = asyncio.create_task(self._heartbeat())
 
-                for msg_id, event in events:
-                    try:
-                        # Set user context
-                        deps.user_id = str(event.user_id) if event.user_id else None
+        try:
+            while self._running:
+                try:
+                    events = await self._bus.read_new(
+                        consumer_name=self._consumer_name,
+                        count=10,
+                        block_ms=5000,
+                    )
 
-                        results = await self._dispatcher.dispatch(event, deps)
+                    for msg_id, event in events:
+                        try:
+                            # Set user context
+                            deps.user_id = str(event.user_id) if event.user_id else None
 
-                        # Acknowledge after processing
-                        await self._bus.ack(msg_id)
+                            results = await self._dispatcher.dispatch(event, deps)
 
-                        for r in results:
-                            if not r.success:
-                                logger.warning(
-                                    "Agent %s failed: %s", r.agent_id, r.message
-                                )
-                    except Exception as e:
-                        logger.error("Failed to process event %s: %s", msg_id, e)
-                        # Still ack to prevent infinite retry
-                        await self._bus.ack(msg_id)
+                            # Acknowledge after processing
+                            await self._bus.ack(msg_id)
+                            self._events_processed += 1
 
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:
-                logger.error("Event loop error: %s", e)
-                await asyncio.sleep(1)  # Brief pause before retry
+                            for r in results:
+                                if not r.success:
+                                    logger.warning(
+                                        "Agent %s failed: %s", r.agent_id, r.message
+                                    )
+                        except Exception as e:
+                            logger.error("Failed to process event %s: %s", msg_id, e)
+                            # Still ack to prevent infinite retry
+                            await self._bus.ack(msg_id)
+
+                except asyncio.CancelledError:
+                    raise
+                except Exception as e:
+                    logger.error("Event loop error: %s", e)
+                    await asyncio.sleep(1)  # Brief pause before retry
+        finally:
+            heartbeat_task.cancel()
 
 
 async def main():

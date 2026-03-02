@@ -36,6 +36,8 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS}
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - LITELLM_API_BASE=${LITELLM_API_BASE}
+      - LITELLM_API_KEY=${LITELLM_API_KEY}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ENVIRONMENT=production
     volumes:
@@ -132,8 +134,8 @@ services:
 
   telegram-bot:
     build:
-      context: ./apps/telegram
-      dockerfile: Dockerfile
+      context: ./apps
+      dockerfile: telegram/Dockerfile
     container_name: keeltrader-telegram
     restart: unless-stopped
     mem_limit: 768m
@@ -205,6 +207,9 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - HTTP_PROXY=http://172.17.0.1:10808
+      - HTTPS_PROXY=http://172.17.0.1:10808
+      - NO_PROXY=services-redis,172.17.0.1,localhost,127.0.0.1
 
 volumes:
   uploads_data:
