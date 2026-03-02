@@ -1,73 +1,51 @@
-# KeelTrader Docker Compose Configuration
-# Version: 1.0.0
+# KeelTrader Agent Matrix - Docker Compose
+# 部署: 本机服务器 (114.66.46.52)
+# DB: NAS PostgreSQL keeltrader (FRP 5433) | Redis: 本机共享 services-redis
 #
-# Docker images are published to GitHub Container Registry (ghcr.io)
-# - API: ghcr.io/fretelli/keeltrader/api:latest
-# - Web: ghcr.io/fretelli/keeltrader/web:latest
-#
-# For production deployment, use specific version tags:
-# - ghcr.io/fretelli/keeltrader/api:v1.0.0
-# - ghcr.io/fretelli/keeltrader/web:v1.0.0
-
-version: "3.9"
+# 经典模式: docker compose up -d                          → 4 容器
+# Agent Matrix: docker compose --profile agent-matrix up -d → 7 容器
 
 services:
-  db:
-    image: pgvector/pgvector:pg16
-    container_name: keeltrader-db
-    environment:
-      POSTGRES_USER: keeltrader
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: keeltrader
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keeltrader"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  redis:
-    image: redis:7.2-alpine
-    container_name: keeltrader-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  # === 经典模式（始终运行）===
 
   api:
     build:
       context: ./apps/api
       dockerfile: Dockerfile
     container_name: keeltrader-api
+    restart: unless-stopped
+    mem_limit: 512m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,size=100M
     environment:
-      - DATABASE_URL=postgresql+asyncpg://keeltrader:${DB_PASSWORD}@db:5432/keeltrader
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - KEELTRADER_AUTH_REQUIRED=${KEELTRADER_AUTH_REQUIRED:-0}
       - KEELTRADER_AUTO_INIT_DB=${KEELTRADER_AUTO_INIT_DB:-1}
       - KEELTRADER_AUTO_INIT_TEST_USERS=${KEELTRADER_AUTO_INIT_TEST_USERS:-0}
-    ports:
-      - "8000:8000"
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=production
     volumes:
-      - ./apps/api:/app
-      - ./alembic.ini:/app/alembic.ini
-      - ./migrations:/app/migrations
       - uploads_data:/app/uploads
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.keeltrader-api.rule=Host(`keeltrader.joyeeassets.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.keeltrader-api.entrypoints=websecure"
+      - "traefik.http.routers.keeltrader-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.keeltrader-api.loadbalancer.server.port=8000"
     command: sh scripts/docker_start.sh
 
   web:
@@ -78,33 +56,55 @@ services:
         NEXT_PUBLIC_API_URL: http://api:8000
         NEXT_PUBLIC_AUTH_REQUIRED: "0"
     container_name: keeltrader-web
+    restart: unless-stopped
+    mem_limit: 256m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,size=50M
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=http://api:8000
       - NEXT_PUBLIC_AUTH_REQUIRED=0
-      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-change-me}
-    ports:
-      - "3000:3000"
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
     depends_on:
       api:
         condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.keeltrader-web.rule=Host(`keeltrader.joyeeassets.com`)"
+      - "traefik.http.routers.keeltrader-web.entrypoints=websecure"
+      - "traefik.http.routers.keeltrader-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.keeltrader-web.loadbalancer.server.port=3000"
+      # API 路由优先级更高（PathPrefix 更长），web 兜底
 
   worker:
     build:
       context: ./apps/api
       dockerfile: Dockerfile
     container_name: keeltrader-worker
+    restart: unless-stopped
+    mem_limit: 384m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,size=100M
     environment:
-      - DATABASE_URL=postgresql+asyncpg://keeltrader:${DB_PASSWORD}@db:5432/keeltrader
-      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     command: celery -A workers.celery_app worker --loglevel=info
 
   beat:
@@ -112,17 +112,104 @@ services:
       context: ./apps/api
       dockerfile: Dockerfile
     container_name: keeltrader-beat
+    restart: unless-stopped
+    mem_limit: 128m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,size=50M
     environment:
-      - DATABASE_URL=postgresql+asyncpg://keeltrader:${DB_PASSWORD}@db:5432/keeltrader
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     command: celery -A workers.celery_app beat --loglevel=info
 
+  # === Agent Matrix 模式（profiles: [agent-matrix]）===
+
+  telegram-bot:
+    build:
+      context: ./apps/telegram
+      dockerfile: Dockerfile
+    container_name: keeltrader-telegram
+    restart: unless-stopped
+    mem_limit: 768m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,size=100M
+    profiles:
+      - agent-matrix
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_WEBHOOK_URL=${TELEGRAM_WEBHOOK_URL}
+      - LITELLM_API_BASE=${LITELLM_API_BASE}
+      - LITELLM_API_KEY=${LITELLM_API_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.keeltrader-tg.rule=Host(`keeltrader-tg.joyeeassets.com`)"
+      - "traefik.http.routers.keeltrader-tg.entrypoints=websecure"
+      - "traefik.http.routers.keeltrader-tg.tls.certresolver=letsencrypt"
+      - "traefik.http.services.keeltrader-tg.loadbalancer.server.port=8080"
+
+  event-engine:
+    build:
+      context: ./apps
+      dockerfile: engine/Dockerfile
+    container_name: keeltrader-engine
+    restart: unless-stopped
+    mem_limit: 1536m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,size=100M
+    profiles:
+      - agent-matrix
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - LITELLM_API_BASE=${LITELLM_API_BASE}
+      - LITELLM_API_KEY=${LITELLM_API_KEY}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+  market-streamer:
+    build:
+      context: ./apps
+      dockerfile: streamer/Dockerfile
+    container_name: keeltrader-streamer
+    restart: unless-stopped
+    mem_limit: 256m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,size=50M
+    profiles:
+      - agent-matrix
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
 volumes:
-  postgres_data:
-  redis_data:
   uploads_data:
+
+networks:
+  default:
+    external: true
+    name: services
