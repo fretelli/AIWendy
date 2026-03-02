@@ -207,6 +207,74 @@ async def event_stream_info():
         await r.aclose()
 
 
+@router.get("/agents/health")
+async def agent_matrix_health():
+    """Get health status of all Agent Matrix services."""
+    import json
+    import os
+
+    import redis.asyncio as aioredis
+
+    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/3")
+    r = aioredis.from_url(redis_url)
+    try:
+        services: dict[str, Any] = {}
+
+        # Event engine heartbeat
+        engine_hb = await r.get("keeltrader:engine:heartbeat")
+        if engine_hb:
+            services["event_engine"] = {
+                "status": "running",
+                **json.loads(engine_hb.decode() if isinstance(engine_hb, bytes) else engine_hb),
+            }
+        else:
+            services["event_engine"] = {"status": "not_running"}
+
+        # Market streamer heartbeat
+        streamer_hb = await r.get("keeltrader:streamer:heartbeat")
+        if streamer_hb:
+            services["market_streamer"] = {
+                "status": "running",
+                **json.loads(streamer_hb.decode() if isinstance(streamer_hb, bytes) else streamer_hb),
+            }
+        else:
+            services["market_streamer"] = {"status": "not_running"}
+
+        # Circuit breaker
+        cb_active = await r.get("keeltrader:circuit_breaker")
+        services["circuit_breaker"] = {
+            "active": bool(cb_active and cb_active == b"1"),
+        }
+
+        # Event stream stats
+        try:
+            info = await r.xinfo_stream("keeltrader:events")
+            services["event_bus"] = {
+                "status": "active",
+                "length": info.get("length", 0),
+                "groups": info.get("groups", 0),
+            }
+        except Exception:
+            services["event_bus"] = {"status": "not_initialized"}
+
+        # Cached prices
+        prices = await r.hgetall("keeltrader:prices")
+        services["market_data"] = {
+            "cached_symbols": len(prices),
+        }
+
+        # Overall status
+        engine_up = services["event_engine"]["status"] == "running"
+        overall = "healthy" if engine_up else "degraded"
+
+        return {
+            "status": overall,
+            "services": services,
+        }
+    finally:
+        await r.aclose()
+
+
 @router.get("/agents/{agent_id}/status")
 async def get_agent_status(agent_id: str):
     """Get detailed status of a specific agent."""
