@@ -149,12 +149,18 @@ class EventEngine:
 
     async def _event_loop(self) -> None:
         """Main event processing loop."""
+        import sqlalchemy as sa
+        from sqlalchemy.ext.asyncio import create_async_engine
+
         deps = AgentDependencies(
             db_url=self._db_url,
             redis_url=self._redis_url,
             litellm_base=self._litellm_base,
             litellm_key=self._litellm_key,
         )
+
+        # Create async engine for lightweight queries (cached for the loop lifetime)
+        async_engine = create_async_engine(self._db_url) if self._db_url else None
 
         # Start heartbeat in background
         heartbeat_task = asyncio.create_task(self._heartbeat())
@@ -172,6 +178,22 @@ class EventEngine:
                         try:
                             # Set user context
                             deps.user_id = str(event.user_id) if event.user_id else None
+
+                            # Query trading_mode for the user's active exchange connection
+                            trading_mode = "swap"
+                            if deps.user_id and async_engine:
+                                try:
+                                    async with async_engine.connect() as conn:
+                                        row = await conn.execute(sa.text(
+                                            "SELECT trading_mode FROM exchange_connections "
+                                            "WHERE user_id = :uid AND is_active = true LIMIT 1"
+                                        ), {"uid": deps.user_id})
+                                        result = row.fetchone()
+                                        if result:
+                                            trading_mode = result[0]
+                                except Exception as e:
+                                    logger.debug("Failed to query trading_mode: %s", e)
+                            deps.extra["trading_mode"] = trading_mode
 
                             results = await self._dispatcher.dispatch(event, deps)
 
@@ -196,6 +218,8 @@ class EventEngine:
                     await asyncio.sleep(1)  # Brief pause before retry
         finally:
             heartbeat_task.cancel()
+            if async_engine:
+                await async_engine.dispose()
 
 
 async def main():

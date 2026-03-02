@@ -14,7 +14,9 @@ import { Icons } from "@/components/icons"
 import { toast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/auth-context"
 import { useI18n } from "@/lib/i18n/provider"
-import { userExchangeApi, ExchangeConnection, ExchangeType } from "@/lib/api/user-exchanges"
+import { userExchangeApi, ExchangeConnection, ExchangeType, TradingMode } from "@/lib/api/user-exchanges"
+
+const SPOT_ONLY_EXCHANGES: ExchangeType[] = ['coinbase', 'kraken']
 import { Switch } from "@/components/ui/switch"
 
 export default function ExchangeSettingsPage() {
@@ -36,6 +38,7 @@ export default function ExchangeSettingsPage() {
     api_secret: "",
     passphrase: "",
     is_testnet: false,
+    trading_mode: "swap" as TradingMode,
   })
   const [showApiKey, setShowApiKey] = useState(false)
   const [showApiSecret, setShowApiSecret] = useState(false)
@@ -75,6 +78,7 @@ export default function ExchangeSettingsPage() {
       api_secret: "",
       passphrase: "",
       is_testnet: false,
+      trading_mode: "swap",
     })
     setShowApiKey(false)
     setShowApiSecret(false)
@@ -100,6 +104,7 @@ export default function ExchangeSettingsPage() {
         api_secret: formData.api_secret,
         passphrase: formData.passphrase || undefined,
         is_testnet: formData.is_testnet,
+        trading_mode: formData.trading_mode,
       })
 
       setConnections([...connections, newConnection])
@@ -132,6 +137,7 @@ export default function ExchangeSettingsPage() {
         api_key: formData.api_key || undefined,
         api_secret: formData.api_secret || undefined,
         passphrase: formData.passphrase || undefined,
+        trading_mode: formData.trading_mode !== editingConnection.trading_mode ? formData.trading_mode : undefined,
       })
 
       setConnections(connections.map(c => c.id === updated.id ? updated : c))
@@ -243,6 +249,7 @@ export default function ExchangeSettingsPage() {
       api_secret: "",
       passphrase: "",
       is_testnet: connection.is_testnet,
+      trading_mode: connection.trading_mode || "swap",
     })
     setShowEditDialog(true)
   }
@@ -333,6 +340,9 @@ export default function ExchangeSettingsPage() {
                         {connection.is_testnet && (
                           <Badge variant="outline" className="text-xs">Testnet</Badge>
                         )}
+                        <Badge variant={connection.trading_mode === 'spot' ? 'secondary' : 'default'} className="text-xs">
+                          {connection.trading_mode === 'spot' ? 'Spot' : 'Futures'}
+                        </Badge>
                       </CardTitle>
                       <CardDescription className="capitalize mt-1">
                         {connection.exchange_type}
@@ -422,7 +432,10 @@ export default function ExchangeSettingsPage() {
               <Label>Exchange</Label>
               <Select
                 value={formData.exchange_type}
-                onValueChange={(value: ExchangeType) => setFormData({ ...formData, exchange_type: value })}
+                onValueChange={(value: ExchangeType) => {
+                  const isSpotOnly = SPOT_ONLY_EXCHANGES.includes(value)
+                  setFormData({ ...formData, exchange_type: value, trading_mode: isSpotOnly ? 'spot' : formData.trading_mode })
+                }}
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -433,6 +446,24 @@ export default function ExchangeSettingsPage() {
                   <SelectItem value="bybit">🟠 Bybit</SelectItem>
                   <SelectItem value="coinbase">🔵 Coinbase</SelectItem>
                   <SelectItem value="kraken">🟣 Kraken</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Trading Mode */}
+            <div className="space-y-2">
+              <Label>Trading Mode</Label>
+              <Select
+                value={formData.trading_mode}
+                onValueChange={(value: TradingMode) => setFormData({ ...formData, trading_mode: value })}
+                disabled={SPOT_ONLY_EXCHANGES.includes(formData.exchange_type)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="spot">Spot Trading</SelectItem>
+                  <SelectItem value="swap">Perpetual Futures</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -554,6 +585,24 @@ export default function ExchangeSettingsPage() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
+            </div>
+
+            {/* Trading Mode */}
+            <div className="space-y-2">
+              <Label>Trading Mode</Label>
+              <Select
+                value={formData.trading_mode}
+                onValueChange={(value: TradingMode) => setFormData({ ...formData, trading_mode: value })}
+                disabled={editingConnection ? SPOT_ONLY_EXCHANGES.includes(editingConnection.exchange_type as ExchangeType) : false}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="spot">Spot Trading</SelectItem>
+                  <SelectItem value="swap">Perpetual Futures</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* API Key (Optional Update) */}
