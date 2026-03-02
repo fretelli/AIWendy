@@ -72,80 +72,164 @@ class GuardianAgent(BaseAgent):
             entry_price: float,
             stop_loss: float | None = None,
             leverage: float = 1.0,
+            asset_class: str = "crypto",
         ) -> dict[str, Any]:
             """Evaluate risk for a proposed trade.
 
             Args:
-                symbol: Trading pair (e.g., "BTC/USDT")
+                symbol: Trading pair (e.g., "BTC/USDT", "AAPL", "AAPL 250321C200")
                 side: "buy" or "sell"
-                amount: Position size in base currency
+                amount: Position size in base currency (shares for stocks)
                 entry_price: Planned entry price
-                stop_loss: Stop-loss price (required for approval)
-                leverage: Leverage multiplier
+                stop_loss: Stop-loss price (recommended but optional for stocks)
+                leverage: Leverage multiplier (always 1.0 for stocks)
+                asset_class: "crypto", "stock", "option", "future"
             """
             trading_mode = ctx.deps.extra.get("trading_mode", "swap")
+            # Infer asset_class from trading_mode if not explicitly provided
+            if asset_class == "crypto" and trading_mode in ("stock", "option", "future"):
+                asset_class = trading_mode
 
             result: dict[str, Any] = {
                 "symbol": symbol,
                 "side": side,
                 "trading_mode": trading_mode,
+                "asset_class": asset_class,
                 "decision": "REJECT",
                 "reasons": [],
                 "risk_metrics": {},
             }
 
-            # Spot mode checks
-            if trading_mode == "spot":
+            # === Asset-class-specific checks ===
+
+            if asset_class == "stock":
+                # Stocks: no leverage, no short-selling via simple orders
                 if leverage > 1:
-                    result["reasons"].append("现货模式不支持杠杆")
+                    result["reasons"].append("股票不支持杠杆交易")
                     return result
+                # Position value — higher limit for stocks ($25,000)
+                position_value = amount * entry_price
+                result["risk_metrics"]["position_value_usd"] = position_value
+                if position_value > 25000:
+                    result["reasons"].append(
+                        f"股票仓位过大 (${position_value:,.0f}) — 建议不超过 $25,000"
+                    )
+                # Stop-loss recommended but not mandatory for stocks
+                if stop_loss is not None:
+                    risk_per_unit = abs(entry_price - stop_loss)
+                    risk_usd = risk_per_unit * amount
+                    result["risk_metrics"]["risk_usd"] = risk_usd
+                    result["risk_metrics"]["risk_pct_of_entry"] = (
+                        risk_per_unit / entry_price * 100 if entry_price else 0
+                    )
+                else:
+                    result["risk_metrics"]["warning"] = "未设置止损 — 建议设置止损保护"
+
+                result["risk_metrics"]["leverage"] = 1.0
+
+            elif asset_class == "option":
+                # Options: check naked position risk
+                position_value = amount * entry_price * 100  # 1 contract = 100 shares
+                result["risk_metrics"]["position_value_usd"] = position_value
+                result["risk_metrics"]["contracts"] = amount
+                result["risk_metrics"]["notional_per_contract"] = entry_price * 100
+
                 if side == "sell":
-                    result["risk_metrics"]["warning"] = "现货卖出 — 请确认持有该资产"
+                    # Selling options = potentially unlimited risk (naked)
+                    result["risk_metrics"]["naked_risk"] = True
+                    result["reasons"].append(
+                        "卖出期权（裸仓）风险极高 — 请确认有对冲持仓"
+                    )
 
-            # Position value
-            position_value = amount * entry_price
-            result["risk_metrics"]["position_value_usd"] = position_value
+                if position_value > 10000:
+                    result["reasons"].append(
+                        f"期权仓位过大 (${position_value:,.0f}) — 建议不超过 $10,000"
+                    )
 
-            # Check stop-loss
-            if stop_loss is None:
-                result["reasons"].append("没有设置止损 — 必须设置止损才能开仓")
-                return result
+                result["risk_metrics"]["leverage"] = 1.0
 
-            # Calculate risk per trade
-            if side == "buy":
-                risk_per_unit = entry_price - stop_loss
-            else:
-                risk_per_unit = stop_loss - entry_price
+            elif asset_class == "future":
+                # Futures: inherent leverage, check margin
+                position_value = amount * entry_price
+                result["risk_metrics"]["position_value_usd"] = position_value
 
-            if risk_per_unit <= 0:
-                result["reasons"].append("止损方向错误 — 止损价格设置不合理")
-                return result
+                # Futures have inherent leverage via margin
+                if stop_loss is None:
+                    result["reasons"].append(
+                        "期货必须设置止损 — 杠杆合约风险极高"
+                    )
+                    return result
 
-            risk_usd = risk_per_unit * amount * leverage
-            result["risk_metrics"]["risk_usd"] = risk_usd
-            result["risk_metrics"]["risk_pct_of_entry"] = (
-                risk_per_unit / entry_price * 100
-            )
-
-            # Leverage check
-            if leverage > 10:
-                result["reasons"].append(f"杠杆过高 ({leverage}x) — 建议不超过 10x")
-                return result
-
-            # Position size check (max $5000 per trade for MVP)
-            if position_value * leverage > 5000:
-                result["reasons"].append(
-                    f"仓位过大 (${position_value * leverage:,.0f}) — 建议不超过 $5,000"
+                risk_per_unit = abs(entry_price - stop_loss)
+                risk_usd = risk_per_unit * amount
+                result["risk_metrics"]["risk_usd"] = risk_usd
+                result["risk_metrics"]["risk_pct_of_entry"] = (
+                    risk_per_unit / entry_price * 100 if entry_price else 0
                 )
 
-            # Risk-reward check
-            result["risk_metrics"]["leverage"] = leverage
+                if position_value > 50000:
+                    result["reasons"].append(
+                        f"期货仓位过大 (${position_value:,.0f}) — 请确认保证金充足"
+                    )
+
+                result["risk_metrics"]["leverage"] = leverage
+
+            else:
+                # Crypto (default path — original logic)
+                # Spot mode checks
+                if trading_mode == "spot":
+                    if leverage > 1:
+                        result["reasons"].append("现货模式不支持杠杆")
+                        return result
+                    if side == "sell":
+                        result["risk_metrics"]["warning"] = "现货卖出 — 请确认持有该资产"
+
+                # Position value
+                position_value = amount * entry_price
+                result["risk_metrics"]["position_value_usd"] = position_value
+
+                # Check stop-loss
+                if stop_loss is None:
+                    result["reasons"].append("没有设置止损 — 必须设置止损才能开仓")
+                    return result
+
+                # Calculate risk per trade
+                if side == "buy":
+                    risk_per_unit = entry_price - stop_loss
+                else:
+                    risk_per_unit = stop_loss - entry_price
+
+                if risk_per_unit <= 0:
+                    result["reasons"].append("止损方向错误 — 止损价格设置不合理")
+                    return result
+
+                risk_usd = risk_per_unit * amount * leverage
+                result["risk_metrics"]["risk_usd"] = risk_usd
+                result["risk_metrics"]["risk_pct_of_entry"] = (
+                    risk_per_unit / entry_price * 100
+                )
+
+                # Leverage check
+                if leverage > 10:
+                    result["reasons"].append(f"杠杆过高 ({leverage}x) — 建议不超过 10x")
+                    return result
+
+                # Position size check (max $5000 per trade for crypto)
+                if position_value * leverage > 5000:
+                    result["reasons"].append(
+                        f"仓位过大 (${position_value * leverage:,.0f}) — 建议不超过 $5,000"
+                    )
+
+                result["risk_metrics"]["leverage"] = leverage
 
             # If no blocking issues, approve
             if not result["reasons"]:
                 result["decision"] = "APPROVE"
                 result["reasons"].append("所有风控检查通过")
-            elif len(result["reasons"]) == 1 and "仓位过大" in result["reasons"][0]:
+            elif all(
+                "仓位过大" in r or "建议" in r or "warning" in str(r)
+                for r in result["reasons"]
+            ):
                 result["decision"] = "APPROVE_WITH_CONDITIONS"
 
             return result
