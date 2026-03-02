@@ -13,6 +13,7 @@ from uuid import uuid4
 import ccxt.async_support as ccxt
 import redis.asyncio as aioredis
 
+from ._proxy import apply_proxy
 from ..execution.permissions import ExecutionPermission, TrustLevel
 from ..execution.service import ExecutionResult, ExecutionService, OrderRequest
 
@@ -163,11 +164,11 @@ async def _execute_order(
         if exchange_class is None:
             return {"success": False, "error": f"Unknown exchange: {order.exchange}"}
 
-        config: dict[str, Any] = {
+        config: dict[str, Any] = apply_proxy({
             "apiKey": api_key,
             "secret": api_secret,
             "enableRateLimit": True,
-        }
+        })
         if passphrase:
             config["password"] = passphrase
 
@@ -245,11 +246,11 @@ async def cancel_order(
         if exchange_class is None:
             return {"success": False, "error": f"Unknown exchange: {exchange_name}"}
 
-        config: dict[str, Any] = {
+        config: dict[str, Any] = apply_proxy({
             "apiKey": api_key,
             "secret": api_secret,
             "enableRateLimit": True,
-        }
+        })
         if passphrase:
             config["password"] = passphrase
 
@@ -296,11 +297,11 @@ async def close_position(
         if exchange_class is None:
             return {"success": False, "error": f"Unknown exchange: {exchange_name}"}
 
-        config: dict[str, Any] = {
+        config: dict[str, Any] = apply_proxy({
             "apiKey": api_key,
             "secret": api_secret,
             "enableRateLimit": True,
-        }
+        })
         if passphrase:
             config["password"] = passphrase
 

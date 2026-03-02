@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 async def full_technical_analysis(
     symbol: str,
     interval: str = "1h",
-    exchange: str = "binance",
+    exchange: str = "okx",
 ) -> dict[str, Any]:
     """Run comprehensive technical analysis on a symbol.
 
@@ -150,7 +150,7 @@ def _summarize_signals(indicators: dict[str, Any]) -> str:
 
 async def multi_timeframe_analysis(
     symbol: str,
-    exchange: str = "binance",
+    exchange: str = "okx",
 ) -> dict[str, Any]:
     """Analyze a symbol across multiple timeframes.
 

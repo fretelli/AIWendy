@@ -13,25 +13,27 @@ from typing import Any
 import ccxt.async_support as ccxt
 import numpy as np
 
+from ._proxy import apply_proxy
+
 logger = logging.getLogger(__name__)
 
 # Shared exchange instances (lazy init)
 _exchanges: dict[str, ccxt.Exchange] = {}
 
 
-async def _get_exchange(name: str = "binance") -> ccxt.Exchange:
+async def _get_exchange(name: str = "okx") -> ccxt.Exchange:
     """Get or create a CCXT exchange instance (public data only, no API keys)."""
     if name not in _exchanges:
         exchange_class = getattr(ccxt, name, None)
         if exchange_class is None:
             raise ValueError(f"Unknown exchange: {name}")
-        _exchanges[name] = exchange_class({"enableRateLimit": True})
+        _exchanges[name] = exchange_class(apply_proxy({"enableRateLimit": True}))
     return _exchanges[name]
 
 
 async def get_price(
     symbol: str,
-    exchange: str = "binance",
+    exchange: str = "okx",
 ) -> dict[str, Any]:
     """Get real-time price for a symbol.
 
@@ -67,7 +69,7 @@ async def get_klines(
     symbol: str,
     interval: str = "1h",
     limit: int = 100,
-    exchange: str = "binance",
+    exchange: str = "okx",
 ) -> list[dict[str, Any]]:
     """Get K-line (candlestick) data.
 
@@ -104,7 +106,7 @@ async def get_klines(
 async def get_orderbook(
     symbol: str,
     depth: int = 10,
-    exchange: str = "binance",
+    exchange: str = "okx",
 ) -> dict[str, Any]:
     """Get order book depth.
 
@@ -135,7 +137,7 @@ async def get_orderbook(
 
 async def get_funding_rate(
     symbol: str,
-    exchange: str = "binance",
+    exchange: str = "okx",
 ) -> dict[str, Any]:
     """Get current funding rate for perpetual contracts.
 

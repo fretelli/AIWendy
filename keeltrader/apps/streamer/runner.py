@@ -60,7 +60,7 @@ class MarketStreamer:
         if http_proxy:
             exchange_config["aiohttp_proxy"] = http_proxy
             logger.info("Using proxy: %s", http_proxy)
-        self._exchange = ccxt.binance(exchange_config)
+        self._exchange = ccxt.okx(exchange_config)
 
         # Load watchlist from Redis (user-configured symbols)
         await self._load_watchlist()
