@@ -31,6 +31,7 @@ def create_adapter(
     is_testnet: bool = False,
     *,
     use_cache: bool = True,
+    credentials_extra: dict[str, Any] | None = None,
 ) -> ExchangeAdapter:
     """Create or retrieve a cached ExchangeAdapter.
 
@@ -42,6 +43,7 @@ def create_adapter(
         trading_mode: 'spot', 'swap', 'stock', 'option', 'future'
         is_testnet: Whether to use testnet/sandbox
         use_cache: If True, reuse existing adapter for same credentials
+        credentials_extra: IBKR-specific settings (gateway_host, port, client_id, etc.)
 
     Returns:
         An ExchangeAdapter instance ready for use.
@@ -67,7 +69,18 @@ def create_adapter(
             trading_mode=trading_mode,
             is_testnet=is_testnet,
         )
-    # Future: elif name == "ibkr": adapter = IbkrAdapter(...)
+    elif name == "ibkr":
+        from .ibkr_adapter import IbkrAdapter
+
+        extra = credentials_extra or {}
+        adapter = IbkrAdapter(
+            gateway_host=extra.get("gateway_host", "127.0.0.1"),
+            gateway_port=int(extra.get("gateway_port", 4001)),
+            client_id=int(extra.get("client_id", 1)),
+            trading_mode=trading_mode,
+            username=api_key,  # IBKR: api_key stores username
+            readonly=extra.get("readonly", True),
+        )
     else:
         raise ValueError(f"Unsupported exchange: {exchange_name}")
 

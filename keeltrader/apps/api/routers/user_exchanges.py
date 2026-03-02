@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.auth import get_current_user
 from core.database import get_session
 from core.i18n import get_request_locale, t
-from domain.exchange.models import ExchangeType, SPOT_ONLY_EXCHANGES
+from domain.exchange.models import ExchangeType, SPOT_ONLY_EXCHANGES, IBKR_TRADING_MODES, TradingMode
 from domain.user.models import User
 from services.user_exchange_service import UserExchangeService
 
@@ -28,13 +28,16 @@ class CreateExchangeConnectionRequest(BaseModel):
 
     exchange_type: ExchangeType = Field(..., description="Exchange type")
     name: Optional[str] = Field(None, description="Custom name for the connection")
-    api_key: str = Field(..., min_length=10, description="Exchange API key")
-    api_secret: str = Field(..., min_length=10, description="Exchange API secret")
+    api_key: str = Field(..., min_length=1, description="Exchange API key (or IBKR username)")
+    api_secret: str = Field(..., min_length=1, description="Exchange API secret (or IBKR password)")
     passphrase: Optional[str] = Field(None, description="Passphrase (for OKX, etc.)")
-    is_testnet: bool = Field(False, description="Whether this is a testnet connection")
-    trading_mode: Optional[str] = Field(None, description="Trading mode: spot or swap")
+    is_testnet: bool = Field(False, description="Whether this is a testnet/paper connection")
+    trading_mode: Optional[str] = Field(None, description="Trading mode: spot, swap, stock, option, future")
     sync_symbols: Optional[List[str]] = Field(
         None, description="Optional list of symbols to sync"
+    )
+    credentials_extra: Optional[dict] = Field(
+        None, description="Extra settings (IBKR: gateway_host, gateway_port, client_id)"
     )
 
 
@@ -129,9 +132,18 @@ async def create_exchange_connection(
     try:
         service = UserExchangeService(session)
 
-        # Infer trading_mode for spot-only exchanges
+        # Validate and infer trading_mode
+        is_ibkr = request.exchange_type == ExchangeType.IBKR
         is_spot_only = request.exchange_type in SPOT_ONLY_EXCHANGES
-        if is_spot_only:
+
+        if is_ibkr:
+            trading_mode = request.trading_mode or "stock"
+            if trading_mode not in ("stock", "option", "future"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="IBKR supports stock, option, and future trading modes",
+                )
+        elif is_spot_only:
             if request.trading_mode == "swap":
                 raise HTTPException(
                     status_code=400,
@@ -152,6 +164,7 @@ async def create_exchange_connection(
             is_testnet=request.is_testnet,
             trading_mode=trading_mode,
             sync_symbols=request.sync_symbols,
+            credentials_extra=request.credentials_extra if is_ibkr else None,
         )
 
         return service.mask_connection(connection)

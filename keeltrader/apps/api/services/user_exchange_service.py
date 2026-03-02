@@ -35,6 +35,7 @@ class UserExchangeService:
         is_testnet: bool = False,
         trading_mode: str = "swap",
         sync_symbols: Optional[List[str]] = None,
+        credentials_extra: Optional[dict] = None,
     ) -> ExchangeConnection:
         """
         Create a new exchange connection for a user
@@ -74,6 +75,7 @@ class UserExchangeService:
             is_testnet=is_testnet,
             trading_mode=TradingMode(trading_mode),
             sync_symbols=sync_symbols or [],
+            credentials_extra=credentials_extra,
         )
 
         connection = await self.repository.create(connection)
@@ -246,16 +248,25 @@ class UserExchangeService:
                 trading_mode=mode,
                 is_testnet=connection.is_testnet,
                 use_cache=False,
+                credentials_extra=connection.credentials_extra,
             )
 
-            # Test API call (sync for CCXT adapters)
+            # Test API call
             if isinstance(adapter, CcxtAdapter):
+                # Sync for CCXT adapters
                 balance = adapter.fetch_balance_sync()
+                currencies_count = len([c for c, v in balance["total"].items() if v > 0])
             else:
-                # For future async-only adapters, we'd await
-                import asyncio
-                balances = asyncio.get_event_loop().run_until_complete(adapter.fetch_balance())
-                balance = {"total": {b.currency: b.total for b in balances}}
+                # Async for IBKR and future adapters (test_connection returns dict)
+                test_result = await adapter.test_connection()
+                if not test_result.get("success"):
+                    raise Exception(test_result.get("message", "Connection test failed"))
+
+                # Update last_sync_at
+                connection.last_sync_at = datetime.utcnow()
+                connection.last_error = None
+                await self.repository.update(connection)
+                return test_result
 
             # Update last_sync_at
             connection.last_sync_at = datetime.utcnow()
@@ -267,7 +278,7 @@ class UserExchangeService:
                 "message": "Connection successful",
                 "data": {
                     "exchange": connection.exchange_type.value,
-                    "currencies_count": len([c for c, v in balance["total"].items() if v > 0]),
+                    "currencies_count": currencies_count,
                 },
             }
 

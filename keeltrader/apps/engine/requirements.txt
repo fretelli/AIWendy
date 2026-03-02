@@ -19,6 +19,7 @@ aiohttp>=3.11.12
 
 # Exchange
 ccxt>=4.2.25
+ib_async>=1.0.0
 
 # Utils
 numpy>=1.24.0

@@ -17,6 +17,8 @@ import { useI18n } from "@/lib/i18n/provider"
 import { userExchangeApi, ExchangeConnection, ExchangeType, TradingMode } from "@/lib/api/user-exchanges"
 
 const SPOT_ONLY_EXCHANGES: ExchangeType[] = ['coinbase', 'kraken']
+const IBKR_TRADING_MODES: TradingMode[] = ['stock', 'option', 'future']
+const isIbkr = (t: ExchangeType) => t === 'ibkr'
 import { Switch } from "@/components/ui/switch"
 
 export default function ExchangeSettingsPage() {
@@ -99,12 +101,15 @@ export default function ExchangeSettingsPage() {
     try {
       const newConnection = await userExchangeApi.createConnection({
         exchange_type: formData.exchange_type,
-        name: formData.name || `My ${formData.exchange_type} Account`,
+        name: formData.name || `My ${formData.exchange_type === 'ibkr' ? 'IBKR' : formData.exchange_type} Account`,
         api_key: formData.api_key,
         api_secret: formData.api_secret,
         passphrase: formData.passphrase || undefined,
         is_testnet: formData.is_testnet,
         trading_mode: formData.trading_mode,
+        ...(isIbkr(formData.exchange_type) ? {
+          credentials_extra: { gateway_host: 'keeltrader-ib-gateway', gateway_port: 4001 },
+        } : {}),
       })
 
       setConnections([...connections, newConnection])
@@ -261,6 +266,7 @@ export default function ExchangeSettingsPage() {
       bybit: "🟠",
       coinbase: "🔵",
       kraken: "🟣",
+      ibkr: "🏦",
     }
     return icons[exchangeType] || "🔷"
   }
@@ -285,7 +291,7 @@ export default function ExchangeSettingsPage() {
         <div>
           <h1 className="text-3xl font-bold">Exchange Connections</h1>
           <p className="text-muted-foreground mt-2">
-            Manage your cryptocurrency exchange API connections
+            Manage your exchange connections (Crypto & IBKR)
           </p>
         </div>
         <Button onClick={() => {
@@ -340,8 +346,8 @@ export default function ExchangeSettingsPage() {
                         {connection.is_testnet && (
                           <Badge variant="outline" className="text-xs">Testnet</Badge>
                         )}
-                        <Badge variant={connection.trading_mode === 'spot' ? 'secondary' : 'default'} className="text-xs">
-                          {connection.trading_mode === 'spot' ? 'Spot' : 'Futures'}
+                        <Badge variant={['spot', 'stock'].includes(connection.trading_mode) ? 'secondary' : 'default'} className="text-xs">
+                          {{ spot: 'Spot', swap: 'Futures', stock: 'Stocks', option: 'Options', future: 'Futures' }[connection.trading_mode] || connection.trading_mode}
                         </Badge>
                       </CardTitle>
                       <CardDescription className="capitalize mt-1">
@@ -422,7 +428,7 @@ export default function ExchangeSettingsPage() {
           <DialogHeader>
             <DialogTitle>Add Exchange Connection</DialogTitle>
             <DialogDescription>
-              Connect to your cryptocurrency exchange account
+              Connect to your exchange account (Crypto or IBKR)
             </DialogDescription>
           </DialogHeader>
 
@@ -434,7 +440,11 @@ export default function ExchangeSettingsPage() {
                 value={formData.exchange_type}
                 onValueChange={(value: ExchangeType) => {
                   const isSpotOnly = SPOT_ONLY_EXCHANGES.includes(value)
-                  setFormData({ ...formData, exchange_type: value, trading_mode: isSpotOnly ? 'spot' : formData.trading_mode })
+                  let newMode = formData.trading_mode
+                  if (isIbkr(value)) newMode = 'stock'
+                  else if (isSpotOnly) newMode = 'spot'
+                  else if (IBKR_TRADING_MODES.includes(formData.trading_mode)) newMode = 'swap'
+                  setFormData({ ...formData, exchange_type: value, trading_mode: newMode })
                 }}
               >
                 <SelectTrigger>
@@ -446,6 +456,7 @@ export default function ExchangeSettingsPage() {
                   <SelectItem value="bybit">🟠 Bybit</SelectItem>
                   <SelectItem value="coinbase">🔵 Coinbase</SelectItem>
                   <SelectItem value="kraken">🟣 Kraken</SelectItem>
+                  <SelectItem value="ibkr">🏦 Interactive Brokers</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -462,8 +473,18 @@ export default function ExchangeSettingsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="spot">Spot Trading</SelectItem>
-                  <SelectItem value="swap">Perpetual Futures</SelectItem>
+                  {isIbkr(formData.exchange_type) ? (
+                    <>
+                      <SelectItem value="stock">Stocks</SelectItem>
+                      <SelectItem value="option">Options</SelectItem>
+                      <SelectItem value="future">Futures</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="spot">Spot Trading</SelectItem>
+                      <SelectItem value="swap">Perpetual Futures</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -472,19 +493,19 @@ export default function ExchangeSettingsPage() {
             <div className="space-y-2">
               <Label>Name (Optional)</Label>
               <Input
-                placeholder={`My ${formData.exchange_type} Account`}
+                placeholder={`My ${formData.exchange_type === 'ibkr' ? 'IBKR' : formData.exchange_type} Account`}
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               />
             </div>
 
-            {/* API Key */}
+            {/* API Key / Username */}
             <div className="space-y-2">
-              <Label>API Key *</Label>
+              <Label>{isIbkr(formData.exchange_type) ? 'IBKR Username *' : 'API Key *'}</Label>
               <div className="flex gap-2">
                 <Input
                   type={showApiKey ? "text" : "password"}
-                  placeholder="Enter your API key"
+                  placeholder={isIbkr(formData.exchange_type) ? "Enter IBKR username" : "Enter your API key"}
                   value={formData.api_key}
                   onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
                   className="font-mono"
@@ -499,13 +520,13 @@ export default function ExchangeSettingsPage() {
               </div>
             </div>
 
-            {/* API Secret */}
+            {/* API Secret / Password */}
             <div className="space-y-2">
-              <Label>API Secret *</Label>
+              <Label>{isIbkr(formData.exchange_type) ? 'IBKR Password *' : 'API Secret *'}</Label>
               <div className="flex gap-2">
                 <Input
                   type={showApiSecret ? "text" : "password"}
-                  placeholder="Enter your API secret"
+                  placeholder={isIbkr(formData.exchange_type) ? "Enter IBKR password" : "Enter your API secret"}
                   value={formData.api_secret}
                   onChange={(e) => setFormData({ ...formData, api_secret: e.target.value })}
                   className="font-mono"
@@ -543,14 +564,16 @@ export default function ExchangeSettingsPage() {
               </div>
             )}
 
-            {/* Testnet */}
+            {/* Testnet / Paper Trading */}
             <div className="flex items-center space-x-2">
               <Switch
                 id="testnet"
                 checked={formData.is_testnet}
                 onCheckedChange={(checked) => setFormData({ ...formData, is_testnet: checked })}
               />
-              <Label htmlFor="testnet">Use Testnet</Label>
+              <Label htmlFor="testnet">
+                {isIbkr(formData.exchange_type) ? 'Paper Trading' : 'Use Testnet'}
+              </Label>
             </div>
           </div>
 
@@ -599,8 +622,18 @@ export default function ExchangeSettingsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="spot">Spot Trading</SelectItem>
-                  <SelectItem value="swap">Perpetual Futures</SelectItem>
+                  {editingConnection && isIbkr(editingConnection.exchange_type as ExchangeType) ? (
+                    <>
+                      <SelectItem value="stock">Stocks</SelectItem>
+                      <SelectItem value="option">Options</SelectItem>
+                      <SelectItem value="future">Futures</SelectItem>
+                    </>
+                  ) : (
+                    <>
+                      <SelectItem value="spot">Spot Trading</SelectItem>
+                      <SelectItem value="swap">Perpetual Futures</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>

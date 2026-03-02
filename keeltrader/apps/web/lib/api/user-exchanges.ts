@@ -6,8 +6,8 @@ import { API_PROXY_PREFIX } from '@/lib/config'
 
 const API_BASE_URL = `${API_PROXY_PREFIX}/v1/user/exchanges`
 
-export type ExchangeType = 'binance' | 'okx' | 'bybit' | 'coinbase' | 'kraken'
-export type TradingMode = 'spot' | 'swap'
+export type ExchangeType = 'binance' | 'okx' | 'bybit' | 'coinbase' | 'kraken' | 'ibkr'
+export type TradingMode = 'spot' | 'swap' | 'stock' | 'option' | 'future'
 
 export interface ExchangeConnection {
   id: string
@@ -23,6 +23,12 @@ export interface ExchangeConnection {
   updated_at: string
 }
 
+export interface IbkrCredentialsExtra {
+  gateway_host?: string
+  gateway_port?: number
+  client_id?: number
+}
+
 export interface CreateExchangeConnectionRequest {
   exchange_type: ExchangeType
   name?: string
@@ -31,6 +37,7 @@ export interface CreateExchangeConnectionRequest {
   passphrase?: string
   is_testnet?: boolean
   trading_mode?: TradingMode
+  credentials_extra?: IbkrCredentialsExtra
 }
 
 export interface UpdateExchangeConnectionRequest {
