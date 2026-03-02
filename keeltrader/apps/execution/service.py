@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 import redis.asyncio as aioredis
@@ -12,6 +13,38 @@ from .circuit_breaker import CircuitBreaker
 from .permissions import ExecutionPermission, TrustLevel
 
 logger = logging.getLogger(__name__)
+
+# US Eastern Time offset (EST = UTC-5, EDT = UTC-4)
+_ET = timezone(timedelta(hours=-5))
+
+# US equity regular trading hours (ET)
+_MARKET_OPEN_HOUR = 9
+_MARKET_OPEN_MIN = 30
+_MARKET_CLOSE_HOUR = 16
+_MARKET_CLOSE_MIN = 0
+
+
+def _is_us_market_open() -> tuple[bool, str]:
+    """Check if US stock market is currently in regular trading hours.
+
+    Returns (is_open, detail_message).
+    """
+    now_et = datetime.now(_ET)
+    weekday = now_et.weekday()  # 0=Mon, 6=Sun
+
+    if weekday >= 5:
+        return False, f"周末休市 ({now_et.strftime('%A %H:%M ET')})"
+
+    current_minutes = now_et.hour * 60 + now_et.minute
+    open_minutes = _MARKET_OPEN_HOUR * 60 + _MARKET_OPEN_MIN
+    close_minutes = _MARKET_CLOSE_HOUR * 60 + _MARKET_CLOSE_MIN
+
+    if current_minutes < open_minutes:
+        return False, f"盘前 ({now_et.strftime('%H:%M ET')}), 开盘 09:30 ET"
+    if current_minutes >= close_minutes:
+        return False, f"盘后 ({now_et.strftime('%H:%M ET')}), 收盘 16:00 ET"
+
+    return True, f"交易中 ({now_et.strftime('%H:%M ET')})"
 
 
 @dataclass
@@ -29,6 +62,7 @@ class OrderRequest:
     take_profit: float | None = None
     reasoning: str = ""
     trading_mode: str = "swap"
+    asset_class: str = "crypto"  # crypto / stock / option / future
 
 
 @dataclass
@@ -51,8 +85,10 @@ class ExecutionResult:
 
 
 class ExecutionService:
-    """8-layer safety barrier for trade execution.
+    """9-layer safety barrier for trade execution.
 
+    Barrier 0: Spot mode precheck
+    Barrier 0.5: Market hours check (IBKR stock/option/future only)
     Barrier 1: Trust level check
     Barrier 2: Order value limit
     Barrier 3: Daily order count limit
@@ -86,6 +122,26 @@ class ExecutionService:
                 detail=f"spot mode, exchange={order.exchange}",
             )
             checks.append(check0)
+
+        # Barrier 0.5: Market hours check (IBKR traditional assets)
+        if order.exchange == "ibkr" and order.asset_class in ("stock", "option", "future"):
+            is_open, hours_detail = _is_us_market_open()
+            # Market orders blocked outside hours; limit orders pass with warning
+            if order.order_type == "market":
+                passed = is_open
+            else:
+                passed = True  # Limit orders can be queued
+                if not is_open:
+                    hours_detail += " — 限价单将在开盘后排队"
+
+            check_hours = SafetyCheckResult(
+                barrier=0, name="market_hours",
+                passed=passed,
+                detail=hours_detail,
+            )
+            checks.append(check_hours)
+            if not check_hours.passed:
+                return ExecutionResult(allowed=False, checks=checks, blocked_at=0)
 
         # Barrier 1: Trust level
         check1 = SafetyCheckResult(
