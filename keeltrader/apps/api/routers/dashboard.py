@@ -4,14 +4,14 @@ from datetime import date, datetime, timedelta
 from typing import Any, Dict, Optional
 from uuid import UUID
 
-from apps.api.core.auth import get_current_user
-from apps.api.core.cache_service import cache_async, get_cache_service, invalidate_cache
-from apps.api.core.database import get_async_db
-from apps.api.core.logging import get_logger
-from apps.api.domain.coach.models import ChatSession
-from apps.api.domain.journal.models import Journal
-from apps.api.domain.report.models import Report, ReportType
-from apps.api.domain.user.models import User
+from core.auth import get_current_user
+from core.cache_service import cache_async, get_cache_service, invalidate_cache
+from core.database import get_async_db
+from core.logging import get_logger
+from domain.coach.models import ChatSession
+from domain.journal.models import Journal
+from domain.report.models import Report, ReportType
+from domain.user.models import User
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
