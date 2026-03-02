@@ -54,7 +54,13 @@ class MarketStreamer:
         self._redis = aioredis.from_url(self._redis_url, decode_responses=False)
 
         # Initialize exchange (public data only)
-        self._exchange = ccxt.binance({"enableRateLimit": True})
+        exchange_config: dict[str, Any] = {"enableRateLimit": True}
+        # Use proxy if configured (for GFW bypass)
+        http_proxy = os.environ.get("HTTPS_PROXY") or os.environ.get("HTTP_PROXY")
+        if http_proxy:
+            exchange_config["aiohttp_proxy"] = http_proxy
+            logger.info("Using proxy: %s", http_proxy)
+        self._exchange = ccxt.binance(exchange_config)
 
         # Load watchlist from Redis (user-configured symbols)
         await self._load_watchlist()
@@ -114,15 +120,44 @@ class MarketStreamer:
             except Exception as e:
                 logger.error("Failed to init %s: %s", symbol, e)
 
-    async def _poll_loop(self) -> None:
-        """Main polling loop — fetch prices and check alerts."""
+    async def _heartbeat(self) -> None:
+        """Publish heartbeat to Redis every 30 seconds."""
+        import json
+        from datetime import datetime
+
         while self._running:
             try:
-                await self._poll_prices()
+                if self._redis:
+                    status = {
+                        "symbols": self._watchlist,
+                        "poll_interval": POLL_INTERVAL,
+                        "running": self._running,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                    await self._redis.set(
+                        "keeltrader:streamer:heartbeat",
+                        json.dumps(status),
+                        ex=60,
+                    )
             except Exception as e:
-                logger.error("Poll cycle error: %s", e)
+                logger.debug("Heartbeat failed: %s", e)
+            await asyncio.sleep(30)
 
-            await asyncio.sleep(POLL_INTERVAL)
+    async def _poll_loop(self) -> None:
+        """Main polling loop — fetch prices and check alerts."""
+        # Start heartbeat
+        heartbeat_task = asyncio.create_task(self._heartbeat())
+
+        try:
+            while self._running:
+                try:
+                    await self._poll_prices()
+                except Exception as e:
+                    logger.error("Poll cycle error: %s", e)
+
+                await asyncio.sleep(POLL_INTERVAL)
+        finally:
+            heartbeat_task.cancel()
 
     async def _poll_prices(self) -> None:
         """Fetch current prices for all watched symbols."""

@@ -8,7 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY streamer/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Copy streamer + shared engine types
+# Copy streamer + shared engine types + package init
+COPY __init__.py /app/apps/__init__.py
 COPY streamer/ /app/apps/streamer/
 COPY engine/__init__.py /app/apps/engine/__init__.py
 COPY engine/event_types.py /app/apps/engine/event_types.py
