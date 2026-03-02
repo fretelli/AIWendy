@@ -4,32 +4,31 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { useI18n } from "@/components/language-provider"
+import { useI18n } from "@/lib/i18n/provider"
 
 export function LanguageToggle({ className }: { className?: string }) {
-  const { language, setLanguage, t } = useI18n()
+  const { locale, setLocale, t } = useI18n()
 
   return (
     <div className={cn("fixed right-4 top-4 z-50 flex gap-2", className)}>
       <Button
         size="sm"
-        variant={language === "en" ? "default" : "outline"}
-        onClick={() => setLanguage("en")}
-        aria-pressed={language === "en"}
+        variant={locale === "en" ? "default" : "outline"}
+        onClick={() => setLocale("en")}
+        aria-pressed={locale === "en"}
         type="button"
       >
-        {t("language.enShort")}
+        {t("landing.language.enShort" as any)}
       </Button>
       <Button
         size="sm"
-        variant={language === "zh" ? "default" : "outline"}
-        onClick={() => setLanguage("zh")}
-        aria-pressed={language === "zh"}
+        variant={locale === "zh" ? "default" : "outline"}
+        onClick={() => setLocale("zh")}
+        aria-pressed={locale === "zh"}
         type="button"
       >
-        {t("language.zhShort")}
+        {t("landing.language.zhShort" as any)}
       </Button>
     </div>
   )
 }
-

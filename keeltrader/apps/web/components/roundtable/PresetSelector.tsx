@@ -21,8 +21,7 @@ export function PresetSelector({
   onSelect,
   className,
 }: PresetSelectorProps) {
-  const { locale } = useI18n()
-  const isZh = locale === "zh"
+  const { t } = useI18n()
   return (
     <div className={cn("grid gap-4 md:grid-cols-2 lg:grid-cols-3", className)}>
       {presets.map((preset) => {
@@ -44,7 +43,7 @@ export function PresetSelector({
                 <div className="flex-1">
                   <CardTitle className="text-lg">{preset.name}</CardTitle>
                   <Badge variant="secondary" className="mt-1">
-                    {isZh ? `${preset.coach_ids.length} 位教练` : `${preset.coach_ids.length} coaches`}
+                    {t('roundtable.coachCount', { count: preset.coach_ids.length })}
                   </Badge>
                 </div>
               </div>

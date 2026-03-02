@@ -137,21 +137,15 @@ export async function getDictionary(namespace: string, locale?: Locale) {
  * Generate metadata for different locales
  */
 export function generateMetadata(locale: Locale) {
-  const isZh = locale === 'zh';
+  const meta = (translations[locale] as any).meta;
 
   return {
-    title: isZh ? 'KeelTrader - 您的AI交易心理教练' : 'KeelTrader - Your AI Trading Psychology Coach',
-    description: isZh
-      ? 'KeelTrader 是一个AI驱动的交易心理辅导平台，帮助交易者克服情绪障碍，提升交易表现。'
-      : 'KeelTrader is an AI-powered trading psychology coaching platform that helps traders overcome emotional barriers and improve trading performance.',
-    keywords: isZh
-      ? ['交易心理', 'AI教练', '交易日志', '风险管理', '量化交易', '交易分析']
-      : ['trading psychology', 'AI coach', 'trading journal', 'risk management', 'quantitative trading', 'trade analysis'],
+    title: meta.title,
+    description: meta.description,
+    keywords: meta.keywords.split(','),
     openGraph: {
-      title: isZh ? 'KeelTrader - AI交易心理教练' : 'KeelTrader - AI Trading Psychology Coach',
-      description: isZh
-        ? '使用AI技术提升您的交易心理和表现'
-        : 'Enhance your trading psychology and performance with AI',
+      title: meta.ogTitle,
+      description: meta.ogDescription,
       locale: languages[locale].code,
       alternateLocale: i18nConfig.locales
         .filter((l) => l !== locale)

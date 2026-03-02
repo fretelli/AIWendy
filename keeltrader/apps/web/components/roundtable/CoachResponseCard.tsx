@@ -23,8 +23,7 @@ export function CoachResponseCard({
   isStreaming = false,
   className,
 }: CoachResponseCardProps) {
-  const { locale } = useI18n()
-  const isZh = locale === "zh"
+  const { t } = useI18n()
   const isUser = message.role === "user"
   const isModerator = message.message_type && message.message_type !== "response"
 
@@ -104,16 +103,16 @@ export function CoachResponseCard({
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex items-center gap-2">
               <span className="font-medium text-sm">
-                {coachInfo?.name || (isZh ? "教练" : "Coach")}
+                {coachInfo?.name || t('roundtable.coach')}
               </span>
               {coachInfo?.style && (
                 <Badge variant="outline" className="text-xs">
-                  {getStyleLabel(coachInfo.style, isZh)}
+                  {t(`coaches.coachStyles.${coachInfo.style}` as any)}
                 </Badge>
               )}
               {isStreaming && (
                 <Badge variant="secondary" className="text-xs animate-pulse">
-                  {isZh ? "输入中..." : "Typing..."}
+                  {t('roundtable.typing')}
                 </Badge>
               )}
             </div>
@@ -143,9 +142,8 @@ function ModeratorCard({
   className,
 }: ModeratorCardProps) {
   const messageType = message.message_type || "response"
-  const { locale } = useI18n()
-  const isZh = locale === "zh"
-  const typeLabel = getModeratorTypeLabel(messageType, isZh)
+  const { t } = useI18n()
+  const typeLabel = t(`roundtable.moderatorTypes.${messageType}` as any)
   const typeColor = getModeratorTypeColor(messageType)
 
   return (
@@ -169,14 +167,14 @@ function ModeratorCard({
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex items-center gap-2">
               <span className="font-medium text-sm">
-                {coach?.name || (isZh ? "主持人" : "Moderator")}
+                {coach?.name || t('roundtable.moderator')}
               </span>
               <Badge className={cn("text-xs", typeColor)}>
                 {typeLabel}
               </Badge>
               {isStreaming && (
                 <Badge variant="secondary" className="text-xs animate-pulse">
-                  {isZh ? "输入中..." : "Typing..."}
+                  {t('roundtable.typing')}
                 </Badge>
               )}
             </div>
@@ -189,22 +187,6 @@ function ModeratorCard({
       </CardContent>
     </Card>
   )
-}
-
-function getModeratorTypeLabel(type: MessageType, isZh: boolean): string {
-  const zh: Record<MessageType, string> = {
-    response: "回复",
-    opening: "开场",
-    summary: "本轮总结",
-    closing: "讨论总结",
-  }
-  const en: Record<MessageType, string> = {
-    response: "Response",
-    opening: "Opening",
-    summary: "Round Summary",
-    closing: "Closing Summary",
-  }
-  return (isZh ? zh : en)[type] || type
 }
 
 function getModeratorTypeColor(type: MessageType): string {
@@ -228,24 +210,6 @@ function getCoachBorderColor(style?: string): string {
   return colors[style || ""] || "border-l-gray-500"
 }
 
-function getStyleLabel(style: string, isZh: boolean): string {
-  const zh: Record<string, string> = {
-    empathetic: "温和共情",
-    disciplined: "严厉纪律",
-    analytical: "数据分析",
-    motivational: "激励鼓舞",
-    socratic: "苏格拉底",
-  }
-  const en: Record<string, string> = {
-    empathetic: "Empathetic",
-    disciplined: "Disciplined",
-    analytical: "Analytical",
-    motivational: "Motivational",
-    socratic: "Socratic",
-  }
-  return (isZh ? zh : en)[style] || style
-}
-
 // Round indicator component
 interface RoundIndicatorProps {
   round: number
@@ -253,14 +217,13 @@ interface RoundIndicatorProps {
 }
 
 export function RoundIndicator({ round, className }: RoundIndicatorProps) {
-  const { locale } = useI18n()
-  const isZh = locale === "zh"
+  const { t } = useI18n()
   return (
     <div className={cn("flex items-center justify-center py-4", className)}>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <span className="h-px flex-1 bg-border min-w-[40px]" />
         <span className="px-3 py-1 bg-muted rounded-full">
-          {isZh ? `第 ${round} 轮讨论` : `Round ${round}`}
+          {t('roundtable.roundIndicator', { round })}
         </span>
         <span className="h-px flex-1 bg-border min-w-[40px]" />
       </div>

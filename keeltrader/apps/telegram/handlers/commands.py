@@ -13,6 +13,7 @@ from aiogram import Router
 from aiogram.filters import Command, CommandStart
 from aiogram.types import Message
 
+from ..i18n import get_lang, set_lang, t
 from ..keyboards import agent_status_keyboard, main_menu_keyboard
 from ..renderer import render_circuit_breaker_status, render_ghost_portfolio
 
@@ -46,24 +47,17 @@ async def _emit_event(event_type: str, user_id: str, payload: dict) -> None:
 @router.message(CommandStart())
 async def cmd_start(message: Message) -> None:
     """Handle /start — welcome and account binding."""
+    uid = message.from_user.id
     await message.answer(
-        "<b>KeelTrader Agent Matrix</b>\n\n"
-        "欢迎使用 KeelTrader 交易助手。\n\n"
-        "可用命令：\n"
-        "/status — 查看 Agent 矩阵状态\n"
-        "/portfolio — 持仓概览\n"
-        "/ghost — Ghost Trading 状态\n"
-        "/ask — 向 Agent 矩阵提问\n"
-        "/kill — 紧急熔断\n"
-        "/resume — 恢复交易\n"
-        "/help — 帮助",
-        reply_markup=main_menu_keyboard(),
+        t("cmd.welcome", uid),
+        reply_markup=main_menu_keyboard(uid),
     )
 
 
 @router.message(Command("status"))
 async def cmd_status(message: Message) -> None:
     """Handle /status — show live agent matrix status."""
+    uid = message.from_user.id
     r = await _get_redis()
     try:
         # Check circuit breaker
@@ -85,32 +79,36 @@ async def cmd_status(message: Message) -> None:
             p_str = p.decode() if isinstance(p, bytes) else p
             price_lines.append(f"  {sym_str}: ${float(p_str):,.2f}")
 
+        online = t("cmd.online", uid)
+        disabled = t("cmd.disabled", uid)
+
         status_text = (
-            "<b>Agent 矩阵状态</b>\n\n"
-            "🟢 Orchestrator — 在线\n"
-            "🟢 Technical Analyst — 在线\n"
-            "⚪ Sentiment Analyst — 未启用\n"
-            "⚪ Fundamental Analyst — 未启用\n"
-            "⚪ Psychology Coach — 未启用\n"
-            "🟢 Guardian — 在线\n"
-            "🟢 Executor — 在线\n\n"
+            f"{t('cmd.status_title', uid)}\n\n"
+            f"🟢 Orchestrator — {online}\n"
+            f"🟢 Technical Analyst — {online}\n"
+            f"⚪ Sentiment Analyst — {disabled}\n"
+            f"⚪ Fundamental Analyst — {disabled}\n"
+            f"⚪ Psychology Coach — {disabled}\n"
+            f"🟢 Guardian — {online}\n"
+            f"🟢 Executor — {online}\n\n"
             f"⚡ Circuit Breaker: {cb_status}\n"
-            f"📊 事件流: {event_count} 条\n"
+            f"{t('cmd.events_count', uid, count=event_count)}\n"
         )
 
         if price_lines:
-            status_text += "\n💰 实时价格:\n" + "\n".join(price_lines)
+            status_text += f"\n{t('cmd.realtime_prices', uid)}\n" + "\n".join(price_lines)
 
     finally:
         await r.aclose()
 
-    await message.answer(status_text, reply_markup=agent_status_keyboard())
+    await message.answer(status_text, reply_markup=agent_status_keyboard(uid))
 
 
 @router.message(Command("kill"))
 async def cmd_kill(message: Message) -> None:
     """Handle /kill — emergency circuit breaker activation."""
-    user_id = str(message.from_user.id)
+    uid = message.from_user.id
+    user_id = str(uid)
 
     r = await _get_redis()
     try:
@@ -128,20 +126,15 @@ async def cmd_kill(message: Message) -> None:
         "activated_by": f"tg:{user_id}",
     })
 
-    await message.answer(
-        "🔴 <b>紧急熔断已激活</b>\n\n"
-        "• Circuit Breaker: ON\n"
-        "• 所有 Agent 执行已锁定\n"
-        "• Ghost Trading 暂停\n\n"
-        "使用 /resume 恢复交易",
-    )
+    await message.answer(t("cmd.kill_activated", uid))
     logger.warning("KILL switch activated by Telegram user %s", user_id)
 
 
 @router.message(Command("resume"))
 async def cmd_resume(message: Message) -> None:
     """Handle /resume — deactivate circuit breaker."""
-    user_id = str(message.from_user.id)
+    uid = message.from_user.id
+    user_id = str(uid)
 
     r = await _get_redis()
     try:
@@ -155,38 +148,34 @@ async def cmd_resume(message: Message) -> None:
         "deactivated_by": f"tg:{user_id}",
     })
 
-    await message.answer(
-        "🟢 <b>交易已恢复</b>\n\n"
-        "• Circuit Breaker: OFF\n"
-        "• Agent 矩阵恢复运行",
-    )
+    await message.answer(t("cmd.trading_resumed", uid))
     logger.info("Trading resumed by Telegram user %s", user_id)
 
 
 @router.message(Command("portfolio"))
 async def cmd_portfolio(message: Message) -> None:
     """Handle /portfolio — show current positions."""
+    uid = message.from_user.id
     r = await _get_redis()
     try:
         # Show ghost trading portfolio
         from ...execution.ghost import GhostTradingService
         ghost = GhostTradingService(r)
-        summary = await ghost.portfolio_summary(str(message.from_user.id))
+        summary = await ghost.portfolio_summary(str(uid))
 
         if summary.get("open_positions", 0) > 0 or summary.get("closed_trades", 0) > 0:
-            text = render_ghost_portfolio(summary)
+            text = render_ghost_portfolio(summary, uid)
         else:
             text = (
-                "<b>持仓概览</b>\n\n"
-                "暂无活跃持仓。\n\n"
-                "👻 使用 Ghost Trading 模拟交易\n"
-                "📊 使用 /ask 分析市场"
+                f"{t('cmd.portfolio_title', uid)}\n\n"
+                f"{t('cmd.no_positions', uid)}\n\n"
+                f"{t('cmd.portfolio_ghost_hint', uid)}"
             )
     except Exception:
         text = (
-            "<b>持仓概览</b>\n\n"
-            "暂无活跃持仓。\n\n"
-            "连接交易所后可查看实时持仓。"
+            f"{t('cmd.portfolio_title', uid)}\n\n"
+            f"{t('cmd.no_positions', uid)}\n\n"
+            f"{t('cmd.portfolio_exchange_hint', uid)}"
         )
     finally:
         await r.aclose()
@@ -197,58 +186,56 @@ async def cmd_portfolio(message: Message) -> None:
 @router.message(Command("ghost"))
 async def cmd_ghost(message: Message) -> None:
     """Handle /ghost — show ghost trading status."""
+    uid = message.from_user.id
     r = await _get_redis()
     try:
         from ...execution.ghost import GhostTradingService
         ghost = GhostTradingService(r)
-        summary = await ghost.portfolio_summary(str(message.from_user.id))
-        text = render_ghost_portfolio(summary)
-    except Exception as e:
-        text = f"👻 <b>Ghost Trading</b>\n\n暂无数据\n\n<i>使用 Executor Agent 开始 Ghost Trading</i>"
+        summary = await ghost.portfolio_summary(str(uid))
+        text = render_ghost_portfolio(summary, uid)
+    except Exception:
+        text = t("cmd.ghost_no_data", uid)
     finally:
         await r.aclose()
 
     await message.answer(text)
 
 
+@router.message(Command("lang"))
+async def cmd_lang(message: Message) -> None:
+    """Handle /lang — switch language."""
+    uid = message.from_user.id
+    arg = message.text.replace("/lang", "", 1).strip().lower()
+
+    if arg in ("zh", "en"):
+        set_lang(uid, arg)
+        await message.answer(t("cmd.lang_switched", uid))
+    else:
+        await message.answer(t("cmd.lang_usage", uid))
+
+
 @router.message(Command("help"))
 async def cmd_help(message: Message) -> None:
     """Handle /help."""
-    await message.answer(
-        "<b>KeelTrader 命令帮助</b>\n\n"
-        "/start — 开始\n"
-        "/status — Agent 矩阵状态\n"
-        "/portfolio — 持仓概览\n"
-        "/ghost — Ghost Trading 状态\n"
-        "/ask <i>问题</i> — 向 Agent 矩阵提问\n"
-        "/kill — 紧急熔断（停止所有交易）\n"
-        "/resume — 恢复交易\n"
-        "/help — 显示此帮助\n\n"
-        "💡 也可以直接发送消息，Orchestrator 会自动路由到合适的 Agent。",
-    )
+    uid = message.from_user.id
+    await message.answer(t("cmd.help", uid))
 
 
 @router.message(Command("ask"))
 async def cmd_ask(message: Message) -> None:
     """Handle /ask — route question to Orchestrator agent via event bus."""
+    uid = message.from_user.id
     question = message.text.replace("/ask", "", 1).strip()
     if not question:
-        await message.answer(
-            "请在 /ask 后输入你的问题。\n"
-            "例如: /ask ETH 现在适合加仓吗？"
-        )
+        await message.answer(t("cmd.ask_empty", uid))
         return
 
-    user_id = str(message.from_user.id)
+    user_id = str(uid)
 
     await _emit_event("user.message", user_id, {
         "text": question,
-        "telegram_user_id": message.from_user.id,
+        "telegram_user_id": uid,
         "telegram_message_id": message.message_id,
     })
 
-    await message.answer(
-        f"🔄 <b>Agent 矩阵分析中...</b>\n\n"
-        f"问题: {question}\n\n"
-        f"<i>正在调度分析，请稍候...</i>"
-    )
+    await message.answer(t("cmd.ask_processing", uid, question=question))

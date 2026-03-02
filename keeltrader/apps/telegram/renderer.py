@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from .i18n import t
+
 
 def render_order_confirmation(
     order_id: str,
@@ -15,30 +17,31 @@ def render_order_confirmation(
     stop_loss: float | None,
     reasoning: str = "",
     safety_checks: list[dict] | None = None,
+    user_id: int | None = None,
 ) -> str:
     """Render a trade order confirmation message."""
     emoji = "🟢" if side == "buy" else "🔴"
-    side_cn = "做多" if side == "buy" else "做空"
+    side_label = t("render.side_long", user_id) if side == "buy" else t("render.side_short", user_id)
 
     lines = [
-        f"{emoji} <b>交易确认 | {symbol}</b>",
+        f"{emoji} <b>{t('render.trade_confirm', user_id)} | {symbol}</b>",
         "",
-        f"方向: <b>{side_cn}</b> ({side.upper()})",
-        f"类型: {order_type}",
-        f"数量: {amount}",
+        f"{t('render.direction', user_id)}: <b>{side_label}</b> ({side.upper()})",
+        f"{t('render.type', user_id)}: {order_type}",
+        f"{t('render.amount', user_id)}: {amount}",
     ]
 
     if price:
-        lines.append(f"价格: ${price:,.2f}")
+        lines.append(f"{t('render.price', user_id)}: ${price:,.2f}")
 
     if stop_loss:
-        lines.append(f"止损: ${stop_loss:,.2f}")
+        lines.append(f"{t('render.stop_loss', user_id)}: ${stop_loss:,.2f}")
 
     if reasoning:
         lines.extend(["", f"💡 <i>{reasoning}</i>"])
 
     if safety_checks:
-        lines.extend(["", "🛡 安全检查:"])
+        lines.extend(["", t("render.safety_checks", user_id)])
         for check in safety_checks:
             icon = "✅" if check.get("passed") else "❌"
             lines.append(f"  {icon} {check.get('name', '?')}: {check.get('detail', '')}")
@@ -48,25 +51,25 @@ def render_order_confirmation(
     return "\n".join(lines)
 
 
-def render_ghost_trade_opened(trade: dict[str, Any]) -> str:
+def render_ghost_trade_opened(trade: dict[str, Any], user_id: int | None = None) -> str:
     """Render a ghost trade opened notification."""
     side = trade.get("side", "buy")
     emoji = "🟢" if side == "buy" else "🔴"
-    side_cn = "做多" if side == "buy" else "做空"
+    side_label = t("render.side_long", user_id) if side == "buy" else t("render.side_short", user_id)
 
     return (
-        f"👻 <b>Ghost Trade 已开仓</b>\n\n"
-        f"{emoji} {trade.get('symbol', '?')} {side_cn}\n"
-        f"数量: {trade.get('amount', 0)}\n"
-        f"入场价: ${float(trade.get('entry_price', 0)):,.2f}\n"
-        f"止损: ${float(trade.get('stop_loss', 0)):,.2f}\n"
-        f"止盈: ${float(trade.get('take_profit', 0)):,.2f}\n\n"
+        f"{t('render.ghost_opened', user_id)}\n\n"
+        f"{emoji} {trade.get('symbol', '?')} {side_label}\n"
+        f"{t('render.amount', user_id)}: {trade.get('amount', 0)}\n"
+        f"{t('render.entry_price', user_id)}: ${float(trade.get('entry_price', 0)):,.2f}\n"
+        f"{t('render.stop_loss', user_id)}: ${float(trade.get('stop_loss', 0)):,.2f}\n"
+        f"{t('render.take_profit', user_id)}: ${float(trade.get('take_profit', 0)):,.2f}\n\n"
         f"💡 <i>{trade.get('reasoning', '')}</i>\n\n"
         f"<code>ID: {trade.get('id', '?')[:8]}</code>"
     )
 
 
-def render_ghost_trade_closed(result: dict[str, Any]) -> str:
+def render_ghost_trade_closed(result: dict[str, Any], user_id: int | None = None) -> str:
     """Render a ghost trade closed notification."""
     pnl = result.get("pnl", 0)
     pnl_pct = result.get("pnl_pct", 0)
@@ -74,40 +77,40 @@ def render_ghost_trade_closed(result: dict[str, Any]) -> str:
     pnl_icon = "📈" if pnl >= 0 else "📉"
 
     return (
-        f"👻 <b>Ghost Trade 已平仓</b> {emoji}\n\n"
+        f"{t('render.ghost_closed', user_id)} {emoji}\n\n"
         f"{result.get('symbol', '?')} {result.get('side', '?')}\n"
-        f"入场: ${result.get('entry_price', 0):,.2f}\n"
-        f"出场: ${result.get('exit_price', 0):,.2f}\n"
-        f"数量: {result.get('amount', 0)}\n\n"
+        f"{t('render.entry', user_id)}: ${result.get('entry_price', 0):,.2f}\n"
+        f"{t('render.exit', user_id)}: ${result.get('exit_price', 0):,.2f}\n"
+        f"{t('render.amount', user_id)}: {result.get('amount', 0)}\n\n"
         f"{pnl_icon} P&L: <b>${pnl:+,.4f}</b> ({pnl_pct:+.2f}%)"
     )
 
 
-def render_ghost_portfolio(summary: dict[str, Any]) -> str:
+def render_ghost_portfolio(summary: dict[str, Any], user_id: int | None = None) -> str:
     """Render ghost trading portfolio summary."""
     lines = [
-        "👻 <b>Ghost Trading 概览</b>",
+        t("render.ghost_overview", user_id),
         "",
-        f"活跃持仓: {summary.get('open_positions', 0)}",
-        f"已平仓: {summary.get('closed_trades', 0)}",
+        f"{t('render.open_positions', user_id)}: {summary.get('open_positions', 0)}",
+        f"{t('render.closed_trades', user_id)}: {summary.get('closed_trades', 0)}",
         "",
-        f"未实现 P&L: <b>${summary.get('total_unrealized_pnl', 0):+,.4f}</b>",
-        f"已实现 P&L: <b>${summary.get('total_realized_pnl', 0):+,.4f}</b>",
-        f"总 P&L: <b>${summary.get('total_pnl', 0):+,.4f}</b>",
+        f"{t('render.unrealized_pnl', user_id)}: <b>${summary.get('total_unrealized_pnl', 0):+,.4f}</b>",
+        f"{t('render.realized_pnl', user_id)}: <b>${summary.get('total_realized_pnl', 0):+,.4f}</b>",
+        f"{t('render.total_pnl', user_id)}: <b>${summary.get('total_pnl', 0):+,.4f}</b>",
         "",
-        f"胜率: {summary.get('win_rate', 0):.1f}% "
+        f"{t('render.win_rate', user_id)}: {summary.get('win_rate', 0):.1f}% "
         f"({summary.get('win_count', 0)}W / {summary.get('loss_count', 0)}L)",
     ]
 
     open_trades = summary.get("open_trades", [])
     if open_trades:
-        lines.extend(["", "📊 活跃持仓:"])
-        for t in open_trades:
-            emoji = "🟢" if t["side"] == "buy" else "🔴"
-            pnl = t.get("unrealized_pnl", 0)
+        lines.extend(["", t("render.active_positions", user_id)])
+        for tr in open_trades:
+            emoji = "🟢" if tr["side"] == "buy" else "🔴"
+            pnl = tr.get("unrealized_pnl", 0)
             pnl_icon = "↑" if pnl >= 0 else "↓"
             lines.append(
-                f"  {emoji} {t['symbol']} {t['amount']}@{t['entry_price']:,.2f} "
+                f"  {emoji} {tr['symbol']} {tr['amount']}@{tr['entry_price']:,.2f} "
                 f"{pnl_icon}${pnl:+,.2f}"
             )
 
@@ -117,9 +120,10 @@ def render_ghost_portfolio(summary: dict[str, Any]) -> str:
 def render_analysis_result(
     symbol: str,
     analysis: dict[str, Any],
+    user_id: int | None = None,
 ) -> str:
     """Render a technical/multi-agent analysis result."""
-    lines = [f"📊 <b>分析报告 | {symbol}</b>", ""]
+    lines = [t("render.analysis_title", user_id, symbol=symbol), ""]
 
     # Trend
     trend = analysis.get("trend", {})
@@ -127,7 +131,7 @@ def render_analysis_result(
         overall = trend.get("overall", "unknown")
         trend_emoji = "🟢" if overall == "bullish" else "🔴" if overall == "bearish" else "🟡"
         lines.append(
-            f"趋势: {trend_emoji} <b>{overall.upper()}</b> "
+            f"{t('render.trend', user_id)}: {trend_emoji} <b>{overall.upper()}</b> "
             f"({trend.get('bullish_signals', 0)}↑ / {trend.get('bearish_signals', 0)}↓)"
         )
 
@@ -148,8 +152,13 @@ def render_analysis_result(
     vol = analysis.get("volume_profile", {})
     if vol.get("relative_volume"):
         rv = vol["relative_volume"]
-        vol_label = "高" if rv > 1.5 else "低" if rv < 0.5 else "正常"
-        lines.append(f"成交量: {vol_label} ({rv:.1f}x)")
+        if rv > 1.5:
+            vol_label = t("render.vol_high", user_id)
+        elif rv < 0.5:
+            vol_label = t("render.vol_low", user_id)
+        else:
+            vol_label = t("render.vol_normal", user_id)
+        lines.append(f"{t('render.volume', user_id)}: {vol_label} ({rv:.1f}x)")
 
     # Signal summary
     summary = analysis.get("signal_summary", "")
@@ -162,49 +171,43 @@ def render_analysis_result(
 def render_guardian_alert(
     alert_type: str,
     details: dict[str, Any],
+    user_id: int | None = None,
 ) -> str:
     """Render a Guardian risk alert."""
     if alert_type == "loss_streak":
         count = details.get("count", 0)
         total_loss = details.get("total_loss", 0)
         return (
-            f"⚠️ <b>连亏告警</b>\n\n"
-            f"最近 {count} 笔交易连续亏损\n"
-            f"累计亏损: <b>${abs(total_loss):,.2f}</b>\n\n"
-            f"Psychology Coach 建议暂停交易"
+            f"{t('render.loss_streak_title', user_id)}\n\n"
+            f"{t('render.loss_streak_body', user_id, count=count, total_loss=f'{abs(total_loss):,.2f}')}"
         )
 
     elif alert_type == "position_risk_high":
         symbol = details.get("symbol", "?")
         pnl_pct = details.get("pnl_pct", 0)
         return (
-            f"🔴 <b>高风险持仓告警</b>\n\n"
-            f"Symbol: {symbol}\n"
-            f"浮亏: <b>{pnl_pct:.1f}%</b>\n\n"
-            f"Guardian 建议考虑止损"
+            f"{t('render.position_risk_title', user_id)}\n\n"
+            f"{t('render.position_risk_body', user_id, symbol=symbol, pnl_pct=f'{pnl_pct:.1f}')}"
         )
 
     elif alert_type == "daily_loss_limit":
         daily_pnl = details.get("daily_pnl", 0)
         limit = details.get("limit", 0)
         return (
-            f"🚨 <b>日亏损限额已触发</b>\n\n"
-            f"今日 P&L: <b>${daily_pnl:,.2f}</b>\n"
-            f"限额: ${limit:,.2f}\n\n"
-            f"所有 Agent 交易已自动锁定"
+            f"{t('render.daily_limit_title', user_id)}\n\n"
+            f"{t('render.daily_limit_body', user_id, daily_pnl=f'{daily_pnl:,.2f}', limit=f'{limit:,.2f}')}"
         )
 
-    return f"⚠️ <b>风控告警: {alert_type}</b>\n\n{details}"
+    return f"{t('render.generic_alert', user_id, alert_type=alert_type)}\n\n{details}"
 
 
-def render_circuit_breaker_status(active: bool, reason: str = "", by: str = "") -> str:
+def render_circuit_breaker_status(active: bool, reason: str = "", by: str = "", user_id: int | None = None) -> str:
     """Render circuit breaker status."""
     if active:
         return (
-            f"🔴 <b>熔断器状态: 已激活</b>\n\n"
-            f"原因: {reason}\n"
-            f"操作人: {by}\n\n"
-            f"所有交易执行已暂停\n"
-            f"使用 /resume 恢复交易"
+            f"{t('render.cb_active_title', user_id)}\n\n"
+            f"{t('render.cb_reason', user_id)}: {reason}\n"
+            f"{t('render.cb_by', user_id)}: {by}\n\n"
+            f"{t('render.cb_paused', user_id)}"
         )
-    return "🟢 <b>熔断器状态: 正常</b>\n\n所有 Agent 正常运行"
+    return t("render.cb_normal", user_id)

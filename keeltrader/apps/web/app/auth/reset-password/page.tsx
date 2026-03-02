@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Icons } from '@/components/icons'
-import { useI18n } from '@/components/language-provider'
+import { useI18n } from '@/lib/i18n/provider'
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('')
@@ -26,7 +26,7 @@ export default function ResetPasswordPage() {
   useEffect(() => {
     const tokenParam = searchParams?.get('token')
     if (!tokenParam) {
-      setError(t('auth.reset.missingToken'))
+      setError(t('landing.auth.reset.missingToken'))
     } else {
       setToken(tokenParam)
     }
@@ -37,17 +37,17 @@ export default function ResetPasswordPage() {
     setError(null)
 
     if (password !== confirmPassword) {
-      setError(t('auth.reset.passwordMismatch'))
+      setError(t('landing.auth.reset.passwordMismatch'))
       return
     }
 
     if (password.length < 8) {
-      setError(t('auth.reset.passwordTooShort'))
+      setError(t('landing.auth.reset.passwordTooShort'))
       return
     }
 
     if (!token) {
-      setError(t('auth.reset.missingToken'))
+      setError(t('landing.auth.reset.missingToken'))
       return
     }
 
@@ -66,7 +66,7 @@ export default function ResetPasswordPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.detail || t('auth.reset.error'))
+        throw new Error(data.detail || t('landing.auth.reset.error'))
       }
 
       setIsSuccess(true)
@@ -76,7 +76,7 @@ export default function ResetPasswordPage() {
         router.push('/auth/login')
       }, 3000)
     } catch (err: any) {
-      setError(err.message || t('auth.reset.error'))
+      setError(err.message || t('landing.auth.reset.error'))
     } finally {
       setIsLoading(false)
     }
@@ -87,21 +87,21 @@ export default function ResetPasswordPage() {
       <div className="container flex h-screen w-screen flex-col items-center justify-center">
         <Card className="sm:w-[450px]">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">{t('auth.reset.success.title')}</CardTitle>
+            <CardTitle className="text-2xl text-center">{t('landing.auth.reset.success.title')}</CardTitle>
             <CardDescription className="text-center">
-              {t('auth.reset.success.subtitle')}
+              {t('landing.auth.reset.success.subtitle')}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <Alert>
               <Icons.check className="h-4 w-4" />
               <AlertDescription>
-                {t('auth.reset.success.body')}
+                {t('landing.auth.reset.success.body')}
               </AlertDescription>
             </Alert>
             <Link href="/auth/login">
               <Button className="w-full">
-                {t('auth.reset.success.goToLogin')}
+                {t('landing.auth.reset.success.goToLogin')}
               </Button>
             </Link>
           </CardContent>
@@ -115,15 +115,15 @@ export default function ResetPasswordPage() {
       <div className="container flex h-screen w-screen flex-col items-center justify-center">
         <Card className="sm:w-[450px]">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">{t('auth.reset.invalidTitle')}</CardTitle>
+            <CardTitle className="text-2xl text-center">{t('landing.auth.reset.invalidTitle')}</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
             <Alert className="alert-error">
-              <AlertDescription>{error || t('auth.reset.missingToken')}</AlertDescription>
+              <AlertDescription>{error || t('landing.auth.reset.missingToken')}</AlertDescription>
             </Alert>
             <Link href="/auth/forgot-password">
               <Button variant="outline" className="w-full">
-                {t('auth.reset.requestNew')}
+                {t('landing.auth.reset.requestNew')}
               </Button>
             </Link>
           </CardContent>
@@ -137,9 +137,9 @@ export default function ResetPasswordPage() {
       <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">{t('auth.reset.title')}</CardTitle>
+            <CardTitle className="text-2xl text-center">{t('landing.auth.reset.title')}</CardTitle>
             <CardDescription className="text-center">
-              {t('auth.reset.subtitle')}
+              {t('landing.auth.reset.subtitle')}
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
@@ -152,7 +152,7 @@ export default function ResetPasswordPage() {
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="password">{t('auth.reset.newPassword')}</Label>
+                  <Label htmlFor="password">{t('landing.auth.reset.newPassword')}</Label>
                   <Input
                     id="password"
                     type="password"
@@ -166,7 +166,7 @@ export default function ResetPasswordPage() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="confirm-password">{t('auth.reset.confirmPassword')}</Label>
+                  <Label htmlFor="confirm-password">{t('landing.auth.reset.confirmPassword')}</Label>
                   <Input
                     id="confirm-password"
                     type="password"
@@ -183,14 +183,14 @@ export default function ResetPasswordPage() {
                   {isLoading && (
                     <Icons.spinner className="mr-2 h-4 w-4 animate-spin" />
                   )}
-                  {t('auth.reset.submit')}
+                  {t('landing.auth.reset.submit')}
                 </Button>
               </div>
             </form>
 
             <div className="text-center">
               <Link href="/auth/login" className="text-sm text-muted-foreground hover:text-primary">
-                {t('auth.reset.backToLogin')}
+                {t('landing.auth.reset.backToLogin')}
               </Link>
             </div>
           </CardContent>

@@ -25,8 +25,7 @@ export function CoachMultiSelector({
   maxCount = 5,
   className,
 }: CoachMultiSelectorProps) {
-  const { locale } = useI18n()
-  const isZh = locale === "zh"
+  const { t } = useI18n()
   const handleToggle = (coachId: string) => {
     if (selectedIds.includes(coachId)) {
       // Remove if already selected
@@ -45,12 +44,10 @@ export function CoachMultiSelector({
     <div className={cn("space-y-4", className)}>
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {isZh
-            ? `选择 ${minCount}-${maxCount} 位教练参与讨论`
-            : `Select ${minCount}-${maxCount} coaches to join`}
+          {t('roundtable.selectCoaches', { min: minCount, max: maxCount })}
         </p>
         <Badge variant={isValid ? "default" : "secondary"}>
-          {isZh ? "已选择" : "Selected"} {selectedIds.length}/{maxCount}
+          {t('roundtable.selected')} {selectedIds.length}/{maxCount}
         </Badge>
       </div>
 
@@ -88,7 +85,7 @@ export function CoachMultiSelector({
                       {coach.name}
                     </CardTitle>
                     <Badge variant="outline" className="mt-1 text-xs">
-                      {getStyleLabel(coach.style, isZh)}
+                      {t(`coaches.coachStyles.${coach.style}` as any)}
                     </Badge>
                     <CardDescription className="text-xs mt-1 line-clamp-2">
                       {coach.description}
@@ -103,27 +100,9 @@ export function CoachMultiSelector({
 
       {!isValid && selectedIds.length > 0 && (
         <p className="text-sm text-destructive">
-          {isZh ? `请至少选择 ${minCount} 位教练` : `Please select at least ${minCount} coaches`}
+          {t('roundtable.selectMinCoaches', { min: minCount })}
         </p>
       )}
     </div>
   )
-}
-
-function getStyleLabel(style: string, isZh: boolean): string {
-  const zh: Record<string, string> = {
-    empathetic: "温和共情",
-    disciplined: "严厉纪律",
-    analytical: "数据分析",
-    motivational: "激励鼓舞",
-    socratic: "苏格拉底",
-  }
-  const en: Record<string, string> = {
-    empathetic: "Empathetic",
-    disciplined: "Disciplined",
-    analytical: "Analytical",
-    motivational: "Motivational",
-    socratic: "Socratic",
-  }
-  return (isZh ? zh : en)[style] || style
 }
