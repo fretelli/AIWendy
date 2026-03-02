@@ -28,6 +28,7 @@ websockets==12.0
 
 # ========== Exchange Integration ==========
 ccxt==4.2.25
+ib_async>=1.0.0
 
 # ========== Auth ==========
 python-jose[cryptography]==3.3.0

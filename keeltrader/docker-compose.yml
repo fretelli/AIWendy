@@ -214,8 +214,28 @@ services:
       - HTTPS_PROXY=http://172.17.0.1:10808
       - NO_PROXY=services-redis,172.17.0.1,localhost,127.0.0.1
 
+  # === IBKR 模式（profiles: [ibkr]）===
+
+  ib-gateway:
+    image: gnzsnz/ib-gateway:10.29.1
+    container_name: keeltrader-ib-gateway
+    restart: unless-stopped
+    mem_limit: 1280m
+    profiles:
+      - ibkr
+    environment:
+      - TWS_USERID=${IBKR_USERNAME}
+      - TWS_PASSWORD=${IBKR_PASSWORD}
+      - TRADING_MODE=${IBKR_TRADING_MODE:-paper}
+      - TWS_ACCEPT_INCOMING=accept
+      - READ_ONLY_API=${IBKR_READ_ONLY:-yes}
+      - TWS_PORT=4001
+    volumes:
+      - ib_gateway_data:/root/Jts
+
 volumes:
   uploads_data:
+  ib_gateway_data:
 
 networks:
   default:
