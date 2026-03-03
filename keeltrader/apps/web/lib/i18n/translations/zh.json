@@ -53,6 +53,7 @@
     "coaches": "AI教练",
     "chat": "聊天",
     "roundtable": "圆桌讨论",
+    "agents": "代理矩阵",
     "knowledge": "知识库",
     "settings": "设置",
     "help": "帮助",
@@ -1151,6 +1152,19 @@
         "toDashboard": "进入控制台",
         "toLogin": "去登录"
       }
+    }
+  },
+  "agents": {
+    "title": "代理矩阵",
+    "subtitle": "监控和管理 AI 交易代理",
+    "autoRefresh": "自动刷新",
+    "refresh": "刷新",
+    "tabs": {
+      "overview": "概览",
+      "agents": "代理",
+      "portfolio": "影子组合",
+      "events": "事件流",
+      "chat": "代理对话"
     }
   },
   "meta": {

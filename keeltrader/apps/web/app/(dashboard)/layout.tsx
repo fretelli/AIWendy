@@ -24,6 +24,7 @@ import {
   X,
   ChevronLeft,
   Users,
+  Bot,
 } from 'lucide-react';
 import { ProjectSelector } from '@/components/project-selector';
 
@@ -66,6 +67,12 @@ const navItems: NavItem[] = [
     href: '/roundtable',
     icon: Users,
     translationKey: 'nav.roundtable',
+  },
+  {
+    title: 'Agent Matrix',
+    href: '/agents',
+    icon: Bot,
+    translationKey: 'nav.agents',
   },
   {
     title: 'Knowledge Base',

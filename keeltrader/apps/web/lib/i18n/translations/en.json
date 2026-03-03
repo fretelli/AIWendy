@@ -53,6 +53,7 @@
     "coaches": "AI Coaches",
     "chat": "Chat",
     "roundtable": "Roundtable",
+    "agents": "Agent Matrix",
     "knowledge": "Knowledge Base",
     "settings": "Settings",
     "help": "Help",
@@ -1151,6 +1152,19 @@
         "toDashboard": "Go to dashboard",
         "toLogin": "Go to login"
       }
+    }
+  },
+  "agents": {
+    "title": "Agent Matrix",
+    "subtitle": "Monitor and interact with AI trading agents",
+    "autoRefresh": "Auto Refresh",
+    "refresh": "Refresh",
+    "tabs": {
+      "overview": "Overview",
+      "agents": "Agents",
+      "portfolio": "Ghost Portfolio",
+      "events": "Event Stream",
+      "chat": "Agent Chat"
     }
   },
   "meta": {

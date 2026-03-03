@@ -275,6 +275,100 @@ async def agent_matrix_health():
         await r.aclose()
 
 
+@router.get("/agents/ghost-trades")
+async def list_ghost_trades(user_id: str = "default", status: str = "all"):
+    """List ghost trades for a user."""
+    import os
+
+    import redis.asyncio as aioredis
+
+    from apps.execution.ghost import GhostTradingService
+
+    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/3")
+    r = aioredis.from_url(redis_url)
+    try:
+        svc = GhostTradingService(r)
+        trades = await svc.list_trades(user_id, status)
+        return {"trades": trades, "count": len(trades)}
+    finally:
+        await r.aclose()
+
+
+@router.get("/agents/ghost-trades/portfolio")
+async def ghost_portfolio(user_id: str = "default"):
+    """Get ghost trading portfolio summary."""
+    import os
+
+    import redis.asyncio as aioredis
+
+    from apps.execution.ghost import GhostTradingService
+
+    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/3")
+    r = aioredis.from_url(redis_url)
+    try:
+        svc = GhostTradingService(r)
+        return await svc.portfolio_summary(user_id)
+    finally:
+        await r.aclose()
+
+
+@router.get("/agents/prices")
+async def get_cached_prices():
+    """Get cached market prices from Redis."""
+    import os
+
+    import redis.asyncio as aioredis
+
+    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/3")
+    r = aioredis.from_url(redis_url)
+    try:
+        prices = await r.hgetall("keeltrader:prices")
+        return {
+            (k.decode() if isinstance(k, bytes) else k): float(v.decode() if isinstance(v, bytes) else v)
+            for k, v in prices.items()
+        }
+    finally:
+        await r.aclose()
+
+
+@router.get("/agents/events/recent")
+async def get_recent_events(count: int = 50):
+    """Get recent events from Redis Streams."""
+    import json
+    import os
+
+    import redis.asyncio as aioredis
+
+    redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/3")
+    r = aioredis.from_url(redis_url)
+    try:
+        stream_key = "keeltrader:events"
+        try:
+            # XREVRANGE returns newest first
+            entries = await r.xrevrange(stream_key, count=min(count, 200))
+            events = []
+            for entry_id, fields in entries:
+                event: dict[str, Any] = {
+                    "stream_id": entry_id.decode() if isinstance(entry_id, bytes) else entry_id,
+                }
+                for k, v in fields.items():
+                    key = k.decode() if isinstance(k, bytes) else k
+                    val = v.decode() if isinstance(v, bytes) else v
+                    if key == "payload":
+                        try:
+                            event[key] = json.loads(val)
+                        except (json.JSONDecodeError, TypeError):
+                            event[key] = val
+                    else:
+                        event[key] = val
+                events.append(event)
+            return {"events": events, "count": len(events)}
+        except Exception:
+            return {"events": [], "count": 0, "message": "Stream not yet created"}
+    finally:
+        await r.aclose()
+
+
 @router.get("/agents/{agent_id}/status")
 async def get_agent_status(agent_id: str):
     """Get detailed status of a specific agent."""
