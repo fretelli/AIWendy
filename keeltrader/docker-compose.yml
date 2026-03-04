@@ -89,7 +89,7 @@ services:
     image: keeltrader-api:latest
     container_name: keeltrader-worker
     restart: unless-stopped
-    mem_limit: 384m
+    mem_limit: 768m
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -106,13 +106,13 @@ services:
       - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-    command: celery -A workers.celery_app worker --loglevel=info
+    command: celery -A workers.celery_app worker --loglevel=info --concurrency=4
 
   beat:
     image: keeltrader-api:latest
     container_name: keeltrader-beat
     restart: unless-stopped
-    mem_limit: 128m
+    mem_limit: 256m
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -125,7 +125,7 @@ services:
       - REDIS_URL=${REDIS_URL}
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-    command: celery -A workers.celery_app beat --loglevel=info
+    command: celery -A workers.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
 
   # === Agent Matrix 模式（profiles: [agent-matrix]）===
 
