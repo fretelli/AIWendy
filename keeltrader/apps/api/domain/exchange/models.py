@@ -27,7 +27,6 @@ from core.database import Base
 class ExchangeType(str, enum.Enum):
     """Supported exchange types."""
 
-    BINANCE = "binance"
     OKX = "okx"
     BYBIT = "bybit"
     COINBASE = "coinbase"
@@ -67,7 +66,7 @@ class ExchangeConnection(Base):
 
     # Exchange info
     exchange_type = Column(Enum(ExchangeType), nullable=False)
-    name = Column(String(100), nullable=True)  # User-defined name like "My Binance Account"
+    name = Column(String(100), nullable=True)  # User-defined name like "My OKX Account"
 
     # API credentials (encrypted)
     api_key_encrypted = Column(Text, nullable=False)

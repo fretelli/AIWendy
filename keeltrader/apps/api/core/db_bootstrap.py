@@ -1184,7 +1184,7 @@ async def ensure_dev_schema() -> None:
             text(
                 """
                 DO $$ BEGIN
-                    CREATE TYPE exchangetype AS ENUM ('binance', 'okx', 'bybit', 'coinbase', 'kraken');
+                    CREATE TYPE exchangetype AS ENUM ('okx', 'bybit', 'coinbase', 'kraken');
                 EXCEPTION
                     WHEN duplicate_object THEN null;
                 END $$;

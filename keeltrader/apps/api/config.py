@@ -78,9 +78,6 @@ class Settings(BaseSettings):
     twelve_data_api_key: Optional[str] = None
 
     # ========== Exchange API Keys ==========
-    # Binance
-    binance_api_key: Optional[str] = None
-    binance_api_secret: Optional[str] = None
     # OKX
     okx_api_key: Optional[str] = None
     okx_api_secret: Optional[str] = None

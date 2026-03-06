@@ -1,6 +1,6 @@
 """CCXT adapter — wraps CCXT async exchanges behind the ExchangeAdapter interface.
 
-Handles all 5 crypto exchanges (Binance, OKX, Bybit, Coinbase, Kraken).
+Handles crypto exchanges (OKX, Bybit, Coinbase, Kraken).
 Proxy injection, trading mode, and passphrase are handled at construction time.
 """
 

@@ -102,7 +102,7 @@ class ExchangeAdapter(ABC):
     @property
     @abstractmethod
     def name(self) -> str:
-        """Exchange name (e.g., 'binance', 'okx', 'ibkr')."""
+        """Exchange name (e.g., 'okx', 'bybit', 'ibkr')."""
 
     @property
     @abstractmethod

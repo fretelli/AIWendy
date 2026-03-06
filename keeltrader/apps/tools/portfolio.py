@@ -44,7 +44,7 @@ async def get_balance(
     """Get account balance.
 
     Args:
-        exchange_name: Exchange name (binance, okx, bybit)
+        exchange_name: Exchange name (okx, bybit)
         api_key: Exchange API key
         api_secret: Exchange API secret
         passphrase: Exchange passphrase (OKX)

@@ -31,27 +31,10 @@ class ExchangeService:
 
         # Initialize configured exchanges (skip if exchange module unavailable)
         if self._create_adapter:
-            self._init_binance(settings)
             self._init_okx(settings)
             self._init_bybit(settings)
 
         logger.info(f"Initialized {len(self.adapters)} exchanges: {list(self.adapters.keys())}")
-
-    def _init_binance(self, settings):
-        """Initialize Binance exchange"""
-        if settings.binance_api_key and settings.binance_api_secret:
-            try:
-                adapter = self._create_adapter(
-                    exchange_name="binance",
-                    api_key=settings.binance_api_key,
-                    api_secret=settings.binance_api_secret,
-                    trading_mode="spot",
-                    use_cache=False,
-                )
-                self.adapters["binance"] = adapter
-                logger.info("Binance exchange initialized")
-            except Exception as e:
-                logger.error(f"Failed to initialize Binance: {e}")
 
     def _init_okx(self, settings):
         """Initialize OKX exchange"""
