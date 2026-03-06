@@ -17,7 +17,7 @@ KeelTrader now supports three types of market data integration:
 
 1. **Real-time Market Data** - Stock and crypto price data via Twelve Data API
 2. **WebSocket Streaming** - Real-time price updates via WebSocket
-3. **Exchange Integration** - Connect to crypto exchanges (Binance, OKX, Bybit) to read positions and balances
+3. **Exchange Integration** - Connect to crypto exchanges (OKX, Bybit) to read positions and balances
 
 ## Configuration
 
@@ -106,17 +106,10 @@ Connect to cryptocurrency exchanges to read account data, positions, and trade h
 
 #### Supported Exchanges
 
-- **Binance** - World's largest crypto exchange
 - **OKX** - Major derivatives exchange
 - **Bybit** - Popular futures exchange
 
 #### Get API Keys
-
-**Binance:**
-1. Log in to https://www.binance.com/
-2. Go to Profile → API Management
-3. Create API Key with **read-only** permissions
-4. Save API Key and Secret Key
 
 **OKX:**
 1. Log in to https://www.okx.com/
@@ -166,10 +159,6 @@ Configure exchange API keys in the server's .env file (requires server restart).
 
 ```bash
 # In your .env file
-
-# Binance
-BINANCE_API_KEY=your_binance_api_key
-BINANCE_API_SECRET=your_binance_api_secret
 
 # OKX
 OKX_API_KEY=your_okx_api_key
@@ -271,7 +260,6 @@ GET /api/exchanges/
 **Response:**
 ```json
 [
-  { "name": "binance" },
   { "name": "okx" },
   { "name": "bybit" }
 ]
@@ -285,7 +273,7 @@ GET /api/exchanges/{exchange_name}/balance
 **Response:**
 ```json
 {
-  "exchange": "binance",
+  "exchange": "okx",
   "timestamp": "2024-01-01T12:00:00",
   "total": {
     "BTC": 0.5,
@@ -552,12 +540,13 @@ async function loadConnections() {
 }
 
 // Add a new exchange connection
-async function addBinance() {
+async function addOkx() {
   const connection = await userExchangeApi.createConnection({
-    exchange_type: 'binance',
-    name: 'My Main Binance Account',
+    exchange_type: 'okx',
+    name: 'My Main OKX Account',
     api_key: 'your_api_key',
     api_secret: 'your_api_secret',
+    passphrase: 'your_passphrase',
     is_testnet: false,
   })
   console.log('Connected:', connection)
