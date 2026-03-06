@@ -6,7 +6,7 @@ import { API_PROXY_PREFIX } from '@/lib/config'
 
 const API_BASE_URL = `${API_PROXY_PREFIX}/v1/user/exchanges`
 
-export type ExchangeType = 'binance' | 'okx' | 'bybit' | 'coinbase' | 'kraken' | 'ibkr'
+export type ExchangeType = 'okx' | 'bybit' | 'coinbase' | 'kraken' | 'ibkr'
 export type TradingMode = 'spot' | 'swap' | 'stock' | 'option' | 'future'
 
 export interface ExchangeConnection {

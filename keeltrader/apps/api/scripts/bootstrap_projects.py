@@ -43,7 +43,7 @@ def bootstrap_sync(db_url):
             "subscriptiontier": "('free', 'pro', 'elite', 'enterprise')",
             "moodtype": "('very_negative', 'negative', 'neutral', 'positive', 'very_positive')",
             "coachstyle": "('empathetic', 'disciplined', 'analytical', 'motivational', 'socratic')",
-            "exchangetype": "('binance', 'okx', 'bybit', 'coinbase', 'kraken')",
+            "exchangetype": "('okx', 'bybit', 'coinbase', 'kraken')",
             "interventionaction": "('notify', 'warn', 'block', 'force_close', 'reduce_position', 'cooldown')",
             "interventionreason": "('max_loss', 'revenge_trading', 'overtrading', 'position_size', 'risk_limit', 'emotional_state', 'pattern_detected', 'manual')",
             "patterntype": "('revenge_trading', 'overtrading', 'fomo', 'loss_chasing', 'tilt', 'consistent_profit', 'disciplined_exit', 'risk_management')",

@@ -34,7 +34,7 @@ export default function ExchangeSettingsPage() {
 
   // Form state
   const [formData, setFormData] = useState({
-    exchange_type: "binance" as ExchangeType,
+    exchange_type: "okx" as ExchangeType,
     name: "",
     api_key: "",
     api_secret: "",
@@ -74,7 +74,7 @@ export default function ExchangeSettingsPage() {
 
   const resetForm = () => {
     setFormData({
-      exchange_type: "binance",
+      exchange_type: "okx",
       name: "",
       api_key: "",
       api_secret: "",
@@ -261,7 +261,6 @@ export default function ExchangeSettingsPage() {
 
   const getExchangeIcon = (exchangeType: string) => {
     const icons: Record<string, string> = {
-      binance: "🟡",
       okx: "⚫",
       bybit: "🟠",
       coinbase: "🔵",
@@ -451,7 +450,6 @@ export default function ExchangeSettingsPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="binance">🟡 Binance</SelectItem>
                   <SelectItem value="okx">⚫ OKX</SelectItem>
                   <SelectItem value="bybit">🟠 Bybit</SelectItem>
                   <SelectItem value="coinbase">🔵 Coinbase</SelectItem>

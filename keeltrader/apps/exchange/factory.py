@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 _adapter_cache: dict[str, ExchangeAdapter] = {}
 
 # Known CCXT exchanges
-_CCXT_EXCHANGES = {"binance", "okx", "bybit", "coinbase", "kraken"}
+_CCXT_EXCHANGES = {"okx", "bybit", "coinbase", "kraken"}
 
 
 def create_adapter(
@@ -36,7 +36,7 @@ def create_adapter(
     """Create or retrieve a cached ExchangeAdapter.
 
     Args:
-        exchange_name: Exchange identifier ('binance', 'okx', 'ibkr', etc.)
+        exchange_name: Exchange identifier ('okx', 'bybit', 'ibkr', etc.)
         api_key: API key / username (None for public-data-only adapters)
         api_secret: API secret / password
         passphrase: Extra passphrase (OKX, etc.)

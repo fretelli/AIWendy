@@ -51,7 +51,7 @@ async def place_order(
     Args:
         agent_id: ID of the requesting agent
         user_id: User ID
-        exchange_name: Exchange name (binance, okx, bybit)
+        exchange_name: Exchange name (okx, bybit)
         symbol: Trading pair (e.g., "BTC/USDT")
         side: "buy" or "sell"
         order_type: "market" or "limit"

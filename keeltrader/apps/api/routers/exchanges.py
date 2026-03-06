@@ -116,7 +116,7 @@ async def get_balance(exchange_name: str, http_request: Request):
     Get account balance from exchange
 
     Args:
-        exchange_name: Name of the exchange (binance, okx, bybit)
+        exchange_name: Name of the exchange (okx, bybit)
 
     Returns:
         Balance information

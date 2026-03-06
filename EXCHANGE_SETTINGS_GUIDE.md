@@ -8,7 +8,6 @@ The Exchange Connections feature allows you to securely connect your cryptocurre
 
 ## Supported Exchanges
 
-- 🟡 **Binance** - World's largest crypto exchange
 - ⚫ **OKX** - Major derivatives exchange
 - 🟠 **Bybit** - Popular futures exchange
 - 🔵 **Coinbase** - Leading US exchange
@@ -19,13 +18,6 @@ The Exchange Connections feature allows you to securely connect your cryptocurre
 ### Step 1: Get API Keys from Your Exchange
 
 You need to create **READ-ONLY** API keys from your exchange:
-
-#### Binance
-1. Log in to [Binance](https://www.binance.com/)
-2. Go to **Profile → API Management**
-3. Click **Create API**
-4. Enable **only** "Enable Reading" permission
-5. Copy your API Key and Secret Key
 
 #### OKX
 1. Log in to [OKX](https://www.okx.com/)
@@ -59,8 +51,8 @@ You need to create **READ-ONLY** API keys from your exchange:
 2. **Click "Add Exchange"**
 
 3. **Fill in the Form:**
-   - **Exchange**: Select your exchange (Binance, OKX, etc.)
-   - **Name**: Give it a friendly name like "My Main Binance Account" (optional)
+   - **Exchange**: Select your exchange (OKX, Bybit, etc.)
+   - **Name**: Give it a friendly name like "My Main OKX Account" (optional)
    - **API Key**: Paste your API key
    - **API Secret**: Paste your API secret
    - **Passphrase**: (Only for OKX) Enter your API passphrase
@@ -152,7 +144,6 @@ We **NEVER** need or request:
 
 **Error: "Permission denied"**
 - Ensure the API key has read permissions
-- For Binance: Enable "Enable Reading"
 - For OKX: Enable "Read" permission
 - For Bybit: Enable "Read-Only" unified trading
 
@@ -198,7 +189,7 @@ We **NEVER** need or request:
 
 ### Q: Can I connect multiple accounts from the same exchange?
 
-**A:** Yes! You can add multiple connections. Give each a unique name like "Binance Main" and "Binance Trading".
+**A:** Yes! You can add multiple connections. Give each a unique name like "OKX Main" and "OKX Trading".
 
 ### Q: What if I change my API keys on the exchange?
 

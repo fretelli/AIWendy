@@ -35,12 +35,6 @@ npm run dev
 
 ## 🔑 Get Your API Keys
 
-### Binance (30 seconds)
-
-1. Go to https://www.binance.com/en/my/settings/api-management
-2. Create API → Enable **Reading** only
-3. Copy **API Key** and **Secret Key**
-
 ### OKX (1 minute)
 
 1. Go to https://www.okx.com/account/my-api
@@ -59,7 +53,7 @@ npm run dev
 1. Click **"Add Exchange"** button
 2. Fill in the form:
    ```
-   Exchange: Binance (or your choice)
+   Exchange: OKX (or your choice)
    Name: My Trading Account (optional)
    API Key: [paste your key]
    API Secret: [paste your secret]

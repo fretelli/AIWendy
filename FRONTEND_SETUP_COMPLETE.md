@@ -16,7 +16,7 @@ Congratulations! The Exchange Connections UI is now fully set up and ready to us
 - ✅ Toggle active/inactive status
 - ✅ View last sync time and error messages
 - ✅ Security alerts and best practices
-- ✅ Support for all 5 exchanges (Binance, OKX, Bybit, Coinbase, Kraken)
+- ✅ Support for all exchanges (OKX, Bybit, Coinbase, Kraken, IBKR)
 
 ### 2. API Integration
 **File:** `keeltrader/apps/web/lib/api/user-exchanges.ts`
@@ -98,7 +98,7 @@ npm run dev
 
 ### 3. Add Your First Exchange
 
-1. Select exchange (e.g., Binance)
+1. Select exchange (e.g., OKX)
 2. Enter custom name (optional)
 3. Paste API Key
 4. Paste API Secret
@@ -139,7 +139,7 @@ When you run the app, you'll see:
 
 5. **Test Connection Success**
    - Green success toast
-   - "Connected to binance. Found 5 currencies."
+   - "Connected to okx. Found 5 currencies."
 
 6. **Test Connection Failed**
    - Red error toast with error message
@@ -152,18 +152,18 @@ When you run the app, you'll see:
 Edit `lib/api/user-exchanges.ts`:
 
 ```typescript
-export type ExchangeType = 'binance' | 'okx' | 'bybit' | 'coinbase' | 'kraken' | 'kucoin'
+export type ExchangeType = 'okx' | 'bybit' | 'coinbase' | 'kraken' | 'ibkr' | 'kucoin'
 ```
 
 Add to backend `domain/exchange/models.py`:
 
 ```python
 class ExchangeType(str, enum.Enum):
-    BINANCE = "binance"
     OKX = "okx"
     BYBIT = "bybit"
     COINBASE = "coinbase"
     KRAKEN = "kraken"
+    IBKR = "ibkr"
     KUCOIN = "kucoin"  # New
 ```
 
@@ -174,11 +174,11 @@ Edit `app/(dashboard)/settings/exchanges/page.tsx`:
 ```typescript
 const getExchangeIcon = (exchangeType: string) => {
   const icons: Record<string, string> = {
-    binance: "🟡",
     okx: "⚫",
     bybit: "🟠",
     coinbase: "🔵",
     kraken: "🟣",
+    ibkr: "🏦",
     kucoin: "🟢",  // Add new icon
   }
   return icons[exchangeType] || "🔷"
