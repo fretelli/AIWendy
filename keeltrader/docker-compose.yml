@@ -86,6 +86,9 @@ services:
       # API 路由优先级更高（PathPrefix 更长），web 兜底
 
   worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
     image: keeltrader-api:latest
     container_name: keeltrader-worker
     restart: unless-stopped
@@ -109,6 +112,9 @@ services:
     command: celery -A workers.celery_app worker --loglevel=info --concurrency=4
 
   beat:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
     image: keeltrader-api:latest
     container_name: keeltrader-beat
     restart: unless-stopped
