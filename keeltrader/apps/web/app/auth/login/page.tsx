@@ -27,7 +27,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (authLoading) return
-    if (user && user.email !== GUEST_EMAIL) router.push('/dashboard')
+    if (user && user.email !== GUEST_EMAIL) router.push('/chat')
   }, [authLoading, router, user])
 
   useEffect(() => {
@@ -54,7 +54,7 @@ export default function LoginPage() {
 
     try {
       await login(email, password)
-      router.push('/dashboard')
+      router.push('/chat')
     } catch (err: any) {
       setError(err.message || t('landing.auth.login.error'))
     } finally {
@@ -65,7 +65,7 @@ export default function LoginPage() {
   const handleContinueAsGuest = () => {
     localStorage.removeItem('keeltrader_access_token')
     localStorage.removeItem('keeltrader_refresh_token')
-    router.push('/dashboard')
+    router.push('/chat')
   }
 
   const handleGoogleLogin = async () => {
