@@ -151,14 +151,16 @@ async def generic_exception_handler(request: Request, exc: Exception):
     )
 
 
-# === 5 Route Groups ===
+# === Route Groups ===
 from routers import auth, health
+from routers.users import router as users_router
 from routers.chat_v2 import router as chat_v2_router
 from routers.settings_v2 import router as settings_v2_router
 from routers.webhook import router as webhook_router
 
 app.include_router(health.router, prefix="/api", tags=["Health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
+app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(chat_v2_router, prefix="/api/v1/chat", tags=["Chat"])
 app.include_router(settings_v2_router, prefix="/api/v1/settings", tags=["Settings"])
 app.include_router(webhook_router, prefix="/api/v1/webhook", tags=["Webhook"])
