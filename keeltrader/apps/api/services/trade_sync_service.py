@@ -393,8 +393,8 @@ class TradeSyncService:
                 import asyncio
                 from services.push_service import push_message
                 alert_text = (
-                    f"⚠️ 行为模式检测: {mapped.value}\n"
-                    f"置信度: {pattern.confidence:.0%}\n"
+                    f"⚠️ Behavior pattern detected: {mapped.value}\n"
+                    f"Confidence: {pattern.confidence:.0%}\n"
                     f"{pattern.description}"
                 )
                 asyncio.get_event_loop().run_until_complete(

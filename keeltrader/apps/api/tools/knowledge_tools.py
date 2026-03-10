@@ -19,12 +19,12 @@ async def search_knowledge(
     query: str,
     top_k: int = 5,
 ) -> dict[str, Any]:
-    """搜索知识库（pgvector RAG）。"""
+    """Search knowledge base (pgvector RAG)."""
     from domain.knowledge.models import KnowledgeChunk, KnowledgeDocument
 
     query = (query or "").strip()
     if not query:
-        return {"results": [], "message": "请提供搜索关键词"}
+        return {"results": [], "message": "Please provide search keywords"}
 
     # Try to get embedding from OpenAI via LiteLLM
     try:
@@ -43,7 +43,7 @@ async def search_knowledge(
         query_embedding = resp.data[0].embedding
     except Exception as e:
         logger.warning("knowledge_embedding_failed", error=str(e))
-        return {"results": [], "message": f"Embedding 生成失败: {str(e)}"}
+        return {"results": [], "message": f"Embedding generation failed: {str(e)}"}
 
     dim = len(query_embedding)
     distance = KnowledgeChunk.embedding_vector.cosine_distance(query_embedding)
@@ -65,7 +65,7 @@ async def search_knowledge(
 
     rows = (await session.execute(stmt)).all()
     if not rows:
-        return {"results": [], "message": "未找到相关知识"}
+        return {"results": [], "message": "No relevant knowledge found"}
 
     return {
         "results": [

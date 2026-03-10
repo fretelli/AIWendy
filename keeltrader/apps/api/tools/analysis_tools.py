@@ -22,7 +22,7 @@ async def analyze_performance(
     days: int = 30,
     symbol: Optional[str] = None,
 ) -> dict[str, Any]:
-    """分析交易表现（胜率、盈亏比等）。"""
+    """Analyze trading performance (win rate, profit factor, etc.)."""
     since = datetime.utcnow() - timedelta(days=days)
     conditions = [
         Journal.user_id == user_id,
@@ -37,7 +37,7 @@ async def analyze_performance(
     journals = result.scalars().all()
 
     if not journals:
-        return {"message": f"最近 {days} 天没有交易记录", "stats": {}}
+        return {"message": f"No trades found in the last {days} days", "stats": {}}
 
     # Calculate stats
     total = len(journals)
@@ -115,7 +115,7 @@ async def detect_patterns(
     user_id: UUID,
     days: int = 14,
 ) -> dict[str, Any]:
-    """检测行为模式（FOMO、报复交易等）。"""
+    """Detect behavior patterns (FOMO, revenge trading, etc.)."""
     from domain.analytics.ml_analytics import MLAnalytics
 
     since = datetime.utcnow() - timedelta(days=days)
@@ -133,7 +133,7 @@ async def detect_patterns(
     journals = result.scalars().all()
 
     if len(journals) < 3:
-        return {"patterns": [], "message": "交易记录不足，至少需要 3 条才能分析"}
+        return {"patterns": [], "message": "Not enough trades, need at least 3 for analysis"}
 
     ml = MLAnalytics()
     patterns = ml.detect_patterns(journals)
@@ -183,7 +183,7 @@ async def analyze_market(
     symbol: str,
     timeframe: str = "4h",
 ) -> dict[str, Any]:
-    """AI 分析市场技术面（使用 LLM）。"""
+    """AI technical analysis of market (using LLM)."""
     from tools.market_tools import get_market_data
 
     # Fetch market data
@@ -202,12 +202,12 @@ async def analyze_market(
     ticker = market_data.get("ticker", {})
 
     if not ohlcv:
-        return {"error": f"无法获取 {symbol} 的行情数据"}
+        return {"error": f"Unable to fetch market data for {symbol}"}
 
     # Calculate basic indicators
     closes = [c[4] for c in ohlcv if len(c) >= 5]
     if len(closes) < 20:
-        return {"error": "数据不足，无法计算技术指标"}
+        return {"error": "Insufficient data to calculate technical indicators"}
 
     import numpy as np
     closes_arr = np.array(closes)
@@ -230,7 +230,7 @@ async def analyze_market(
     volatility = float(np.std(returns) * 100) if len(returns) > 0 else 0
 
     current_price = ticker.get("last") or closes[-1]
-    trend = "上涨" if current_price > ma20 else "下跌"
+    trend = "bullish" if current_price > ma20 else "bearish"
 
     return {
         "symbol": symbol,
@@ -253,19 +253,19 @@ def _generate_signals(
 ) -> list[str]:
     signals = []
     if rsi > 70:
-        signals.append("RSI 超买（>70），可能回调")
+        signals.append("RSI overbought (>70), potential pullback")
     elif rsi < 30:
-        signals.append("RSI 超卖（<30），可能反弹")
+        signals.append("RSI oversold (<30), potential bounce")
 
     if price > ma20:
-        signals.append("价格在 MA20 上方，短期偏多")
+        signals.append("Price above MA20, short-term bullish")
     else:
-        signals.append("价格在 MA20 下方，短期偏空")
+        signals.append("Price below MA20, short-term bearish")
 
     if ma50:
         if ma20 > ma50:
-            signals.append("MA20 > MA50，中期趋势向上")
+            signals.append("MA20 > MA50, medium-term uptrend")
         else:
-            signals.append("MA20 < MA50，中期趋势向下")
+            signals.append("MA20 < MA50, medium-term downtrend")
 
     return signals

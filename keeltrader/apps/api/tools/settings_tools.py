@@ -20,7 +20,7 @@ async def get_pnl(
     user_id: UUID,
     period: str = "today",
 ) -> dict[str, Any]:
-    """查询盈亏。"""
+    """Query PnL."""
     now = datetime.utcnow()
     if period == "today":
         since = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -71,14 +71,14 @@ async def update_settings(
     user_id: UUID,
     settings: dict[str, Any],
 ) -> dict[str, Any]:
-    """更新风控/策略参数。"""
+    """Update risk/strategy parameters."""
     from domain.user.models import User
 
     stmt = select(User).where(User.id == user_id)
     result = await session.execute(stmt)
     user = result.scalar_one_or_none()
     if not user:
-        return {"error": "用户不存在"}
+        return {"error": "User not found"}
 
     # Store risk settings in user's api_keys_encrypted JSON field
     current = user.api_keys_encrypted or {}
@@ -104,5 +104,5 @@ async def update_settings(
     return {
         "updated": updated,
         "current_settings": risk_settings,
-        "message": "设置已更新",
+        "message": "Settings updated",
     }

@@ -20,7 +20,7 @@ async def get_market_data(
     timeframe: str = "1h",
     limit: int = 100,
 ) -> dict[str, Any]:
-    """获取行情数据（K线 + ticker）。"""
+    """Get market data (candlesticks + ticker)."""
     connections = await _get_active_connections(session, user_id)
     if not connections:
         # Try public data with unauthenticated adapter
@@ -45,7 +45,7 @@ async def get_market_data(
                 "timeframe": timeframe,
             }
         except Exception as e:
-            return {"error": f"无法获取 {symbol} 行情: {str(e)}"}
+            return {"error": f"Unable to fetch {symbol} market data: {str(e)}"}
 
     conn = connections[0]
     adapter = _build_adapter(conn)
@@ -69,7 +69,7 @@ async def get_market_data(
             "timeframe": timeframe,
         }
     except Exception as e:
-        return {"error": f"获取行情失败: {str(e)}"}
+        return {"error": f"Failed to fetch market data: {str(e)}"}
     finally:
         await adapter.close()
 
@@ -83,7 +83,7 @@ async def generate_chart(
     indicators: Optional[list[str]] = None,
     days: int = 7,
 ) -> dict[str, Any]:
-    """生成图表数据（前端渲染）。"""
+    """Generate chart data (frontend rendering)."""
     limit = {"1m": 60 * 24, "5m": 288, "15m": 96, "1h": 24, "4h": 6, "1d": 1}.get(timeframe, 24) * days
     limit = min(limit, 1000)
 
@@ -93,7 +93,7 @@ async def generate_chart(
 
     ohlcv = market_data.get("ohlcv", [])
     if not ohlcv:
-        return {"error": "无行情数据"}
+        return {"error": "No market data available"}
 
     chart_data = {
         "symbol": symbol,
