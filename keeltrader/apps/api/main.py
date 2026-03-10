@@ -33,6 +33,17 @@ async def lifespan(app: FastAPI):
 
     logger.info("Starting KeelTrader v2 API", version=settings.app_version)
 
+    # Import all domain models so SQLAlchemy can resolve string relationships
+    import domain.analysis.models  # noqa
+    import domain.coach.models  # noqa
+    import domain.exchange.models  # noqa
+    import domain.journal.models  # noqa
+    import domain.knowledge.models  # noqa
+    import domain.notification.models  # noqa
+    import domain.project.models  # noqa
+    import domain.report.models  # noqa
+    import domain.user.models  # noqa
+
     # Initialize database
     logger.info("Skipping automatic database initialization (Base.metadata.create_all)")
     await maybe_auto_init_db()
