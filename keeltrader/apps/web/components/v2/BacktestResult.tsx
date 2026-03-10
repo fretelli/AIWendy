@@ -44,7 +44,7 @@ export function BacktestResult({ data }: BacktestResultProps) {
       <CardHeader className="py-2 px-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-sm">📈 回测结果</CardTitle>
+            <CardTitle className="text-sm">📈 Backtest Result</CardTitle>
             <Badge variant="secondary" className="text-xs">{data.strategy}</Badge>
           </div>
           <span className={cn(
@@ -55,34 +55,34 @@ export function BacktestResult({ data }: BacktestResultProps) {
           </span>
         </div>
         <div className="text-xs text-muted-foreground">
-          {data.symbol} · {data.period_days}天 · {stats.total_trades}笔交易
+          {data.symbol} · {data.period_days}d · {stats.total_trades} trades
         </div>
       </CardHeader>
       <CardContent className="px-3 pb-2 space-y-2">
         {/* Stats grid */}
         <div className="grid grid-cols-3 gap-2 text-xs">
           <div className="text-center p-1 rounded bg-muted">
-            <div className="text-muted-foreground">胜率</div>
+            <div className="text-muted-foreground">Win Rate</div>
             <div className="font-bold">{stats.win_rate}%</div>
           </div>
           <div className="text-center p-1 rounded bg-muted">
-            <div className="text-muted-foreground">盈亏比</div>
+            <div className="text-muted-foreground">P/F Ratio</div>
             <div className="font-bold">{stats.profit_factor}</div>
           </div>
           <div className="text-center p-1 rounded bg-muted">
-            <div className="text-muted-foreground">最大回撤</div>
+            <div className="text-muted-foreground">Max DD</div>
             <div className="font-bold text-red-600">-{stats.max_drawdown_pct}%</div>
           </div>
           <div className="text-center p-1 rounded bg-muted">
-            <div className="text-muted-foreground">平均盈利</div>
+            <div className="text-muted-foreground">Avg Win</div>
             <div className="font-bold text-green-600">+{stats.avg_win_pct}%</div>
           </div>
           <div className="text-center p-1 rounded bg-muted">
-            <div className="text-muted-foreground">平均亏损</div>
+            <div className="text-muted-foreground">Avg Loss</div>
             <div className="font-bold text-red-600">{stats.avg_loss_pct}%</div>
           </div>
           <div className="text-center p-1 rounded bg-muted">
-            <div className="text-muted-foreground">夏普比率</div>
+            <div className="text-muted-foreground">Sharpe</div>
             <div className="font-bold">{stats.sharpe_ratio}</div>
           </div>
         </div>
@@ -95,7 +95,7 @@ export function BacktestResult({ data }: BacktestResultProps) {
                 <XAxis dataKey="index" hide />
                 <YAxis tick={{ fontSize: 10 }} width={40} domain={['auto', 'auto']} />
                 <Tooltip
-                  formatter={(value: number) => [`${value.toFixed(2)}%`, '净值']}
+                  formatter={(value: number) => [`${value.toFixed(2)}%`, 'Equity']}
                 />
                 <Line
                   type="monotone"

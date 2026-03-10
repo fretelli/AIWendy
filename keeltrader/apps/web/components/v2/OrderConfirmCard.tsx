@@ -29,7 +29,7 @@ export function OrderConfirmCard({ order, message, onConfirm }: OrderConfirmCard
     return (
       <Card className="border-yellow-500/50">
         <CardContent className="py-2 px-3 text-sm text-muted-foreground">
-          ⏭️ 已跳过此交易
+          ⏭️ Trade skipped
         </CardContent>
       </Card>
     );
@@ -39,7 +39,7 @@ export function OrderConfirmCard({ order, message, onConfirm }: OrderConfirmCard
     return (
       <Card className="border-green-500/50">
         <CardContent className="py-2 px-3 text-sm text-green-600">
-          ✅ 已确认执行
+          ✅ Confirmed
         </CardContent>
       </Card>
     );
@@ -49,47 +49,47 @@ export function OrderConfirmCard({ order, message, onConfirm }: OrderConfirmCard
     <Card className="border-primary/50">
       <CardHeader className="py-2 px-3">
         <div className="flex items-center gap-2">
-          <CardTitle className="text-sm">⚡ 交易确认</CardTitle>
+          <CardTitle className="text-sm">⚡ Trade Confirmation</CardTitle>
           <Badge variant={order.side === 'buy' ? 'default' : 'destructive'}>
-            {order.side === 'buy' ? '买入' : '卖出'}
+            {order.side === 'buy' ? 'Buy' : 'Sell'}
           </Badge>
         </div>
       </CardHeader>
       <CardContent className="px-3 pb-2 space-y-2">
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-          <div className="text-muted-foreground">交易对</div>
+          <div className="text-muted-foreground">Pair</div>
           <div className="font-medium">{order.symbol}</div>
 
-          <div className="text-muted-foreground">数量</div>
+          <div className="text-muted-foreground">Amount</div>
           <div className="font-mono">{order.amount}</div>
 
-          <div className="text-muted-foreground">类型</div>
-          <div>{order.order_type === 'market' ? '市价' : '限价'}</div>
+          <div className="text-muted-foreground">Type</div>
+          <div>{order.order_type === 'market' ? 'Market' : 'Limit'}</div>
 
           {order.price && (
             <>
-              <div className="text-muted-foreground">价格</div>
+              <div className="text-muted-foreground">Price</div>
               <div className="font-mono">${order.price}</div>
             </>
           )}
 
           {order.stop_loss && (
             <>
-              <div className="text-muted-foreground">止损</div>
+              <div className="text-muted-foreground">Stop Loss</div>
               <div className="font-mono text-red-600">${order.stop_loss}</div>
             </>
           )}
 
           {order.take_profit && (
             <>
-              <div className="text-muted-foreground">止盈</div>
+              <div className="text-muted-foreground">Take Profit</div>
               <div className="font-mono text-green-600">${order.take_profit}</div>
             </>
           )}
 
           {order.estimated_value_usd && (
             <>
-              <div className="text-muted-foreground">预估金额</div>
+              <div className="text-muted-foreground">Est. Value</div>
               <div className="font-mono">${order.estimated_value_usd.toFixed(2)}</div>
             </>
           )}
@@ -103,14 +103,14 @@ export function OrderConfirmCard({ order, message, onConfirm }: OrderConfirmCard
               onConfirm(order);
             }}
           >
-            ✅ 执行
+            ✅ Execute
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => setSkipped(true)}
           >
-            ⏭️ 跳过
+            ⏭️ Skip
           </Button>
         </div>
       </CardContent>

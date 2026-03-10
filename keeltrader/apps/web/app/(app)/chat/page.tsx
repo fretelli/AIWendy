@@ -159,7 +159,7 @@ export default function ChatPage() {
         const updated = [...prev];
         const last = updated[updated.length - 1];
         if (last.role === 'assistant') {
-          last.content = `❌ 连接错误: ${e.message}`;
+          last.content = `❌ Connection error: ${e.message}`;
         }
         return [...updated];
       });
@@ -225,7 +225,7 @@ export default function ChatPage() {
   };
 
   const handleConfirmOrder = useCallback(async (orderData: Record<string, any>) => {
-    await sendMessage(`确认执行: ${orderData.side} ${orderData.amount} ${orderData.symbol}`);
+    await sendMessage(`Confirm execute: ${orderData.side} ${orderData.amount} ${orderData.symbol}`);
   }, [sendMessage]);
 
   return (
@@ -238,8 +238,8 @@ export default function ChatPage() {
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             <div className="text-center space-y-2">
-              <p className="text-lg">👋 你好，我是 KeelTrader AI 助手</p>
-              <p className="text-sm">点击上方快捷按钮或直接输入你的问题</p>
+              <p className="text-lg">👋 Hi, I'm KeelTrader AI Assistant</p>
+              <p className="text-sm">Click the quick actions above or type your question</p>
             </div>
           </div>
         )}
@@ -292,7 +292,7 @@ export default function ChatPage() {
               {msg.role === 'assistant' && !msg.content && !msg.toolCalls?.length && isLoading && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  思考中...
+                  Thinking...
                 </div>
               )}
             </div>
@@ -308,7 +308,7 @@ export default function ChatPage() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入消息... (Enter 发送，Shift+Enter 换行)"
+            placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
             className="flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-h-[40px] max-h-[120px]"
             rows={1}
             disabled={isLoading}
