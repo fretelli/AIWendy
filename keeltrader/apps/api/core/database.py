@@ -95,7 +95,12 @@ async def init_database() -> None:
 
         from domain.analysis import models as analysis_models  # noqa
         from domain.coach import models as coach_models  # noqa
+        from domain.exchange import models as exchange_models  # noqa
         from domain.journal import models as journal_models  # noqa
+        from domain.knowledge import models as knowledge_models  # noqa
+        from domain.notification import models as notification_models  # noqa
+        from domain.project import models as project_models  # noqa
+        from domain.report import models as report_models  # noqa
         from domain.user import models as user_models  # noqa
 
         async with engine.begin() as conn:
