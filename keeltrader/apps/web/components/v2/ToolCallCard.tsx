@@ -64,11 +64,11 @@ export function ToolCallCard({ name, args, result }: ToolCallCardProps) {
   }
 
   if (name === 'get_pnl' && result.daily_pnl) {
-    return <PnLChart data={result} />;
+    return <PnLChart data={result as any} />;
   }
 
   if (name === 'backtest_strategy' && result.stats) {
-    return <BacktestResult data={result} />;
+    return <BacktestResult data={result as any} />;
   }
 
   // Generic result display
