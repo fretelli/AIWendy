@@ -21,10 +21,10 @@ export function PnLChart({ data }: PnLChartProps) {
   const hasChart = data.daily_pnl && data.daily_pnl.length > 0;
 
   const periodLabel: Record<string, string> = {
-    today: '今日',
-    week: '本周',
-    month: '本月',
-    all: '全部',
+    today: 'Today',
+    week: 'Weekly',
+    month: 'Monthly',
+    all: 'All Time',
   };
 
   return (
@@ -32,7 +32,7 @@ export function PnLChart({ data }: PnLChartProps) {
       <CardHeader className="py-2 px-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm">
-            💰 {periodLabel[data.period] || data.period}盈亏
+            💰 {periodLabel[data.period] || data.period} PnL
           </CardTitle>
           <span className={cn(
             'text-lg font-mono font-bold',
@@ -44,12 +44,12 @@ export function PnLChart({ data }: PnLChartProps) {
       </CardHeader>
       <CardContent className="px-3 pb-2">
         <div className="flex gap-4 text-sm mb-2">
-          <span>交易 {data.trade_count} 笔</span>
-          <span className="text-green-600">赢 {data.wins}</span>
-          <span className="text-red-600">亏 {data.losses}</span>
+          <span>{data.trade_count} trades</span>
+          <span className="text-green-600">W {data.wins}</span>
+          <span className="text-red-600">L {data.losses}</span>
           {data.trade_count > 0 && (
             <span>
-              胜率 {((data.wins / data.trade_count) * 100).toFixed(0)}%
+              Win rate {((data.wins / data.trade_count) * 100).toFixed(0)}%
             </span>
           )}
         </div>
@@ -65,7 +65,7 @@ export function PnLChart({ data }: PnLChartProps) {
                 />
                 <YAxis tick={{ fontSize: 10 }} width={50} />
                 <Tooltip
-                  formatter={(value: number) => [`$${value.toFixed(2)}`, '盈亏']}
+                  formatter={(value: number) => [`$${value.toFixed(2)}`, 'PnL']}
                   labelFormatter={(label: string) => label}
                 />
                 <Bar dataKey="pnl">

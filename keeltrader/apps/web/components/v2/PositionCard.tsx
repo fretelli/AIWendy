@@ -28,7 +28,7 @@ export function PositionCard({ positions, totalPnl }: PositionCardProps) {
     <Card>
       <CardHeader className="py-2 px-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-sm">📊 持仓概况</CardTitle>
+          <CardTitle className="text-sm">📊 Positions</CardTitle>
           <span className={cn(
             'text-sm font-mono font-bold',
             totalPnl >= 0 ? 'text-green-600' : 'text-red-600'
@@ -39,14 +39,14 @@ export function PositionCard({ positions, totalPnl }: PositionCardProps) {
       </CardHeader>
       <CardContent className="px-3 pb-2">
         {validPositions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">暂无持仓</p>
+          <p className="text-sm text-muted-foreground">No open positions</p>
         ) : (
           <div className="space-y-2">
             {validPositions.map((p, i) => (
               <div key={i} className="flex items-center justify-between text-sm border-b pb-1 last:border-0">
                 <div className="flex items-center gap-2">
                   <Badge variant={p.side === 'long' ? 'default' : 'destructive'} className="text-xs">
-                    {p.side === 'long' ? '多' : '空'}
+                    {p.side === 'long' ? 'Long' : 'Short'}
                   </Badge>
                   <span className="font-medium">{p.symbol}</span>
                   <span className="text-xs text-muted-foreground">{p.exchange}</span>

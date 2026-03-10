@@ -14,21 +14,21 @@ interface ToolCallCardProps {
 }
 
 const TOOL_LABELS: Record<string, string> = {
-  get_positions: '持仓查询',
-  get_pnl: '盈亏查询',
-  query_trades: '交易记录',
-  analyze_performance: '交易分析',
-  detect_patterns: '行为模式',
-  get_market_data: '行情数据',
-  analyze_market: '市场分析',
-  place_order: '下单',
-  cancel_order: '撤单',
-  search_knowledge: '知识搜索',
-  manage_journal: '交易日志',
-  update_settings: '设置更新',
-  generate_chart: '图表',
-  backtest_strategy: '回测',
-  replay_my_trades: '交易回放',
+  get_positions: 'Positions',
+  get_pnl: 'PnL',
+  query_trades: 'Trade History',
+  analyze_performance: 'Performance',
+  detect_patterns: 'Patterns',
+  get_market_data: 'Market Data',
+  analyze_market: 'Market Analysis',
+  place_order: 'Order',
+  cancel_order: 'Cancel Order',
+  search_knowledge: 'Knowledge',
+  manage_journal: 'Journal',
+  update_settings: 'Settings',
+  generate_chart: 'Chart',
+  backtest_strategy: 'Backtest',
+  replay_my_trades: 'Replay',
 };
 
 export function ToolCallCard({ name, args, result }: ToolCallCardProps) {
@@ -38,7 +38,7 @@ export function ToolCallCard({ name, args, result }: ToolCallCardProps) {
     return (
       <div className="flex items-center gap-2 text-sm text-muted-foreground py-1">
         <Loader2 className="h-3 w-3 animate-spin" />
-        正在执行 {label}...
+        Executing {label}...
       </div>
     );
   }

@@ -67,20 +67,20 @@ export default function AppLayout({
           <Link href="/chat">
             <Button variant="ghost" size="sm" className="gap-2">
               <MessageSquare className="h-4 w-4" />
-              对话
+              Chat
             </Button>
           </Link>
           <Link href="/settings">
             <Button variant="ghost" size="sm" className="gap-2">
               <Settings className="h-4 w-4" />
-              设置
+              Settings
             </Button>
           </Link>
         </nav>
 
         <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
           <LogOut className="h-4 w-4" />
-          <span className="hidden md:inline">退出</span>
+          <span className="hidden md:inline">Logout</span>
         </Button>
       </header>
 
@@ -90,13 +90,13 @@ export default function AppLayout({
           <Link href="/chat" onClick={() => setMobileMenuOpen(false)}>
             <Button variant="ghost" className="w-full justify-start gap-2">
               <MessageSquare className="h-4 w-4" />
-              对话
+              Chat
             </Button>
           </Link>
           <Link href="/settings" onClick={() => setMobileMenuOpen(false)}>
             <Button variant="ghost" className="w-full justify-start gap-2">
               <Settings className="h-4 w-4" />
-              设置
+              Settings
             </Button>
           </Link>
         </div>

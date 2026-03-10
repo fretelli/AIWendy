@@ -22,16 +22,16 @@ interface QuickActionsProps {
 }
 
 const PRIMARY_ACTIONS = [
-  { action: 'get_positions', label: '查持仓', icon: Wallet },
-  { action: 'get_pnl', label: '今日盈亏', icon: TrendingUp, params: { period: 'today' } },
-  { action: 'analyze_performance', label: '交易分析', icon: BarChart3, params: { days: 7 } },
+  { action: 'get_positions', label: 'Positions', icon: Wallet },
+  { action: 'get_pnl', label: "Today's PnL", icon: TrendingUp, params: { period: 'today' } },
+  { action: 'analyze_performance', label: 'Analysis', icon: BarChart3, params: { days: 7 } },
 ];
 
 const MORE_ACTIONS = [
-  { action: 'get_pnl', label: '本周盈亏', params: { period: 'week' } },
-  { action: 'get_pnl', label: '本月盈亏', params: { period: 'month' } },
-  { action: 'detect_patterns', label: '行为模式检测', params: { days: 14 } },
-  { action: 'analyze_performance', label: '30天分析', params: { days: 30 } },
+  { action: 'get_pnl', label: 'Weekly PnL', params: { period: 'week' } },
+  { action: 'get_pnl', label: 'Monthly PnL', params: { period: 'month' } },
+  { action: 'detect_patterns', label: 'Pattern Detection', params: { days: 14 } },
+  { action: 'analyze_performance', label: '30-Day Analysis', params: { days: 30 } },
 ];
 
 export function QuickActions({ onAction, disabled }: QuickActionsProps) {
@@ -55,7 +55,7 @@ export function QuickActions({ onAction, disabled }: QuickActionsProps) {
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" className="shrink-0 gap-1.5" disabled={disabled}>
             <MoreHorizontal className="h-3.5 w-3.5" />
-            更多
+            More
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">

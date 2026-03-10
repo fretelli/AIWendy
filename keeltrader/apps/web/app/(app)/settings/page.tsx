@@ -78,11 +78,11 @@ export default function SettingsPage() {
       });
       const data = await resp.json();
       if (resp.ok) {
-        toast.success(data.message || '连接成功');
+        toast.success(data.message || 'Connected successfully');
         setNewExchange({ exchange: 'okx', api_key: '', api_secret: '', passphrase: '', trading_mode: 'swap' });
         fetchData();
       } else {
-        toast.error(data.detail || '连接失败');
+        toast.error(data.detail || 'Connection failed');
       }
     } catch (e: any) {
       toast.error(e.message);
@@ -95,7 +95,7 @@ export default function SettingsPage() {
       headers: getAuthHeaders(),
     });
     if (resp.ok) {
-      toast.success('已断开');
+      toast.success('Disconnected');
       fetchData();
     }
   };
@@ -106,7 +106,7 @@ export default function SettingsPage() {
       headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify(riskSettings),
     });
-    if (resp.ok) toast.success('风控参数已保存');
+    if (resp.ok) toast.success('Risk settings saved');
   };
 
   const savePushSettings = async () => {
@@ -115,17 +115,17 @@ export default function SettingsPage() {
       headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
       body: JSON.stringify(pushSettings),
     });
-    if (resp.ok) toast.success('推送设置已保存');
+    if (resp.ok) toast.success('Push settings saved');
   };
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">设置</h1>
+      <h1 className="text-2xl font-bold">Settings</h1>
 
       {/* Exchange connections */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">交易所连接</CardTitle>
+          <CardTitle className="text-lg">Exchange Connections</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {exchanges.length > 0 && (
@@ -135,10 +135,10 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <Badge>{ex.exchange.toUpperCase()}</Badge>
                     <span className="text-sm">{ex.trading_mode}</span>
-                    {ex.is_testnet && <Badge variant="outline">测试网</Badge>}
+                    {ex.is_testnet && <Badge variant="outline">Testnet</Badge>}
                   </div>
                   <Button variant="ghost" size="sm" onClick={() => removeExchange(ex.id)}>
-                    断开
+                    Disconnect
                   </Button>
                 </div>
               ))}
@@ -148,7 +148,7 @@ export default function SettingsPage() {
           <div className="space-y-3 border-t pt-4">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>交易所</Label>
+                <Label>Exchange</Label>
                 <select
                   className="w-full rounded border px-3 py-2 text-sm"
                   value={newExchange.exchange}
@@ -161,14 +161,14 @@ export default function SettingsPage() {
                 </select>
               </div>
               <div>
-                <Label>交易模式</Label>
+                <Label>Trading Mode</Label>
                 <select
                   className="w-full rounded border px-3 py-2 text-sm"
                   value={newExchange.trading_mode}
                   onChange={e => setNewExchange(p => ({ ...p, trading_mode: e.target.value }))}
                 >
-                  <option value="swap">合约(swap)</option>
-                  <option value="spot">现货(spot)</option>
+                  <option value="swap">Futures (swap)</option>
+                  <option value="spot">Spot</option>
                 </select>
               </div>
             </div>
@@ -197,7 +197,7 @@ export default function SettingsPage() {
               />
             </div>
             <Button onClick={addExchange} disabled={!newExchange.api_key || !newExchange.api_secret}>
-              连接交易所
+              Connect Exchange
             </Button>
           </div>
         </CardContent>
@@ -206,12 +206,12 @@ export default function SettingsPage() {
       {/* Risk settings */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">风控参数</CardTitle>
+          <CardTitle className="text-lg">Risk Parameters</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>单笔金额上限 ($)</Label>
+              <Label>Max Order Value ($)</Label>
               <Input
                 type="number"
                 value={riskSettings.max_order_value_usd}
@@ -219,7 +219,7 @@ export default function SettingsPage() {
               />
             </div>
             <div>
-              <Label>日亏损上限 ($)</Label>
+              <Label>Max Daily Loss ($)</Label>
               <Input
                 type="number"
                 value={riskSettings.max_daily_loss_usd}
@@ -227,7 +227,7 @@ export default function SettingsPage() {
               />
             </div>
             <div>
-              <Label>最大持仓数</Label>
+              <Label>Max Positions</Label>
               <Input
                 type="number"
                 value={riskSettings.max_positions}
@@ -239,25 +239,25 @@ export default function SettingsPage() {
                 checked={riskSettings.require_confirmation}
                 onCheckedChange={v => setRiskSettings(p => ({ ...p, require_confirmation: v }))}
               />
-              <Label>交易确认</Label>
+              <Label>Trade Confirmation</Label>
             </div>
           </div>
-          <Button onClick={saveRiskSettings}>保存风控设置</Button>
+          <Button onClick={saveRiskSettings}>Save Risk Settings</Button>
         </CardContent>
       </Card>
 
       {/* Push settings */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">推送设置</CardTitle>
+          <CardTitle className="text-lg">Push Notifications</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-2">
             {[
-              { key: 'push_morning_report', label: '早安报告 (08:30)' },
-              { key: 'push_evening_report', label: '晚安总结 (21:00)' },
-              { key: 'push_trade_alerts', label: '交易建议推送' },
-              { key: 'push_risk_alerts', label: '风控告警推送' },
+              { key: 'push_morning_report', label: 'Morning Report (08:30)' },
+              { key: 'push_evening_report', label: 'Evening Summary (21:00)' },
+              { key: 'push_trade_alerts', label: 'Trade Alerts' },
+              { key: 'push_risk_alerts', label: 'Risk Alerts' },
             ].map(({ key, label }) => (
               <div key={key} className="flex items-center justify-between">
                 <Label>{label}</Label>
@@ -268,7 +268,7 @@ export default function SettingsPage() {
               </div>
             ))}
           </div>
-          <Button onClick={savePushSettings}>保存推送设置</Button>
+          <Button onClick={savePushSettings}>Save Push Settings</Button>
         </CardContent>
       </Card>
     </div>
