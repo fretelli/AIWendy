@@ -51,7 +51,7 @@ export default function RegisterPage() {
     try {
       await register(email, password, fullName)
       await login(email, password)
-      router.push('/dashboard')
+      router.push('/chat')
     } catch (err: any) {
       setError(err.message || t('landing.auth.register.error'))
     } finally {

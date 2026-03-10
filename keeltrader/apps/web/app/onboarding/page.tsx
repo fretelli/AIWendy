@@ -16,7 +16,7 @@ export default function OnboardingPage() {
           <CardTitle>{t("landing.app.onboarding.title")}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 sm:flex-row">
-          <Link href="/dashboard">
+          <Link href="/chat">
             <Button>{t("landing.app.onboarding.toDashboard")}</Button>
           </Link>
           <Link href="/auth/login">
