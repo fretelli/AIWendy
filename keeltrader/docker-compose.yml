@@ -82,6 +82,11 @@ services:
       - "traefik.http.routers.keeltrader-web.entrypoints=websecure"
       - "traefik.http.routers.keeltrader-web.tls.certresolver=letsencrypt"
       - "traefik.http.services.keeltrader-web.loadbalancer.server.port=3000"
+      # Next.js API proxy route must go to web, not API
+      - "traefik.http.routers.keeltrader-proxy.rule=Host(`keeltrader.joyeeassets.com`) && PathPrefix(`/api/proxy`)"
+      - "traefik.http.routers.keeltrader-proxy.entrypoints=websecure"
+      - "traefik.http.routers.keeltrader-proxy.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.keeltrader-proxy.service=keeltrader-web"
 
   # === IBKR mode (profiles: [ibkr]) ===
 
