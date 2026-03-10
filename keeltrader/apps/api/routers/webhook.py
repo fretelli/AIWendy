@@ -32,13 +32,13 @@ async def handle_confirmation(request: ConfirmationCallback):
             from uuid import UUID
             user_id = UUID(request.user_id) if request.user_id else None
             if not user_id:
-                raise HTTPException(status_code=400, detail="缺少 user_id")
+                raise HTTPException(status_code=400, detail="Missing user_id")
 
             result = await execute_tool("place_order", order_data, session, user_id)
             return {"status": "processed", "result": result}
 
     elif request.action == "reject_order":
-        return {"status": "rejected", "message": "订单已取消"}
+        return {"status": "rejected", "message": "Order cancelled"}
 
     return {"status": "ignored"}
 

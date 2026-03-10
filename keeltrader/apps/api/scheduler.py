@@ -1,10 +1,10 @@
 """Asyncio scheduler — replaces Celery worker/beat.
 
 Tasks:
-- 08:30 早安报告
-- 21:00 晚安总结
-- 每 60s 交易同步
-- 每 5min 行情监控
+- 08:30 Morning report
+- 21:00 Evening summary
+- Every 60s trade sync
+- Every 5min market monitoring
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ async def _scheduler_loop():
             now_cst = datetime.now(CST)
             today = now_cst.date()
 
-            # 08:30 早安报告
+            # 08:30 Morning report
             if (
                 now_cst.hour == 8
                 and now_cst.minute >= 30
@@ -66,7 +66,7 @@ async def _scheduler_loop():
                 last_morning = today
                 asyncio.create_task(_run_morning_report())
 
-            # 21:00 晚安总结
+            # 21:00 Evening summary
             if (
                 now_cst.hour == 21
                 and now_cst.minute < 5
@@ -75,7 +75,7 @@ async def _scheduler_loop():
                 last_evening = today
                 asyncio.create_task(_run_evening_report())
 
-            # 每 60s 交易同步
+            # Every 60s trade sync
             sync_counter += 1
             if sync_counter >= 6:  # 6 * 10s = 60s
                 sync_counter = 0
@@ -172,26 +172,26 @@ async def _generate_report_for_user(session, user, report_type: str):
         pos_count = positions.get("count", 0)
         total_upnl = positions.get("total_unrealized_pnl", 0)
 
-        message = f"""☀️ 早安报告 ({datetime.now(CST).strftime('%Y-%m-%d')})
+        message = f"""Morning Report ({datetime.now(CST).strftime('%Y-%m-%d')})
 
-📊 持仓概况：{pos_count} 个持仓，未实现盈亏 ${total_upnl:+.2f}
+Positions: {pos_count} open, unrealized PnL ${total_upnl:+.2f}
 """
         if positions.get("positions"):
             for p in positions["positions"][:5]:
                 if "error" not in p:
-                    message += f"  • {p['symbol']}: {p['side']} {p['size']} | 未实现 ${p['unrealized_pnl']:+.2f}\n"
+                    message += f"  - {p['symbol']}: {p['side']} {p['size']} | unrealized ${p['unrealized_pnl']:+.2f}\n"
 
-        message += f"\n💰 昨日盈亏：${pnl.get('total_pnl', 0):+.2f}"
+        message += f"\nYesterday's PnL: ${pnl.get('total_pnl', 0):+.2f}"
 
     else:  # evening
         pnl = await get_pnl(session, user.id, period="today")
         perf = await analyze_performance(session, user.id, days=1)
         stats = perf.get("stats", {})
 
-        message = f"""🌙 晚安总结 ({datetime.now(CST).strftime('%Y-%m-%d')})
+        message = f"""Evening Summary ({datetime.now(CST).strftime('%Y-%m-%d')})
 
-💰 今日盈亏：${pnl.get('total_pnl', 0):+.2f}
-📈 交易 {stats.get('total_trades', 0)} 笔，胜率 {stats.get('win_rate', 0)}%
+Today's PnL: ${pnl.get('total_pnl', 0):+.2f}
+Trades: {stats.get('total_trades', 0)}, win rate {stats.get('win_rate', 0)}%
 """
 
     # Save as system message in chat
