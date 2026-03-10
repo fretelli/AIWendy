@@ -1,13 +1,11 @@
-# KeelTrader Agent Matrix - Docker Compose
+# KeelTrader v2 — AI Native Trading Assistant
 # 部署: 本机服务器 (114.66.46.52)
 # DB: NAS PostgreSQL keeltrader (FRP 5433) | Redis: 本机共享 services-redis
 #
-# 经典模式: docker compose up -d                          → 4 容器
-# Agent Matrix: docker compose --profile agent-matrix up -d → 7 容器
+# 默认: docker compose up -d                    → 2 容器 (api + web)
+# IBKR: docker compose --profile ibkr up -d     → 3 容器 (+ ib-gateway)
 
 services:
-  # === 经典模式（始终运行）===
-
   api:
     build:
       context: .
@@ -35,10 +33,6 @@ services:
       - KEELTRADER_AUTO_INIT_DB=${KEELTRADER_AUTO_INIT_DB:-1}
       - KEELTRADER_AUTO_INIT_TEST_USERS=${KEELTRADER_AUTO_INIT_TEST_USERS:-0}
       - CORS_ORIGINS=${CORS_ORIGINS}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-      - LITELLM_API_BASE=${LITELLM_API_BASE}
-      - LITELLM_API_KEY=${LITELLM_API_KEY}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ENVIRONMENT=production
     volumes:
@@ -49,6 +43,11 @@ services:
       - "traefik.http.routers.keeltrader-api.entrypoints=websecure"
       - "traefik.http.routers.keeltrader-api.tls.certresolver=letsencrypt"
       - "traefik.http.services.keeltrader-api.loadbalancer.server.port=8000"
+      # MCP SSE endpoint
+      - "traefik.http.routers.keeltrader-mcp.rule=Host(`keeltrader.joyeeassets.com`) && PathPrefix(`/mcp`)"
+      - "traefik.http.routers.keeltrader-mcp.entrypoints=websecure"
+      - "traefik.http.routers.keeltrader-mcp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.keeltrader-mcp.loadbalancer.server.port=8000"
     command: sh scripts/docker_start.sh
 
   web:
@@ -83,133 +82,6 @@ services:
       - "traefik.http.routers.keeltrader-web.entrypoints=websecure"
       - "traefik.http.routers.keeltrader-web.tls.certresolver=letsencrypt"
       - "traefik.http.services.keeltrader-web.loadbalancer.server.port=3000"
-      # API 路由优先级更高（PathPrefix 更长），web 兜底
-
-  worker:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    image: keeltrader-api:latest
-    container_name: keeltrader-worker
-    restart: unless-stopped
-    mem_limit: 768m
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:noexec,size=100M
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-    command: celery -A workers.celery_app worker --loglevel=info --concurrency=4
-
-  beat:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile
-    image: keeltrader-api:latest
-    container_name: keeltrader-beat
-    restart: unless-stopped
-    mem_limit: 256m
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:noexec,size=50M
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-    command: celery -A workers.celery_app beat --loglevel=info --schedule=/tmp/celerybeat-schedule
-
-  # === Agent Matrix 模式（profiles: [agent-matrix]）===
-
-  telegram-bot:
-    build:
-      context: ./apps
-      dockerfile: telegram/Dockerfile
-    container_name: keeltrader-telegram
-    restart: unless-stopped
-    mem_limit: 768m
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:noexec,size=100M
-    profiles:
-      - agent-matrix
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_WEBHOOK_URL=${TELEGRAM_WEBHOOK_URL}
-      - LITELLM_API_BASE=${LITELLM_API_BASE}
-      - LITELLM_API_KEY=${LITELLM_API_KEY}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.keeltrader-tg.rule=Host(`keeltrader-tg.joyeeassets.com`)"
-      - "traefik.http.routers.keeltrader-tg.entrypoints=websecure"
-      - "traefik.http.routers.keeltrader-tg.tls.certresolver=letsencrypt"
-      - "traefik.http.services.keeltrader-tg.loadbalancer.server.port=8080"
-
-  event-engine:
-    build:
-      context: ./apps
-      dockerfile: engine/Dockerfile
-    container_name: keeltrader-engine
-    restart: unless-stopped
-    mem_limit: 1536m
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:noexec,size=100M
-    profiles:
-      - agent-matrix
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - LITELLM_API_BASE=${LITELLM_API_BASE}
-      - LITELLM_API_KEY=${LITELLM_API_KEY}
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-
-  market-streamer:
-    build:
-      context: ./apps
-      dockerfile: streamer/Dockerfile
-    container_name: keeltrader-streamer
-    restart: unless-stopped
-    mem_limit: 256m
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:noexec,size=50M
-    profiles:
-      - agent-matrix
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - REDIS_URL=${REDIS_URL}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
 
   # === IBKR 模式（profiles: [ibkr]）===
 

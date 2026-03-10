@@ -72,7 +72,9 @@ class Settings(BaseSettings):
 
     # ========== LLM API Keys ==========
     openai_api_key: Optional[str] = None
+    openai_base_url: Optional[str] = None
     anthropic_api_key: Optional[str] = None
+    anthropic_base_url: Optional[str] = None
 
     # ========== Market Data API Keys ==========
     twelve_data_api_key: Optional[str] = None
@@ -100,11 +102,6 @@ class Settings(BaseSettings):
     rate_limit_pro_chat_hourly: int = 100
     rate_limit_pro_journal_daily: int = 999
 
-    # ========== Monitoring ==========
-    sentry_dsn: Optional[str] = None
-    sentry_traces_sample_rate: float = 0.1
-    sentry_profiles_sample_rate: float = 0.1
-
     # ========== CORS ==========
     cors_origins: list[str] = ["http://localhost:3000"]
     cors_credentials: bool = True
@@ -114,37 +111,6 @@ class Settings(BaseSettings):
     # ========== Logging ==========
     log_level: str = "INFO"
     log_format: str = "json"  # "json" or "console"
-
-    # ========== Celery ==========
-    celery_broker_url: str = "redis://localhost:6379/0"
-    celery_result_backend: str = "redis://localhost:6379/1"
-    celery_task_serializer: str = "json"
-    celery_result_serializer: str = "json"
-    celery_accept_content: list[str] = ["json"]
-    celery_timezone: str = "UTC"
-
-    # ========== Notifications ==========
-    # Firebase Cloud Messaging
-    fcm_server_key: Optional[str] = None
-    fcm_enabled: bool = False
-
-    # Email notifications
-    smtp_host: Optional[str] = None
-    smtp_port: int = 587
-    smtp_username: Optional[str] = None
-    smtp_password: Optional[str] = None
-    smtp_from_email: Optional[str] = None
-    smtp_use_tls: bool = True
-
-    # SMS notifications (Twilio)
-    twilio_account_sid: Optional[str] = None
-    twilio_auth_token: Optional[str] = None
-    twilio_from_number: Optional[str] = None
-
-    # ========== Feature Flags ==========
-    feature_analytics_enabled: bool = True
-    feature_multi_coach_enabled: bool = True
-    feature_voice_enabled: bool = False
 
     # ========== Trade Sync ==========
     trade_sync_enabled: bool = Field(
@@ -168,31 +134,7 @@ class Settings(BaseSettings):
         ),
     )
 
-    # ========== Cloud-Only Features ==========
-    # Multi-tenancy (enabled only in cloud mode)
-    multi_tenancy_enabled: bool = Field(default=False)
-    tenant_isolation_strict: bool = Field(default=True)
-
-    # Usage Analytics (PostHog, Mixpanel, etc.)
-    analytics_provider: Optional[str] = None  # "posthog", "mixpanel", "amplitude"
-    posthog_api_key: Optional[str] = None
-    posthog_host: str = "https://app.posthog.com"
-    mixpanel_token: Optional[str] = None
-
-    # Enterprise SSO
-    enterprise_sso_enabled: bool = Field(default=False)
-    saml_enabled: bool = Field(default=False)
-    saml_entity_id: Optional[str] = None
-    saml_sso_url: Optional[str] = None
-    saml_x509_cert: Optional[str] = None
-    oauth_providers: list[str] = []  # ["google", "github", "azure", "okta"]
-
-    def is_cloud_mode(self) -> bool:
-        """Check if running in cloud/SaaS mode."""
-        return self.deployment_mode == "cloud"
-
     def is_self_hosted(self) -> bool:
-        """Check if running in self-hosted mode."""
         return self.deployment_mode == "self-hosted"
 
 

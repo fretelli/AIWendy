@@ -16,8 +16,6 @@ from domain.analysis.models import BehaviorPattern, PatternType as AnalysisPatte
 from domain.analytics.ml_analytics import MLAnalytics, TradingPattern, PatternType as MlPatternType
 from domain.exchange.models import ExchangeConnection, ExchangeTrade
 from domain.journal.models import Journal, TradeDirection, TradeResult
-from tasks.notification_tasks import send_pattern_alert_task
-
 logger = get_logger(__name__)
 
 
@@ -390,13 +388,20 @@ class TradeSyncService:
             self.db.add(behavior)
             stored += 1
 
-            send_pattern_alert_task.delay(
-                user_id=str(user_id),
-                pattern_type=mapped.value,
-                description=pattern.description,
-                confidence=pattern.confidence,
-                recommendations=pattern.recommendations,
-            )
+            # Push pattern alert via push_service (non-blocking)
+            try:
+                import asyncio
+                from services.push_service import push_message
+                alert_text = (
+                    f"⚠️ 行为模式检测: {mapped.value}\n"
+                    f"置信度: {pattern.confidence:.0%}\n"
+                    f"{pattern.description}"
+                )
+                asyncio.get_event_loop().run_until_complete(
+                    push_message(str(user_id), alert_text)
+                )
+            except Exception as push_err:
+                logger.warning("pattern_alert_push_failed", error=str(push_err))
 
         self.db.commit()
         return stored
