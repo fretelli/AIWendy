@@ -1,47 +1,5 @@
 """API routers."""
 
-from . import (
-    analysis,
-    auth,
-    chat,
-    coaches,
-    exchanges,
-    files,
-    health,
-    intervention,
-    journals,
-    knowledge,
-    llm_config,
-    market_data,
-    notifications,
-    ollama,
-    projects,
-    reports,
-    roundtable,
-    tasks,
-    user_exchanges,
-    users,
-)
+from . import auth, health
 
-__all__ = [
-    "health",
-    "auth",
-    "users",
-    "coaches",
-    "chat",
-    "journals",
-    "analysis",
-    "ollama",
-    "market_data",
-    "exchanges",
-    "user_exchanges",
-    "reports",
-    "llm_config",
-    "projects",
-    "knowledge",
-    "tasks",
-    "files",
-    "roundtable",
-    "notifications",
-    "intervention",
-]
+__all__ = ["health", "auth"]

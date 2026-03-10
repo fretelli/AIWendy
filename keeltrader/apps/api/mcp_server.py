@@ -91,7 +91,7 @@ def mount_mcp_sse(app):
         from starlette.routing import Mount, Route
 
         server = create_mcp_server()
-        sse_transport = SseServerTransport("/mcp/messages/")
+        sse_transport = SseServerTransport("/messages/")
 
         async def handle_sse(request):
             async with sse_transport.connect_sse(
@@ -110,7 +110,7 @@ def mount_mcp_sse(app):
         app.mount(
             "/mcp",
             app=Mount(
-                "/mcp",
+                "",
                 routes=[
                     Route("/sse", endpoint=handle_sse),
                     Route("/messages/", endpoint=handle_messages, methods=["POST"]),

@@ -42,7 +42,7 @@ export default function ChatPage() {
     }
   }, [messages]);
 
-  const getAuthHeaders = () => {
+  const getAuthHeaders = (): Record<string, string> => {
     const token = localStorage.getItem('keeltrader_access_token') || localStorage.getItem('auth_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   };
@@ -238,7 +238,7 @@ export default function ChatPage() {
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             <div className="text-center space-y-2">
-              <p className="text-lg">👋 Hi, I'm KeelTrader AI Assistant</p>
+              <p className="text-lg">👋 Hi, I&apos;m KeelTrader AI Assistant</p>
               <p className="text-sm">Click the quick actions above or type your question</p>
             </div>
           </div>

@@ -43,11 +43,11 @@ services:
       - "traefik.http.routers.keeltrader-api.entrypoints=websecure"
       - "traefik.http.routers.keeltrader-api.tls.certresolver=letsencrypt"
       - "traefik.http.services.keeltrader-api.loadbalancer.server.port=8000"
-      # MCP SSE endpoint
+      # MCP SSE endpoint (reuse same service)
       - "traefik.http.routers.keeltrader-mcp.rule=Host(`keeltrader.joyeeassets.com`) && PathPrefix(`/mcp`)"
       - "traefik.http.routers.keeltrader-mcp.entrypoints=websecure"
       - "traefik.http.routers.keeltrader-mcp.tls.certresolver=letsencrypt"
-      - "traefik.http.services.keeltrader-mcp.loadbalancer.server.port=8000"
+      - "traefik.http.routers.keeltrader-mcp.service=keeltrader-api"
     command: sh scripts/docker_start.sh
 
   web:
