@@ -1,9 +1,9 @@
 # KeelTrader v2 — AI Native Trading Assistant
-# 部署: 本机服务器 (114.66.46.52)
-# DB: NAS PostgreSQL keeltrader (FRP 5433) | Redis: 本机共享 services-redis
+# Deployment: local server (114.66.46.52)
+# DB: NAS PostgreSQL keeltrader (FRP 5433) | Redis: local shared services-redis
 #
-# 默认: docker compose up -d                    → 2 容器 (api + web)
-# IBKR: docker compose --profile ibkr up -d     → 3 容器 (+ ib-gateway)
+# Default: docker compose up -d                    → 2 containers (api + web)
+# IBKR: docker compose --profile ibkr up -d     → 3 containers (+ ib-gateway)
 
 services:
   api:
@@ -83,7 +83,7 @@ services:
       - "traefik.http.routers.keeltrader-web.tls.certresolver=letsencrypt"
       - "traefik.http.services.keeltrader-web.loadbalancer.server.port=3000"
 
-  # === IBKR 模式（profiles: [ibkr]）===
+  # === IBKR mode (profiles: [ibkr]) ===
 
   ib-gateway:
     image: gnzsnz/ib-gateway:10.29.1

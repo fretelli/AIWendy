@@ -98,11 +98,11 @@ async def add_exchange(
         test_result = await adapter.test_connection()
         await adapter.close()
         if not test_result.get("success"):
-            raise HTTPException(status_code=400, detail=f"连接测试失败: {test_result.get('message')}")
+            raise HTTPException(status_code=400, detail=f"Connection test failed: {test_result.get('message')}")
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"连接失败: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Connection failed: {str(e)}")
 
     conn = ExchangeConnection(
         user_id=current_user.id,
@@ -118,7 +118,7 @@ async def add_exchange(
     session.add(conn)
     await session.commit()
 
-    return {"message": f"{request.exchange} 连接成功", "id": str(conn.id)}
+    return {"message": f"{request.exchange} connected successfully", "id": str(conn.id)}
 
 
 @router.delete("/exchanges/{exchange_id}")
@@ -135,11 +135,11 @@ async def remove_exchange(
     result = await session.execute(stmt)
     conn = result.scalar_one_or_none()
     if not conn:
-        raise HTTPException(status_code=404, detail="连接不存在")
+        raise HTTPException(status_code=404, detail="Connection not found")
 
     conn.is_active = False
     await session.commit()
-    return {"message": "已断开连接"}
+    return {"message": "Connection disconnected"}
 
 
 @router.get("/risk")

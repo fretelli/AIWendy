@@ -37,10 +37,10 @@ async def place_order(
     risk_limits: Optional[dict] = None,
     confirmed: bool = False,
 ) -> dict[str, Any]:
-    """下单（需用户确认）。"""
+    """Place an order (requires confirmation)."""
     limits = {**DEFAULT_RISK_LIMITS, **(risk_limits or {})}
 
-    # Step 1: 风控检查
+    # Step 1: Risk check
     safety_check = await _check_risk_limits(
         session, user_id, symbol, side, amount, order_type, price, limits
     )
@@ -51,7 +51,7 @@ async def place_order(
             "details": safety_check,
         }
 
-    # Step 2: 如果需要确认且未确认，返回确认请求
+    # Step 2: Return confirmation request if needed
     if limits["require_confirmation"] and not confirmed:
         return {
             "status": "pending_confirmation",
@@ -65,13 +65,13 @@ async def place_order(
                 "take_profit": take_profit,
                 "estimated_value_usd": safety_check.get("estimated_value_usd", 0),
             },
-            "message": f"确认下单: {side} {amount} {symbol} ({order_type})?",
+            "message": f"Confirm order: {side} {amount} {symbol} ({order_type})?",
         }
 
-    # Step 3: 执行下单
+    # Step 3: Execute order
     connections = await _get_active_connections(session, user_id, exchange)
     if not connections:
-        return {"status": "error", "message": "没有配置交易所连接"}
+        return {"status": "error", "message": "No exchange connection configured"}
 
     conn = connections[0]
     adapter = _build_adapter(conn)
@@ -104,11 +104,11 @@ async def place_order(
                 "status": order.status,
                 "cost": order.cost,
             },
-            "message": f"订单已执行: {side} {amount} {symbol}",
+            "message": f"Order executed: {side} {amount} {symbol}",
         }
     except Exception as e:
         logger.error("place_order_failed", symbol=symbol, error=str(e))
-        return {"status": "error", "message": f"下单失败: {str(e)}"}
+        return {"status": "error", "message": f"Order failed: {str(e)}"}
     finally:
         await adapter.close()
 
@@ -120,10 +120,10 @@ async def cancel_order(
     symbol: str,
     exchange: Optional[str] = None,
 ) -> dict[str, Any]:
-    """撤单。"""
+    """Cancel an order."""
     connections = await _get_active_connections(session, user_id, exchange)
     if not connections:
-        return {"status": "error", "message": "没有配置交易所连接"}
+        return {"status": "error", "message": "No exchange connection configured"}
 
     conn = connections[0]
     adapter = _build_adapter(conn)
@@ -132,11 +132,11 @@ async def cancel_order(
         return {
             "status": "cancelled",
             "order_id": order_id,
-            "message": f"订单 {order_id} 已撤销",
+            "message": f"Order {order_id} cancelled",
         }
     except Exception as e:
         logger.error("cancel_order_failed", order_id=order_id, error=str(e))
-        return {"status": "error", "message": f"撤单失败: {str(e)}"}
+        return {"status": "error", "message": f"Cancel failed: {str(e)}"}
     finally:
         await adapter.close()
 
@@ -151,7 +151,7 @@ async def _check_risk_limits(
     price: Optional[float],
     limits: dict,
 ) -> dict[str, Any]:
-    """风控检查。"""
+    """Risk limit check."""
     estimated_value = 0.0
 
     # Estimate order value
@@ -175,7 +175,7 @@ async def _check_risk_limits(
     if estimated_value > max_value:
         return {
             "passed": False,
-            "reason": f"订单金额 ${estimated_value:.2f} 超过上限 ${max_value:.2f}",
+            "reason": f"Order value ${estimated_value:.2f} exceeds limit ${max_value:.2f}",
             "estimated_value_usd": estimated_value,
         }
 
@@ -189,7 +189,7 @@ async def _check_risk_limits(
                 await adapter.close()
                 return {
                     "passed": False,
-                    "reason": f"当前持仓数 {len(positions)} 已达上限 {max_positions}",
+                    "reason": f"Current positions {len(positions)} reached limit {max_positions}",
                     "estimated_value_usd": estimated_value,
                 }
             await adapter.close()

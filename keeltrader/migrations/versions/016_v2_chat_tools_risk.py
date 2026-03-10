@@ -48,7 +48,7 @@ def upgrade() -> None:
             'analytical',
             true,
             true,
-            'AI 原生交易助手'
+            'AI native trading assistant'
         )
         ON CONFLICT (id) DO NOTHING;
     """)

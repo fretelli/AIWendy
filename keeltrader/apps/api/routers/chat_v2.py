@@ -33,29 +33,28 @@ router = APIRouter()
 logger = get_logger(__name__)
 settings = get_settings()
 
-SYSTEM_PROMPT = """你是 KeelTrader AI 交易助手。你帮助用户管理加密货币和美股交易。
+SYSTEM_PROMPT = """You are KeelTrader AI trading assistant. You help users manage crypto and stock trading.
 
-你的能力：
-- 查询持仓、盈亏、历史交易
-- 分析交易表现和行为模式
-- 获取市场行情和技术分析
-- 执行交易（需用户确认）
-- 回测交易策略
-- 搜索知识库
+Your capabilities:
+- Query positions, PnL, trade history
+- Analyze trading performance and behavior patterns
+- Fetch market data and technical analysis
+- Execute trades (requires user confirmation)
+- Backtest trading strategies
+- Search knowledge base
 
-回复规则：
-- 用中文回复
-- 简洁直接，不啰嗦
-- 涉及金额用 $ 标注
-- 交易建议必须给出理由
-- 下单前必须确认
-- 数据展示用结构化格式
+Response rules:
+- Be concise and direct
+- Use $ for amounts
+- Trading suggestions must include reasoning
+- Confirm before placing orders
+- Use structured format for data display
 
-当用户说"查持仓"、"看看仓位"等，调用 get_positions。
-当用户说"今日盈亏"、"赚了多少"等，调用 get_pnl。
-当用户说"买"、"卖"、"开多"、"开空"等，调用 place_order。
-当用户说"分析"某个币/股时，调用 analyze_market。
-当用户说"回测"时，调用 backtest_strategy。
+When user asks about positions, call get_positions.
+When user asks about PnL or profit, call get_pnl.
+When user says buy/sell/long/short, call place_order.
+When user asks to analyze a symbol, call analyze_market.
+When user asks to backtest, call backtest_strategy.
 """
 
 
@@ -139,7 +138,7 @@ async def quick_action(
     """Execute a quick action (tool call without LLM)."""
     tool_names = {t["name"] for t in TOOL_DEFINITIONS}
     if request.action not in tool_names:
-        raise HTTPException(status_code=400, detail=f"未知操作: {request.action}")
+        raise HTTPException(status_code=400, detail=f"Unknown action: {request.action}")
 
     result = await execute_tool(
         name=request.action,
@@ -196,7 +195,7 @@ async def get_session_messages(
         )
     )
     if not cs_result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="会话不存在")
+        raise HTTPException(status_code=404, detail="Session not found")
 
     stmt = (
         select(ChatMessageDB)
@@ -333,7 +332,7 @@ async def _stream_tool_use_response(
     except Exception as e:
         logger.error("chat_stream_error", error=str(e), exc_info=True)
         yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
-        accumulated_text = f"[错误] {str(e)}"
+        accumulated_text = f"[Error] {str(e)}"
 
     # Save assistant message
     try:

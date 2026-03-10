@@ -60,7 +60,7 @@ async def _push_feishu(message: str, title: Optional[str] = None) -> dict:
                 return {"success": False, "error": f"HTTP {resp.status_code}"}
     except httpx.ConnectError:
         logger.debug("feishu_aibot_not_reachable")
-        return {"success": False, "error": "feishu-aibot 不可达"}
+        return {"success": False, "error": "feishu-aibot unreachable"}
     except Exception as e:
         logger.warning("feishu_push_error", error=str(e))
         return {"success": False, "error": str(e)}
@@ -85,7 +85,7 @@ async def _push_wechat(message: str, title: Optional[str] = None) -> dict:
                 return {"success": False, "error": f"HTTP {resp.status_code}"}
     except httpx.ConnectError:
         logger.debug("wechat_aibot_not_reachable")
-        return {"success": False, "error": "wechat-aibot 不可达"}
+        return {"success": False, "error": "wechat-aibot unreachable"}
     except Exception as e:
         logger.warning("wechat_push_error", error=str(e))
         return {"success": False, "error": str(e)}

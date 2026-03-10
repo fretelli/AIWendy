@@ -25,10 +25,10 @@ async def get_positions(
     exchange: Optional[str] = None,
     symbol: Optional[str] = None,
 ) -> dict[str, Any]:
-    """获取当前持仓。"""
+    """Get current positions."""
     connections = await _get_active_connections(session, user_id, exchange)
     if not connections:
-        return {"positions": [], "message": "没有配置交易所连接"}
+        return {"positions": [], "message": "No exchange connection configured"}
 
     all_positions = []
     for conn in connections:
@@ -74,7 +74,7 @@ async def query_trades(
     days: int = 7,
     limit: int = 50,
 ) -> dict[str, Any]:
-    """查询历史交易记录。"""
+    """Query historical trade records."""
     since = datetime.utcnow() - timedelta(days=days)
     conditions = [
         ExchangeTrade.user_id == user_id,
@@ -120,7 +120,7 @@ async def manage_journal(
     days: int = 30,
     limit: int = 20,
 ) -> dict[str, Any]:
-    """管理交易日志：list/create/update/get。"""
+    """Manage trade journal: list/create/update/get."""
     if action == "list":
         since = datetime.utcnow() - timedelta(days=days)
         stmt = (
@@ -149,7 +149,7 @@ async def manage_journal(
         result = await session.execute(stmt)
         journal = result.scalar_one_or_none()
         if not journal:
-            return {"error": "日志不存在"}
+            return {"error": "Journal not found"}
         return {"journal": _journal_to_dict(journal)}
 
     elif action == "create" and data:
@@ -171,9 +171,9 @@ async def manage_journal(
         session.add(journal)
         await session.commit()
         await session.refresh(journal)
-        return {"journal": _journal_to_dict(journal), "message": "日志已创建"}
+        return {"journal": _journal_to_dict(journal), "message": "Journal created"}
 
-    return {"error": f"不支持的操作: {action}"}
+    return {"error": f"Unsupported action: {action}"}
 
 
 def _journal_to_dict(j: Journal) -> dict:

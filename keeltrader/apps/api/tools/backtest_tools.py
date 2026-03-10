@@ -25,7 +25,7 @@ async def backtest_strategy(
     days: int = 90,
     timeframe: str = "1d",
 ) -> dict[str, Any]:
-    """对话式回测：描述策略 → 历史数据回测。"""
+    """Backtest a described strategy against historical data."""
     from tools.market_tools import get_market_data
 
     params = params or {}
@@ -40,7 +40,7 @@ async def backtest_strategy(
 
     ohlcv = market_data.get("ohlcv", [])
     if len(ohlcv) < 30:
-        return {"error": "数据不足，至少需要 30 根 K 线"}
+        return {"error": "Insufficient data, need at least 30 candles"}
 
     closes = np.array([c[4] for c in ohlcv])
     highs = np.array([c[2] for c in ohlcv])
@@ -55,7 +55,7 @@ async def backtest_strategy(
     elif strategy in ("breakout", "突破", "区间突破"):
         result = _backtest_breakout(closes, highs, lows, timestamps, params)
     else:
-        return {"error": f"不支持的策略: {strategy}。支持: ma_crossover, rsi, breakout"}
+        return {"error": f"Unsupported strategy: {strategy}. Supported: ma_crossover, rsi, breakout"}
 
     return {
         "symbol": symbol,
@@ -75,7 +75,7 @@ async def replay_my_trades(
     days: int = 7,
     what_if: Optional[dict] = None,
 ) -> dict[str, Any]:
-    """交易回放 what-if 分析。"""
+    """Trade replay what-if analysis."""
     if journal_id:
         stmt = select(Journal).where(
             Journal.id == journal_id,
@@ -85,7 +85,7 @@ async def replay_my_trades(
         result = await session.execute(stmt)
         journal = result.scalar_one_or_none()
         if not journal:
-            return {"error": "日志不存在"}
+            return {"error": "Journal not found"}
         journals = [journal]
     else:
         since = datetime.utcnow() - timedelta(days=days)
@@ -103,7 +103,7 @@ async def replay_my_trades(
         journals = result.scalars().all()
 
     if not journals:
-        return {"message": "没有找到交易记录"}
+        return {"message": "No trades found"}
 
     what_if = what_if or {}
     replays = []
@@ -135,7 +135,7 @@ async def replay_my_trades(
             direction = 1 if j.direction and j.direction.value == "long" else -1
             wif_pnl = (wif_exit - entry) * size * direction
             scenarios.append({
-                "name": f"如果在 {wif_exit} 出场",
+                "name": f"If exited at {wif_exit}",
                 "exit_price": wif_exit,
                 "pnl": round(wif_pnl, 2),
                 "pnl_diff": round(wif_pnl - actual_pnl, 2),
@@ -147,7 +147,7 @@ async def replay_my_trades(
             direction = 1 if j.direction and j.direction.value == "long" else -1
             wif_pnl = (exit_price - entry) * wif_size * direction
             scenarios.append({
-                "name": f"如果仓位是 {wif_size}",
+                "name": f"If position size was {wif_size}",
                 "position_size": wif_size,
                 "pnl": round(wif_pnl, 2),
                 "pnl_diff": round(wif_pnl - actual_pnl, 2),
@@ -176,7 +176,7 @@ def _backtest_ma_crossover(
     slow = params.get("slow_period", 20)
 
     if len(closes) < slow + 1:
-        return {"error": f"数据不足，需要至少 {slow + 1} 根K线"}
+        return {"error": f"Insufficient data, need at least {slow + 1} candles"}
 
     # Calculate MAs
     trades = []
@@ -220,7 +220,7 @@ def _backtest_rsi(
     overbought = params.get("overbought", 70)
 
     if len(closes) < period + 2:
-        return {"error": f"数据不足，需要至少 {period + 2} 根K线"}
+        return {"error": f"Insufficient data, need at least {period + 2} candles"}
 
     # Calculate RSI
     deltas = np.diff(closes)
@@ -268,7 +268,7 @@ def _backtest_breakout(
     """Breakout backtest (Donchian channel)."""
     period = params.get("period", 20)
     if len(closes) < period + 1:
-        return {"error": f"数据不足"}
+        return {"error": f"Insufficient data"}
 
     trades = []
     position = 0
@@ -300,7 +300,7 @@ def _backtest_breakout(
 def _calc_backtest_stats(trades: list[dict], closes: np.ndarray) -> dict:
     """Calculate backtest statistics."""
     if not trades:
-        return {"trades": [], "stats": {"total_trades": 0, "message": "无交易信号"}}
+        return {"trades": [], "stats": {"total_trades": 0, "message": "No trade signals"}}
 
     pnls = [t["pnl_pct"] for t in trades]
     wins = [p for p in pnls if p > 0]
