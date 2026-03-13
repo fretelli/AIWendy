@@ -10,7 +10,6 @@ from sqlalchemy import select, and_, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.logging import get_logger
-from domain.analysis.models import BehaviorPattern
 from domain.journal.models import Journal, TradeResult
 
 logger = get_logger(__name__)
@@ -115,66 +114,8 @@ async def detect_patterns(
     user_id: UUID,
     days: int = 14,
 ) -> dict[str, Any]:
-    """Detect behavior patterns (FOMO, revenge trading, etc.)."""
-    from domain.analytics.ml_analytics import MLAnalytics
-
-    since = datetime.utcnow() - timedelta(days=days)
-    stmt = (
-        select(Journal)
-        .where(
-            Journal.user_id == user_id,
-            Journal.deleted_at.is_(None),
-            Journal.trade_date >= since,
-        )
-        .order_by(desc(Journal.trade_date))
-        .limit(50)
-    )
-    result = await session.execute(stmt)
-    journals = result.scalars().all()
-
-    if len(journals) < 3:
-        return {"patterns": [], "message": "Not enough trades, need at least 3 for analysis"}
-
-    ml = MLAnalytics()
-    patterns = ml.detect_patterns(journals)
-
-    # Also fetch recent DB-stored patterns
-    pattern_stmt = (
-        select(BehaviorPattern)
-        .where(
-            BehaviorPattern.user_id == user_id,
-            BehaviorPattern.detected_at >= since,
-            BehaviorPattern.resolved_at.is_(None),
-        )
-        .order_by(desc(BehaviorPattern.detected_at))
-        .limit(10)
-    )
-    pattern_result = await session.execute(pattern_stmt)
-    db_patterns = pattern_result.scalars().all()
-
-    return {
-        "detected_patterns": [
-            {
-                "type": p.pattern_type.value,
-                "description": p.description,
-                "confidence": round(p.confidence, 2),
-                "affected_trades": p.affected_trades,
-                "recommendations": p.recommendations,
-            }
-            for p in patterns
-            if p.confidence >= 0.5
-        ],
-        "historical_patterns": [
-            {
-                "type": p.pattern_type.value,
-                "confidence": float(p.confidence_score) if p.confidence_score else 0,
-                "severity": p.severity,
-                "detected_at": p.detected_at.isoformat() if p.detected_at else None,
-                "intervention": p.intervention_suggested,
-            }
-            for p in db_patterns
-        ],
-    }
+    """Detect behavior patterns — ML analytics removed in RPG overhaul."""
+    return {"patterns": [], "message": "Pattern detection deprecated, use RPG character attributes instead"}
 
 
 async def analyze_market(

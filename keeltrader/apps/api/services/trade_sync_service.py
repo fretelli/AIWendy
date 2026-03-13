@@ -12,8 +12,6 @@ from sqlalchemy.orm import Session
 from config import get_settings
 from core.encryption import get_encryption_service
 from core.logging import get_logger
-from domain.analysis.models import BehaviorPattern, PatternType as AnalysisPatternType
-from domain.analytics.ml_analytics import MLAnalytics, TradingPattern, PatternType as MlPatternType
 from domain.exchange.models import ExchangeConnection, ExchangeTrade
 from domain.journal.models import Journal, TradeDirection, TradeResult
 logger = get_logger(__name__)
@@ -37,7 +35,6 @@ class TradeSyncService:
         self.db = db
         self.settings = get_settings()
         self.encryption = get_encryption_service()
-        self.ml = MLAnalytics()
 
     def sync_all_connections(self) -> Dict[str, Any]:
         """Sync trades for all active exchange connections."""
@@ -356,80 +353,6 @@ class TradeSyncService:
         self.db.add(connection)
         self.db.commit()
 
-    def _detect_and_store_patterns(self, user_id: UUID) -> int:
-        recent_journals = (
-            self.db.query(Journal)
-            .filter(Journal.user_id == user_id, Journal.deleted_at.is_(None))
-            .order_by(Journal.trade_date.desc())
-            .limit(50)
-            .all()
-        )
-
-        patterns = self.ml.detect_patterns(recent_journals)
-        stored = 0
-        for pattern in patterns:
-            mapped = self._map_pattern_type(pattern.pattern_type)
-            if not mapped or pattern.confidence < 0.7:
-                continue
-
-            if self._has_recent_pattern(user_id, mapped):
-                continue
-
-            behavior = BehaviorPattern(
-                user_id=user_id,
-                pattern_type=mapped,
-                confidence_score=pattern.confidence,
-                severity=max(1, int(pattern.confidence * 5)),
-                context=pattern.metrics,
-                evidence=pattern.recommendations,
-                related_trades=pattern.affected_trades,
-                intervention_suggested=pattern.description,
-            )
-            self.db.add(behavior)
-            stored += 1
-
-            # Push pattern alert via push_service (non-blocking)
-            try:
-                import asyncio
-                from services.push_service import push_message
-                alert_text = (
-                    f"⚠️ Behavior pattern detected: {mapped.value}\n"
-                    f"Confidence: {pattern.confidence:.0%}\n"
-                    f"{pattern.description}"
-                )
-                asyncio.get_event_loop().run_until_complete(
-                    push_message(str(user_id), alert_text)
-                )
-            except Exception as push_err:
-                logger.warning("pattern_alert_push_failed", error=str(push_err))
-
-        self.db.commit()
-        return stored
-
-    def _has_recent_pattern(self, user_id: UUID, pattern_type: AnalysisPatternType) -> bool:
-        since = datetime.utcnow() - timedelta(hours=6)
-        existing = (
-            self.db.query(BehaviorPattern)
-            .filter(
-                BehaviorPattern.user_id == user_id,
-                BehaviorPattern.pattern_type == pattern_type,
-                BehaviorPattern.detected_at >= since,
-                BehaviorPattern.resolved_at.is_(None),
-            )
-            .first()
-        )
-        return existing is not None
-
-    def _map_pattern_type(
-        self, pattern_type: MlPatternType
-    ) -> Optional[AnalysisPatternType]:
-        mapping = {
-            MlPatternType.REVENGE_TRADING: AnalysisPatternType.REVENGE_TRADING,
-            MlPatternType.OVERTRADING: AnalysisPatternType.OVERTRADING,
-            MlPatternType.FOMO: AnalysisPatternType.FOMO,
-            MlPatternType.FEAR_OF_LOSS: AnalysisPatternType.FEAR_OF_LOSS,
-            MlPatternType.ERRATIC_BEHAVIOR: AnalysisPatternType.EMOTIONAL_TRADING,
-            MlPatternType.OVERLEVERAGING: AnalysisPatternType.DISCIPLINE_BREACH,
-            MlPatternType.RISK_AVERSION: AnalysisPatternType.FEAR_OF_LOSS,
-        }
-        return mapping.get(pattern_type)
+    def _detect_and_store_patterns(self, user_id) -> int:
+        # ML pattern detection removed in RPG overhaul (Phase 0)
+        return 0
