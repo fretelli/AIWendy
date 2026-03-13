@@ -40,7 +40,7 @@ def upgrade() -> None:
 
     # Ensure keeltrader-ai coach exists for v2 sessions
     op.execute("""
-        INSERT INTO coaches (id, name, system_prompt, personality, is_active, is_public, description)
+        INSERT INTO coaches (id, name, system_prompt, style, is_active, is_public, description, llm_provider, llm_model, temperature, max_tokens)
         VALUES (
             'keeltrader-ai',
             'KeelTrader AI',
@@ -48,7 +48,11 @@ def upgrade() -> None:
             'analytical',
             true,
             true,
-            'AI native trading assistant'
+            'AI native trading assistant',
+            'openai',
+            'gpt-4o-mini',
+            0.7,
+            2000
         )
         ON CONFLICT (id) DO NOTHING;
     """)

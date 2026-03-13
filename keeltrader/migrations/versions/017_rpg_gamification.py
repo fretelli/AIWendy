@@ -114,32 +114,30 @@ def upgrade() -> None:
     )
     op.create_index('ix_leaderboard_period', 'leaderboard_entries', ['period_type', 'period_start'])
 
-    # Seed achievements
+    # Seed achievements and quests using raw SQL (asyncpg requires explicit casts for enums)
     from domain.rpg.seed import ACHIEVEMENTS, QUESTS
-    achievements_table = sa.table(
-        'achievements',
-        sa.column('id', sa.String),
-        sa.column('name', sa.String),
-        sa.column('description', sa.Text),
-        sa.column('category', sa.String),
-        sa.column('rarity', sa.String),
-        sa.column('icon', sa.String),
-        sa.column('criteria', postgresql.JSON),
-        sa.column('xp_reward', sa.Integer),
-    )
-    op.bulk_insert(achievements_table, ACHIEVEMENTS)
+    import json
 
-    # Seed quests
-    quests_table = sa.table(
-        'quests',
-        sa.column('id', sa.String),
-        sa.column('name', sa.String),
-        sa.column('description', sa.Text),
-        sa.column('quest_type', sa.String),
-        sa.column('criteria', postgresql.JSON),
-        sa.column('xp_reward', sa.Integer),
-    )
-    op.bulk_insert(quests_table, QUESTS)
+    for a in ACHIEVEMENTS:
+        criteria_json = json.dumps(a['criteria']).replace("'", "''")
+        name = a['name'].replace("'", "''")
+        desc = a['description'].replace("'", "''")
+        op.execute(
+            f"INSERT INTO achievements (id, name, description, category, rarity, icon, criteria, xp_reward) "
+            f"VALUES ('{a['id']}', '{name}', '{desc}', "
+            f"'{a['category']}'::achievementcategory, '{a['rarity']}'::achievementrarity, "
+            f"'{a['icon']}', '{criteria_json}'::json, {a['xp_reward']})"
+        )
+
+    for q in QUESTS:
+        criteria_json = json.dumps(q['criteria']).replace("'", "''")
+        name = q['name'].replace("'", "''")
+        desc = q['description'].replace("'", "''")
+        op.execute(
+            f"INSERT INTO quests (id, name, description, quest_type, criteria, xp_reward) "
+            f"VALUES ('{q['id']}', '{name}', '{desc}', "
+            f"'{q['quest_type']}'::questtype, '{criteria_json}'::json, {q['xp_reward']})"
+        )
 
 
 def downgrade() -> None:
