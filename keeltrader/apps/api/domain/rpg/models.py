@@ -92,7 +92,7 @@ class TradingCharacter(Base):
     # Progression
     level = Column(Integer, default=1)
     xp = Column(Integer, default=0)
-    rank = Column(Enum(Rank), default=Rank.BRONZE)
+    rank = Column(Enum(Rank, values_callable=lambda x: [e.value for e in x], create_type=False), default=Rank.BRONZE)
 
     # Timestamps
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
@@ -100,8 +100,18 @@ class TradingCharacter(Base):
 
     # Relationships
     user = relationship("User", back_populates="trading_character")
-    achievements = relationship("UserAchievement", back_populates="character", lazy="selectin")
-    quests = relationship("UserQuest", back_populates="character", lazy="selectin")
+    achievements = relationship(
+        "UserAchievement",
+        primaryjoin="TradingCharacter.user_id == foreign(UserAchievement.user_id)",
+        back_populates="character",
+        lazy="selectin",
+    )
+    quests = relationship(
+        "UserQuest",
+        primaryjoin="TradingCharacter.user_id == foreign(UserQuest.user_id)",
+        back_populates="character",
+        lazy="selectin",
+    )
 
     def __repr__(self):
         return f"<TradingCharacter(user_id={self.user_id}, level={self.level}, rank={self.rank})>"
@@ -115,8 +125,8 @@ class Achievement(Base):
     id = Column(String(50), primary_key=True)  # e.g. "first_blood"
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=False)
-    category = Column(Enum(AchievementCategory), nullable=False)
-    rarity = Column(Enum(AchievementRarity), nullable=False)
+    category = Column(Enum(AchievementCategory, values_callable=lambda x: [e.value for e in x], create_type=False), nullable=False)
+    rarity = Column(Enum(AchievementRarity, values_callable=lambda x: [e.value for e in x], create_type=False), nullable=False)
     icon = Column(String(10), default="")
     criteria = Column(JSON, nullable=False)  # e.g. {"type": "win_count", "threshold": 1}
     xp_reward = Column(Integer, default=10)
@@ -157,7 +167,7 @@ class Quest(Base):
     id = Column(String(50), primary_key=True)  # e.g. "daily_journal_2"
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=False)
-    quest_type = Column(Enum(QuestType), nullable=False)
+    quest_type = Column(Enum(QuestType, values_callable=lambda x: [e.value for e in x], create_type=False), nullable=False)
     criteria = Column(JSON, nullable=False)  # e.g. {"type": "journal_with_notes", "count": 2}
     xp_reward = Column(Integer, default=20)
 
@@ -176,7 +186,7 @@ class UserQuest(Base):
     started_at = Column(DateTime(timezone=True), default=datetime.utcnow)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     progress = Column(JSON, default=dict)  # e.g. {"current": 1, "target": 2}
-    status = Column(Enum(QuestStatus), default=QuestStatus.ACTIVE)
+    status = Column(Enum(QuestStatus, values_callable=lambda x: [e.value for e in x], create_type=False), default=QuestStatus.ACTIVE)
 
     # Relationships
     character = relationship(
@@ -198,7 +208,7 @@ class LeaderboardEntry(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    period_type = Column(Enum(PeriodType), nullable=False)
+    period_type = Column(Enum(PeriodType, values_callable=lambda x: [e.value for e in x], create_type=False), nullable=False)
     period_start = Column(Date, nullable=False)
 
     # Stats
