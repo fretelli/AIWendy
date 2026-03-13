@@ -34,14 +34,11 @@ async def lifespan(app: FastAPI):
     logger.info("Starting KeelTrader v2 API", version=settings.app_version)
 
     # Import all domain models so SQLAlchemy can resolve string relationships
-    import domain.analysis.models  # noqa
     import domain.coach.models  # noqa
     import domain.exchange.models  # noqa
     import domain.journal.models  # noqa
-    import domain.knowledge.models  # noqa
-    import domain.notification.models  # noqa
     import domain.project.models  # noqa
-    import domain.report.models  # noqa
+    import domain.rpg.models  # noqa
     import domain.user.models  # noqa
 
     # Initialize database
@@ -157,6 +154,7 @@ from routers.users import router as users_router
 from routers.chat_v2 import router as chat_v2_router
 from routers.settings_v2 import router as settings_v2_router
 from routers.webhook import router as webhook_router
+from routers.rpg import router as rpg_router
 
 app.include_router(health.router, prefix="/api", tags=["Health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
@@ -164,6 +162,7 @@ app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(chat_v2_router, prefix="/api/v1/chat", tags=["Chat"])
 app.include_router(settings_v2_router, prefix="/api/v1/settings", tags=["Settings"])
 app.include_router(webhook_router, prefix="/api/v1/webhook", tags=["Webhook"])
+app.include_router(rpg_router, prefix="/api/v1/rpg", tags=["RPG"])
 
 
 @app.get("/")

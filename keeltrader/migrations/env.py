@@ -20,16 +20,11 @@ from config import get_settings
 from core.database import Base
 
 # Import model modules to register them with Base metadata.
-from domain.analysis import models as analysis_models  # noqa: F401
 from domain.coach import models as coach_models  # noqa: F401
 from domain.exchange import models as exchange_models  # noqa: F401
-from domain.intervention import models as intervention_models  # noqa: F401
 from domain.journal import models as journal_models  # noqa: F401
-from domain.knowledge import models as knowledge_models  # noqa: F401
-from domain.notification import models as notification_models  # noqa: F401
 from domain.project import models as project_models  # noqa: F401
-from domain.report import models as report_models  # noqa: F401
-from domain.tenant import models as tenant_models  # noqa: F401
+from domain.rpg import models as rpg_models  # noqa: F401
 from domain.user import models as user_models  # noqa: F401
 
 # Get settings
