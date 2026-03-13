@@ -58,16 +58,6 @@ TOOL_DEFINITIONS = [
         },
     },
     {
-        "name": "detect_patterns",
-        "description": "Detect trading behavior patterns (FOMO, revenge trading, overtrading, etc.)",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "days": {"type": "integer", "description": "Number of days to detect", "default": 14},
-            },
-        },
-    },
-    {
         "name": "get_market_data",
         "description": "Get market data (candlesticks + real-time price)",
         "parameters": {
@@ -122,18 +112,6 @@ TOOL_DEFINITIONS = [
                 "exchange": {"type": "string", "description": "Exchange"},
             },
             "required": ["order_id", "symbol"],
-        },
-    },
-    {
-        "name": "search_knowledge",
-        "description": "Search the trading knowledge base",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {"type": "string", "description": "Search keywords"},
-                "top_k": {"type": "integer", "description": "Number of results to return", "default": 5},
-            },
-            "required": ["query"],
         },
     },
     {
@@ -203,6 +181,63 @@ TOOL_DEFINITIONS = [
             },
         },
     },
+    # RPG tools
+    {
+        "name": "get_character",
+        "description": "Get your RPG trading character (level, rank, attributes)",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_achievements",
+        "description": "Get achievements list (unlocked and locked)",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "category": {"type": "string", "description": "Filter by category: trading/discipline/milestones/streaks"},
+            },
+        },
+    },
+    {
+        "name": "start_quest",
+        "description": "Start a quest by ID",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "quest_id": {"type": "string", "description": "Quest ID to start"},
+            },
+            "required": ["quest_id"],
+        },
+    },
+    {
+        "name": "check_quest_progress",
+        "description": "Check progress on active quests",
+        "parameters": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_leaderboard",
+        "description": "Get the trading leaderboard",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "period": {"type": "string", "description": "Period: weekly/monthly", "default": "weekly"},
+            },
+        },
+    },
+    {
+        "name": "generate_trading_card",
+        "description": "Generate a shareable trading card (character or weekly stats)",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "card_type": {"type": "string", "description": "Card type: character/weekly", "default": "character"},
+            },
+        },
+    },
+    {
+        "name": "sync_trades",
+        "description": "Sync trades and recalculate RPG character attributes",
+        "parameters": {"type": "object", "properties": {}},
+    },
 ]
 
 
@@ -230,10 +265,6 @@ async def execute_tool(
             from tools.analysis_tools import analyze_performance
             return await analyze_performance(session, user_id, **args)
 
-        elif name == "detect_patterns":
-            from tools.analysis_tools import detect_patterns
-            return await detect_patterns(session, user_id, **args)
-
         elif name == "get_market_data":
             from tools.market_tools import get_market_data
             return await get_market_data(session, user_id, **args)
@@ -249,10 +280,6 @@ async def execute_tool(
         elif name == "cancel_order":
             from tools.execution_tools import cancel_order
             return await cancel_order(session, user_id, **args)
-
-        elif name == "search_knowledge":
-            from tools.knowledge_tools import search_knowledge
-            return await search_knowledge(session, user_id, **args)
 
         elif name == "manage_journal":
             from tools.trade_tools import manage_journal
@@ -273,6 +300,35 @@ async def execute_tool(
         elif name == "replay_my_trades":
             from tools.backtest_tools import replay_my_trades
             return await replay_my_trades(session, user_id, **args)
+
+        # RPG tools
+        elif name == "get_character":
+            from tools.rpg_tools import get_character as rpg_get_character
+            return await rpg_get_character(session, user_id, **args)
+
+        elif name == "get_achievements":
+            from tools.rpg_tools import get_achievements_tool
+            return await get_achievements_tool(session, user_id, **args)
+
+        elif name == "start_quest":
+            from tools.rpg_tools import start_quest_tool
+            return await start_quest_tool(session, user_id, **args)
+
+        elif name == "check_quest_progress":
+            from tools.rpg_tools import check_quest_progress_tool
+            return await check_quest_progress_tool(session, user_id, **args)
+
+        elif name == "get_leaderboard":
+            from tools.rpg_tools import get_leaderboard_tool
+            return await get_leaderboard_tool(session, user_id, **args)
+
+        elif name == "generate_trading_card":
+            from tools.rpg_tools import generate_trading_card
+            return await generate_trading_card(session, user_id, **args)
+
+        elif name == "sync_trades":
+            from tools.rpg_tools import sync_trades_tool
+            return await sync_trades_tool(session, user_id, **args)
 
         else:
             return {"error": f"Unknown tool: {name}"}

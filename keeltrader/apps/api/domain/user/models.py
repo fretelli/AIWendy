@@ -118,14 +118,9 @@ class User(Base):
     # Relationships - Using string references to avoid circular imports
     projects = relationship("Project", back_populates="user")
     chat_sessions = relationship("ChatSession", back_populates="user")
-    reports = relationship("Report", back_populates="user")
-    report_schedule = relationship(
-        "ReportSchedule", back_populates="user", uselist=False
-    )
     sessions = relationship("UserSession", back_populates="user")
     exchange_connections = relationship("ExchangeConnection", back_populates="user")
-    device_tokens = relationship("DeviceToken", back_populates="user")
-    notifications = relationship("Notification", back_populates="user")
+    trading_character = relationship("TradingCharacter", back_populates="user", uselist=False)
 
     # Indexes
     __table_args__ = (

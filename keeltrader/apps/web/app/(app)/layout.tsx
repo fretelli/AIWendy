@@ -2,11 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
+  Sword,
+  BarChart3,
+  Trophy,
+  ScrollText,
+  Crown,
   MessageSquare,
   Settings,
   LogOut,
@@ -14,12 +19,22 @@ import {
   X,
 } from 'lucide-react';
 
+const NAV_ITEMS = [
+  { href: '/character', icon: Sword, label: 'Character' },
+  { href: '/chat', icon: MessageSquare, label: 'Chat' },
+  { href: '/achievements', icon: Trophy, label: 'Achievements' },
+  { href: '/quests', icon: ScrollText, label: 'Quests' },
+  { href: '/leaderboard', icon: Crown, label: 'Leaderboard' },
+  { href: '/settings', icon: Settings, label: 'Settings' },
+];
+
 export default function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, isLoading } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -57,25 +72,29 @@ export default function AppLayout({
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
-          <Link href="/chat" className="flex items-center gap-2">
+          <Link href="/character" className="flex items-center gap-2">
             <span className="text-lg font-bold">KeelTrader</span>
-            <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">v2</span>
+            <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">RPG</span>
           </Link>
         </div>
 
         <nav className="hidden md:flex items-center gap-1">
-          <Link href="/chat">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Chat
-            </Button>
-          </Link>
-          <Link href="/settings">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <Settings className="h-4 w-4" />
-              Settings
-            </Button>
-          </Link>
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+            return (
+              <Link key={item.href} href={item.href}>
+                <Button
+                  variant={isActive ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="gap-2"
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </Button>
+              </Link>
+            );
+          })}
         </nav>
 
         <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
@@ -87,18 +106,21 @@ export default function AppLayout({
       {/* Mobile menu */}
       {mobileMenuOpen && (
         <div className="md:hidden border-b p-2 space-y-1">
-          <Link href="/chat" onClick={() => setMobileMenuOpen(false)}>
-            <Button variant="ghost" className="w-full justify-start gap-2">
-              <MessageSquare className="h-4 w-4" />
-              Chat
-            </Button>
-          </Link>
-          <Link href="/settings" onClick={() => setMobileMenuOpen(false)}>
-            <Button variant="ghost" className="w-full justify-start gap-2">
-              <Settings className="h-4 w-4" />
-              Settings
-            </Button>
-          </Link>
+          {NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+            return (
+              <Link key={item.href} href={item.href} onClick={() => setMobileMenuOpen(false)}>
+                <Button
+                  variant={isActive ? 'secondary' : 'ghost'}
+                  className="w-full justify-start gap-2"
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </Button>
+              </Link>
+            );
+          })}
         </div>
       )}
 
