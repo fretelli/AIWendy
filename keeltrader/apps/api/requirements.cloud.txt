@@ -7,7 +7,7 @@ mixpanel==4.10.0  # For Mixpanel analytics (alternative to PostHog)
 
 # ========== Enterprise SSO ==========
 python3-saml==1.16.0  # For SAML 2.0 SSO
-PyJWT==2.8.0  # For JWT handling in OAuth flows
+PyJWT==2.12.0  # For JWT handling in OAuth flows
 
 # ========== Billing ==========
 stripe==8.0.0  # For payment processing and subscription management
