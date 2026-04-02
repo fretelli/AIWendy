@@ -17,7 +17,7 @@
 [![CI](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml/badge.svg)](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![GitHub Stars](https://img.shields.io/github/stars/fretelli/KeelTrader?style=social)](https://github.com/fretelli/KeelTrader/stargazers)
-[![Last Commit](https://img.shields.io/github/last-commit/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader/commits/main)
+[![Last Commit](https://img.shields.io/github/last-commit/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader/commits/v2)
 [![GitHub Issues](https://img.shields.io/github/issues/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader/issues)
 [![Top Language](https://img.shields.io/github/languages/top/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/fretelli/KeelTrader/pulls)
@@ -102,9 +102,9 @@ Most traders know the theory but fail in execution. KeelTrader bridges this gap 
 - **Attachments**: upload images/docs/audio (extract/transcribe where supported)
 - **Journaling + reports**: trading journal, analytics, scheduled reports (Celery)
 - **Journal import (CSV/XLSX)**: upload a file and map columns in the UI (works with different broker/export formats)
-- **Push notifications**: real-time alerts for pattern detection, risk warnings, and daily summaries (FCM, Email, SMS)
+- **Notifications**: in-app notifications and alert delivery hooks for pattern alerts, risk warnings, and daily summaries
 - **Trading intervention system**: pre-trade checklists, real-time trade blocking based on risk limits, and proactive alerts
-- **Cognitive bias detection**: ML-powered detection of revenge trading, FOMO, overtrading, and other behavioral patterns
+- **Behavior pattern tracking**: detect and review revenge trading, FOMO, overtrading, and other behavioral patterns
 - **Exchange integration**: connect to crypto exchanges (OKX, Bybit, Coinbase, Kraken) and brokers (IBKR) with trading mode awareness (spot / perpetual futures / stocks / options per connection)
 - **Agent Matrix** (optional profile): multi-agent trading system — Orchestrator, Technical Analyst, Executor, Psychology Coach, Guardian — with 8-layer safety barrier, ghost trading, and Telegram bot interface
 - **Self-hosted by default**: Docker Compose; optional cloud/SaaS mode via env flags
@@ -125,7 +125,7 @@ Full guide: `keeltrader/docs/SELF_HOSTING.md`
 
 ## Authentication
 
-Login is required by default (`KEELTRADER_AUTH_REQUIRED=1`). Set `KEELTRADER_AUTO_INIT_TEST_USERS=1` to create test accounts on first startup.
+The default Docker Compose setup builds the web with login enabled (`NEXT_PUBLIC_AUTH_REQUIRED=1`). Set `KEELTRADER_AUTO_INIT_TEST_USERS=1` to create test accounts on first startup.
 
 To disable login and use guest mode, set `KEELTRADER_AUTH_REQUIRED=0` in `.env` and rebuild the web image with `NEXT_PUBLIC_AUTH_REQUIRED=0`.
 
@@ -137,7 +137,7 @@ To disable login and use guest mode, set `KEELTRADER_AUTH_REQUIRED=0` in `.env` 
 
 ## Docs
 
-- Start here: `keeltrader/docs/README.md`
+- Start here: `keeltrader/docs/INDEX.md`
 - Architecture: `keeltrader/docs/ARCHITECTURE.md`
 - Deployment: `keeltrader/docs/DEPLOYMENT.md`
 - Self-hosting: `keeltrader/docs/SELF_HOSTING.md`
@@ -161,7 +161,7 @@ KeelTrader supports two modes:
 - **Self-hosted (default)**: open-source community edition
 - **Cloud/SaaS**: multi-tenancy, billing, enterprise SSO, analytics (activated only when `DEPLOYMENT_MODE=cloud`)
 
-See `docs/DEPLOYMENT_MODES.md` for details.
+See `keeltrader/docs/DEPLOYMENT_MODES.md` for details.
 
 ---
 
@@ -188,6 +188,9 @@ KeelTrader 是一套面向交易心理与行为表现的 AI 教练系统（Web: 
 - **附件**：图片/文档/音频上传（按能力抽取/转写）
 - **交易日志 + 报告**：交易日志、统计、定时报表（Celery）
 - **交易日志导入（CSV/XLSX）**：支持上传文件并在页面中手动映射列（适配不同券商/平台格式）
+- **通知能力**：站内通知与告警分发钩子，覆盖模式提醒、风险警告和每日总结
+- **交易干预系统**：交易前检查清单、基于风险限制的实时交易阻止和主动警报
+- **行为模式跟踪**：识别并复盘报复性交易、FOMO、过度交易等行为模式
 - **交易所集成**：连接加密交易所（OKX、Bybit、Coinbase、Kraken）和券商（IBKR），支持按连接配置交易模式（现货 / 永续合约 / 股票 / 期权）
 - **Agent Matrix（可选 profile）**：多 Agent 交易系统 — 协调器、技术分析师、执行器、心理教练、风控守卫 — 含 8 层安全屏障、模拟交易、Telegram 机器人
 - **默认可自托管**：Docker Compose 一键启动；也支持通过环境变量启用云端模式
@@ -220,11 +223,15 @@ docker compose up -d --build
 
 ### 文档
 
-- 从这里开始：`docs/README.md`
-- 仓库导览：`docs/PROJECT_OVERVIEW.md`
-- 应用文档：`keeltrader/docs/README.md`
+- 从这里开始：`keeltrader/docs/INDEX.md`
 - 架构：`keeltrader/docs/ARCHITECTURE.md`
 - 部署：`keeltrader/docs/DEPLOYMENT.md`
+- 自托管：`keeltrader/docs/SELF_HOSTING.md`
+- 部署模式：`keeltrader/docs/DEPLOYMENT_MODES.md`
+- 自定义 API：`keeltrader/docs/CUSTOM_API_SETUP.md`
+- 国际化：`keeltrader/docs/I18N_GUIDE.md`
+- **版本管理**：`docs/VERSION_MANAGEMENT.md`
+- **更新日志**：`CHANGELOG.md`
 
 ### 贡献与安全
 
@@ -239,7 +246,7 @@ KeelTrader 支持两种模式：
 - **Self-Hosted（默认）**：开源社区版
 - **Cloud/SaaS**：多租户、计费、企业 SSO、分析（仅在 `DEPLOYMENT_MODE=cloud` 时启用）
 
-详见：`docs/DEPLOYMENT_MODES.md`
+详见：`keeltrader/docs/DEPLOYMENT_MODES.md`
 
 ## Star History
 
