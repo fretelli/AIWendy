@@ -79,8 +79,9 @@ alembic upgrade head
 
 ## 相关文档
 
-- 项目状态（以代码为准）：`../../docs/PROJECT_STATUS.md`
-- 自定义 LLM 配置：`../../docs/CUSTOM_API_SETUP.md`
+- 文档索引：`INDEX.md`
+- 自定义 LLM 配置：`CUSTOM_API_SETUP.md`
+- 自托管：`SELF_HOSTING.md`
 
 ---
 
@@ -163,6 +164,6 @@ alembic upgrade head
 
 ### Related docs
 
-- Project status (source of truth is code): `../../docs/PROJECT_STATUS.md`
-- Custom LLM configuration: `../../docs/CUSTOM_API_SETUP.md`
-
+- Docs index: `INDEX.md`
+- Custom LLM configuration: `CUSTOM_API_SETUP.md`
+- Self-hosting: `SELF_HOSTING.md`
