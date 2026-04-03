@@ -254,7 +254,7 @@ export default function SettingsPage() {
         <CardContent className="space-y-3">
           <div className="space-y-2">
             {[
-              { key: 'push_morning_report', label: 'Morning Report (08:30)' },
+              { key: 'push_morning_report', label: 'Morning Report (09:00)' },
               { key: 'push_evening_report', label: 'Evening Summary (21:00)' },
               { key: 'push_trade_alerts', label: 'Trade Alerts' },
               { key: 'push_risk_alerts', label: 'Risk Alerts' },
