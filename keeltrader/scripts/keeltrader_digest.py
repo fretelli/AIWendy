@@ -270,6 +270,9 @@ def _call_llm(prompt: str, temperature: float = 0.6, max_tokens: int = 2000) -> 
             text = resp.json()["choices"][0]["message"]["content"].strip()
             if text.startswith("```"):
                 text = "\n".join(l for l in text.split("\n") if not l.strip().startswith("```")).strip()
+            text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+            text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"\1", text)
+            text = re.sub(r"^#{1,6}\s+", "", text, flags=re.MULTILINE)
             return text
         except (requests.Timeout, requests.ConnectionError) as exc:
             last_err = exc
@@ -309,6 +312,17 @@ _TONE_RULE = """【语气规范（严格执行）】
 禁止 emoji
 要求：纯文字段落，平静自信，像在私人俱乐部和聪明朋友聊天"""
 
+_STYLE_RULE = """【账号风格总规则（高于栏目结构要求）】
+- 账号气质必须是：独立、小众、前卫、精品、unique 的财富与生活方式观察，不要写成普通财经号。
+- 你像一本独立财富刊物的编辑、审美敏感的资产观察者、低调但判断精准的生活方式研究者。
+- 保留财富分析和行为洞察，但切入口优先来自品味、稀缺性、时间感、代际偏好、消费心理、资产审美和阶层表达。
+- 每篇至少提出 1 个不显而易见的主判断，不要复述常见的有钱人标签或鸡汤式财富观。
+- 标题要像会被收藏的独立观察笔记，不要像财经快讯、理财课程、成功学标题。
+- 句子要干净、克制、有密度，可以有立场，但不要浮夸，不要故作神秘。
+- 尽量避开这类陈词：赛道、风口、逆天、暴击、认知升级、阶层跃迁密码、拿捏、高净值秘籍。
+- 不是炫耀财富符号，而是解释为什么某种选择会成为长期品味、关系秩序、资产判断和生活方式的一部分。
+- 审美表达不能停在“高级感”，要说明这种审美如何对应判断力、耐心、筛选机制和真实偏好。"""
+
 
 def generate_post(articles_text: str, date_range: str, column: str) -> str:
     config = COLUMN_CONFIGS[column]
@@ -320,6 +334,8 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
 
 {_TONE_RULE}
 
+{_STYLE_RULE}
+
 你是一位为高净值读者写作的财富行为观察者，风格接近 Robb Report 的编辑视角。
 
 根据以下近期（{date_range}）素材，写一篇《{label}》。
@@ -329,6 +345,7 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
 - 空一行后正文 320-420 字
 - 结构：这周有钱人的财富决策里发生了什么 → 背后反映的行为逻辑 → 对想进入这个层次的人的真实启示
 - 可融入：锚定效应、耐心资本、稀缺性定价、品味作为护城河
+- 不要把“有钱人”写成炫耀对象，要写成一套更克制、更有筛选力的决策方式
 - 结尾 3-4 个 hashtag，具体不泛（#独立精品投资逻辑 而非 #投资）
 
 素材：
@@ -343,6 +360,8 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
 
 {_TONE_RULE}
 
+{_STYLE_RULE}
+
 你是一位了解有钱人如何看待实物资产的观察者。
 
 根据以下近期（{date_range}）素材，写一篇《{label}》。
@@ -352,6 +371,7 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
 - 空一行后正文 260-380 字
 - 写有钱人怎么看腕表、艺术品、房产、收藏品——不是作为炫耀，而是作为资产和品味的载体
 - 结构：1 个核心认知 + 3 个具体的资产逻辑观察
+- 要写出为什么某些实物资产会被视为时间、判断力和审美秩序的容器，而不只是贵
 - 结尾 3-4 个 hashtag
 
 素材：
@@ -366,6 +386,8 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
 
 {_TONE_RULE}
 
+{_STYLE_RULE}
+
 你是一位研究 Old Money 文化和传承型财富的观察者。
 
 根据以下近期（{date_range}）素材，写一篇《{label}》。
@@ -376,6 +398,7 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
 - 写 Old Money 思维和 New Money 的本质差异——不是炫耀差距，而是揭示一种不同的财富观
 - 可写：耐心、品味、低调、长期主义、传承意识、对体验的偏好高于对物品的占有
 - 结构：1 个核心对比 + 3 个行为差异的观察
+- 不要写成刻板人设总结，要写成一套被时间筛出来的生活方式判断
 - 结尾 3-4 个 hashtag
 
 素材：
@@ -388,6 +411,8 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
 
 {_TONE_RULE}
 
+{_STYLE_RULE}
+
 你是一位研究市场情绪和投资行为的观察者，为有品味的读者写作。
 
 根据以下近期（{date_range}）素材，写一篇《{label}》。
@@ -398,6 +423,7 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
 - 结构：这周市场在发生什么 → 背后的集体心理机制 → 懂的人会怎么思考
 - 可融入：锚定偏差、羊群效应、过度自信、损失厌恶、确认偏差
 - 禁止：买卖建议、具体涨跌幅、板块名称（用"某类资产"代替）
+- 不要写成泛心理学科普，要写出真正有判断力的人如何与情绪保持距离
 - 结尾 3-4 个 hashtag
 
 素材：
@@ -411,6 +437,8 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
         prompt = f"""{_DEID_RULE}
 
 {_TONE_RULE}
+
+{_STYLE_RULE}
 
 你是一位为高净值读者写周度回顾的内容总编。
 
@@ -426,6 +454,7 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
 - 每段有小标题，下面 3-4 句分析
 - 消费者和生活方式视角前置，财富逻辑后置
 - 不要写成财经周报，不要平均罗列
+- 周回顾要像独立财富刊物的编辑手记，有筛选感和主编判断，而不是摘要合集
 - 结尾 4-5 个 hashtag
 
 素材：
@@ -443,15 +472,15 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
 def _image_style(mode: str) -> str:
     styles = {
         "premium": (
-            "luxury lifestyle editorial photography, shot on Leica or Hasselblad, "
-            "warm ambient light in an upscale private space or gallery, "
-            "muted gold and ivory palette, cashmere and marble textures, "
-            "quiet understated elegance, no people, no readable text, no logos"
+            "independent wealth editorial photography, shot on Leica or Hasselblad, "
+            "warm ambient light in a private salon, gallery, study, or members-club-like interior, "
+            "muted gold, ivory, walnut, and stone palette, cashmere, leather, marble, and brushed metal textures, "
+            "quiet understated elegance, niche publication mood, no people, no readable text, no logos"
         ),
         "minimal": (
-            "clean overhead flat lay on marble or natural stone surface, "
-            "soft diffused window light, luxury objects with generous negative space, "
-            "warm neutral palette, premium tactile materials, timeless aesthetic, "
+            "minimal boutique editorial still life on marble, travertine, walnut, or natural stone surface, "
+            "soft diffused window light, carefully spaced objects with generous negative space, "
+            "warm neutral palette, premium tactile materials, timeless but slightly avant-garde aesthetic, "
             "no people, no text, no brand markings"
         ),
     }
@@ -467,6 +496,7 @@ def _generate_image_prompt(title: str, body: str, mode: str) -> str:
 - 场景必须真实可拍摄，不要抽象概念图
 - 风格：{style}
 - 包含材质、光线、空间物件描述
+- 气质要像 independent wealth magazine / niche lifestyle editorial，而不是通用奢侈品广告
 - 禁止文字、数字、图表、Logo、人脸
 - 只输出 prompt 文本
 
