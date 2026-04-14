@@ -58,7 +58,12 @@ SEEN_STATE_FILE = Path(os.environ.get(
     "KEELTRADER_DIGEST_SEEN_FILE",
     "/root/.cache/keeltrader-digest-seen.json",
 ))
-SEEN_TTL_HOURS = 240  # 10 天去重
+SEND_STATE_FILE = Path(os.environ.get(
+    "KEELTRADER_DIGEST_SEND_STATE_FILE",
+    "/root/.cache/keeltrader-digest-send-state.json",
+))
+SEEN_TTL_HOURS = int(os.environ.get("KEELTRADER_DIGEST_SEEN_TTL_HOURS", "240"))  # 默认 10 天去重
+EMPTY_ALERT_ENABLED = os.environ.get("KEELTRADER_DIGEST_EMPTY_ALERT_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 
 
 logging.basicConfig(
@@ -232,7 +237,22 @@ def save_seen(data: dict[str, str]):
     SEEN_STATE_FILE.write_text(json.dumps(data, ensure_ascii=True, indent=2, sort_keys=True))
 
 
-def prune_and_filter(entries: list[dict], seen: dict[str, str]) -> list[dict]:
+def load_send_state() -> dict[str, str]:
+    if not SEND_STATE_FILE.exists():
+        return {}
+    try:
+        data = json.loads(SEND_STATE_FILE.read_text())
+        return {str(k): str(v) for k, v in data.items()} if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+def save_send_state(data: dict[str, str]):
+    SEND_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    SEND_STATE_FILE.write_text(json.dumps(data, ensure_ascii=True, indent=2, sort_keys=True))
+
+
+def prune_and_filter(entries: list[dict], seen: dict[str, str]) -> tuple[list[dict], dict[str, str], int]:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=SEEN_TTL_HOURS)
     pruned = {u: t for u, t in seen.items() if (_parse_dt(t) or cutoff) >= cutoff}
     out, dropped = [], 0
@@ -243,7 +263,7 @@ def prune_and_filter(entries: list[dict], seen: dict[str, str]) -> list[dict]:
         out.append(e)
     if dropped:
         logger.info("去重过滤 %d 篇", dropped)
-    return out, pruned
+    return out, pruned, dropped
 
 
 def mark_seen(entries: list[dict], pruned: dict[str, str]):
@@ -626,6 +646,33 @@ def send_to_feishu(feishu_title: str, post_text: str, cover_key: str | None):
         _send_text(tags)
 
 
+def _send_empty_material_alert(column: str, date_range: str, metrics: dict):
+    if not EMPTY_ALERT_ENABLED:
+        logger.info("空素材告警已禁用，跳过发送")
+        return
+
+    send_state = load_send_state()
+    alert_key = f"empty:{column}:{date_range}"
+    if send_state.get(alert_key):
+        logger.info("空素材告警去重命中，跳过: %s", alert_key)
+        return
+
+    config = COLUMN_CONFIGS[column]
+    msg = (
+        f"【{config['feishu_title']} ({date_range})】\n\n"
+        "⚠️ 今日无可用素材，已严格跳过发文（不重复旧内容）\n"
+        f"- 栏目: {column}\n"
+        f"- Miniflux 原始候选: {metrics.get('raw_entries', 0)}\n"
+        f"- 栏目过滤后: {metrics.get('column_entries', 0)}\n"
+        f"- 去重过滤: {metrics.get('dropped_by_seen', 0)}\n"
+        f"- 最终候选: {metrics.get('final_entries', 0)}\n"
+        "- 建议: 补充财富类 RSS 源（Robb Report / Monocle 同类）"
+    )
+    _send_text(msg)
+    send_state[alert_key] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    save_send_state(send_state)
+
+
 # ──────────────────────────────────────────────
 # 主流程
 # ──────────────────────────────────────────────
@@ -662,19 +709,30 @@ def main():
 
     # 获取并过滤素材
     all_entries = fetch_wealth_entries(hours)
-    entries     = filter_by_column(all_entries, config)
-    seen        = load_seen()
-    entries, pruned_seen = prune_and_filter(entries, seen)
+    entries = filter_by_column(all_entries, config)
+    seen = load_seen()
+    entries, pruned_seen, dropped_by_seen = prune_and_filter(entries, seen)
+    now = datetime.now()
+    date_range = f"{(now - timedelta(hours=hours)).strftime('%m/%d')}-{now.strftime('%m/%d')}"
+    metrics = {
+        "raw_entries": len(all_entries),
+        "column_entries": len(filter_by_column(all_entries, config)),
+        "dropped_by_seen": dropped_by_seen,
+        "final_entries": len(entries),
+    }
 
     if not entries:
-        logger.info("无素材，跳过")
+        logger.info(
+            "无素材，跳过 (column=%s, raw_entries=%d, column_entries=%d, dropped_by_seen=%d)",
+            column, metrics["raw_entries"], metrics["column_entries"], metrics["dropped_by_seen"]
+        )
+        if not args.dry_run:
+            _send_empty_material_alert(column, date_range, metrics)
         return
 
     logger.info("栏目 %s：%d 篇素材", column, len(entries))
 
     articles_text = build_articles_text(entries)
-    now = datetime.now()
-    date_range = f"{(now - timedelta(hours=hours)).strftime('%m/%d')}-{now.strftime('%m/%d')}"
 
     if len(articles_text) > MAX_CONTEXT_CHARS:
         articles_text = articles_text[:MAX_CONTEXT_CHARS]
@@ -687,6 +745,12 @@ def main():
         print(post_text)
         return
 
+    send_state = load_send_state()
+    send_key = f"send:{column}:{date_range}"
+    if send_state.get(send_key):
+        logger.info("发送去重命中，跳过: %s", send_key)
+        return
+
     # 生成封面图
     cover_key = None
     if not args.no_image:
@@ -695,6 +759,8 @@ def main():
 
     feishu_title = f"{config['feishu_title']} ({date_range})"
     send_to_feishu(feishu_title, post_text, cover_key)
+    send_state[send_key] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    save_send_state(send_state)
 
     mark_seen(entries, pruned_seen)
     save_seen(pruned_seen)
