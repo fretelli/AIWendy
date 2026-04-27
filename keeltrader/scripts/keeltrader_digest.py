@@ -746,9 +746,9 @@ def main():
         return
 
     send_state = load_send_state()
-    send_key = f"send:{column}:{date_range}"
+    send_key = f"{column}:{date_range}"
     if send_state.get(send_key):
-        logger.info("发送去重命中，跳过: %s", send_key)
+        logger.info("发送去重命中，跳过重复推送: %s", send_key)
         return
 
     # 生成封面图
