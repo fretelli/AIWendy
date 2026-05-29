@@ -29,6 +29,15 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 
+sys.path.insert(0, "/root/infra-root/scripts/lib")
+from xhs_editorial_guard import (  # noqa: E402
+    EditorialGuardError,
+    format_artifact_summary,
+    parse_guard_mode,
+    run_guarded_generation,
+    source_records_from_entries,
+)
+
 
 # 加载 miniflux .env（共享配置：MINIFLUX_API_URL、LLM、FEISHU）
 _MINIFLUX_ENV = Path("/opt/services/miniflux/.env")
@@ -342,7 +351,15 @@ _STYLE_RULE = """【账号风格总规则（高于栏目结构要求）】
 - 尽量避开这类陈词：赛道、风口、逆天、暴击、认知升级、阶层跃迁密码、拿捏、高净值秘籍。
 - 不是炫耀财富符号，而是解释为什么某种选择会成为长期品味、关系秩序、资产判断和生活方式的一部分。
 - 审美表达不能停在“高级感”，要说明这种审美如何对应判断力、耐心、筛选机制和真实偏好。
-- 每篇至少保留 2-4 个具体对象或场景，例如腕表、酒店、餐厅、城市、车、艺术品、家居材质、旅行方式、社交场合。"""
+- 每篇至少保留 2-4 个具体对象或场景，例如腕表、酒店、餐厅、城市、车、艺术品、家居材质、旅行方式、社交场合。
+
+【中文母语表达规则（严格执行）】
+- 英文素材只提供信息，不提供句法；先理解素材，再用中文重新组织句子，不要翻译英文句法。
+- 每段优先用人、品牌、酒店、餐厅、消费者、城市、具体场景做主语，少用“趋势、逻辑、变化、审美、信号”等抽象词做主语。
+- 禁止连续使用无主句；每段至少 1-2 句要有明确主语。
+- 少用“通过、基于、围绕、呈现出、背后是、映射出、对应着、承载着、作为一种、某种意义上”等翻译腔表达。
+- 把栏目结构写成自然段，不要在正文里露出“现象 → 逻辑 → 方法”这类箭头结构。
+- 多用中文日常表达，例如“我注意到”“你会发现”“这类人现在更愿意”“很多人其实不是在买……而是在看……”。"""
 
 
 def generate_post(articles_text: str, date_range: str, column: str) -> str:
@@ -364,7 +381,7 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
 要求：
 - 标题 ≤18 字，像具体发现，不用感叹号
 - 空一行后正文 320-420 字
-- 结构：这周某个具体生活方式/消费场景发生了什么 → 背后反映的行为逻辑 → 普通人能借鉴的观察方法
+- 按“这周某个具体生活方式/消费场景发生了什么、反映了什么行为逻辑、普通人能借鉴什么观察方法”推进，但必须写成自然段
 - 可融入：锚定效应、耐心资本、稀缺性定价、品味作为护城河
 - 不要把“有钱人”写成炫耀对象，要通过具体品牌、品类、城市或场景写出更克制、更有筛选力的决策方式
 - 结尾 3-4 个 hashtag，具体不泛，优先用品类/场景/人群标签
@@ -391,7 +408,7 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
 - 标题 ≤16 字，像具体发现
 - 空一行后正文 260-380 字
 - 写人们怎么看腕表、艺术品、房产、收藏品、车、家居、酒店体验——不是作为炫耀，而是作为时间、品味和筛选机制的载体
-- 结构：1 个具体场景开头 + 3 个资产审美观察
+- 用 1 个具体场景开头，再写 3 个资产审美观察，但必须写成自然段
 - 要写出为什么某些实物资产会被视为时间、判断力和审美秩序的容器，而不只是贵
 - 结尾 3-4 个具体 hashtag，优先用品类/场景/生活方式标签
 
@@ -418,7 +435,7 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
 - 空一行后正文 260-380 字
 - 写 Old Money 思维和 New Money 的本质差异——不是炫耀差距，而是通过具体服装、旅行、家居、社交、酒店或餐厅场景揭示不同的财富观
 - 可写：耐心、品味、低调、长期主义、传承意识、对体验的偏好高于对物品的占有
-- 结构：1 个具体场景开头 + 3 个行为差异的观察
+- 用 1 个具体场景开头，再写 3 个行为差异的观察，但必须写成自然段
 - 不要写成刻板人设总结，要写成一套被时间筛出来的生活方式判断
 - 结尾 3-4 个具体 hashtag，优先用生活方式/品类/场景词
 
@@ -441,7 +458,7 @@ def generate_post(articles_text: str, date_range: str, column: str) -> str:
 要求：
 - 标题 ≤18 字，像具体发现
 - 空一行后正文 320-420 字
-- 结构：一个可感知的消费/资产/生活方式现象 → 背后的集体心理机制 → 懂的人会怎么观察
+- 按“一个可感知的消费/资产/生活方式现象、背后的集体心理机制、懂的人会怎么观察”推进，但必须写成自然段
 - 可融入：锚定偏差、羊群效应、过度自信、损失厌恶、确认偏差
 - 禁止：买卖建议、具体涨跌幅、板块名称（用"某类资产"代替）
 - 不要写成泛心理学科普，要写出真正有判断力的人如何与情绪保持距离
@@ -700,6 +717,24 @@ def main():
     parser.add_argument("--hours", type=int, default=None)
     parser.add_argument("--dry-run", action="store_true", help="只预览，不推送飞书")
     parser.add_argument("--no-image", action="store_true", help="跳过图片生成")
+    parser.add_argument(
+        "--editorial-guard",
+        choices=["strict", "warn", "off"],
+        default=parse_guard_mode(os.environ.get("KEELTRADER_DIGEST_EDITORIAL_GUARD"), "strict"),
+        help="资深编辑守门: strict=失败跳过, warn=失败仍输出并标注, off=关闭",
+    )
+    parser.add_argument(
+        "--evidence-timeout",
+        type=int,
+        default=int(os.environ.get("KEELTRADER_DIGEST_EVIDENCE_TIMEOUT", "25")),
+        help="证据采集总超时秒数",
+    )
+    parser.add_argument(
+        "--max-evidence-links",
+        type=int,
+        default=int(os.environ.get("KEELTRADER_DIGEST_MAX_EVIDENCE_LINKS", "4")),
+        help="每篇原文最多跟进的证据外链数量",
+    )
     args = parser.parse_args()
 
     column = select_column(args)
@@ -740,11 +775,37 @@ def main():
         articles_text = articles_text[:MAX_CONTEXT_CHARS]
         logger.warning("素材过长，截断至 %d 字符", MAX_CONTEXT_CHARS)
 
-    post_text = generate_post(articles_text, date_range, column)
+    guard_artifacts = None
+    try:
+        guard_result = run_guarded_generation(
+            raw_context=articles_text,
+            records=source_records_from_entries(entries),
+            generate_post=lambda guarded_context: generate_post(guarded_context, date_range, column),
+            llm_call=_call_llm,
+            mode=args.editorial_guard,
+            domain="财富生活方式、精品消费与市场心理",
+            column_label=config["label"],
+            date_range=date_range,
+            timeout_seconds=args.evidence_timeout,
+            max_evidence_links=args.max_evidence_links,
+            logger=logger,
+        )
+        post_text = guard_result.post_text
+        guard_artifacts = guard_result.artifacts
+    except EditorialGuardError as exc:
+        logger.warning("%s", exc)
+        msg = f"【{config['feishu_title']} ({date_range})】\n\n今日财富小红书稿待人工核验，已跳过自动正文。\n原因: {exc}\n\n{format_artifact_summary(exc.artifacts)}"
+        if args.dry_run:
+            print(msg)
+        else:
+            _send_text(msg)
+        return
     logger.info("帖子生成完成 (%d 字)", len(post_text))
 
     if args.dry_run:
         print(post_text)
+        if guard_artifacts:
+            print("\n" + format_artifact_summary(guard_artifacts))
         return
 
     send_state = load_send_state()
@@ -761,6 +822,8 @@ def main():
 
     feishu_title = f"{config['feishu_title']} ({date_range})"
     send_to_feishu(feishu_title, post_text, cover_key)
+    if guard_artifacts:
+        _send_text(format_artifact_summary(guard_artifacts))
     send_state[send_key] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     save_send_state(send_state)
 
