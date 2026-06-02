@@ -406,6 +406,22 @@ function AuthBridge({ onSaved }: { onSaved: () => void }) {
           >
             保存授权
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setToken("");
+              setResearchToken("");
+              trackClientEvent({
+                event_name: "web_research_token_cleared",
+                page_path: "/research",
+                status: "success",
+              }).catch(() => undefined);
+              onSaved();
+            }}
+            className="shrink-0"
+          >
+            清空授权
+          </Button>
         </div>
       </CardContent>
     </Card>
@@ -1388,6 +1404,9 @@ function MembershipPanel({ overview, profile, invite, catalog, officialBinding, 
             <div className="text-sm text-muted-foreground">用户</div>
             <div className="mt-2 text-xl font-semibold">{profile?.nickname || "研报用户"}</div>
             <div className="mt-1 text-sm text-muted-foreground">ID #{profile?.user_id || "-"}</div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              手机号 {profile?.phone_bound ? profile.phone_masked || "已绑定" : "未绑定"}
+            </div>
           </div>
           <div className="rounded-md border p-4">
             <div className="text-sm text-muted-foreground">会员</div>
