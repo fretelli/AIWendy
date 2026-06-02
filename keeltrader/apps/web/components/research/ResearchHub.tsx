@@ -58,6 +58,7 @@ import {
   downloadHedgeFundMiniappCode,
   getBillingOverview,
   getBillingCatalog,
+  getBillingOrder,
   getReportBriefingStatus,
   getPendingInvite,
   getHedgeFundArchive,
@@ -68,6 +69,7 @@ import {
   getOfficialBindingStatus,
   getPointsMall,
   getPointsMallCatalog,
+  getPreferenceOptions,
   getRecommendations,
   getReportFreshness,
   getUserProfile,
@@ -89,6 +91,7 @@ import {
   updateUserPreferences,
   uploadAvatar,
   type BillingOverview,
+  type BillingOrderDetail,
   type OfficialBindingStatus,
   type DigestDetail,
   type HedgeFundArchiveFund,
@@ -100,6 +103,7 @@ import {
   type ProductItem,
   type InviteOverview,
   type RecommendationResponse,
+  type PreferenceOptionsResponse,
   type ReportBriefingState,
   type ReportFreshness,
   type ReportCardItem,
@@ -1295,16 +1299,20 @@ function MallPanel({ mall, error, onReload }: { mall: PointsMallResponse | null;
   );
 }
 
-function MembershipPanel({ overview, profile, invite, catalog, officialBinding, error, onCheckIn, onReload, onCreateOrder, onGoMall }: {
+function MembershipPanel({ overview, profile, invite, catalog, officialBinding, orderDetail, orderStatus, error, onCheckIn, onReload, onCreateOrder, onOpenOrder, onRefreshOrderPayment, onGoMall }: {
   overview: BillingOverview | null;
   profile: UserProfileResponse | null;
   invite: InviteOverview | null;
   catalog: ProductItem[];
   officialBinding: OfficialBindingStatus | null;
+  orderDetail: BillingOrderDetail | null;
+  orderStatus: string;
   error: string;
   onCheckIn: () => void;
   onReload: () => void;
   onCreateOrder: (product: ProductItem) => void;
+  onOpenOrder: (orderId: number) => void;
+  onRefreshOrderPayment: (orderId: number) => void;
   onGoMall: () => void;
 }) {
   const [inviteStatus, setInviteStatus] = useState("");
@@ -1503,19 +1511,70 @@ function MembershipPanel({ overview, profile, invite, catalog, officialBinding, 
           <h3 className="font-semibold">近期订单</h3>
           <div className="mt-3 space-y-2">
             {overview.recent_orders.map((order) => (
-              <div key={order.id} className="flex items-center justify-between border-t pt-2 text-sm">
-                <span>{order.title}</span>
-                <span className="text-muted-foreground">{formatMoneyFen(order.amount_fen)} · {order.payment_status}</span>
-              </div>
+                <button
+                  key={order.id}
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 border-t pt-2 text-left text-sm hover:text-primary"
+                  onClick={() => onOpenOrder(order.id)}
+                >
+                  <span>{order.title}</span>
+                  <span className="text-muted-foreground">{formatMoneyFen(order.amount_fen)} · {order.payment_status}</span>
+                </button>
             ))}
           </div>
         </div>
       ) : null}
+      <Dialog open={!!orderDetail} onOpenChange={(open) => !open && onOpenOrder(0)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>订单详情</DialogTitle>
+            <DialogDescription>对应小程序权益订单状态，可刷新支付状态。</DialogDescription>
+          </DialogHeader>
+          {orderDetail ? (
+            <div className="space-y-3 text-sm">
+              <div className="rounded-md border p-3">
+                <div className="font-semibold">{orderDetail.title}</div>
+                <div className="mt-1 text-muted-foreground">订单号 {orderDetail.order_no}</div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-md bg-muted/50 p-3">
+                  <div className="text-xs text-muted-foreground">金额</div>
+                  <div className="mt-1 font-semibold">{formatMoneyFen(orderDetail.amount_fen)}</div>
+                </div>
+                <div className="rounded-md bg-muted/50 p-3">
+                  <div className="text-xs text-muted-foreground">支付状态</div>
+                  <div className="mt-1 font-semibold">{orderDetail.payment_status}</div>
+                </div>
+                <div className="rounded-md bg-muted/50 p-3">
+                  <div className="text-xs text-muted-foreground">订单状态</div>
+                  <div className="mt-1 font-semibold">{orderDetail.status}</div>
+                </div>
+                <div className="rounded-md bg-muted/50 p-3">
+                  <div className="text-xs text-muted-foreground">创建时间</div>
+                  <div className="mt-1 font-semibold">{formatDateTime(orderDetail.created_at)}</div>
+                </div>
+              </div>
+              <div className="rounded-md bg-muted/50 p-3 text-muted-foreground">
+                目标：{orderDetail.target_type || "-"} / {orderDetail.target_id || "-"} · 渠道：{orderDetail.payment_provider || "-"}
+              </div>
+              {orderStatus ? <div className="rounded-md bg-muted/50 p-3 text-muted-foreground">{orderStatus}</div> : null}
+            </div>
+          ) : null}
+          <DialogFooter>
+            {orderDetail ? (
+              <Button onClick={() => onRefreshOrderPayment(orderDetail.id)}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                刷新支付状态
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
 
-function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileResponse | null; error: string; onReload: () => void }) {
+function PreferencesPanel({ profile, preferenceOptions, error, onReload }: { profile: UserProfileResponse | null; preferenceOptions: PreferenceOptionsResponse | null; error: string; onReload: () => void }) {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const [nickname, setNickname] = useState("");
@@ -1532,6 +1591,12 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const options = preferenceOptions?.options || profile?.options || {
+    industries: [],
+    themes: [],
+    update_frequencies: ["每日", "每周"],
+    language_preferences: [],
+  };
 
   useEffect(() => {
     if (!profile) return;
@@ -1811,7 +1876,7 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
               <Label>关注行业 / 入门画像行业</Label>
               <Textarea value={industries} onChange={(event) => setIndustries(event.target.value)} placeholder="消费、科技、医药" />
               <div className="flex flex-wrap gap-2">
-                {profile.options.industries.slice(0, 8).map((item) => (
+                {options.industries.slice(0, 12).map((item) => (
                   <Button key={item} type="button" size="sm" variant="outline" onClick={() => mutatePreferenceTag("industry", item, "add")} disabled={uploading}>
                     + {item}
                   </Button>
@@ -1822,7 +1887,7 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
               <Label>主题</Label>
               <Textarea value={themes} onChange={(event) => setThemes(event.target.value)} placeholder="AI、出海、周期" />
               <div className="flex flex-wrap gap-2">
-                {profile.options.themes.slice(0, 8).map((item) => (
+                {options.themes.slice(0, 12).map((item) => (
                   <Button key={item} type="button" size="sm" variant="outline" onClick={() => mutatePreferenceTag("theme", item, "add")} disabled={uploading}>
                     + {item}
                   </Button>
@@ -1834,7 +1899,7 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
             <div className="space-y-2">
               <Label>更新频率</Label>
               <div className="flex flex-wrap gap-2">
-                {(profile.options.update_frequencies.length ? profile.options.update_frequencies : ["每日", "每周"]).map((item) => (
+                {(options.update_frequencies.length ? options.update_frequencies : ["每日", "每周"]).map((item) => (
                   <Button
                     key={item}
                     type="button"
@@ -1855,7 +1920,7 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
                 onChange={(event) => setLanguagePreference(event.target.value)}
               >
                 <option value="">跟随内容</option>
-                {profile.options.language_preferences.map((item) => (
+                {(options.language_preferences || []).map((item) => (
                   <option key={item} value={item}>
                     {item}
                   </option>
@@ -2043,6 +2108,9 @@ export function ResearchHub() {
   const [invite, setInvite] = useState<InviteOverview | null>(null);
   const [catalog, setCatalog] = useState<ProductItem[]>([]);
   const [officialBinding, setOfficialBinding] = useState<OfficialBindingStatus | null>(null);
+  const [preferenceOptions, setPreferenceOptions] = useState<PreferenceOptionsResponse | null>(null);
+  const [orderDetail, setOrderDetail] = useState<BillingOrderDetail | null>(null);
+  const [orderStatus, setOrderStatus] = useState("");
   const [mall, setMall] = useState<PointsMallResponse | null>(null);
   const [archive, setArchive] = useState<HedgeFundArchiveResponse | null>(null);
   const [activeFundId, setActiveFundId] = useState("");
@@ -2081,7 +2149,7 @@ export function ResearchHub() {
   async function loadPrivate() {
     const nextErrors: Record<string, string> = {};
     try {
-      const [feed, notice, user, overview, inviteOverview, productCatalog, binding, pointsMall] = await Promise.all([
+      const [feed, notice, user, overview, inviteOverview, productCatalog, binding, preferenceOptionData, pointsMall] = await Promise.all([
         getHomeFeed().catch((error) => {
           nextErrors.digests = error instanceof Error ? error.message : "期刊加载失败";
           return null;
@@ -2098,6 +2166,7 @@ export function ResearchHub() {
         getInviteOverview().catch(() => null),
         getBillingCatalog().catch(() => ({ items: [] })),
         getOfficialBindingStatus().catch(() => null),
+        getPreferenceOptions().catch(() => null),
         getPointsMall().catch(() => getPointsMallCatalog().catch((error) => {
           nextErrors.mall = error instanceof Error ? error.message : "积分商城加载失败";
           return null;
@@ -2110,6 +2179,7 @@ export function ResearchHub() {
       setInvite(inviteOverview);
       setCatalog(productCatalog?.items || []);
       setOfficialBinding(binding);
+      setPreferenceOptions(preferenceOptionData);
       setMall(pointsMall);
     } finally {
       setErrors((prev) => ({ ...prev, ...nextErrors }));
@@ -2284,11 +2354,43 @@ export function ResearchHub() {
         : payment.configured === false
           ? payment.message || "支付暂未配置"
           : payment.message || "订单已创建，请在小程序内完成微信支付";
-      alert(`${order.title}\n${formatMoneyFen(order.amount_fen)}\n${suffix}`);
+      setOrderDetail(order);
+      setOrderStatus(`${formatMoneyFen(order.amount_fen)} · ${suffix}`);
       const overview = await getBillingOverview();
       setBilling(overview);
     } catch (error) {
       setErrors((prev) => ({ ...prev, membership: error instanceof Error ? error.message : "创建订单失败" }));
+    }
+  }
+
+  async function openOrder(orderId: number) {
+    if (!orderId) {
+      setOrderDetail(null);
+      setOrderStatus("");
+      return;
+    }
+    setOrderStatus("加载订单详情...");
+    try {
+      const detail = await getBillingOrder(orderId);
+      setOrderDetail(detail);
+      setOrderStatus("");
+      setErrors((prev) => ({ ...prev, membership: "" }));
+    } catch (error) {
+      setOrderStatus(error instanceof Error ? error.message : "订单详情加载失败");
+    }
+  }
+
+  async function refreshOrderPayment(orderId: number) {
+    setOrderStatus("正在刷新支付状态...");
+    try {
+      const payment = await prepareBillingOrderPayment(orderId);
+      const detail = await getBillingOrder(orderId);
+      setOrderDetail(detail);
+      setOrderStatus(payment.already_paid ? "订单已支付，权益已生效" : payment.message || "支付状态已刷新");
+      const overview = await getBillingOverview();
+      setBilling(overview);
+    } catch (error) {
+      setOrderStatus(error instanceof Error ? error.message : "支付状态刷新失败");
     }
   }
 
@@ -2388,15 +2490,19 @@ export function ResearchHub() {
               invite={invite}
               catalog={catalog}
               officialBinding={officialBinding}
+              orderDetail={orderDetail}
+              orderStatus={orderStatus}
               error={errors.membership || errors.profile || ""}
               onCheckIn={checkIn}
               onReload={loadPrivate}
               onCreateOrder={createOrderForProduct}
+              onOpenOrder={openOrder}
+              onRefreshOrderPayment={refreshOrderPayment}
               onGoMall={() => setActiveTab("mall")}
             />
           </TabsContent>
           <TabsContent value="preferences">
-            <PreferencesPanel profile={profile} error={errors.profile || ""} onReload={loadPrivate} />
+            <PreferencesPanel profile={profile} preferenceOptions={preferenceOptions} error={errors.profile || ""} onReload={loadPrivate} />
           </TabsContent>
           <TabsContent value="feedback">
             <FeedbackPanel />
