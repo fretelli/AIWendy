@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft, ExternalLink, FileText, Loader2, MessageSquare, Send } from "lucide-react";
+import { ArrowLeft, ExternalLink, FileText, Loader2, MessageSquare, Send, Volume2, Wand2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,10 +13,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   getDigestDetail,
+  getReportBriefingStatus,
   getReportDetail,
+  getReportNoteState,
+  synthesizeReportBriefing,
   submitFeedback,
+  triggerReportNote,
   type DigestDetail,
+  type ReportBriefingState,
   type ReportDetail,
+  type ReportNoteState,
 } from "@/lib/research-api";
 
 function formatDate(value?: string | null) {
@@ -112,7 +118,10 @@ export function ResearchReportDetailView() {
   const params = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const [report, setReport] = useState<ReportDetail | null>(null);
+  const [noteState, setNoteState] = useState<ReportNoteState | null>(null);
+  const [briefing, setBriefing] = useState<ReportBriefingState | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState("");
   const [error, setError] = useState("");
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const reportId = decodeURIComponent(String(params.id || ""));
@@ -126,7 +135,31 @@ export function ResearchReportDetailView() {
       .then(setReport)
       .catch((nextError) => setError(nextError instanceof Error ? nextError.message : "研报详情加载失败"))
       .finally(() => setLoading(false));
+    getReportNoteState(reportId).then(setNoteState).catch(() => setNoteState(null));
+    getReportBriefingStatus(reportId).then(setBriefing).catch(() => setBriefing(null));
   }, [reportId, digestId]);
+
+  async function generateNote() {
+    setActionLoading("note");
+    try {
+      setNoteState(await triggerReportNote(reportId));
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "AI 解读生成失败");
+    } finally {
+      setActionLoading("");
+    }
+  }
+
+  async function generateBriefing() {
+    setActionLoading("briefing");
+    try {
+      setBriefing(await synthesizeReportBriefing(reportId));
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "音频摘要生成失败");
+    } finally {
+      setActionLoading("");
+    }
+  }
 
   return (
     <div className="h-full overflow-y-auto">
@@ -186,8 +219,57 @@ export function ResearchReportDetailView() {
                   <MessageSquare className="mr-2 h-4 w-4" />
                   意见反馈
                 </Button>
+                <Button size="sm" variant="outline" onClick={generateNote} disabled={actionLoading === "note"}>
+                  {actionLoading === "note" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                  AI 解读
+                </Button>
+                <Button size="sm" variant="outline" onClick={generateBriefing} disabled={actionLoading === "briefing"}>
+                  {actionLoading === "briefing" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Volume2 className="mr-2 h-4 w-4" />}
+                  音频摘要
+                </Button>
               </div>
             </div>
+
+            {noteState ? (
+              <div className="rounded-md border p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="font-semibold">AI 解读状态</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">{noteState.message || noteState.status}</p>
+                  </div>
+                  <Badge variant={noteState.status === "ready" ? "secondary" : "outline"}>{noteState.status}</Badge>
+                </div>
+                {noteState.note?.overview ? (
+                  <p className="mt-4 text-sm leading-6 text-muted-foreground">{noteState.note.overview}</p>
+                ) : null}
+                {noteState.note?.conclusion ? (
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">{noteState.note.conclusion}</p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {briefing ? (
+              <div className="rounded-md border p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="font-semibold">音频摘要</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">{briefing.message || briefing.status}</p>
+                  </div>
+                  <Badge variant={briefing.status === "ready" ? "secondary" : "outline"}>{briefing.status}</Badge>
+                </div>
+                {briefing.text ? (
+                  <p className="mt-4 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{briefing.text}</p>
+                ) : null}
+                {briefing.audio_url ? (
+                  <Button asChild className="mt-4" size="sm" variant="outline">
+                    <a href={briefing.audio_url} target="_blank" rel="noreferrer">
+                      <Volume2 className="mr-2 h-4 w-4" />
+                      打开音频
+                    </a>
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
 
             {points.length ? (
               <div className="rounded-md border p-5">

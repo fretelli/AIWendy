@@ -7,6 +7,7 @@ import {
   BookOpen,
   Building2,
   CheckCircle2,
+  CreditCard,
   Gift,
   Heart,
   History,
@@ -38,19 +39,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   dailyCheckIn,
+  createBillingOrder,
   getBillingOverview,
+  getBillingCatalog,
   getHedgeFundArchive,
   getHedgeFundHoldings,
   getHomeFeed,
   getNotifications,
+  getOfficialBindingStatus,
   getPointsMall,
   getPublicRecommendations,
   getUserProfile,
+  markAllNotificationsRead,
+  markNotificationRead,
+  prepareBillingOrderPayment,
   redeemPointsMallItem,
+  refreshNotifications,
   setResearchToken,
   submitFeedback,
   updateUserPreferences,
   type BillingOverview,
+  type OfficialBindingStatus,
   type DigestDetail,
   type HedgeFundArchiveFund,
   type HedgeFundArchiveResponse,
@@ -58,6 +67,7 @@ import {
   type NotificationResponse,
   type PointsMallItem,
   type PointsMallResponse,
+  type ProductItem,
   type RecommendationResponse,
   type ReportCardItem,
   type UserProfileResponse,
@@ -266,7 +276,23 @@ function ReportsPanel({ data, loading, error, onReload }: { data: Recommendation
   );
 }
 
-function DigestsPanel({ feed, notifications, error, onReload }: { feed: DigestDetail | null; notifications: NotificationResponse | null; error: string; onReload: () => void }) {
+function DigestsPanel({
+  feed,
+  notifications,
+  error,
+  onReload,
+  onRefreshNotifications,
+  onMarkRead,
+  onMarkAllRead,
+}: {
+  feed: DigestDetail | null;
+  notifications: NotificationResponse | null;
+  error: string;
+  onReload: () => void;
+  onRefreshNotifications: () => void;
+  onMarkRead: (id: number) => void;
+  onMarkAllRead: () => void;
+}) {
   const digestItems = notifications?.items || [];
 
   return (
@@ -276,10 +302,19 @@ function DigestsPanel({ feed, notifications, error, onReload }: { feed: DigestDe
           <h2 className="text-lg font-semibold">日刊 / 周刊</h2>
           <p className="text-sm text-muted-foreground">对应小程序日刊详情和往期期刊，已授权后展示个性化 feed 与历史通知。</p>
         </div>
-        <Button size="sm" variant="outline" onClick={onReload}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          刷新
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={onRefreshNotifications}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            刷新通知
+          </Button>
+          <Button size="sm" variant="outline" onClick={onMarkAllRead} disabled={!digestItems.length}>
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+            全部已读
+          </Button>
+          <Button size="sm" variant="outline" onClick={onReload}>
+            重新加载
+          </Button>
+        </div>
       </div>
       {error ? <ErrorState message={error} /> : null}
       {feed ? (
@@ -310,9 +345,16 @@ function DigestsPanel({ feed, notifications, error, onReload }: { feed: DigestDe
                 <h3 className="mt-2 font-semibold">{item.title}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{item.body}</p>
               </div>
-              <Button asChild size="sm" variant="outline">
-                <Link href={`/research/digests/${item.id}`}>打开</Link>
-              </Button>
+              <div className="flex shrink-0 gap-2">
+                {!item.is_read ? (
+                  <Button size="sm" variant="outline" onClick={() => onMarkRead(item.id)}>
+                    标为已读
+                  </Button>
+                ) : null}
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/research/digests/${item.id}`}>打开</Link>
+                </Button>
+              </div>
             </div>
           </div>
         ))}
@@ -568,12 +610,15 @@ function MallPanel({ mall, error, onReload }: { mall: PointsMallResponse | null;
   );
 }
 
-function MembershipPanel({ overview, profile, error, onCheckIn, onReload }: {
+function MembershipPanel({ overview, profile, catalog, officialBinding, error, onCheckIn, onReload, onCreateOrder }: {
   overview: BillingOverview | null;
   profile: UserProfileResponse | null;
+  catalog: ProductItem[];
+  officialBinding: OfficialBindingStatus | null;
   error: string;
   onCheckIn: () => void;
   onReload: () => void;
+  onCreateOrder: (product: ProductItem) => void;
 }) {
   return (
     <section className="space-y-5">
@@ -608,10 +653,49 @@ function MembershipPanel({ overview, profile, error, onCheckIn, onReload }: {
               {overview?.daily_checkin?.checked_in_today ? "今日已签到" : `签到 +${overview?.daily_checkin?.reward_points || 0}`}
             </Button>
           </div>
+          <div className="rounded-md border p-4 md:col-span-3">
+            <div className="text-sm text-muted-foreground">公众号绑定</div>
+            <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="font-semibold">{officialBinding?.bound ? "已绑定" : "未绑定"}</div>
+                <div className="text-sm text-muted-foreground">
+                  {officialBinding?.binding
+                    ? `${officialBinding.binding.official_openid_masked} · ${officialBinding.binding.subscribe_status}`
+                    : "对应小程序公众号绑定状态，用于接收推送。"}
+                </div>
+              </div>
+              <Badge variant={officialBinding?.bound ? "secondary" : "outline"}>
+                {officialBinding?.binding?.status || "unbound"}
+              </Badge>
+            </div>
+          </div>
         </div>
       ) : (
         <EmptyState title="需要研报账号授权" description="保存研报 token 后，可查看会员、积分、邀请、签到和订单。" />
       )}
+      {catalog.length ? (
+        <div className="rounded-md border p-4">
+          <h3 className="font-semibold">会员商品</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            {catalog.map((product) => (
+              <div key={product.code} className="rounded-md border p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-medium">{product.name}</div>
+                  <Badge variant={product.is_active ? "secondary" : "outline"}>{product.product_type}</Badge>
+                </div>
+                <div className="mt-2 text-2xl font-bold">{formatMoneyFen(product.price_fen)}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  原价 {formatMoneyFen(product.original_price_fen)} · {product.duration_days ? `${product.duration_days} 天` : "权益商品"}
+                </div>
+                <Button className="mt-4 w-full" size="sm" disabled={!product.is_active} onClick={() => onCreateOrder(product)}>
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  创建订单
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       {overview?.recent_orders?.length ? (
         <div className="rounded-md border p-4">
           <h3 className="font-semibold">近期订单</h3>
@@ -780,6 +864,8 @@ export function ResearchHub() {
   const [notifications, setNotifications] = useState<NotificationResponse | null>(null);
   const [profile, setProfile] = useState<UserProfileResponse | null>(null);
   const [billing, setBilling] = useState<BillingOverview | null>(null);
+  const [catalog, setCatalog] = useState<ProductItem[]>([]);
+  const [officialBinding, setOfficialBinding] = useState<OfficialBindingStatus | null>(null);
   const [mall, setMall] = useState<PointsMallResponse | null>(null);
   const [archive, setArchive] = useState<HedgeFundArchiveResponse | null>(null);
   const [activeFundId, setActiveFundId] = useState("");
@@ -812,7 +898,7 @@ export function ResearchHub() {
   async function loadPrivate() {
     const nextErrors: Record<string, string> = {};
     try {
-      const [feed, notice, user, overview, pointsMall] = await Promise.all([
+      const [feed, notice, user, overview, productCatalog, binding, pointsMall] = await Promise.all([
         getHomeFeed().catch((error) => {
           nextErrors.digests = error instanceof Error ? error.message : "期刊加载失败";
           return null;
@@ -826,6 +912,8 @@ export function ResearchHub() {
           nextErrors.membership = error instanceof Error ? error.message : "权益加载失败";
           return null;
         }),
+        getBillingCatalog().catch(() => ({ items: [] })),
+        getOfficialBindingStatus().catch(() => null),
         getPointsMall().catch((error) => {
           nextErrors.mall = error instanceof Error ? error.message : "积分商城加载失败";
           return null;
@@ -835,6 +923,8 @@ export function ResearchHub() {
       setNotifications(notice);
       setProfile(user);
       setBilling(overview);
+      setCatalog(productCatalog?.items || []);
+      setOfficialBinding(binding);
       setMall(pointsMall);
     } finally {
       setErrors((prev) => ({ ...prev, ...nextErrors }));
@@ -874,6 +964,53 @@ export function ResearchHub() {
       setBilling(overview);
     } catch (error) {
       setErrors((prev) => ({ ...prev, membership: error instanceof Error ? error.message : "签到失败" }));
+    }
+  }
+
+  async function refreshDigestNotifications() {
+    try {
+      const notice = await refreshNotifications(20);
+      setNotifications(notice);
+      setErrors((prev) => ({ ...prev, digests: "" }));
+    } catch (error) {
+      setErrors((prev) => ({ ...prev, digests: error instanceof Error ? error.message : "通知刷新失败" }));
+    }
+  }
+
+  async function readNotification(id: number) {
+    try {
+      await markNotificationRead(id);
+      const notice = await getNotifications(20);
+      setNotifications(notice);
+    } catch (error) {
+      setErrors((prev) => ({ ...prev, digests: error instanceof Error ? error.message : "标记已读失败" }));
+    }
+  }
+
+  async function readAllNotifications() {
+    try {
+      await markAllNotificationsRead();
+      const notice = await getNotifications(20);
+      setNotifications(notice);
+    } catch (error) {
+      setErrors((prev) => ({ ...prev, digests: error instanceof Error ? error.message : "全部已读失败" }));
+    }
+  }
+
+  async function createOrderForProduct(product: ProductItem) {
+    try {
+      const order = await createBillingOrder({ product_code: product.code });
+      const payment = await prepareBillingOrderPayment(order.id);
+      const suffix = payment.already_paid
+        ? "订单已支付"
+        : payment.configured === false
+          ? payment.message || "支付暂未配置"
+          : payment.message || "订单已创建，请在小程序内完成微信支付";
+      alert(`${order.title}\n${formatMoneyFen(order.amount_fen)}\n${suffix}`);
+      const overview = await getBillingOverview();
+      setBilling(overview);
+    } catch (error) {
+      setErrors((prev) => ({ ...prev, membership: error instanceof Error ? error.message : "创建订单失败" }));
     }
   }
 
@@ -928,7 +1065,15 @@ export function ResearchHub() {
             <ReportsPanel data={recommendations} loading={loadingRecommendations} error={errors.reports || ""} onReload={loadPublic} />
           </TabsContent>
           <TabsContent value="digests">
-            <DigestsPanel feed={homeFeed} notifications={notifications} error={errors.digests || ""} onReload={loadPrivate} />
+            <DigestsPanel
+              feed={homeFeed}
+              notifications={notifications}
+              error={errors.digests || ""}
+              onReload={loadPrivate}
+              onRefreshNotifications={refreshDigestNotifications}
+              onMarkRead={readNotification}
+              onMarkAllRead={readAllNotifications}
+            />
           </TabsContent>
           <TabsContent value="funds">
             <FundsPanel archive={archive} holdings={holdings} activeFundId={activeFundId} error={errors.funds || ""} onSelectFund={selectFund} />
@@ -937,7 +1082,16 @@ export function ResearchHub() {
             <MallPanel mall={mall} error={errors.mall || ""} onReload={loadPrivate} />
           </TabsContent>
           <TabsContent value="membership">
-            <MembershipPanel overview={billing} profile={profile} error={errors.membership || errors.profile || ""} onCheckIn={checkIn} onReload={loadPrivate} />
+            <MembershipPanel
+              overview={billing}
+              profile={profile}
+              catalog={catalog}
+              officialBinding={officialBinding}
+              error={errors.membership || errors.profile || ""}
+              onCheckIn={checkIn}
+              onReload={loadPrivate}
+              onCreateOrder={createOrderForProduct}
+            />
           </TabsContent>
           <TabsContent value="preferences">
             <PreferencesPanel profile={profile} error={errors.profile || ""} onReload={loadPrivate} />
