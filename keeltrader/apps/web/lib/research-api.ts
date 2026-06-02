@@ -54,6 +54,24 @@ export type ReportDetail = ReportCardItem & {
   };
 };
 
+export type ReportNoteState = {
+  status: "ready" | "processing" | "unavailable" | string;
+  message: string;
+  retry_after_seconds?: number | null;
+  note?: ReportDetail["note"] | null;
+};
+
+export type ReportBriefingState = {
+  status: "ready" | "processing" | "unavailable" | string;
+  message: string;
+  text: string;
+  version: string;
+  retry_after_seconds?: number;
+  mime_type?: string;
+  file_name?: string;
+  audio_url?: string;
+};
+
 export type DigestDetail = {
   id: number;
   type: string;
@@ -181,6 +199,48 @@ export type BillingOverview = {
     last_checkin_at: string | null;
   };
   payment_ready: boolean;
+};
+
+export type ProductItem = {
+  id: number;
+  code: string;
+  name: string;
+  product_type: string;
+  target_type?: string | null;
+  duration_days?: number | null;
+  price_fen: number;
+  original_price_fen: number;
+  currency: string;
+  benefits: Record<string, unknown>;
+  is_active: boolean;
+};
+
+export type BillingOrderDetail = {
+  id: number;
+  order_no: string;
+  title: string;
+  order_type: string;
+  target_type: string | null;
+  target_id: string | null;
+  amount_fen: number;
+  currency: string;
+  status: string;
+  payment_provider?: string;
+  payment_status: string;
+  created_at: string | null;
+  paid_at?: string | null;
+};
+
+export type OfficialBindingStatus = {
+  bound: boolean;
+  binding: {
+    id: number;
+    status: string;
+    bind_source: string;
+    official_openid_masked: string;
+    subscribe_status: string;
+    created_at: string | null;
+  } | null;
 };
 
 export type PointsMallItem = {
@@ -386,6 +446,17 @@ export function getReportDetail(id: string, digestId?: string | number | null) {
   return researchRequest<ReportDetail>(`/reports/${encodeURIComponent(id)}${suffix}`, {}, { auth: "optional" });
 }
 
+export function getReportNoteState(id: string) {
+  return researchRequest<ReportNoteState>(`/reports/${encodeURIComponent(id)}/note`, {}, { auth: "required" });
+}
+
+export function triggerReportNote(id: string) {
+  return researchRequest<ReportNoteState>(`/reports/${encodeURIComponent(id)}/note`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  }, { auth: "required" });
+}
+
 export function getHomeFeed() {
   return researchRequest<DigestDetail>("/home/feed", {}, { auth: "required" });
 }
@@ -396,6 +467,27 @@ export function getDigestDetail(id: string | number) {
 
 export function getNotifications(limit = 20) {
   return researchRequest<NotificationResponse>(`/notifications?limit=${limit}`, {}, { auth: "required" });
+}
+
+export function refreshNotifications(limit = 20) {
+  return researchRequest<NotificationResponse & { ok: boolean }>(`/notifications/refresh?limit=${limit}`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  }, { auth: "required" });
+}
+
+export function markNotificationRead(id: number) {
+  return researchRequest<{ ok: boolean }>(`/notifications/${id}/read`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  }, { auth: "required" });
+}
+
+export function markAllNotificationsRead() {
+  return researchRequest<{ ok: boolean }>("/notifications/read-all", {
+    method: "POST",
+    body: JSON.stringify({}),
+  }, { auth: "required" });
 }
 
 export function getUserProfile() {
@@ -411,6 +503,39 @@ export function updateUserPreferences(data: UserProfileResponse["preferences"]) 
 
 export function getBillingOverview() {
   return researchRequest<BillingOverview>("/billing/me", {}, { auth: "required" });
+}
+
+export function getBillingCatalog() {
+  return researchRequest<{ items: ProductItem[] }>("/billing/catalog", {}, { auth: "required" });
+}
+
+export function createBillingOrder(data: {
+  product_code: string;
+  target_type?: string | null;
+  target_id?: string | null;
+}) {
+  return researchRequest<BillingOrderDetail>("/billing/orders", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }, { auth: "required" });
+}
+
+export function prepareBillingOrderPayment(orderId: number) {
+  return researchRequest<{
+    ok: boolean;
+    already_paid?: boolean;
+    provider?: string;
+    configured?: boolean;
+    message?: string;
+    payment_params?: Record<string, unknown> | null;
+  }>(`/billing/orders/${orderId}/pay`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  }, { auth: "required" });
+}
+
+export function getOfficialBindingStatus() {
+  return researchRequest<OfficialBindingStatus>("/user/official-binding", {}, { auth: "required" });
 }
 
 export function dailyCheckIn() {
@@ -460,4 +585,15 @@ export function submitFeedback(data: FeedbackCreatePayload) {
       },
     }),
   }, { auth: "optional" });
+}
+
+export function synthesizeReportBriefing(reportId: string) {
+  return researchRequest<ReportBriefingState>("/speech/report-briefing", {
+    method: "POST",
+    body: JSON.stringify({ report_id: reportId }),
+  }, { auth: "required" });
+}
+
+export function getReportBriefingStatus(reportId: string) {
+  return researchRequest<ReportBriefingState>(`/speech/report-briefing/${encodeURIComponent(reportId)}`, {}, { auth: "required" });
 }
