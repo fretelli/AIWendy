@@ -118,6 +118,36 @@ export type RecommendationResponse = {
   refreshing?: boolean;
 };
 
+export type ReportFreshness = {
+  today: string;
+  week_start?: string;
+  latest_report_date: string | null;
+  report_date_lag_days: number | null;
+  today_report_count: number;
+  current_week_report_count: number;
+  completed_count: number;
+  partial_count: number;
+  ocr_backlog_count: number;
+  latest_created_at: string | null;
+  created_last_24h_count: number;
+  sources?: Array<{
+    source_family: string;
+    latest_report_date: string | null;
+    latest_created_at: string | null;
+    today_report_count: number;
+    current_week_report_count: number;
+    completed_count: number;
+    partial_count: number;
+    ocr_backlog_count: number;
+  }>;
+  ingest_queue?: {
+    pending: number;
+    processing: number;
+    failed: number;
+    oldest_active_created_at: string | null;
+  };
+};
+
 export type UserProfileResponse = {
   user_id: number;
   nickname: string;
@@ -199,6 +229,50 @@ export type BillingOverview = {
     last_checkin_at: string | null;
   };
   payment_ready: boolean;
+};
+
+export type InviteOverview = {
+  invite_code: string;
+  summary: {
+    invited_count: number;
+    rewarded_count: number;
+    reward_copy: string;
+    share_message?: string;
+    invite_landing_path?: string;
+    reward_rule?: {
+      reward_type: string;
+      inviter_points?: number;
+      invitee_points?: number;
+      valid_days?: number;
+      display_text: string;
+    };
+    pdf_credits?: {
+      total: number;
+      remaining: number;
+    };
+    invite_points?: {
+      total: number;
+      remaining: number;
+    };
+  };
+  records: Array<{
+    id: number;
+    invite_code: string;
+    source_type: string;
+    source_id: string | null;
+    status: string;
+    rewarded_at: string | null;
+    created_at: string | null;
+    invited_nickname: string;
+    rewards: Array<{
+      id: number;
+      user_id: number;
+      reward_type: string;
+      reward_value: Record<string, unknown>;
+      status: string;
+      expires_at: string | null;
+    }>;
+  }>;
 };
 
 export type ProductItem = {
@@ -437,8 +511,20 @@ async function researchRequest<T>(path: string, init: RequestInit = {}, options:
   return payload as T;
 }
 
+export function getRecommendations(limit = 12, mode: "personalized" | "public" = "public") {
+  return researchRequest<RecommendationResponse>(
+    `/reports/recommendations?limit=${limit}&mode=${encodeURIComponent(mode)}`,
+    {},
+    { auth: mode === "personalized" ? "required" : "optional" }
+  );
+}
+
 export function getPublicRecommendations(limit = 12) {
-  return researchRequest<RecommendationResponse>(`/reports/recommendations?limit=${limit}&mode=public`, {}, { auth: "optional" });
+  return getRecommendations(limit, "public");
+}
+
+export function getReportFreshness() {
+  return researchRequest<ReportFreshness>("/reports/freshness", {}, { auth: "required" });
 }
 
 export function getReportDetail(id: string, digestId?: string | number | null) {
@@ -541,6 +627,10 @@ export function getBillingOverview() {
   return researchRequest<BillingOverview>("/billing/me", {}, { auth: "required" });
 }
 
+export function getInviteOverview() {
+  return researchRequest<InviteOverview>("/billing/invites/me", {}, { auth: "required" });
+}
+
 export function getBillingCatalog() {
   return researchRequest<{ items: ProductItem[] }>("/billing/catalog", {}, { auth: "required" });
 }
@@ -601,8 +691,12 @@ export function getHedgeFundArchive() {
   return researchRequest<HedgeFundArchiveResponse>("/hedge-funds/archive", {}, { auth: "optional" });
 }
 
-export function getHedgeFundHoldings(fundId: string, market = "US") {
-  return researchRequest<HedgeFundHoldingsResponse>(`/hedge-funds/${encodeURIComponent(fundId)}/holdings?market=${encodeURIComponent(market)}`, {}, { auth: "optional" });
+export function getHedgeFundHoldings(fundId: string, market = "US", period?: string | null) {
+  const params = new URLSearchParams();
+  if (market) params.set("market", market);
+  if (period) params.set("period", period);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return researchRequest<HedgeFundHoldingsResponse>(`/hedge-funds/${encodeURIComponent(fundId)}/holdings${suffix}`, {}, { auth: "optional" });
 }
 
 export function submitFeedback(data: FeedbackCreatePayload) {
