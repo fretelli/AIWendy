@@ -45,10 +45,12 @@ import {
   getHedgeFundArchive,
   getHedgeFundHoldings,
   getHomeFeed,
+  getInviteOverview,
   getNotifications,
   getOfficialBindingStatus,
   getPointsMall,
-  getPublicRecommendations,
+  getRecommendations,
+  getReportFreshness,
   getUserProfile,
   markAllNotificationsRead,
   markNotificationRead,
@@ -71,7 +73,9 @@ import {
   type PointsMallItem,
   type PointsMallResponse,
   type ProductItem,
+  type InviteOverview,
   type RecommendationResponse,
+  type ReportFreshness,
   type ReportCardItem,
   type UserProfileResponse,
 } from "@/lib/research-api";
@@ -254,19 +258,63 @@ function AuthBridge({ onSaved }: { onSaved: () => void }) {
   );
 }
 
-function ReportsPanel({ data, loading, error, onReload }: { data: RecommendationResponse | null; loading: boolean; error: string; onReload: () => void }) {
+function ReportsPanel({
+  data,
+  freshness,
+  mode,
+  loading,
+  error,
+  onReload,
+  onModeChange,
+}: {
+  data: RecommendationResponse | null;
+  freshness: ReportFreshness | null;
+  mode: "public" | "personalized";
+  loading: boolean;
+  error: string;
+  onReload: () => void;
+  onModeChange: (mode: "public" | "personalized") => void;
+}) {
   return (
     <section className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-lg font-semibold">推荐研报</h2>
-          <p className="text-sm text-muted-foreground">对应小程序首页推荐研报，匿名优先展示公共推荐内容。</p>
+          <p className="text-sm text-muted-foreground">对应小程序首页推荐研报，可切换公共推荐和授权后的个性化推荐。</p>
         </div>
-        <Button size="sm" variant="outline" onClick={onReload} disabled={loading}>
-          {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-          刷新
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant={mode === "public" ? "secondary" : "outline"} onClick={() => onModeChange("public")}>
+            公共推荐
+          </Button>
+          <Button size="sm" variant={mode === "personalized" ? "secondary" : "outline"} onClick={() => onModeChange("personalized")}>
+            个性化
+          </Button>
+          <Button size="sm" variant="outline" onClick={onReload} disabled={loading}>
+            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            刷新
+          </Button>
+        </div>
       </div>
+      {freshness ? (
+        <div className="grid gap-3 md:grid-cols-4">
+          <div className="rounded-md border p-3">
+            <div className="text-xs text-muted-foreground">最新研报日</div>
+            <div className="mt-1 font-semibold">{freshness.latest_report_date || "-"}</div>
+          </div>
+          <div className="rounded-md border p-3">
+            <div className="text-xs text-muted-foreground">今日研报</div>
+            <div className="mt-1 font-semibold">{formatNumber(freshness.today_report_count)}</div>
+          </div>
+          <div className="rounded-md border p-3">
+            <div className="text-xs text-muted-foreground">本周研报</div>
+            <div className="mt-1 font-semibold">{formatNumber(freshness.current_week_report_count)}</div>
+          </div>
+          <div className="rounded-md border p-3">
+            <div className="text-xs text-muted-foreground">OCR 待处理</div>
+            <div className="mt-1 font-semibold">{formatNumber(freshness.ocr_backlog_count)}</div>
+          </div>
+        </div>
+      ) : null}
       {error ? <ErrorState message={error} onRetry={onReload} /> : null}
       {loading && !data ? <EmptyState title="正在加载推荐研报" description="从 research API 获取最新公共推荐。" /> : null}
       <div className="space-y-3">
@@ -369,12 +417,14 @@ function DigestsPanel({
   );
 }
 
-function FundsPanel({ archive, holdings, activeFundId, error, onSelectFund }: {
+function FundsPanel({ archive, holdings, activeFundId, activeMarket, error, onSelectFund, onSelectMarket }: {
   archive: HedgeFundArchiveResponse | null;
   holdings: HedgeFundHoldingsResponse | null;
   activeFundId: string;
+  activeMarket: string;
   error: string;
   onSelectFund: (fund: HedgeFundArchiveFund) => void;
+  onSelectMarket: (market: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const funds = useMemo(() => {
@@ -427,6 +477,25 @@ function FundsPanel({ archive, holdings, activeFundId, error, onSelectFund }: {
               <div className="text-sm text-muted-foreground">
                 {holdings.fund.name} · {holdings.selected_period || holdings.periods?.[0]?.report_period || "最新披露"}
               </div>
+              {holdings.available_markets?.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {holdings.available_markets.map((market) => (
+                    <Button
+                      key={market.market}
+                      size="sm"
+                      variant={(holdings.active_market || activeMarket || "US") === market.market ? "secondary" : "outline"}
+                      onClick={() => onSelectMarket(market.market)}
+                    >
+                      {market.label || market.market} · {market.holding_count}
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+              {holdings.periods?.length ? (
+                <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+                  可用披露期：{holdings.periods.slice(0, 6).map((period) => `${period.report_period}(${period.holding_count})`).join(" / ")}
+                </div>
+              ) : null}
               {holdings.holdings.slice(0, 10).map((holding) => (
                 <div key={`${holding.security_name}-${holding.ticker || ""}`} className="flex items-start justify-between gap-3 border-t pt-3 text-sm">
                   <div>
@@ -613,9 +682,10 @@ function MallPanel({ mall, error, onReload }: { mall: PointsMallResponse | null;
   );
 }
 
-function MembershipPanel({ overview, profile, catalog, officialBinding, error, onCheckIn, onReload, onCreateOrder }: {
+function MembershipPanel({ overview, profile, invite, catalog, officialBinding, error, onCheckIn, onReload, onCreateOrder }: {
   overview: BillingOverview | null;
   profile: UserProfileResponse | null;
+  invite: InviteOverview | null;
   catalog: ProductItem[];
   officialBinding: OfficialBindingStatus | null;
   error: string;
@@ -697,6 +767,41 @@ function MembershipPanel({ overview, profile, catalog, officialBinding, error, o
               </div>
             ))}
           </div>
+        </div>
+      ) : null}
+      {invite ? (
+        <div className="rounded-md border p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h3 className="font-semibold">邀请奖励</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{invite.summary.reward_copy || invite.summary.reward_rule?.display_text || "邀请好友可获得奖励。"}</p>
+            </div>
+            <Badge variant="secondary">邀请码 {invite.invite_code}</Badge>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-md bg-muted/50 p-3">
+              <div className="text-xs text-muted-foreground">已邀请</div>
+              <div className="mt-1 font-semibold">{formatNumber(invite.summary.invited_count)}</div>
+            </div>
+            <div className="rounded-md bg-muted/50 p-3">
+              <div className="text-xs text-muted-foreground">已奖励</div>
+              <div className="mt-1 font-semibold">{formatNumber(invite.summary.rewarded_count)}</div>
+            </div>
+            <div className="rounded-md bg-muted/50 p-3">
+              <div className="text-xs text-muted-foreground">剩余邀请积分</div>
+              <div className="mt-1 font-semibold">{formatNumber(invite.summary.invite_points?.remaining || 0)}</div>
+            </div>
+          </div>
+          {invite.records.length ? (
+            <div className="mt-4 space-y-2">
+              {invite.records.slice(0, 6).map((record) => (
+                <div key={record.id} className="flex items-center justify-between border-t pt-2 text-sm">
+                  <span>{record.invited_nickname || "匿名用户"}</span>
+                  <span className="text-muted-foreground">{record.status} · {formatDateTime(record.created_at)}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
       {overview?.recent_orders?.length ? (
@@ -928,16 +1033,20 @@ function FeedbackPanel() {
 
 export function ResearchHub() {
   const [activeTab, setActiveTab] = useState<TabValue>("reports");
+  const [recommendationMode, setRecommendationMode] = useState<"public" | "personalized">("public");
   const [recommendations, setRecommendations] = useState<RecommendationResponse | null>(null);
+  const [freshness, setFreshness] = useState<ReportFreshness | null>(null);
   const [homeFeed, setHomeFeed] = useState<DigestDetail | null>(null);
   const [notifications, setNotifications] = useState<NotificationResponse | null>(null);
   const [profile, setProfile] = useState<UserProfileResponse | null>(null);
   const [billing, setBilling] = useState<BillingOverview | null>(null);
+  const [invite, setInvite] = useState<InviteOverview | null>(null);
   const [catalog, setCatalog] = useState<ProductItem[]>([]);
   const [officialBinding, setOfficialBinding] = useState<OfficialBindingStatus | null>(null);
   const [mall, setMall] = useState<PointsMallResponse | null>(null);
   const [archive, setArchive] = useState<HedgeFundArchiveResponse | null>(null);
   const [activeFundId, setActiveFundId] = useState("");
+  const [activeHoldingMarket, setActiveHoldingMarket] = useState("US");
   const [holdings, setHoldings] = useState<HedgeFundHoldingsResponse | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
@@ -945,17 +1054,20 @@ export function ResearchHub() {
   async function loadPublic() {
     setLoadingRecommendations(true);
     try {
-      const [nextRecommendations, nextArchive] = await Promise.all([
-        getPublicRecommendations(12),
+      const [nextRecommendations, nextArchive, nextFreshness] = await Promise.all([
+        getRecommendations(12, recommendationMode),
         getHedgeFundArchive(),
+        getReportFreshness().catch(() => null),
       ]);
       setRecommendations(nextRecommendations);
       setArchive(nextArchive);
+      setFreshness(nextFreshness);
       setErrors((prev) => ({ ...prev, reports: "", funds: "" }));
       const firstFund = nextArchive.funds[0];
       if (firstFund) {
         setActiveFundId(firstFund.id);
-        getHedgeFundHoldings(firstFund.id).then(setHoldings).catch(() => setHoldings(null));
+        setActiveHoldingMarket("US");
+        getHedgeFundHoldings(firstFund.id, "US").then(setHoldings).catch(() => setHoldings(null));
       }
     } catch (error) {
       setErrors((prev) => ({ ...prev, reports: error instanceof Error ? error.message : "公共内容加载失败" }));
@@ -967,7 +1079,7 @@ export function ResearchHub() {
   async function loadPrivate() {
     const nextErrors: Record<string, string> = {};
     try {
-      const [feed, notice, user, overview, productCatalog, binding, pointsMall] = await Promise.all([
+      const [feed, notice, user, overview, inviteOverview, productCatalog, binding, pointsMall] = await Promise.all([
         getHomeFeed().catch((error) => {
           nextErrors.digests = error instanceof Error ? error.message : "期刊加载失败";
           return null;
@@ -981,6 +1093,7 @@ export function ResearchHub() {
           nextErrors.membership = error instanceof Error ? error.message : "权益加载失败";
           return null;
         }),
+        getInviteOverview().catch(() => null),
         getBillingCatalog().catch(() => ({ items: [] })),
         getOfficialBindingStatus().catch(() => null),
         getPointsMall().catch((error) => {
@@ -992,6 +1105,7 @@ export function ResearchHub() {
       setNotifications(notice);
       setProfile(user);
       setBilling(overview);
+      setInvite(inviteOverview);
       setCatalog(productCatalog?.items || []);
       setOfficialBinding(binding);
       setMall(pointsMall);
@@ -1015,11 +1129,39 @@ export function ResearchHub() {
     loadPrivate();
   }
 
+  function changeRecommendationMode(mode: "public" | "personalized") {
+    setRecommendationMode(mode);
+    setLoadingRecommendations(true);
+    getRecommendations(12, mode)
+      .then((data) => {
+        setRecommendations(data);
+        setErrors((prev) => ({ ...prev, reports: "" }));
+      })
+      .catch((error) => {
+        setErrors((prev) => ({ ...prev, reports: error instanceof Error ? error.message : "推荐研报加载失败" }));
+      })
+      .finally(() => setLoadingRecommendations(false));
+  }
+
   async function selectFund(fund: HedgeFundArchiveFund) {
     setActiveFundId(fund.id);
+    setActiveHoldingMarket("US");
     setHoldings(null);
     try {
-      setHoldings(await getHedgeFundHoldings(fund.id));
+      setHoldings(await getHedgeFundHoldings(fund.id, "US"));
+      setErrors((prev) => ({ ...prev, funds: "" }));
+    } catch (error) {
+      setErrors((prev) => ({ ...prev, funds: error instanceof Error ? error.message : "持仓加载失败" }));
+    }
+  }
+
+  async function selectHoldingMarket(market: string) {
+    if (!activeFundId) return;
+    const normalized = market.trim().toUpperCase() || "US";
+    setActiveHoldingMarket(normalized);
+    setHoldings(null);
+    try {
+      setHoldings(await getHedgeFundHoldings(activeFundId, normalized));
       setErrors((prev) => ({ ...prev, funds: "" }));
     } catch (error) {
       setErrors((prev) => ({ ...prev, funds: error instanceof Error ? error.message : "持仓加载失败" }));
@@ -1131,7 +1273,15 @@ export function ResearchHub() {
             ))}
           </TabsList>
           <TabsContent value="reports">
-            <ReportsPanel data={recommendations} loading={loadingRecommendations} error={errors.reports || ""} onReload={loadPublic} />
+            <ReportsPanel
+              data={recommendations}
+              freshness={freshness}
+              mode={recommendationMode}
+              loading={loadingRecommendations}
+              error={errors.reports || ""}
+              onReload={loadPublic}
+              onModeChange={changeRecommendationMode}
+            />
           </TabsContent>
           <TabsContent value="digests">
             <DigestsPanel
@@ -1145,7 +1295,15 @@ export function ResearchHub() {
             />
           </TabsContent>
           <TabsContent value="funds">
-            <FundsPanel archive={archive} holdings={holdings} activeFundId={activeFundId} error={errors.funds || ""} onSelectFund={selectFund} />
+            <FundsPanel
+              archive={archive}
+              holdings={holdings}
+              activeFundId={activeFundId}
+              activeMarket={activeHoldingMarket}
+              error={errors.funds || ""}
+              onSelectFund={selectFund}
+              onSelectMarket={selectHoldingMarket}
+            />
           </TabsContent>
           <TabsContent value="mall">
             <MallPanel mall={mall} error={errors.mall || ""} onReload={loadPrivate} />
@@ -1154,6 +1312,7 @@ export function ResearchHub() {
             <MembershipPanel
               overview={billing}
               profile={profile}
+              invite={invite}
               catalog={catalog}
               officialBinding={officialBinding}
               error={errors.membership || errors.profile || ""}
