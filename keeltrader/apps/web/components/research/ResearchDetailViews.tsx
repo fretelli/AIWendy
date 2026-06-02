@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  captureOfficialArticleAttribution,
   createBillingOrder,
   downloadResearchFile,
   getDigestDetail,
@@ -19,6 +20,7 @@ import {
   getReportDetail,
   getReportNoteState,
   prepareBillingOrderPayment,
+  savePendingInviteFromParams,
   synthesizeReportBriefing,
   submitFeedback,
   trackClientEvent,
@@ -141,6 +143,39 @@ export function ResearchReportDetailView() {
   useEffect(() => {
     setLoading(true);
     setError("");
+    const query = new URLSearchParams(window.location.search);
+    const attribution = captureOfficialArticleAttribution(query);
+    if (attribution) {
+      trackClientEvent({
+        event_name: "official_article_report_open",
+        page_path: `/research/reports/${reportId}`,
+        report_id: reportId,
+        digest_id: digestId ? Number(digestId) : undefined,
+        status: "success",
+        metadata: {
+          source: attribution.source,
+          campaign_key: attribution.campaign_key,
+          article_type: attribution.article_type,
+          entry: attribution.entry,
+        },
+      }).catch(() => undefined);
+    }
+    const pendingInvite = savePendingInviteFromParams(query, "report_share", reportId);
+    if (pendingInvite) {
+      trackClientEvent({
+        event_name: "web_pending_invite_captured",
+        page_path: `/research/reports/${reportId}`,
+        report_id: reportId,
+        digest_id: digestId ? Number(digestId) : undefined,
+        status: "success",
+        metadata: {
+          inviter_user_id: pendingInvite.inviter_user_id || null,
+          invite_code: pendingInvite.invite_code || "",
+          source_type: pendingInvite.source_type,
+          source_id: pendingInvite.source_id,
+        },
+      }).catch(() => undefined);
+    }
     getReportDetail(reportId, digestId)
       .then((data) => {
         setReport(data);
@@ -477,6 +512,37 @@ export function ResearchDigestDetailView() {
   useEffect(() => {
     setLoading(true);
     setError("");
+    const query = new URLSearchParams(window.location.search);
+    const attribution = captureOfficialArticleAttribution(query);
+    if (attribution) {
+      trackClientEvent({
+        event_name: "official_article_digest_open",
+        page_path: `/research/digests/${digestId}`,
+        digest_id: Number(digestId) || undefined,
+        status: "success",
+        metadata: {
+          source: attribution.source,
+          campaign_key: attribution.campaign_key,
+          article_type: attribution.article_type,
+          entry: attribution.entry,
+        },
+      }).catch(() => undefined);
+    }
+    const pendingInvite = savePendingInviteFromParams(query, "digest_share", digestId);
+    if (pendingInvite) {
+      trackClientEvent({
+        event_name: "web_pending_invite_captured",
+        page_path: `/research/digests/${digestId}`,
+        digest_id: Number(digestId) || undefined,
+        status: "success",
+        metadata: {
+          inviter_user_id: pendingInvite.inviter_user_id || null,
+          invite_code: pendingInvite.invite_code || "",
+          source_type: pendingInvite.source_type,
+          source_id: pendingInvite.source_id,
+        },
+      }).catch(() => undefined);
+    }
     getDigestDetail(digestId)
       .then((data) => {
         setDigest(data);
