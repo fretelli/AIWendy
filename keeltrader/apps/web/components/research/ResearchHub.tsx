@@ -7,6 +7,7 @@ import {
   BookOpen,
   Building2,
   CheckCircle2,
+  Copy,
   CreditCard,
   Download,
   Gift,
@@ -19,6 +20,7 @@ import {
   Search,
   Send,
   Settings2,
+  Share2,
   Sparkles,
   Star,
   Ticket,
@@ -740,7 +742,7 @@ function MallPanel({ mall, error, onReload }: { mall: PointsMallResponse | null;
   );
 }
 
-function MembershipPanel({ overview, profile, invite, catalog, officialBinding, error, onCheckIn, onReload, onCreateOrder }: {
+function MembershipPanel({ overview, profile, invite, catalog, officialBinding, error, onCheckIn, onReload, onCreateOrder, onGoMall }: {
   overview: BillingOverview | null;
   profile: UserProfileResponse | null;
   invite: InviteOverview | null;
@@ -750,7 +752,56 @@ function MembershipPanel({ overview, profile, invite, catalog, officialBinding, 
   onCheckIn: () => void;
   onReload: () => void;
   onCreateOrder: (product: ProductItem) => void;
+  onGoMall: () => void;
 }) {
+  const [inviteStatus, setInviteStatus] = useState("");
+
+  const rewardRuleText = useMemo(() => {
+    const rule = invite?.summary.reward_rule;
+    if (!rule) return invite?.summary.reward_copy || overview?.invite_summary.reward_copy || "每邀请 1 位好友注册，邀请双方可获得奖励积分和 PDF 权益。";
+    const inviterPoints = Number(rule.inviter_points || 100);
+    const inviteePoints = Number(rule.invitee_points || inviterPoints);
+    return `每成功邀请 1 位好友，邀请双方各获得 ${inviterPoints} 积分；新用户获得 ${inviteePoints} 积分后也可兑换 PDF。`;
+  }, [invite, overview]);
+
+  function inviteRewardText(record: InviteOverview["records"][number]) {
+    const pointReward = record.rewards.find((item) => item.reward_type === "invite_points");
+    const pdfReward = record.rewards.find((item) => item.reward_type === "report_pdf_credit");
+    const parts: string[] = [];
+    const points = Number((pointReward?.reward_value as { points?: number } | undefined)?.points || 0);
+    const pdfCredits = Number((pdfReward?.reward_value as { credits?: number } | undefined)?.credits || 0);
+    if (points > 0) parts.push(`${points} 积分`);
+    if (pdfCredits > 0) parts.push(`${pdfCredits} 次 PDF`);
+    return parts.length ? parts.join(" / ") : "待生效";
+  }
+
+  async function copyInviteLink() {
+    if (!profile?.user_id && !invite?.invite_code) {
+      setInviteStatus("需要研报账号授权后才能生成邀请链接");
+      return;
+    }
+    const params = new URLSearchParams();
+    if (profile?.user_id) params.set("inviter_id", String(profile.user_id));
+    if (invite?.invite_code) params.set("invite_code", invite.invite_code);
+    params.set("source", "membership_share");
+    params.set("source_id", "membership");
+    const url = `${window.location.origin}/research?${params.toString()}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setInviteStatus("邀请链接已复制");
+      trackClientEvent({
+        event_name: "web_invite_link_copied",
+        page_path: "/research?tab=membership",
+        metadata: {
+          invite_code: invite?.invite_code || overview?.invite_summary.invite_code || "",
+          inviter_id: profile?.user_id || null,
+        },
+      }).catch(() => undefined);
+    } catch {
+      setInviteStatus(url);
+    }
+  }
+
   return (
     <section className="space-y-5">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -758,10 +809,16 @@ function MembershipPanel({ overview, profile, invite, catalog, officialBinding, 
           <h2 className="text-lg font-semibold">权益中心 / 我的</h2>
           <p className="text-sm text-muted-foreground">对应小程序权益中心、我的页面、签到、邀请和订单概览。</p>
         </div>
-        <Button size="sm" variant="outline" onClick={onReload}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          刷新
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" onClick={onGoMall}>
+            <Gift className="mr-2 h-4 w-4" />
+            去积分商城
+          </Button>
+          <Button size="sm" variant="outline" onClick={onReload}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            刷新
+          </Button>
+        </div>
       </div>
       {error ? <ErrorState message={error} /> : null}
       {overview || profile ? (
@@ -832,9 +889,22 @@ function MembershipPanel({ overview, profile, invite, catalog, officialBinding, 
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <h3 className="font-semibold">邀请奖励</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{invite.summary.reward_copy || invite.summary.reward_rule?.display_text || "邀请好友可获得奖励。"}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{rewardRuleText}</p>
+              {invite.summary.share_message ? <p className="mt-1 text-sm text-muted-foreground">{invite.summary.share_message}</p> : null}
             </div>
-            <Badge variant="secondary">邀请码 {invite.invite_code}</Badge>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary">邀请码 {invite.invite_code}</Badge>
+              <Button size="sm" variant="outline" onClick={copyInviteLink}>
+                <Share2 className="mr-2 h-4 w-4" />
+                复制邀请链接
+              </Button>
+              {invite.invite_code ? (
+                <Button size="sm" variant="outline" onClick={() => navigator.clipboard.writeText(invite.invite_code).then(() => setInviteStatus("邀请码已复制")).catch(() => setInviteStatus(invite.invite_code))}>
+                  <Copy className="mr-2 h-4 w-4" />
+                  复制邀请码
+                </Button>
+              ) : null}
+            </div>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <div className="rounded-md bg-muted/50 p-3">
@@ -849,15 +919,28 @@ function MembershipPanel({ overview, profile, invite, catalog, officialBinding, 
               <div className="text-xs text-muted-foreground">剩余邀请积分</div>
               <div className="mt-1 font-semibold">{formatNumber(invite.summary.invite_points?.remaining || 0)}</div>
             </div>
+            <div className="rounded-md bg-muted/50 p-3">
+              <div className="text-xs text-muted-foreground">剩余 PDF 次数</div>
+              <div className="mt-1 font-semibold">{formatNumber(invite.summary.pdf_credits?.remaining || 0)}</div>
+            </div>
           </div>
+          {inviteStatus ? <div className="mt-3 rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">{inviteStatus}</div> : null}
           {invite.records.length ? (
             <div className="mt-4 space-y-2">
               {invite.records.slice(0, 6).map((record) => (
                 <div key={record.id} className="flex items-center justify-between border-t pt-2 text-sm">
-                  <span>{record.invited_nickname || "匿名用户"}</span>
+                  <span>
+                    <span className="font-medium">{record.invited_nickname || "匿名用户"}</span>
+                    <span className="ml-2 text-xs text-muted-foreground">{inviteRewardText(record)}</span>
+                  </span>
                   <span className="text-muted-foreground">{record.status} · {formatDateTime(record.created_at)}</span>
                 </div>
               ))}
+            </div>
+          ) : null}
+          {!invite.records.length ? (
+            <div className="mt-4 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+              还没有邀请记录。复制邀请链接发给好友，好友授权登录后会在这里显示。
             </div>
           ) : null}
         </div>
@@ -1703,6 +1786,7 @@ export function ResearchHub() {
               onCheckIn={checkIn}
               onReload={loadPrivate}
               onCreateOrder={createOrderForProduct}
+              onGoMall={() => setActiveTab("mall")}
             />
           </TabsContent>
           <TabsContent value="preferences">
