@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Bell,
@@ -8,10 +8,12 @@ import {
   Building2,
   CheckCircle2,
   CreditCard,
+  Download,
   Gift,
   Heart,
   History,
   Loader2,
+  Mic,
   MessageSquare,
   RefreshCw,
   Search,
@@ -20,6 +22,8 @@ import {
   Sparkles,
   Star,
   Ticket,
+  Upload,
+  X,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +43,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   dailyCheckIn,
+  addUserPreferenceTag,
   createBillingOrder,
+  downloadHedgeFundMiniappCode,
   getBillingOverview,
   getBillingCatalog,
   getHedgeFundArchive,
@@ -57,12 +63,16 @@ import {
   prepareBillingOrderPayment,
   redeemPointsMallItem,
   refreshNotifications,
+  removeUserPreferenceTag,
   setResearchToken,
   submitFeedback,
+  trackClientEvent,
+  transcribePreferenceAudio,
   updateAccountProfile,
   updateMiniappDeliveryProfile,
   updateOnboardingProfile,
   updateUserPreferences,
+  uploadAvatar,
   type BillingOverview,
   type OfficialBindingStatus,
   type DigestDetail,
@@ -417,7 +427,7 @@ function DigestsPanel({
   );
 }
 
-function FundsPanel({ archive, holdings, activeFundId, activeMarket, error, onSelectFund, onSelectMarket }: {
+function FundsPanel({ archive, holdings, activeFundId, activeMarket, error, onSelectFund, onSelectMarket, onDownloadMiniappCode }: {
   archive: HedgeFundArchiveResponse | null;
   holdings: HedgeFundHoldingsResponse | null;
   activeFundId: string;
@@ -425,6 +435,7 @@ function FundsPanel({ archive, holdings, activeFundId, activeMarket, error, onSe
   error: string;
   onSelectFund: (fund: HedgeFundArchiveFund) => void;
   onSelectMarket: (market: string) => void;
+  onDownloadMiniappCode: (fundId: string) => void;
 }) {
   const [query, setQuery] = useState("");
   const funds = useMemo(() => {
@@ -448,11 +459,15 @@ function FundsPanel({ archive, holdings, activeFundId, activeMarket, error, onSe
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(320px,420px)]">
         <div className="grid gap-3 md:grid-cols-2">
           {funds.slice(0, 24).map((fund) => (
-            <button
+            <div
               key={fund.id}
-              type="button"
               onClick={() => onSelectFund(fund)}
-              className={`rounded-md border p-4 text-left transition-colors hover:bg-muted/40 ${activeFundId === fund.id ? "border-primary" : ""}`}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") onSelectFund(fund);
+              }}
+              className={`cursor-pointer rounded-md border p-4 text-left transition-colors hover:bg-muted/40 ${activeFundId === fund.id ? "border-primary" : ""}`}
             >
               <div className="flex items-center justify-between gap-2">
                 <div className="font-semibold">{fund.name_zh || fund.name}</div>
@@ -467,7 +482,21 @@ function FundsPanel({ archive, holdings, activeFundId, activeMarket, error, onSe
                   </span>
                 ))}
               </div>
-            </button>
+              <div className="mt-3 flex justify-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDownloadMiniappCode(fund.id);
+                  }}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  小程序码
+                </Button>
+              </div>
+            </div>
           ))}
         </div>
         <div className="rounded-md border p-4">
@@ -822,6 +851,8 @@ function MembershipPanel({ overview, profile, invite, catalog, officialBinding, 
 }
 
 function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileResponse | null; error: string; onReload: () => void }) {
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const audioInputRef = useRef<HTMLInputElement>(null);
   const [nickname, setNickname] = useState("");
   const [industries, setIndustries] = useState("");
   const [occupation, setOccupation] = useState("");
@@ -832,6 +863,7 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
   const [subscriptionStatus, setSubscriptionStatus] = useState("unknown");
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -847,6 +879,88 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
 
   function splitTags(value: string) {
     return [...new Set(value.split(/[,\n，、；;\s]/).map((item) => item.trim()).filter(Boolean))];
+  }
+
+  function joinTags(values: string[]) {
+    return [...new Set(values.map((item) => item.trim()).filter(Boolean))].join("、");
+  }
+
+  function patchTagField(type: "industry" | "theme" | "custom_keyword", value: string, action: "add" | "remove") {
+    const mutate = (raw: string) => {
+      const current = splitTags(raw);
+      const next = action === "add" ? [...current, value] : current.filter((item) => item !== value);
+      return joinTags(next);
+    };
+    if (type === "industry") setIndustries(mutate);
+    if (type === "theme") setThemes(mutate);
+    if (type === "custom_keyword") setKeywords(mutate);
+  }
+
+  async function mutatePreferenceTag(type: "industry" | "theme" | "custom_keyword", value: string, action: "add" | "remove") {
+    const normalized = value.trim();
+    if (!normalized) return;
+    setUploading(true);
+    setStatus("");
+    try {
+      if (action === "add") {
+        await addUserPreferenceTag(type, normalized);
+      } else {
+        await removeUserPreferenceTag(type, normalized);
+      }
+      patchTagField(type, normalized, action);
+      setStatus(action === "add" ? `已添加 ${normalized}` : `已移除 ${normalized}`);
+      onReload();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "偏好标签更新失败");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleAvatarUpload(file?: File | null) {
+    if (!file) return;
+    setUploading(true);
+    setStatus("");
+    try {
+      await uploadAvatar(file);
+      setStatus("头像已上传");
+      trackClientEvent({
+        event_name: "web_avatar_uploaded",
+        page_path: "/research?tab=preferences",
+        metadata: { file_type: file.type, file_size: file.size },
+      }).catch(() => undefined);
+      onReload();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "头像上传失败");
+    } finally {
+      setUploading(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  }
+
+  async function handlePreferenceAudio(file?: File | null) {
+    if (!file) return;
+    setUploading(true);
+    setStatus("");
+    try {
+      const result = await transcribePreferenceAudio(file);
+      const nextTags = joinTags([...splitTags(keywords), ...(result.tags || [])]);
+      setKeywords(nextTags);
+      if (result.text) {
+        setCustomPrompt((prev) => [prev.trim(), `语音偏好：${result.text}`].filter(Boolean).join("\n"));
+      }
+      setStatus(result.tags?.length ? `语音已识别：${result.tags.join("、")}` : "语音已识别，请检查偏好内容");
+      trackClientEvent({
+        event_name: "web_preference_audio_transcribed",
+        page_path: "/research?tab=preferences",
+        metadata: { file_type: file.type, file_size: file.size, tag_count: result.tags?.length || 0 },
+      }).catch(() => undefined);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "语音识别失败");
+    } finally {
+      setUploading(false);
+      if (audioInputRef.current) audioInputRef.current.value = "";
+    }
   }
 
   async function save() {
@@ -893,6 +1007,47 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
       {error ? <ErrorState message={error} /> : null}
       {profile ? (
         <div className="space-y-4 rounded-md border p-4">
+          <div className="flex flex-col gap-4 rounded-md border bg-muted/20 p-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="h-16 w-16 overflow-hidden rounded-md border bg-background">
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt={profile.nickname || "头像"} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-muted-foreground">
+                    {(profile.nickname || "研").slice(0, 1)}
+                  </div>
+                )}
+              </div>
+              <div>
+                <div className="font-medium">头像与语音偏好</div>
+                <div className="mt-1 text-sm text-muted-foreground">对应小程序头像上传和语音录入偏好。</div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) => handleAvatarUpload(event.target.files?.[0])}
+              />
+              <input
+                ref={audioInputRef}
+                type="file"
+                accept="audio/*"
+                className="hidden"
+                onChange={(event) => handlePreferenceAudio(event.target.files?.[0])}
+              />
+              <Button size="sm" variant="outline" onClick={() => avatarInputRef.current?.click()} disabled={uploading}>
+                <Upload className="mr-2 h-4 w-4" />
+                上传头像
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => audioInputRef.current?.click()} disabled={uploading}>
+                <Mic className="mr-2 h-4 w-4" />
+                语音偏好
+              </Button>
+            </div>
+          </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>昵称</Label>
@@ -907,15 +1062,37 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
             <div className="space-y-2">
               <Label>关注行业 / 入门画像行业</Label>
               <Textarea value={industries} onChange={(event) => setIndustries(event.target.value)} placeholder="消费、科技、医药" />
+              <div className="flex flex-wrap gap-2">
+                {profile.options.industries.slice(0, 8).map((item) => (
+                  <Button key={item} type="button" size="sm" variant="outline" onClick={() => mutatePreferenceTag("industry", item, "add")} disabled={uploading}>
+                    + {item}
+                  </Button>
+                ))}
+              </div>
             </div>
             <div className="space-y-2">
               <Label>主题</Label>
               <Textarea value={themes} onChange={(event) => setThemes(event.target.value)} placeholder="AI、出海、周期" />
+              <div className="flex flex-wrap gap-2">
+                {profile.options.themes.slice(0, 8).map((item) => (
+                  <Button key={item} type="button" size="sm" variant="outline" onClick={() => mutatePreferenceTag("theme", item, "add")} disabled={uploading}>
+                    + {item}
+                  </Button>
+                ))}
+              </div>
             </div>
           </div>
           <div className="space-y-2">
             <Label>自定义关键词</Label>
             <Input value={keywords} onChange={(event) => setKeywords(event.target.value)} placeholder="用逗号或空格分隔" />
+            <div className="flex flex-wrap gap-2">
+              {splitTags(keywords).slice(0, 12).map((item) => (
+                <Button key={item} type="button" size="sm" variant="secondary" onClick={() => mutatePreferenceTag("custom_keyword", item, "remove")} disabled={uploading}>
+                  {item}
+                  <X className="ml-2 h-3 w-3" />
+                </Button>
+              ))}
+            </div>
           </div>
           <div className="space-y-2">
             <Label>自定义推荐要求</Label>
@@ -949,7 +1126,7 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button onClick={save} disabled={saving}>
+            <Button onClick={save} disabled={saving || uploading}>
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               保存资料与偏好
             </Button>
@@ -1120,6 +1297,11 @@ export function ResearchHub() {
     if (tab && MODULES.some((item) => item.value === tab)) {
       setActiveTab(tab);
     }
+    trackClientEvent({
+      event_name: "web_research_opened",
+      page_path: "/research",
+      metadata: { tab: tab || "reports" },
+    }).catch(() => undefined);
     loadPublic();
     loadPrivate();
   }, []);
@@ -1165,6 +1347,20 @@ export function ResearchHub() {
       setErrors((prev) => ({ ...prev, funds: "" }));
     } catch (error) {
       setErrors((prev) => ({ ...prev, funds: error instanceof Error ? error.message : "持仓加载失败" }));
+    }
+  }
+
+  async function downloadFundMiniappCode(fundId: string) {
+    try {
+      await downloadHedgeFundMiniappCode(fundId);
+      trackClientEvent({
+        event_name: "web_hedge_fund_miniapp_code_downloaded",
+        page_path: "/research?tab=funds",
+        metadata: { fund_id: fundId },
+      }).catch(() => undefined);
+      setErrors((prev) => ({ ...prev, funds: "" }));
+    } catch (error) {
+      setErrors((prev) => ({ ...prev, funds: error instanceof Error ? error.message : "小程序码下载失败" }));
     }
   }
 
@@ -1303,6 +1499,7 @@ export function ResearchHub() {
               error={errors.funds || ""}
               onSelectFund={selectFund}
               onSelectMarket={selectHoldingMarket}
+              onDownloadMiniappCode={downloadFundMiniappCode}
             />
           </TabsContent>
           <TabsContent value="mall">

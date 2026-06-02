@@ -440,6 +440,18 @@ export type FeedbackCreatePayload = {
   metadata?: Record<string, unknown>;
 };
 
+export type UserPreferenceTagType = "industry" | "theme" | "custom_keyword";
+
+export type ClientEventPayload = {
+  event_name: string;
+  page_path?: string;
+  status?: "info" | "warning" | "error" | string;
+  message?: string;
+  report_id?: string;
+  digest_id?: number;
+  metadata?: Record<string, unknown>;
+};
+
 function getErrorMessage(payload: ApiErrorPayload): string | null {
   if ("detail" in payload) {
     const detail = payload.detail;
@@ -506,6 +518,35 @@ async function researchRequest<T>(path: string, init: RequestInit = {}, options:
         ? getErrorMessage(payload as ApiErrorPayload)
         : null;
     throw new Error(message || response.statusText || "请求失败");
+  }
+
+  return payload as T;
+}
+
+async function researchUpload<T>(path: string, file: File, options: { auth?: "required" | "optional" | "none" } = {}) {
+  const token = getResearchToken();
+  const headers = new Headers();
+  headers.set("X-Session-ID", createSessionId());
+  if (token && options.auth !== "none") {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const form = new FormData();
+  form.set("file", file);
+
+  const response = await fetch(`/api/research${path}`, {
+    method: "POST",
+    headers,
+    body: form,
+  });
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      payload && typeof payload === "object"
+        ? getErrorMessage(payload as ApiErrorPayload)
+        : null;
+    throw new Error(message || response.statusText || "上传失败");
   }
 
   return payload as T;
@@ -610,6 +651,29 @@ export function updateAccountProfile(data: { nickname: string }) {
   }, { auth: "required" });
 }
 
+export function uploadAvatar(file: File) {
+  return researchUpload<{
+    ok: boolean;
+    user_id: number;
+    nickname: string;
+    avatar_url: string;
+  }>("/user/avatar", file, { auth: "required" });
+}
+
+export function addUserPreferenceTag(preference_type: UserPreferenceTagType, preference_value: string) {
+  return researchRequest<{ ok: boolean; profile_completed: boolean }>("/user/preferences/add-tag", {
+    method: "POST",
+    body: JSON.stringify({ preference_type, preference_value }),
+  }, { auth: "required" });
+}
+
+export function removeUserPreferenceTag(preference_type: UserPreferenceTagType, preference_value: string) {
+  return researchRequest<{ ok: boolean; profile_completed: boolean }>("/user/preferences/remove-tag", {
+    method: "POST",
+    body: JSON.stringify({ preference_type, preference_value }),
+  }, { auth: "required" });
+}
+
 export function updateMiniappDeliveryProfile(data: {
   enabled: boolean;
   subscription_status: "accept" | "reject" | "ban" | "unknown" | string;
@@ -699,6 +763,10 @@ export function getHedgeFundHoldings(fundId: string, market = "US", period?: str
   return researchRequest<HedgeFundHoldingsResponse>(`/hedge-funds/${encodeURIComponent(fundId)}/holdings${suffix}`, {}, { auth: "optional" });
 }
 
+export function downloadHedgeFundMiniappCode(fundId: string) {
+  return downloadResearchFile(`/hedge-funds/${encodeURIComponent(fundId)}/miniapp-code`, `${fundId}-miniapp-code.png`);
+}
+
 export function submitFeedback(data: FeedbackCreatePayload) {
   return researchRequest<{ ok: boolean; id: number; message: string }>("/feedback", {
     method: "POST",
@@ -715,6 +783,26 @@ export function submitFeedback(data: FeedbackCreatePayload) {
       },
     }),
   }, { auth: "optional" });
+}
+
+export function trackClientEvent(data: ClientEventPayload) {
+  return researchRequest<{ ok: boolean; id: number }>("/client-events", {
+    method: "POST",
+    body: JSON.stringify({
+      ...data,
+      page_path: data.page_path || "/research",
+      status: data.status || "info",
+      client_version: "keeltrader-web",
+      metadata: {
+        source: "keeltrader_web",
+        ...(data.metadata || {}),
+      },
+    }),
+  }, { auth: "optional" });
+}
+
+export function transcribePreferenceAudio(file: File) {
+  return researchUpload<{ text: string; tags: string[] }>("/speech/transcribe-preference", file, { auth: "required" });
 }
 
 export function synthesizeReportBriefing(reportId: string) {
