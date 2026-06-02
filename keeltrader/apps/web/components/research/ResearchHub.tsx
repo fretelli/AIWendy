@@ -139,6 +139,35 @@ const MODULES = [
   { value: "feedback", label: "意见反馈", icon: MessageSquare },
 ] as const;
 
+const BLOCKED_KEYWORDS = ["test", "testing", "asdf", "qwer", "null", "none", "unknown", "测试", "无", "不知道", "随便"];
+
+const PROMPT_TEMPLATES = [
+  {
+    id: "concise",
+    title: "更简洁",
+    description: "摘要更短，直接说重点，少空话。",
+    prompt: "请用更简洁的中文写摘要，直接说重点，少空话，不要重复标题。",
+  },
+  {
+    id: "plain",
+    title: "更通俗",
+    description: "像解释给非专业用户，少术语。",
+    prompt: "请用更通俗的中文写摘要，像解释给非专业用户一样，少用术语，表达清楚。",
+  },
+  {
+    id: "structured",
+    title: "更结构化",
+    description: "先结论，再重点，再补充说明。",
+    prompt: "请把摘要写得更结构化：先说结论，再列重点，最后补充说明，层次清楚。",
+  },
+  {
+    id: "insight",
+    title: "更关注启发",
+    description: "更强调对行业、品牌、经营动作的实际启发。",
+    prompt: "请更关注这篇内容对行业、品牌和经营动作的实际启发，少写空泛判断，多写具体意义。",
+  },
+] as const;
+
 type TabValue = (typeof MODULES)[number]["value"];
 
 function formatDate(value?: string | null) {
@@ -857,7 +886,10 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
   const [industries, setIndustries] = useState("");
   const [occupation, setOccupation] = useState("");
   const [themes, setThemes] = useState("");
+  const [updateFrequency, setUpdateFrequency] = useState("每周");
+  const [languagePreference, setLanguagePreference] = useState("");
   const [keywords, setKeywords] = useState("");
+  const [keywordDraft, setKeywordDraft] = useState("");
   const [customPrompt, setCustomPrompt] = useState("");
   const [deliveryEnabled, setDeliveryEnabled] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState("unknown");
@@ -871,6 +903,8 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
     setIndustries((profile.onboarding_profile?.industries?.length ? profile.onboarding_profile.industries : profile.preferences.industries).join("、"));
     setOccupation(profile.onboarding_profile?.occupation || "");
     setThemes(profile.preferences.themes.join("、"));
+    setUpdateFrequency(profile.preferences.update_frequency || "每周");
+    setLanguagePreference(profile.preferences.language_preference || "");
     setKeywords(profile.preferences.custom_keywords.join("、"));
     setCustomPrompt(profile.preferences.custom_prompt || "");
     setDeliveryEnabled(profile.delivery.enabled);
@@ -879,6 +913,44 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
 
   function splitTags(value: string) {
     return [...new Set(value.split(/[,\n，、；;\s]/).map((item) => item.trim()).filter(Boolean))];
+  }
+
+  function parseKeywordInput(rawText: string) {
+    return rawText
+      .replace(/[。；;、]/g, "，")
+      .replace(/\s+/g, "，")
+      .split(/[,\n，]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  function hasRepeatedNoise(value: string) {
+    const compact = value.replace(/\s+/g, "").toLowerCase();
+    return compact.length >= 6 && new Set(compact.split("")).size === 1;
+  }
+
+  function validateCustomKeyword(value: string) {
+    const normalized = value.trim().replace(/\s+/g, " ");
+    if (normalized.length < 2) return { value: normalized, error: "自定义关注点至少 2 个字" };
+    if (normalized.length > 20) return { value: normalized, error: "自定义关注点最多 20 个字" };
+    if (BLOCKED_KEYWORDS.includes(normalized.toLowerCase())) return { value: normalized, error: "请填写真实关注点" };
+    if (/^\d+$/.test(normalized) || !/[\w\u4e00-\u9fff]/.test(normalized)) return { value: normalized, error: "自定义关注点请填写文字内容" };
+    if (/https?:\/\/|www\.|[\w.+-]+@[\w-]+(?:\.[\w-]+)+|(?:\+?\d[\d\s-]{6,}\d)/i.test(normalized)) {
+      return { value: normalized, error: "自定义关注点不能包含链接或联系方式" };
+    }
+    if (hasRepeatedNoise(normalized)) return { value: normalized, error: "请填写真实关注点" };
+    return { value: normalized, error: "" };
+  }
+
+  function normalizeCustomKeywords(rawItems: string[]) {
+    const normalized: string[] = [];
+    for (const item of rawItems) {
+      const result = validateCustomKeyword(item);
+      if (result.error) return { values: normalized, error: result.error };
+      if (!normalized.includes(result.value)) normalized.push(result.value);
+      if (normalized.length > 10) return { values: normalized.slice(0, 10), error: "自定义关注点最多 10 个" };
+    }
+    return { values: normalized, error: "" };
   }
 
   function joinTags(values: string[]) {
@@ -894,6 +966,26 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
     if (type === "industry") setIndustries(mutate);
     if (type === "theme") setThemes(mutate);
     if (type === "custom_keyword") setKeywords(mutate);
+  }
+
+  function appendKeywords(rawText: string) {
+    const parsed = parseKeywordInput(rawText);
+    const normalizedAddition = normalizeCustomKeywords(parsed);
+    if (normalizedAddition.error) {
+      setStatus(normalizedAddition.error);
+      return;
+    }
+    const addition = normalizedAddition.values;
+    if (!addition.length) return;
+    const merged = normalizeCustomKeywords([...splitTags(keywords), ...addition]);
+    if (merged.error) {
+      setStatus(merged.error);
+      setKeywords(joinTags(merged.values));
+      return;
+    }
+    setKeywords(joinTags(merged.values));
+    setKeywordDraft("");
+    setStatus(`已添加 ${addition.join("、")}`);
   }
 
   async function mutatePreferenceTag(type: "industry" | "theme" | "custom_keyword", value: string, action: "add" | "remove") {
@@ -971,6 +1063,12 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
       const normalizedNickname = nickname.trim().replace(/\s+/g, " ");
       const normalizedIndustries = splitTags(industries).slice(0, 8);
       const normalizedOccupation = occupation.trim().replace(/\s+/g, " ");
+      const normalizedKeywords = normalizeCustomKeywords(splitTags(keywords));
+      if (normalizedKeywords.error) {
+        setStatus(normalizedKeywords.error);
+        setSaving(false);
+        return;
+      }
       await Promise.all([
         updateAccountProfile({ nickname: normalizedNickname || profile.nickname }),
         updateOnboardingProfile({
@@ -981,7 +1079,9 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
           ...profile.preferences,
           industries: normalizedIndustries,
           themes: splitTags(themes),
-          custom_keywords: splitTags(keywords),
+          update_frequency: updateFrequency || "每周",
+          language_preference: languagePreference || null,
+          custom_keywords: normalizedKeywords.values,
           custom_prompt: customPrompt.trim(),
         }),
         updateMiniappDeliveryProfile({
@@ -989,6 +1089,18 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
           subscription_status: subscriptionStatus,
         }),
       ]);
+      trackClientEvent({
+        event_name: "web_preferences_saved",
+        page_path: "/research?tab=preferences",
+        status: "success",
+        metadata: {
+          industries_count: normalizedIndustries.length,
+          themes_count: splitTags(themes).length,
+          custom_keywords_count: normalizedKeywords.values.length,
+          update_frequency: updateFrequency || "每周",
+          language_preference: languagePreference || null,
+        },
+      }).catch(() => undefined);
       setStatus("资料、画像、偏好和推送设置已保存");
       onReload();
     } catch (error) {
@@ -1082,9 +1194,57 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
               </div>
             </div>
           </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>更新频率</Label>
+              <div className="flex flex-wrap gap-2">
+                {(profile.options.update_frequencies.length ? profile.options.update_frequencies : ["每日", "每周"]).map((item) => (
+                  <Button
+                    key={item}
+                    type="button"
+                    size="sm"
+                    variant={updateFrequency === item ? "secondary" : "outline"}
+                    onClick={() => setUpdateFrequency(item)}
+                  >
+                    {item}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>语言偏好</Label>
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={languagePreference}
+                onChange={(event) => setLanguagePreference(event.target.value)}
+              >
+                <option value="">跟随内容</option>
+                {profile.options.language_preferences.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div className="space-y-2">
             <Label>自定义关键词</Label>
-            <Input value={keywords} onChange={(event) => setKeywords(event.target.value)} placeholder="用逗号或空格分隔" />
+            <Input value={keywords} onChange={(event) => setKeywords(event.target.value)} placeholder="用逗号或空格分隔，最多 10 个" />
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Input
+                value={keywordDraft}
+                maxLength={60}
+                onChange={(event) => setKeywordDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") appendKeywords(keywordDraft);
+                }}
+                placeholder="输入一个关注点后添加"
+              />
+              <Button type="button" variant="outline" onClick={() => appendKeywords(keywordDraft)}>
+                添加
+              </Button>
+            </div>
+            <div className="text-xs text-muted-foreground">最多 10 个标签，已选 {splitTags(keywords).length}/10。</div>
             <div className="flex flex-wrap gap-2">
               {splitTags(keywords).slice(0, 12).map((item) => (
                 <Button key={item} type="button" size="sm" variant="secondary" onClick={() => mutatePreferenceTag("custom_keyword", item, "remove")} disabled={uploading}>
@@ -1096,7 +1256,34 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
           </div>
           <div className="space-y-2">
             <Label>自定义推荐要求</Label>
-            <Textarea value={customPrompt} onChange={(event) => setCustomPrompt(event.target.value)} placeholder="例如：更关注商业模式和估值变化" />
+            <div className="grid gap-2 md:grid-cols-4">
+              {PROMPT_TEMPLATES.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => {
+                    setCustomPrompt(template.prompt);
+                    setStatus(`已应用模板：${template.title}`);
+                  }}
+                  className={`rounded-md border p-3 text-left text-sm transition-colors hover:bg-muted/40 ${customPrompt.trim() === template.prompt ? "border-primary bg-muted/50" : ""}`}
+                >
+                  <span className="block font-medium">{template.title}</span>
+                  <span className="mt-1 block text-xs leading-5 text-muted-foreground">{template.description}</span>
+                </button>
+              ))}
+            </div>
+            <Textarea
+              value={customPrompt}
+              maxLength={500}
+              onChange={(event) => setCustomPrompt(event.target.value)}
+              placeholder="例如：更关注商业模式和估值变化"
+            />
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <button type="button" className="hover:text-foreground" onClick={() => setCustomPrompt("")}>
+                清空自定义
+              </button>
+              <span>{customPrompt.length}/500</span>
+            </div>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="flex items-center gap-3 rounded-md border p-3 text-sm">
