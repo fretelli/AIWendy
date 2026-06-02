@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth-context'
 import { useI18n } from '@/lib/i18n/provider'
 
 const GUEST_EMAIL = 'guest@local.keeltrader'
+const DEFAULT_AFTER_LOGIN = '/research'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -27,7 +28,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (authLoading) return
-    if (user && user.email !== GUEST_EMAIL) router.push('/chat')
+    if (user && user.email !== GUEST_EMAIL) router.push(DEFAULT_AFTER_LOGIN)
   }, [authLoading, router, user])
 
   useEffect(() => {
@@ -54,7 +55,7 @@ export default function LoginPage() {
 
     try {
       await login(email, password)
-      router.push('/chat')
+      router.push(DEFAULT_AFTER_LOGIN)
     } catch (err: any) {
       setError(err.message || t('landing.auth.login.error'))
     } finally {
@@ -65,7 +66,7 @@ export default function LoginPage() {
   const handleContinueAsGuest = () => {
     localStorage.removeItem('keeltrader_access_token')
     localStorage.removeItem('keeltrader_refresh_token')
-    router.push('/chat')
+    router.push(DEFAULT_AFTER_LOGIN)
   }
 
   const handleGoogleLogin = async () => {

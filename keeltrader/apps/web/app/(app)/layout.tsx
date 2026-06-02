@@ -10,6 +10,7 @@ import {
   Sword,
   BarChart3,
   Trophy,
+  Newspaper,
   ScrollText,
   Crown,
   MessageSquare,
@@ -21,6 +22,7 @@ import {
 
 const NAV_ITEMS = [
   { href: '/character', icon: Sword, label: 'Character' },
+  { href: '/research', icon: Newspaper, label: '研报' },
   { href: '/chat', icon: MessageSquare, label: 'Chat' },
   { href: '/achievements', icon: Trophy, label: 'Achievements' },
   { href: '/quests', icon: ScrollText, label: 'Quests' },
@@ -81,7 +83,7 @@ export default function AppLayout({
         <nav className="hidden md:flex items-center gap-1">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link key={item.href} href={item.href}>
                 <Button
@@ -108,7 +110,7 @@ export default function AppLayout({
         <div className="md:hidden border-b p-2 space-y-1">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
-            const isActive = pathname === item.href;
+            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
             return (
               <Link key={item.href} href={item.href} onClick={() => setMobileMenuOpen(false)}>
                 <Button
