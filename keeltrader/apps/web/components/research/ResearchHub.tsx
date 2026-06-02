@@ -57,6 +57,9 @@ import {
   refreshNotifications,
   setResearchToken,
   submitFeedback,
+  updateAccountProfile,
+  updateMiniappDeliveryProfile,
+  updateOnboardingProfile,
   updateUserPreferences,
   type BillingOverview,
   type OfficialBindingStatus,
@@ -714,18 +717,27 @@ function MembershipPanel({ overview, profile, catalog, officialBinding, error, o
 }
 
 function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileResponse | null; error: string; onReload: () => void }) {
+  const [nickname, setNickname] = useState("");
   const [industries, setIndustries] = useState("");
+  const [occupation, setOccupation] = useState("");
   const [themes, setThemes] = useState("");
   const [keywords, setKeywords] = useState("");
   const [customPrompt, setCustomPrompt] = useState("");
+  const [deliveryEnabled, setDeliveryEnabled] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState("unknown");
   const [status, setStatus] = useState("");
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!profile) return;
-    setIndustries(profile.preferences.industries.join("、"));
+    setNickname(profile.nickname || "");
+    setIndustries((profile.onboarding_profile?.industries?.length ? profile.onboarding_profile.industries : profile.preferences.industries).join("、"));
+    setOccupation(profile.onboarding_profile?.occupation || "");
     setThemes(profile.preferences.themes.join("、"));
     setKeywords(profile.preferences.custom_keywords.join("、"));
     setCustomPrompt(profile.preferences.custom_prompt || "");
+    setDeliveryEnabled(profile.delivery.enabled);
+    setSubscriptionStatus(profile.delivery.subscription_status || "unknown");
   }, [profile]);
 
   function splitTags(value: string) {
@@ -734,19 +746,36 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
 
   async function save() {
     if (!profile) return;
+    setSaving(true);
     setStatus("");
     try {
-      await updateUserPreferences({
-        ...profile.preferences,
-        industries: splitTags(industries),
-        themes: splitTags(themes),
-        custom_keywords: splitTags(keywords),
-        custom_prompt: customPrompt.trim(),
-      });
-      setStatus("偏好已保存");
+      const normalizedNickname = nickname.trim().replace(/\s+/g, " ");
+      const normalizedIndustries = splitTags(industries).slice(0, 8);
+      const normalizedOccupation = occupation.trim().replace(/\s+/g, " ");
+      await Promise.all([
+        updateAccountProfile({ nickname: normalizedNickname || profile.nickname }),
+        updateOnboardingProfile({
+          industries: normalizedIndustries.slice(0, 2),
+          occupation: normalizedOccupation,
+        }),
+        updateUserPreferences({
+          ...profile.preferences,
+          industries: normalizedIndustries,
+          themes: splitTags(themes),
+          custom_keywords: splitTags(keywords),
+          custom_prompt: customPrompt.trim(),
+        }),
+        updateMiniappDeliveryProfile({
+          enabled: deliveryEnabled,
+          subscription_status: subscriptionStatus,
+        }),
+      ]);
+      setStatus("资料、画像、偏好和推送设置已保存");
       onReload();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "保存失败");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -761,7 +790,17 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
         <div className="space-y-4 rounded-md border p-4">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label>行业</Label>
+              <Label>昵称</Label>
+              <Input value={nickname} onChange={(event) => setNickname(event.target.value)} placeholder="用于研报小程序展示" />
+            </div>
+            <div className="space-y-2">
+              <Label>职业 / 身份</Label>
+              <Input value={occupation} onChange={(event) => setOccupation(event.target.value)} placeholder="例如：二级市场研究、品牌投资人" />
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>关注行业 / 入门画像行业</Label>
               <Textarea value={industries} onChange={(event) => setIndustries(event.target.value)} placeholder="消费、科技、医药" />
             </div>
             <div className="space-y-2">
@@ -777,8 +816,38 @@ function PreferencesPanel({ profile, error, onReload }: { profile: UserProfileRe
             <Label>自定义推荐要求</Label>
             <Textarea value={customPrompt} onChange={(event) => setCustomPrompt(event.target.value)} placeholder="例如：更关注商业模式和估值变化" />
           </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="flex items-center gap-3 rounded-md border p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={deliveryEnabled}
+                onChange={(event) => setDeliveryEnabled(event.target.checked)}
+                className="h-4 w-4 rounded border-input"
+              />
+              <span>
+                <span className="block font-medium">接收小程序/公众号推送</span>
+                <span className="text-muted-foreground">对应小程序投递订阅设置。</span>
+              </span>
+            </label>
+            <div className="space-y-2">
+              <Label>订阅状态</Label>
+              <select
+                className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={subscriptionStatus}
+                onChange={(event) => setSubscriptionStatus(event.target.value)}
+              >
+                <option value="accept">accept</option>
+                <option value="reject">reject</option>
+                <option value="ban">ban</option>
+                <option value="unknown">unknown</option>
+              </select>
+            </div>
+          </div>
           <div className="flex items-center gap-3">
-            <Button onClick={save}>保存偏好</Button>
+            <Button onClick={save} disabled={saving}>
+              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              保存资料与偏好
+            </Button>
             {status ? <span className="text-sm text-muted-foreground">{status}</span> : null}
           </div>
         </div>
