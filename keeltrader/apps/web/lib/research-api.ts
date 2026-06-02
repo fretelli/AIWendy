@@ -184,6 +184,15 @@ export type UserProfileResponse = {
   };
 };
 
+export type PreferenceOptionsResponse = {
+  options: {
+    industries: string[];
+    themes: string[];
+    update_frequencies: string[];
+    language_preferences?: string[];
+  };
+};
+
 export type BillingOverview = {
   active_membership: {
     is_active: boolean;
@@ -786,6 +795,10 @@ export function getBillingCatalog() {
   return researchRequest<{ items: ProductItem[] }>("/billing/catalog", {}, { auth: "required" });
 }
 
+export function getPreferenceOptions() {
+  return researchRequest<PreferenceOptionsResponse>("/user/preference-options", {}, { auth: "optional" });
+}
+
 export function createBillingOrder(data: {
   product_code: string;
   target_type?: string | null;
@@ -795,6 +808,10 @@ export function createBillingOrder(data: {
     method: "POST",
     body: JSON.stringify(data),
   }, { auth: "required" });
+}
+
+export function getBillingOrder(orderId: number) {
+  return researchRequest<BillingOrderDetail>(`/billing/orders/${orderId}`, {}, { auth: "required" });
 }
 
 export function prepareBillingOrderPayment(orderId: number) {
