@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft, ExternalLink, FileText, Loader2, MessageSquare, Send, Volume2, Wand2 } from "lucide-react";
+import { ArrowLeft, CreditCard, ExternalLink, FileText, Loader2, MessageSquare, Send, Share2, Volume2, Wand2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,14 +12,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  createBillingOrder,
   downloadResearchFile,
   getDigestDetail,
   getReportBriefingStatus,
   getReportDetail,
   getReportNoteState,
+  prepareBillingOrderPayment,
   synthesizeReportBriefing,
   submitFeedback,
+  trackClientEvent,
   triggerReportNote,
+  type BillingOrderDetail,
   type DigestDetail,
   type ReportBriefingState,
   type ReportDetail,
@@ -43,6 +47,10 @@ function summaryPoints(report: ReportDetail) {
     : report.note?.display_summary_points?.length
       ? report.note.display_summary_points
       : report.note?.key_points || [];
+}
+
+function formatMoneyFen(value?: number | null) {
+  return `¥${((value || 0) / 100).toFixed(2)}`;
 }
 
 function FeedbackDialog({
@@ -124,6 +132,7 @@ export function ResearchReportDetailView() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState("");
   const [error, setError] = useState("");
+  const [actionStatus, setActionStatus] = useState("");
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const reportId = decodeURIComponent(String(params.id || ""));
   const digestId = searchParams.get("digest_id");
@@ -133,7 +142,16 @@ export function ResearchReportDetailView() {
     setLoading(true);
     setError("");
     getReportDetail(reportId, digestId)
-      .then(setReport)
+      .then((data) => {
+        setReport(data);
+        trackClientEvent({
+          event_name: "web_report_detail_opened",
+          page_path: `/research/reports/${reportId}`,
+          report_id: reportId,
+          digest_id: digestId ? Number(digestId) : undefined,
+          metadata: { can_view_pdf: data.access?.can_view_pdf, can_view_full_report: data.access?.can_view_full_report },
+        }).catch(() => undefined);
+      })
       .catch((nextError) => setError(nextError instanceof Error ? nextError.message : "研报详情加载失败"))
       .finally(() => setLoading(false));
     getReportNoteState(reportId).then(setNoteState).catch(() => setNoteState(null));
@@ -167,8 +185,65 @@ export function ResearchReportDetailView() {
     try {
       const suffix = digestId ? `?digest_id=${encodeURIComponent(String(digestId))}` : "";
       await downloadResearchFile(`/reports/${encodeURIComponent(reportId)}/pdf${suffix}`, `${reportId}.pdf`);
+      const nextReport = await getReportDetail(reportId, digestId).catch(() => null);
+      if (nextReport) setReport(nextReport);
+      trackClientEvent({
+        event_name: "web_report_pdf_downloaded",
+        page_path: `/research/reports/${reportId}`,
+        report_id: reportId,
+        digest_id: digestId ? Number(digestId) : undefined,
+        metadata: { source: report?.access?.can_view_pdf ? "access" : "credit" },
+      }).catch(() => undefined);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "PDF 下载失败");
+    } finally {
+      setActionLoading("");
+    }
+  }
+
+  async function copyShareLink() {
+    const url = `${window.location.origin}/research/reports/${encodeURIComponent(reportId)}${digestId ? `?digest_id=${encodeURIComponent(String(digestId))}` : ""}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setActionStatus("研报链接已复制");
+      trackClientEvent({
+        event_name: "web_report_link_copied",
+        page_path: `/research/reports/${reportId}`,
+        report_id: reportId,
+        digest_id: digestId ? Number(digestId) : undefined,
+      }).catch(() => undefined);
+    } catch {
+      setActionStatus(url);
+    }
+  }
+
+  async function createAccessOrder(productCode: string) {
+    setActionLoading(`order:${productCode}`);
+    setActionStatus("");
+    try {
+      const order: BillingOrderDetail = await createBillingOrder({
+        product_code: productCode,
+        target_type: "report",
+        target_id: reportId,
+      });
+      const payment = await prepareBillingOrderPayment(order.id);
+      const suffix = payment.already_paid
+        ? "订单已支付，权益已生效"
+        : payment.configured === false
+          ? payment.message || "支付暂未配置，订单已创建"
+          : payment.message || "订单已创建，请在小程序内完成微信支付";
+      setActionStatus(`${order.title} ${formatMoneyFen(order.amount_fen)}。${suffix}`);
+      trackClientEvent({
+        event_name: "web_report_access_order_created",
+        page_path: `/research/reports/${reportId}`,
+        report_id: reportId,
+        digest_id: digestId ? Number(digestId) : undefined,
+        metadata: { product_code: productCode, order_id: order.id, payment_configured: payment.configured },
+      }).catch(() => undefined);
+      const nextReport = await getReportDetail(reportId, digestId).catch(() => null);
+      if (nextReport) setReport(nextReport);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "创建权益订单失败");
     } finally {
       setActionLoading("");
     }
@@ -251,6 +326,10 @@ export function ResearchReportDetailView() {
                   <MessageSquare className="mr-2 h-4 w-4" />
                   意见反馈
                 </Button>
+                <Button size="sm" variant="outline" onClick={copyShareLink}>
+                  <Share2 className="mr-2 h-4 w-4" />
+                  复制分享链接
+                </Button>
                 <Button size="sm" variant="outline" onClick={generateNote} disabled={actionLoading === "note"}>
                   {actionLoading === "note" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
                   AI 解读
@@ -261,6 +340,40 @@ export function ResearchReportDetailView() {
                 </Button>
               </div>
             </div>
+
+            {report.access ? (
+              <div className="rounded-md border p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h2 className="font-semibold">阅读与 PDF 权益</h2>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      {report.access.paywall_message || "会员、PDF 权益或邀请奖励会决定是否可查看完整内容和 PDF 原报告。"}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge variant={report.access.can_view_full_report ? "secondary" : "outline"}>
+                        {report.access.can_view_full_report ? "可读全文" : "全文受限"}
+                      </Badge>
+                      <Badge variant={report.access.can_view_pdf ? "secondary" : "outline"}>
+                        {report.access.can_view_pdf ? "可下载 PDF" : "PDF 需权益"}
+                      </Badge>
+                      <Badge variant="outline">PDF 次数 {report.access.pdf_credit_count || 0}</Badge>
+                      {report.access.is_member ? <Badge variant="secondary">会员</Badge> : null}
+                    </div>
+                  </div>
+                  {report.access.membership_product_codes?.length ? (
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      {report.access.membership_product_codes.map((code) => (
+                        <Button key={code} size="sm" onClick={() => createAccessOrder(code)} disabled={actionLoading === `order:${code}`}>
+                          {actionLoading === `order:${code}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                          开通 {code}
+                        </Button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                {actionStatus ? <div className="mt-4 rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">{actionStatus}</div> : null}
+              </div>
+            ) : null}
 
             {noteState ? (
               <div className="rounded-md border p-5">
@@ -355,7 +468,9 @@ export function ResearchDigestDetailView() {
   const params = useParams<{ id: string }>();
   const [digest, setDigest] = useState<DigestDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState("");
   const [error, setError] = useState("");
+  const [actionStatus, setActionStatus] = useState("");
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const digestId = decodeURIComponent(String(params.id || ""));
 
@@ -363,10 +478,64 @@ export function ResearchDigestDetailView() {
     setLoading(true);
     setError("");
     getDigestDetail(digestId)
-      .then(setDigest)
+      .then((data) => {
+        setDigest(data);
+        trackClientEvent({
+          event_name: "web_digest_detail_opened",
+          page_path: `/research/digests/${digestId}`,
+          digest_id: Number(digestId) || undefined,
+          metadata: { can_view_full_digest: data.access?.can_view_full_digest, can_view_history: data.access?.can_view_history },
+        }).catch(() => undefined);
+      })
       .catch((nextError) => setError(nextError instanceof Error ? nextError.message : "期刊详情加载失败"))
       .finally(() => setLoading(false));
   }, [digestId]);
+
+  async function copyDigestLink() {
+    const url = `${window.location.origin}/research/digests/${encodeURIComponent(digestId)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setActionStatus("期刊链接已复制");
+      trackClientEvent({
+        event_name: "web_digest_link_copied",
+        page_path: `/research/digests/${digestId}`,
+        digest_id: Number(digestId) || undefined,
+      }).catch(() => undefined);
+    } catch {
+      setActionStatus(url);
+    }
+  }
+
+  async function createDigestAccessOrder(productCode: string) {
+    setActionLoading(`order:${productCode}`);
+    setActionStatus("");
+    try {
+      const order = await createBillingOrder({
+        product_code: productCode,
+        target_type: "digest",
+        target_id: digestId,
+      });
+      const payment = await prepareBillingOrderPayment(order.id);
+      const suffix = payment.already_paid
+        ? "订单已支付，权益已生效"
+        : payment.configured === false
+          ? payment.message || "支付暂未配置，订单已创建"
+          : payment.message || "订单已创建，请在小程序内完成微信支付";
+      setActionStatus(`${order.title} ${formatMoneyFen(order.amount_fen)}。${suffix}`);
+      trackClientEvent({
+        event_name: "web_digest_access_order_created",
+        page_path: `/research/digests/${digestId}`,
+        digest_id: Number(digestId) || undefined,
+        metadata: { product_code: productCode, order_id: order.id, payment_configured: payment.configured },
+      }).catch(() => undefined);
+      const nextDigest = await getDigestDetail(digestId).catch(() => null);
+      if (nextDigest) setDigest(nextDigest);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "创建期刊权益订单失败");
+    } finally {
+      setActionLoading("");
+    }
+  }
 
   return (
     <div className="h-full overflow-y-auto">
@@ -397,11 +566,51 @@ export function ResearchDigestDetailView() {
               </div>
               <h1 className="mt-4 text-2xl font-bold leading-tight">{digest.title}</h1>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">{digest.summary || digest.fallback_message || "暂无摘要"}</p>
-              <Button className="mt-5" size="sm" variant="outline" onClick={() => setFeedbackOpen(true)}>
-                <MessageSquare className="mr-2 h-4 w-4" />
-                意见反馈
-              </Button>
+              <div className="mt-5 flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={() => setFeedbackOpen(true)}>
+                  <MessageSquare className="mr-2 h-4 w-4" />
+                  意见反馈
+                </Button>
+                <Button size="sm" variant="outline" onClick={copyDigestLink}>
+                  <Share2 className="mr-2 h-4 w-4" />
+                  复制分享链接
+                </Button>
+              </div>
             </div>
+            {digest.access ? (
+              <div className="rounded-md border p-5">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h2 className="font-semibold">期刊阅读权益</h2>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      {digest.access.paywall_message || "会员或单期权益会决定是否可查看完整期刊和历史期刊。"}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Badge variant={digest.access.can_view_full_digest ? "secondary" : "outline"}>
+                        {digest.access.can_view_full_digest ? "可读完整期刊" : "期刊受限"}
+                      </Badge>
+                      <Badge variant={digest.access.can_view_history ? "secondary" : "outline"}>
+                        {digest.access.can_view_history ? "可看历史" : "历史受限"}
+                      </Badge>
+                      <Badge variant="outline">已解锁 {digest.access.unlocked_item_count || 0}</Badge>
+                      <Badge variant="outline">锁定 {digest.access.locked_items_count || 0}</Badge>
+                      {digest.access.is_member ? <Badge variant="secondary">会员</Badge> : null}
+                    </div>
+                  </div>
+                  {digest.access.membership_product_codes?.length ? (
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      {digest.access.membership_product_codes.map((code) => (
+                        <Button key={code} size="sm" onClick={() => createDigestAccessOrder(code)} disabled={actionLoading === `order:${code}`}>
+                          {actionLoading === `order:${code}` ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+                          开通 {code}
+                        </Button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                {actionStatus ? <div className="mt-4 rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">{actionStatus}</div> : null}
+              </div>
+            ) : null}
             {digest.body ? (
               <div className="rounded-md border p-5">
                 <h2 className="font-semibold">期刊正文</h2>
