@@ -501,6 +501,42 @@ export function updateUserPreferences(data: UserProfileResponse["preferences"]) 
   }, { auth: "required" });
 }
 
+export function updateOnboardingProfile(data: { industries: string[]; occupation: string }) {
+  return researchRequest<{
+    ok: boolean;
+    onboarding_completed: boolean;
+    onboarding_profile: UserProfileResponse["onboarding_profile"];
+  }>("/user/onboarding-profile", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  }, { auth: "required" });
+}
+
+export function updateAccountProfile(data: { nickname: string }) {
+  return researchRequest<{
+    ok: boolean;
+    user_id: number;
+    nickname: string;
+    avatar_url: string;
+  }>("/user/account-profile", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  }, { auth: "required" });
+}
+
+export function updateMiniappDeliveryProfile(data: {
+  enabled: boolean;
+  subscription_status: "accept" | "reject" | "ban" | "unknown" | string;
+}) {
+  return researchRequest<{
+    ok: boolean;
+    delivery: UserProfileResponse["delivery"];
+  }>("/user/delivery/miniapp-subscription", {
+    method: "POST",
+    body: JSON.stringify(data),
+  }, { auth: "required" });
+}
+
 export function getBillingOverview() {
   return researchRequest<BillingOverview>("/billing/me", {}, { auth: "required" });
 }
@@ -596,4 +632,33 @@ export function synthesizeReportBriefing(reportId: string) {
 
 export function getReportBriefingStatus(reportId: string) {
   return researchRequest<ReportBriefingState>(`/speech/report-briefing/${encodeURIComponent(reportId)}`, {}, { auth: "required" });
+}
+
+export async function downloadResearchFile(path: string, fallbackFileName: string) {
+  const token = getResearchToken();
+  const headers = new Headers();
+  headers.set("X-Session-ID", createSessionId());
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  const response = await fetch(`/api/research${path}`, { headers });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const message =
+      payload && typeof payload === "object"
+        ? getErrorMessage(payload as ApiErrorPayload)
+        : null;
+    throw new Error(message || response.statusText || "下载失败");
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get("content-disposition") || "";
+  const fileNameMatch = /filename="?([^";]+)"?/i.exec(disposition);
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = fileNameMatch?.[1] || fallbackFileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }

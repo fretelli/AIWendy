@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  downloadResearchFile,
   getDigestDetail,
   getReportBriefingStatus,
   getReportDetail,
@@ -161,6 +162,33 @@ export function ResearchReportDetailView() {
     }
   }
 
+  async function downloadPdf() {
+    setActionLoading("pdf");
+    try {
+      const suffix = digestId ? `?digest_id=${encodeURIComponent(String(digestId))}` : "";
+      await downloadResearchFile(`/reports/${encodeURIComponent(reportId)}/pdf${suffix}`, `${reportId}.pdf`);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "PDF 下载失败");
+    } finally {
+      setActionLoading("");
+    }
+  }
+
+  async function downloadBriefingAudio() {
+    if (!briefing?.version) return;
+    setActionLoading("audio");
+    try {
+      await downloadResearchFile(
+        `/speech/report-briefing/${encodeURIComponent(reportId)}/audio?v=${encodeURIComponent(briefing.version)}`,
+        briefing.file_name || `${reportId}-${briefing.version}.mp3`
+      );
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "音频下载失败");
+    } finally {
+      setActionLoading("");
+    }
+  }
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl space-y-5 p-4 md:p-6">
@@ -207,6 +235,10 @@ export function ResearchReportDetailView() {
                     </a>
                   </Button>
                 ) : null}
+                <Button size="sm" variant="outline" onClick={downloadPdf} disabled={actionLoading === "pdf"}>
+                  {actionLoading === "pdf" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                  授权下载 PDF
+                </Button>
                 {report.source_url ? (
                   <Button asChild size="sm" variant="outline">
                     <a href={report.source_url} target="_blank" rel="noreferrer">
@@ -266,6 +298,12 @@ export function ResearchReportDetailView() {
                       <Volume2 className="mr-2 h-4 w-4" />
                       打开音频
                     </a>
+                  </Button>
+                ) : null}
+                {briefing.version ? (
+                  <Button className="mt-4 ml-2" size="sm" variant="outline" onClick={downloadBriefingAudio} disabled={actionLoading === "audio"}>
+                    {actionLoading === "audio" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Volume2 className="mr-2 h-4 w-4" />}
+                    下载音频
                   </Button>
                 ) : null}
               </div>
