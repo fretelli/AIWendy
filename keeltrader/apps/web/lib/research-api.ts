@@ -826,6 +826,10 @@ export function getPointsMall() {
   return researchRequest<PointsMallResponse>("/billing/points-mall", {}, { auth: "required" });
 }
 
+export function getPointsMallCatalog() {
+  return researchRequest<PointsMallResponse>("/billing/points-mall/catalog", {}, { auth: "optional" });
+}
+
 export function redeemPointsMallItem(data: {
   item_code: string;
   recipient_name: string;
@@ -904,6 +908,27 @@ export function getReportBriefingStatus(reportId: string) {
 }
 
 export async function downloadResearchFile(path: string, fallbackFileName: string) {
+  const { blob, fileName } = await fetchResearchFileBlob(path, fallbackFileName);
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = fileName;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+export async function createResearchFileObjectUrl(path: string, fallbackFileName: string) {
+  const { blob, fileName } = await fetchResearchFileBlob(path, fallbackFileName);
+  return {
+    objectUrl: URL.createObjectURL(blob),
+    fileName,
+    contentType: blob.type,
+  };
+}
+
+async function fetchResearchFileBlob(path: string, fallbackFileName: string) {
   const token = getResearchToken();
   const headers = new Headers();
   headers.set("X-Session-ID", createSessionId());
@@ -922,12 +947,8 @@ export async function downloadResearchFile(path: string, fallbackFileName: strin
   const blob = await response.blob();
   const disposition = response.headers.get("content-disposition") || "";
   const fileNameMatch = /filename="?([^";]+)"?/i.exec(disposition);
-  const objectUrl = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = objectUrl;
-  anchor.download = fileNameMatch?.[1] || fallbackFileName;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  return {
+    blob,
+    fileName: fileNameMatch?.[1] || fallbackFileName,
+  };
 }
