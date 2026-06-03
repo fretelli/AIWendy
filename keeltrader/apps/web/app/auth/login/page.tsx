@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Icons } from '@/components/icons'
 import { useAuth } from '@/lib/auth-context'
+import { getPendingInvite, savePendingInviteFromParams } from '@/lib/research-api'
 import { useI18n } from '@/lib/i18n/provider'
 
 const GUEST_EMAIL = 'guest@local.keeltrader'
@@ -21,10 +22,21 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [guestAvailable, setGuestAvailable] = useState(false)
+  const [inviteNotice, setInviteNotice] = useState<string | null>(null)
 
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { login, user, isLoading: authLoading } = useAuth()
   const { t } = useI18n()
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams?.toString() || '')
+    const pendingInvite = savePendingInviteFromParams(params, 'auth_login', 'auth_login')
+    if (pendingInvite) {
+      const latestInvite = getPendingInvite()
+      setInviteNotice(`已捕获邀请来源：${latestInvite?.invite_code || latestInvite?.inviter_user_id || '-'} · ${latestInvite?.source_type || 'auth_login'}`)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     if (authLoading) return
@@ -109,6 +121,11 @@ export default function LoginPage() {
                 </AlertDescription>
               </Alert>
             )}
+            {inviteNotice && (
+              <Alert>
+                <AlertDescription>{inviteNotice}</AlertDescription>
+              </Alert>
+            )}
             {error && (
               <Alert className="alert-error">
                 <AlertDescription>{error}</AlertDescription>
@@ -188,6 +205,12 @@ export default function LoginPage() {
                 </Button>
               </div>
             </form>
+
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/research">
+                直接进入研报中心
+              </Link>
+            </Button>
           </CardContent>
           <CardFooter>
             <div className="text-sm text-muted-foreground text-center w-full">
