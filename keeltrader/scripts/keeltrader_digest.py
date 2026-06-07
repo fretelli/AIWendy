@@ -72,6 +72,9 @@ SEND_STATE_FILE = Path(os.environ.get(
     "/root/.cache/keeltrader-digest-send-state.json",
 ))
 SEEN_TTL_HOURS = int(os.environ.get("KEELTRADER_DIGEST_SEEN_TTL_HOURS", "240"))  # 默认 10 天去重
+POOL_HOURS = int(os.environ.get("KEELTRADER_DIGEST_POOL_HOURS", "168"))
+ENTRY_LIMIT = int(os.environ.get("KEELTRADER_DIGEST_ENTRY_LIMIT", "36"))
+FALLBACK_BATCHES = int(os.environ.get("KEELTRADER_DIGEST_FALLBACK_BATCHES", "3"))
 EMPTY_ALERT_ENABLED = os.environ.get("KEELTRADER_DIGEST_EMPTY_ALERT_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
 
 
@@ -280,6 +283,53 @@ def mark_seen(entries: list[dict], pruned: dict[str, str]):
     for e in entries:
         if e.get("url"):
             pruned[e["url"]] = now
+
+
+def entry_batch(entries: list[dict], batch_index: int) -> list[dict]:
+    start = max(0, batch_index) * ENTRY_LIMIT
+    return entries[start:start + ENTRY_LIMIT]
+
+
+def _title_tokens(title: str) -> list[str]:
+    stop = {
+        "the", "and", "for", "with", "from", "that", "this", "into", "luxury",
+        "wealth", "market", "markets", "style", "lifestyle", "report", "what",
+        "why", "how", "new", "best",
+    }
+    return [
+        token.lower().strip(":-'’")
+        for token in re.findall(r"[A-Za-z0-9][A-Za-z0-9'’&:-]{2,}", title)
+        if token.lower().strip(":-'’") not in stop
+    ]
+
+
+def _title_name_candidates(title: str) -> list[str]:
+    candidates = re.findall(r"《([^》]{2,80})》", title)
+    candidates.extend(re.findall(r"\b(?:[A-Z][A-Za-z0-9'’&:-]+(?:\s+|$)){2,6}", title))
+    return [re.sub(r"\s+", " ", item).strip(" :-") for item in candidates if len(item.strip()) >= 4]
+
+
+def extract_used_entries(post_text: str, entries: list[dict]) -> list[dict]:
+    normalized_post = post_text.lower()
+    post_names = {name.lower() for name in re.findall(r"《([^》]{2,80})》", post_text)}
+    used = []
+    for entry in entries:
+        title = re.sub(r"\s+", " ", str(entry.get("title", ""))).strip()
+        if not title:
+            continue
+        if title.lower() in normalized_post:
+            used.append(entry)
+            continue
+        if any(name.lower() in normalized_post for name in _title_name_candidates(title)):
+            used.append(entry)
+            continue
+        tokens = _title_tokens(title)
+        if post_names.intersection(tokens):
+            used.append(entry)
+            continue
+        if tokens and sum(1 for token in tokens if token in normalized_post) >= min(2, len(tokens)):
+            used.append(entry)
+    return used
 
 
 # ──────────────────────────────────────────────
@@ -735,11 +785,17 @@ def main():
         default=int(os.environ.get("KEELTRADER_DIGEST_MAX_EVIDENCE_LINKS", "4")),
         help="每篇原文最多跟进的证据外链数量",
     )
+    parser.add_argument(
+        "--fallback-batches",
+        type=int,
+        default=FALLBACK_BATCHES,
+        help="编辑守门失败后，在同一 7 天素材池内尝试的候选批次数",
+    )
     args = parser.parse_args()
 
     column = select_column(args)
     config = COLUMN_CONFIGS[column]
-    hours  = args.hours if args.hours is not None else config["default_hours"]
+    hours  = args.hours if args.hours is not None else POOL_HOURS
 
     logger.info("=" * 50)
     logger.info("KeelTrader Digest 开始 (column=%s, hours=%d, dry_run=%s)", column, hours, args.dry_run)
@@ -769,32 +825,50 @@ def main():
 
     logger.info("栏目 %s：%d 篇素材", column, len(entries))
 
-    articles_text = build_articles_text(entries)
-
-    if len(articles_text) > MAX_CONTEXT_CHARS:
-        articles_text = articles_text[:MAX_CONTEXT_CHARS]
-        logger.warning("素材过长，截断至 %d 字符", MAX_CONTEXT_CHARS)
-
+    selected_entries = []
+    post_text = ""
     guard_artifacts = None
-    try:
-        guard_result = run_guarded_generation(
-            raw_context=articles_text,
-            records=source_records_from_entries(entries),
-            generate_post=lambda guarded_context: generate_post(guarded_context, date_range, column),
-            llm_call=_call_llm,
-            mode=args.editorial_guard,
-            domain="财富生活方式、精品消费与市场心理",
-            column_label=config["label"],
-            date_range=date_range,
-            timeout_seconds=args.evidence_timeout,
-            max_evidence_links=args.max_evidence_links,
-            logger=logger,
+    failures = []
+    for batch_index in range(max(1, args.fallback_batches)):
+        selected_entries = entry_batch(entries, batch_index)
+        if not selected_entries:
+            break
+        articles_text = build_articles_text(selected_entries)
+        logger.info(
+            "送入 LLM: batch=%d/%d %d 篇素材, 上下文 %d 字符",
+            batch_index + 1, max(1, args.fallback_batches), len(selected_entries), len(articles_text),
         )
-        post_text = guard_result.post_text
-        guard_artifacts = guard_result.artifacts
-    except EditorialGuardError as exc:
-        logger.warning("%s", exc)
-        msg = f"【{config['feishu_title']} ({date_range})】\n\n今日财富小红书稿待人工核验，已跳过自动正文。\n原因: {exc}\n\n{format_artifact_summary(exc.artifacts)}"
+
+        if len(articles_text) > MAX_CONTEXT_CHARS:
+            articles_text = articles_text[:MAX_CONTEXT_CHARS]
+            logger.warning("素材过长，截断至 %d 字符", MAX_CONTEXT_CHARS)
+
+        try:
+            guard_result = run_guarded_generation(
+                raw_context=articles_text,
+                records=source_records_from_entries(selected_entries),
+                generate_post=lambda guarded_context: generate_post(guarded_context, date_range, column),
+                llm_call=_call_llm,
+                mode=args.editorial_guard,
+                domain="财富生活方式、精品消费与市场心理",
+                column_label=config["label"],
+                date_range=date_range,
+                timeout_seconds=args.evidence_timeout,
+                max_evidence_links=args.max_evidence_links,
+                logger=logger,
+            )
+            post_text = guard_result.post_text
+            guard_artifacts = guard_result.artifacts
+            break
+        except EditorialGuardError as exc:
+            logger.warning("编辑守门失败 (batch=%d): %s", batch_index + 1, exc)
+            failures.append((batch_index, exc))
+            continue
+    if not post_text:
+        last_exc = failures[-1][1] if failures else None
+        reason = str(last_exc) if last_exc else "无可用候选批次"
+        artifacts = last_exc.artifacts if last_exc else None
+        msg = f"【{config['feishu_title']} ({date_range})】\n\n今日财富小红书稿待人工核验，已跳过自动正文。\n原因: {reason}\n\n{format_artifact_summary(artifacts)}"
         if args.dry_run:
             print(msg)
         else:
@@ -827,8 +901,17 @@ def main():
     send_state[send_key] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     save_send_state(send_state)
 
-    mark_seen(entries, pruned_seen)
+    used_entries = extract_used_entries(post_text, selected_entries)
+    if not used_entries:
+        logger.warning("未能从正文匹配实际使用素材，回退标记首条候选")
+        _send_text(
+            f"【{config['feishu_title']} ({date_range})】\n\n"
+            "正文使用素材自动匹配失败，已保守只标记首条候选为已用。"
+        )
+        used_entries = selected_entries[:1]
+    mark_seen(used_entries, pruned_seen)
     save_seen(pruned_seen)
+    logger.info("标记已用素材 %d/%d 条", len(used_entries), len(selected_entries))
 
     logger.info("KeelTrader Digest 完成: %s", date_range)
     logger.info("=" * 50)
