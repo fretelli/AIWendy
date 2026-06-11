@@ -76,6 +76,10 @@ POOL_HOURS = int(os.environ.get("KEELTRADER_DIGEST_POOL_HOURS", "168"))
 ENTRY_LIMIT = int(os.environ.get("KEELTRADER_DIGEST_ENTRY_LIMIT", "36"))
 FALLBACK_BATCHES = int(os.environ.get("KEELTRADER_DIGEST_FALLBACK_BATCHES", "3"))
 EMPTY_ALERT_ENABLED = os.environ.get("KEELTRADER_DIGEST_EMPTY_ALERT_ENABLED", "true").strip().lower() not in {"0", "false", "no", "off"}
+MINIFLUX_CONNECT_TIMEOUT = float(os.environ.get("KEELTRADER_DIGEST_MINIFLUX_CONNECT_TIMEOUT", "5"))
+MINIFLUX_READ_TIMEOUT = float(os.environ.get("KEELTRADER_DIGEST_MINIFLUX_READ_TIMEOUT", "60"))
+MINIFLUX_RETRIES = max(1, int(os.environ.get("KEELTRADER_DIGEST_MINIFLUX_RETRIES", "3")))
+MINIFLUX_RETRY_BACKOFF_SECONDS = float(os.environ.get("KEELTRADER_DIGEST_MINIFLUX_RETRY_BACKOFF_SECONDS", "2"))
 
 
 logging.basicConfig(
@@ -159,14 +163,49 @@ MAX_CONTEXT_CHARS = 80000
 # ──────────────────────────────────────────────
 
 def _miniflux_get(path: str, params: dict | None = None) -> dict:
-    resp = requests.get(
-        f"{MINIFLUX_API_URL}/v1{path}",
-        headers={"X-Auth-Token": MINIFLUX_API_KEY},
-        params=params,
-        timeout=30,
-    )
-    resp.raise_for_status()
-    return resp.json()
+    url = f"{MINIFLUX_API_URL}/v1{path}"
+    timeout = (MINIFLUX_CONNECT_TIMEOUT, MINIFLUX_READ_TIMEOUT)
+    last_error: Exception | None = None
+    for attempt in range(1, MINIFLUX_RETRIES + 1):
+        try:
+            resp = requests.get(
+                url,
+                headers={"X-Auth-Token": MINIFLUX_API_KEY},
+                params=params,
+                timeout=timeout,
+            )
+            if resp.status_code >= 500:
+                try:
+                    resp.raise_for_status()
+                except requests.HTTPError as exc:
+                    last_error = exc
+                if attempt < MINIFLUX_RETRIES:
+                    logger.warning(
+                        "Miniflux API transient error path=%s status=%s attempt=%d/%d; retrying",
+                        path,
+                        resp.status_code,
+                        attempt,
+                        MINIFLUX_RETRIES,
+                    )
+                    time.sleep(MINIFLUX_RETRY_BACKOFF_SECONDS * attempt)
+                    continue
+                resp.raise_for_status()
+            resp.raise_for_status()
+            return resp.json()
+        except (requests.Timeout, requests.ConnectionError) as exc:
+            last_error = exc
+            if attempt >= MINIFLUX_RETRIES:
+                break
+            logger.warning(
+                "Miniflux API request failed path=%s error=%s attempt=%d/%d; retrying",
+                path,
+                type(exc).__name__,
+                attempt,
+                MINIFLUX_RETRIES,
+            )
+            time.sleep(MINIFLUX_RETRY_BACKOFF_SECONDS * attempt)
+    assert last_error is not None
+    raise last_error
 
 
 def _strip_html(text: str) -> str:
