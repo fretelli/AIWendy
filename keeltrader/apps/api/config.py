@@ -62,6 +62,14 @@ class Settings(BaseSettings):
             "AUTH_REQUIRED"
         ),
     )
+    password_reset_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "KEELTRADER_PASSWORD_RESET_ENABLED",
+            "PASSWORD_RESET_ENABLED",
+            "password_reset_enabled",
+        ),
+    )
 
     # Encryption key for API keys (separate from JWT secret)
     encryption_key: Optional[str] = Field(

@@ -4,11 +4,13 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class SessionInfo(BaseModel):
     """User session information."""
+
+    model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     ip_address: Optional[str] = None
@@ -17,9 +19,6 @@ class SessionInfo(BaseModel):
     last_activity_at: datetime
     expires_at: datetime
     is_current: bool = False
-
-    class Config:
-        from_attributes = True
 
 
 class SessionListResponse(BaseModel):
