@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class TradeDirection(str, Enum):
@@ -39,6 +39,8 @@ class RuleViolationType(str, Enum):
 
 class JournalBase(BaseModel):
     """Base journal schema."""
+
+    model_config = ConfigDict(use_enum_values=True)
 
     project_id: Optional[uuid.UUID] = None
 
@@ -76,7 +78,7 @@ class JournalBase(BaseModel):
     confidence_level: Optional[int] = Field(None, ge=1, le=5)
     stress_level: Optional[int] = Field(None, ge=1, le=5)
     followed_rules: bool = True
-    rule_violations: List[RuleViolationType] = []
+    rule_violations: List[RuleViolationType] = Field(default_factory=list)
 
     # Notes
     setup_description: Optional[str] = None
@@ -85,21 +87,19 @@ class JournalBase(BaseModel):
     notes: Optional[str] = None
 
     # Tags and strategy
-    tags: List[str] = []
+    tags: List[str] = Field(default_factory=list)
     strategy_name: Optional[str] = None
 
     # Attachments
-    screenshots: List[str] = []
+    screenshots: List[str] = Field(default_factory=list)
 
-    @validator("pnl_percentage")
+    @field_validator("pnl_percentage")
+    @classmethod
     def validate_pnl_percentage(cls, v):
         """Validate PnL percentage is reasonable."""
         if v is not None and abs(v) > 1000:  # More than 1000% seems unrealistic
             raise ValueError("PnL percentage seems unrealistic")
         return v
-
-    class Config:
-        use_enum_values = True
 
 
 class JournalCreate(JournalBase):
@@ -110,6 +110,8 @@ class JournalCreate(JournalBase):
 
 class JournalUpdate(BaseModel):
     """Journal update schema - all fields optional."""
+
+    model_config = ConfigDict(use_enum_values=True)
 
     project_id: Optional[uuid.UUID] = None
 
@@ -162,12 +164,11 @@ class JournalUpdate(BaseModel):
     # Attachments
     screenshots: Optional[List[str]] = None
 
-    class Config:
-        use_enum_values = True
-
 
 class JournalResponse(JournalBase):
     """Journal response schema."""
+
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
     id: uuid.UUID
     user_id: uuid.UUID
@@ -183,10 +184,6 @@ class JournalResponse(JournalBase):
     # Computed fields
     is_winner: bool = False
     is_rule_violation: bool = False
-
-    class Config:
-        orm_mode = True
-        use_enum_values = True
 
 
 class JournalListResponse(BaseModel):

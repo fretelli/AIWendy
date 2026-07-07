@@ -10,15 +10,18 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
+from config import get_settings
 from core.database import get_db_context
 from core.logging import get_logger
 
 logger = get_logger(__name__)
+settings = get_settings()
 
 # Beijing timezone offset
 CST = timezone(timedelta(hours=8))
 
 _scheduler_task: Optional[asyncio.Task] = None
+_trade_sync_task: Optional[asyncio.Task] = None
 
 
 async def start_scheduler():
@@ -44,19 +47,26 @@ async def stop_scheduler():
 
 async def _scheduler_loop():
     """Main scheduler loop."""
-    sync_counter = 0
+    last_trade_sync_at: datetime | None = None
     last_rpg_refresh = None
+    trade_sync_enabled = settings.trade_sync_enabled
+    trade_sync_interval = max(10, settings.trade_sync_interval_seconds)
+
+    if not trade_sync_enabled:
+        logger.info("trade_sync_scheduler_disabled")
 
     while True:
         try:
             now_cst = datetime.now(CST)
             today = now_cst.date()
 
-            # Every 60s trade sync
-            sync_counter += 1
-            if sync_counter >= 6:  # 6 * 10s = 60s
-                sync_counter = 0
-                asyncio.create_task(_run_trade_sync())
+            if trade_sync_enabled:
+                now_utc = datetime.utcnow()
+                due = _trade_sync_due(last_trade_sync_at, now_utc, trade_sync_interval)
+                if due:
+                    scheduled = _schedule_trade_sync()
+                    if scheduled:
+                        last_trade_sync_at = now_utc
 
             # Daily 00:05 RPG refresh (recalculate attributes, refresh quests, update leaderboard)
             if (
@@ -95,6 +105,23 @@ async def _run_trade_sync():
             db.close()
     except Exception as e:
         logger.error("trade_sync_failed", error=str(e))
+
+
+def _schedule_trade_sync() -> bool:
+    """Schedule trade sync unless a previous run is still active."""
+    global _trade_sync_task
+    if _trade_sync_task and not _trade_sync_task.done():
+        logger.warning("trade_sync_skipped_already_running")
+        return False
+    _trade_sync_task = asyncio.create_task(_run_trade_sync())
+    return True
+
+
+def _trade_sync_due(last_run_at: datetime | None, now: datetime, interval_seconds: int) -> bool:
+    """Return whether a trade sync run is due."""
+    if last_run_at is None:
+        return True
+    return (now - last_run_at).total_seconds() >= interval_seconds
 
 
 async def _run_rpg_daily_refresh():
