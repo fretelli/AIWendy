@@ -1,5 +1,10 @@
 /**
  * Market Data WebSocket Client
+ *
+ * WebSocket traffic is not handled by the Next.js HTTP API proxy. Deployments
+ * that use this client must explicitly expose a protected WS upstream and set
+ * NEXT_PUBLIC_MARKET_DATA_WS_URL, for example:
+ * wss://example.com/api/v1/market-data/ws
  */
 
 interface PriceUpdate {
@@ -49,10 +54,14 @@ export class MarketDataWebSocket {
       return
     }
 
-    // Get WebSocket URL
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.host
-    const wsUrl = `${protocol}//${host}/api/market-data/ws/${this.symbol}`
+    const configuredBaseUrl = process.env.NEXT_PUBLIC_MARKET_DATA_WS_URL?.replace(/\/+$/, '')
+    if (!configuredBaseUrl) {
+      console.warn('Market data WebSocket URL is not configured')
+      this.options.onDisconnect()
+      return
+    }
+
+    const wsUrl = `${configuredBaseUrl}/${encodeURIComponent(this.symbol)}`
 
     this.ws = new WebSocket(wsUrl)
 
