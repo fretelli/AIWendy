@@ -22,6 +22,10 @@ class MarketDataWebSocketService:
     def __init__(self):
         settings = get_settings()
         self.api_key = settings.twelve_data_api_key
+        self.allow_mock_stream = (
+            settings.environment.lower() not in {"production", "prod"}
+            and getattr(settings, "enable_mock_market_data", False)
+        )
         self.ws_url = "wss://ws.twelvedata.com/v1/quotes/price"
 
         # Track active connections
@@ -34,7 +38,10 @@ class MarketDataWebSocketService:
         self.twelve_data_ws: Optional[websockets.WebSocketClientProtocol] = None
         self.is_connected = False
 
-        logger.info("Market data WebSocket service initialized")
+        logger.info(
+            "Market data WebSocket service initialized",
+            extra={"mock_stream_enabled": self.allow_mock_stream},
+        )
 
     async def connect_to_twelve_data(self):
         """Connect to Twelve Data WebSocket"""
@@ -134,7 +141,6 @@ class MarketDataWebSocketService:
         # Add to active connections
         self.active_connections.add(websocket)
 
-        # If we have Twelve Data API key, subscribe to the symbol
         if self.is_connected and self.twelve_data_ws:
             try:
                 subscribe_message = {
@@ -147,9 +153,17 @@ class MarketDataWebSocketService:
                 logger.info(f"Subscribed to {symbol} on Twelve Data")
             except Exception as e:
                 logger.error(f"Error subscribing to {symbol}: {e}")
-        else:
-            # If no API key, start mock data stream
+        elif self.allow_mock_stream:
             asyncio.create_task(self._mock_price_stream(websocket, symbol))
+        else:
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "code": "MARKET_DATA_STREAM_UNAVAILABLE",
+                    "message": "Real-time market data stream is unavailable.",
+                }
+            )
+            await websocket.close(code=1013)
 
         logger.info(f"Client subscribed to {symbol}")
 
