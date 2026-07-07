@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import bcrypt
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, WebSocket, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from sqlalchemy import select
@@ -22,6 +22,7 @@ settings = get_settings()
 security = HTTPBearer(auto_error=False)
 
 GUEST_EMAIL = "guest@local.keeltrader"
+ACCESS_TOKEN_COOKIE = "keeltrader_access_token"
 
 
 async def _ensure_guest_user(session: AsyncSession) -> User:
@@ -186,6 +187,67 @@ async def get_current_user(
         if not settings.auth_required:
             return await _ensure_guest_user(session)
         raise UserNotFoundError(user_id)
+
+    return user
+
+
+def extract_websocket_token(
+    websocket: WebSocket,
+    access_token_cookie: str = ACCESS_TOKEN_COOKIE,
+) -> Optional[str]:
+    """Extract an access token from a WebSocket bearer header or auth cookie."""
+    authorization = websocket.headers.get("authorization")
+    if authorization and authorization.lower().startswith("bearer "):
+        return authorization.split(" ", 1)[1].strip()
+    return websocket.cookies.get(access_token_cookie)
+
+
+async def get_websocket_user(
+    websocket: WebSocket,
+    session: AsyncSession,
+    access_token_cookie: str = ACCESS_TOKEN_COOKIE,
+) -> User:
+    """Authenticate a WebSocket connection using the same JWT/session rules as HTTP."""
+    runtime_settings = get_settings()
+    token = extract_websocket_token(websocket, access_token_cookie)
+    if not token:
+        if runtime_settings.auth_required:
+            raise InvalidTokenError()
+        return await _ensure_guest_user(session)
+
+    try:
+        payload = decode_token(token)
+        if payload.get("type") != "access":
+            raise InvalidTokenError()
+
+        user_id = payload.get("sub")
+        session_id = payload.get("session_id")
+        if not user_id:
+            raise InvalidTokenError()
+
+        if session_id:
+            from core.cache import get_redis_client
+
+            redis_client = get_redis_client()
+            stored_user_id = redis_client.get(f"session:{session_id}")
+            if not stored_user_id or str(stored_user_id) != str(user_id):
+                raise InvalidTokenError()
+    except (InvalidTokenError, TokenExpiredError, JWTError):
+        if not runtime_settings.auth_required:
+            return await _ensure_guest_user(session)
+        raise InvalidTokenError()
+
+    result = await session.execute(
+        select(User).where(User.id == user_id, User.is_active == True)
+    )
+    user = result.scalar_one_or_none()
+    if user is None:
+        if not runtime_settings.auth_required:
+            return await _ensure_guest_user(session)
+        raise InvalidTokenError()
+
+    if user.email == GUEST_EMAIL and runtime_settings.auth_required:
+        raise InvalidTokenError()
 
     return user
 

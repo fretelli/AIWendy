@@ -57,26 +57,26 @@ async def test_market_data_not_found_is_not_masked_as_500(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_market_data_websocket_accepts_access_token_cookie():
-    from routers.market_data import authenticate_market_data_websocket
+    from core.auth import get_websocket_user
 
     user_id = uuid4()
     token = create_access_token({"sub": str(user_id)})
     websocket = SimpleNamespace(headers={}, cookies={"keeltrader_access_token": token})
     session = _FakeSession(SimpleNamespace(id=user_id, email="user@example.com", is_active=True))
 
-    user = await authenticate_market_data_websocket(websocket, session)
+    user = await get_websocket_user(websocket, session)
 
     assert user.id == user_id
 
 
 @pytest.mark.asyncio
 async def test_market_data_websocket_rejects_invalid_token_cookie():
-    from routers.market_data import authenticate_market_data_websocket
+    from core.auth import get_websocket_user
 
     websocket = SimpleNamespace(headers={}, cookies={"keeltrader_access_token": "not-a-token"})
 
     with pytest.raises(InvalidTokenError):
-        await authenticate_market_data_websocket(websocket, _FakeSession())
+        await get_websocket_user(websocket, _FakeSession())
 
 
 @pytest.mark.asyncio
