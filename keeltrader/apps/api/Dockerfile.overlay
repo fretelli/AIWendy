@@ -1,0 +1,28 @@
+ARG OVERLAY_BASE_IMAGE=keeltrader-api:base
+FROM ${OVERLAY_BASE_IMAGE}
+
+USER root
+WORKDIR /app
+
+RUN find /app -mindepth 1 -maxdepth 1 \
+      ! -name ".venv" \
+      ! -name "__pycache__" \
+      -exec rm -rf {} +
+
+COPY --chown=appuser:appuser apps/ /app/apps/
+COPY --chown=appuser:appuser alembic.ini /app/alembic.ini
+COPY --chown=appuser:appuser migrations/ /app/migrations/
+
+RUN for item in /app/apps/api/*; do \
+      base=$(basename "$item"); \
+      [ "$base" = "Dockerfile" ] && continue; \
+      [ "$base" = "Dockerfile.overlay" ] && continue; \
+      [ "$base" = "Dockerfile.test" ] && continue; \
+      [ "$base" = "__pycache__" ] && continue; \
+      ln -sfn "$item" "/app/$base"; \
+    done && \
+    find /app/apps/api -name "*.sh" -exec sed -i 's/\r$//' {} \;
+
+USER appuser
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

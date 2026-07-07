@@ -1,0 +1,12 @@
+ARG API_UNDER_TEST_IMAGE=keeltrader-api:test-overlay
+FROM ${API_UNDER_TEST_IMAGE}
+
+USER root
+WORKDIR /app/apps/api
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+USER appuser
+WORKDIR /app
+
+CMD ["pytest"]

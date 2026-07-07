@@ -23,31 +23,29 @@ services:
       - /tmp:noexec,size=100M
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - TUSHARE_DATABASE_URL=${TUSHARE_DATABASE_URL}
+      - REPORT_KB_URL=${REPORT_KB_URL}
       - REDIS_URL=${REDIS_URL}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - OPENAI_BASE_URL=${OPENAI_BASE_URL}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
       - JWT_SECRET=${JWT_SECRET}
-      - KEELTRADER_AUTH_REQUIRED=${KEELTRADER_AUTH_REQUIRED:-0}
-      - KEELTRADER_AUTO_INIT_DB=${KEELTRADER_AUTO_INIT_DB:-1}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - KEELTRADER_AUTH_REQUIRED=${KEELTRADER_AUTH_REQUIRED:-1}
+      - KEELTRADER_PASSWORD_RESET_ENABLED=${KEELTRADER_PASSWORD_RESET_ENABLED:-0}
+      - KEELTRADER_AUTO_INIT_DB=${KEELTRADER_AUTO_INIT_DB:-0}
       - KEELTRADER_AUTO_INIT_TEST_USERS=${KEELTRADER_AUTO_INIT_TEST_USERS:-0}
+      - KEELTRADER_RELOAD=${KEELTRADER_RELOAD:-0}
+      - TRADE_SYNC_ENABLED=${TRADE_SYNC_ENABLED:-0}
+      - TRADE_SYNC_INTERVAL_SECONDS=${TRADE_SYNC_INTERVAL_SECONDS:-60}
       - CORS_ORIGINS=${CORS_ORIGINS}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ENVIRONMENT=production
     volumes:
       - uploads_data:/app/uploads
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.keeltrader-api.rule=Host(`keeltrader.joyeeassets.com`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.keeltrader-api.entrypoints=websecure"
-      - "traefik.http.routers.keeltrader-api.tls.certresolver=letsencrypt"
-      - "traefik.http.services.keeltrader-api.loadbalancer.server.port=8000"
-      # MCP SSE endpoint (reuse same service)
-      - "traefik.http.routers.keeltrader-mcp.rule=Host(`keeltrader.joyeeassets.com`) && PathPrefix(`/mcp`)"
-      - "traefik.http.routers.keeltrader-mcp.entrypoints=websecure"
-      - "traefik.http.routers.keeltrader-mcp.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.keeltrader-mcp.service=keeltrader-api"
+      - "traefik.enable=false"
     command: sh scripts/docker_start.sh
 
   web:
@@ -57,6 +55,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: http://api:8000
         NEXT_PUBLIC_AUTH_REQUIRED: "1"
+        NEXT_PUBLIC_SITE_URL: https://keeltrader.joyeeassets.com
     container_name: keeltrader-web
     restart: unless-stopped
     mem_limit: 256m
@@ -71,6 +70,7 @@ services:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=http://api:8000
       - NEXT_PUBLIC_AUTH_REQUIRED=1
+      - NEXT_PUBLIC_SITE_URL=https://keeltrader.joyeeassets.com
       - NEXTAUTH_URL=${NEXTAUTH_URL}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
     depends_on:
@@ -93,6 +93,31 @@ services:
       - "traefik.http.routers.keeltrader-research-proxy.tls.certresolver=letsencrypt"
       - "traefik.http.routers.keeltrader-research-proxy.service=keeltrader-web"
 
+  agent-engine:
+    image: keeltrader-api:latest
+    container_name: keeltrader-agent-engine
+    restart: unless-stopped
+    mem_limit: 256m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,size=50M
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - TUSHARE_DATABASE_URL=${TUSHARE_DATABASE_URL}
+      - REPORT_KB_URL=${REPORT_KB_URL}
+      - REDIS_URL=${REDIS_URL}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=production
+    depends_on:
+      api:
+        condition: service_started
+    command: python tasks/agentos_engine.py
+
   # === IBKR mode (profiles: [ibkr]) ===
 
   ib-gateway:
@@ -103,8 +128,8 @@ services:
     profiles:
       - ibkr
     environment:
-      - TWS_USERID=${IBKR_USERNAME}
-      - TWS_PASSWORD=${IBKR_PASSWORD}
+      - TWS_USERID=${IBKR_USERNAME:-}
+      - TWS_PASSWORD=${IBKR_PASSWORD:-}
       - TRADING_MODE=${IBKR_TRADING_MODE:-paper}
       - TWS_ACCEPT_INCOMING=accept
       - READ_ONLY_API=${IBKR_READ_ONLY:-yes}
