@@ -2,25 +2,12 @@
  * RPG API client
  */
 
-const API_BASE_URL = '/api/proxy/v1/rpg'
+import { apiJson } from '@/lib/api/client'
 
-function getHeaders(): Record<string, string> {
-  const token = localStorage.getItem('keeltrader_access_token') || localStorage.getItem('auth_token')
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  }
-}
+const API_BASE_URL = '/rpg'
 
 async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    headers: getHeaders(),
-    ...options,
-  })
-  if (!res.ok) {
-    throw new Error(`RPG API error: ${res.status}`)
-  }
-  return res.json()
+  return apiJson<T>(`${API_BASE_URL}${path}`, options)
 }
 
 export interface CharacterData {

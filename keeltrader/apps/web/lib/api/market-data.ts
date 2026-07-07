@@ -2,9 +2,9 @@
  * Market Data API Client
  */
 
-import { API_PROXY_PREFIX } from '@/lib/config'
+import { apiJson } from '@/lib/api/client'
 
-const API_BASE_URL = `${API_PROXY_PREFIX}/market-data`
+const API_BASE_URL = '/market-data'
 
 export interface PriceData {
   time: string
@@ -54,40 +54,14 @@ export const marketDataApi = {
     if (startDate) params.append('start_date', startDate)
     if (endDate) params.append('end_date', endDate)
 
-    const response = await fetch(
-      `${API_BASE_URL}/historical/${symbol}?${params}`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch historical data: ${response.statusText}`)
-    }
-
-    return response.json()
+    return apiJson<PriceData[]>(`${API_BASE_URL}/historical/${symbol}?${params}`)
   },
 
   /**
    * Get real-time price
    */
   async getRealTimePrice(symbol: string): Promise<RealTimePrice> {
-    const response = await fetch(
-      `${API_BASE_URL}/real-time/${symbol}`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch real-time price: ${response.statusText}`)
-    }
-
-    return response.json()
+    return apiJson<RealTimePrice>(`${API_BASE_URL}/real-time/${symbol}`)
   },
 
   /**
@@ -104,20 +78,7 @@ export const marketDataApi = {
       period: period.toString()
     })
 
-    const response = await fetch(
-      `${API_BASE_URL}/indicators/${symbol}/${indicator}?${params}`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch indicators: ${response.statusText}`)
-    }
-
-    return response.json()
+    return apiJson<IndicatorData[]>(`${API_BASE_URL}/indicators/${symbol}/${indicator}?${params}`)
   },
 
   /**
@@ -126,19 +87,6 @@ export const marketDataApi = {
   async searchSymbols(query: string): Promise<SymbolSearchResult[]> {
     const params = new URLSearchParams({ query })
 
-    const response = await fetch(
-      `${API_BASE_URL}/symbols/search?${params}`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    )
-
-    if (!response.ok) {
-      throw new Error(`Failed to search symbols: ${response.statusText}`)
-    }
-
-    return response.json()
+    return apiJson<SymbolSearchResult[]>(`${API_BASE_URL}/symbols/search?${params}`)
   },
 }

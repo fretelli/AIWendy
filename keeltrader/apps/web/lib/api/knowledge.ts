@@ -1,4 +1,4 @@
-import { getApiUrl } from '@/lib/config'
+import { apiFetch, apiJson } from '@/lib/api/client'
 
 export interface KnowledgeDocument {
   id: string
@@ -31,56 +31,26 @@ export interface KnowledgeSearchResult {
 }
 
 class KnowledgeAPI {
-  private apiUrl: string
-
-  constructor() {
-    this.apiUrl = getApiUrl()
-  }
-
-  private getHeaders() {
-    const token = localStorage.getItem('keeltrader_access_token')
-    return {
-      'Content-Type': 'application/json',
-      Authorization: token ? `Bearer ${token}` : '',
-    }
-  }
-
   async listDocuments(projectId?: string | null): Promise<KnowledgeDocument[]> {
     const params = new URLSearchParams()
     if (projectId) params.append('project_id', projectId)
-    const response = await fetch(`${this.apiUrl}/knowledge/documents?${params}`, {
-      headers: this.getHeaders(),
-    })
-    if (!response.ok) {
-      throw new Error('Failed to fetch documents')
-    }
-    return response.json()
+    return apiJson<KnowledgeDocument[]>(`/knowledge/documents?${params}`)
   }
 
   async createDocument(request: CreateKnowledgeDocumentRequest): Promise<KnowledgeDocument> {
-    const response = await fetch(`${this.apiUrl}/knowledge/documents`, {
+    return apiJson<KnowledgeDocument>('/knowledge/documents', {
       method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(request),
+      body: request,
     })
-    if (!response.ok) {
-      const data = await response.json().catch(() => null)
-      const detail = typeof data?.detail === 'string' ? data.detail : 'Failed to create document'
-      throw new Error(detail)
-    }
-    return response.json()
   }
 
   async deleteDocument(documentId: string, hardDelete: boolean = false): Promise<void> {
     const params = hardDelete ? '?hard_delete=true' : ''
-    const response = await fetch(`${this.apiUrl}/knowledge/documents/${documentId}${params}`, {
+    const response = await apiFetch(`/knowledge/documents/${documentId}${params}`, {
       method: 'DELETE',
-      headers: this.getHeaders(),
     })
     if (!response.ok) {
-      const data = await response.json().catch(() => null)
-      const detail = typeof data?.detail === 'string' ? data.detail : 'Failed to delete document'
-      throw new Error(detail)
+      throw new Error('Failed to delete document')
     }
   }
 
@@ -89,15 +59,8 @@ class KnowledgeAPI {
     params.append('q', q)
     if (projectId) params.append('project_id', projectId)
     params.append('limit', String(limit))
-    const response = await fetch(`${this.apiUrl}/knowledge/search?${params}`, {
-      headers: this.getHeaders(),
-    })
-    if (!response.ok) {
-      throw new Error('Failed to search knowledge base')
-    }
-    return response.json()
+    return apiJson<KnowledgeSearchResult[]>(`/knowledge/search?${params}`)
   }
 }
 
 export const knowledgeAPI = new KnowledgeAPI()
-

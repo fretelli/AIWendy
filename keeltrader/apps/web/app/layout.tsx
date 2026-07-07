@@ -8,6 +8,7 @@ import { I18nProvider } from "@/lib/i18n/provider";
 import { getLocale, generateMetadata as generateI18nMetadata } from "@/lib/i18n/server";
 
 const inter = Inter({ subsets: ["latin"] });
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://keeltrader.joyeeassets.com";
 
 export const viewport = {
   width: "device-width",
@@ -20,6 +21,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const i18nMeta = generateI18nMetadata(locale);
 
   return {
+    metadataBase: new URL(siteUrl),
     title: {
       default: i18nMeta.title,
       template: '%s | KeelTrader',
@@ -31,23 +33,14 @@ export async function generateMetadata(): Promise<Metadata> {
     publisher: 'KeelTrader',
     openGraph: {
       ...i18nMeta.openGraph,
-      url: "https://keeltrader.com",
+      url: siteUrl,
       siteName: "KeelTrader",
       type: "website",
-      images: [
-        {
-          url: '/og-image.png',
-          width: 1200,
-          height: 630,
-          alt: 'KeelTrader - AI Trading Psychology Coach',
-        },
-      ],
     },
     twitter: {
       card: 'summary_large_image',
       title: i18nMeta.title,
       description: i18nMeta.description,
-      images: ['/twitter-image.png'],
       creator: '@keeltrader',
     },
     robots: {

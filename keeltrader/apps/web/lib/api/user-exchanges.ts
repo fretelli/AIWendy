@@ -2,9 +2,9 @@
  * User Exchange Connection API Client
  */
 
-import { API_PROXY_PREFIX } from '@/lib/config'
+import { apiFetch, apiJson } from '@/lib/api/client'
 
-const API_BASE_URL = `${API_PROXY_PREFIX}/v1/user/exchanges`
+const API_BASE_URL = '/user/exchanges'
 
 export type ExchangeType = 'okx' | 'bybit' | 'coinbase' | 'kraken' | 'ibkr'
 export type TradingMode = 'spot' | 'swap' | 'stock' | 'option' | 'future'
@@ -66,39 +66,14 @@ export const userExchangeApi = {
     const params = new URLSearchParams()
     if (activeOnly) params.append('active_only', 'true')
 
-    const response = await fetch(
-      `${API_BASE_URL}${params.toString() ? `?${params}` : ''}`,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Include cookies for auth
-      }
-    )
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch connections: ${response.statusText}`)
-    }
-
-    return response.json()
+    return apiJson<ExchangeConnection[]>(`${API_BASE_URL}${params.toString() ? `?${params}` : ''}`)
   },
 
   /**
    * Get a specific exchange connection
    */
   async getConnection(connectionId: string): Promise<ExchangeConnection> {
-    const response = await fetch(`${API_BASE_URL}/${connectionId}`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch connection: ${response.statusText}`)
-    }
-
-    return response.json()
+    return apiJson<ExchangeConnection>(`${API_BASE_URL}/${connectionId}`)
   },
 
   /**
@@ -107,21 +82,10 @@ export const userExchangeApi = {
   async createConnection(
     request: CreateExchangeConnectionRequest
   ): Promise<ExchangeConnection> {
-    const response = await fetch(API_BASE_URL, {
+    return apiJson<ExchangeConnection>(API_BASE_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify(request),
+      body: request,
     })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.detail || 'Failed to create connection')
-    }
-
-    return response.json()
   },
 
   /**
@@ -131,38 +95,22 @@ export const userExchangeApi = {
     connectionId: string,
     request: UpdateExchangeConnectionRequest
   ): Promise<ExchangeConnection> {
-    const response = await fetch(`${API_BASE_URL}/${connectionId}`, {
+    return apiJson<ExchangeConnection>(`${API_BASE_URL}/${connectionId}`, {
       method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
-      body: JSON.stringify(request),
+      body: request,
     })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.detail || 'Failed to update connection')
-    }
-
-    return response.json()
   },
 
   /**
    * Delete an exchange connection
    */
   async deleteConnection(connectionId: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}/${connectionId}`, {
+    const response = await apiFetch(`${API_BASE_URL}/${connectionId}`, {
       method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
     })
 
     if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.detail || 'Failed to delete connection')
+      throw new Error('Failed to delete connection')
     }
   },
 
@@ -170,19 +118,8 @@ export const userExchangeApi = {
    * Test an exchange connection
    */
   async testConnection(connectionId: string): Promise<TestConnectionResponse> {
-    const response = await fetch(`${API_BASE_URL}/${connectionId}/test`, {
+    return apiJson<TestConnectionResponse>(`${API_BASE_URL}/${connectionId}/test`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      credentials: 'include',
     })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.detail || 'Failed to test connection')
-    }
-
-    return response.json()
   },
 }

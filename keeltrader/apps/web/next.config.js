@@ -1,22 +1,27 @@
+const path = require('path');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
+  outputFileTracingRoot: path.join(__dirname),
 
   // Image optimization
   images: {
-    domains: ['localhost', 'keeltrader.com'],
-    formats: ['image/avif', 'image/webp'],
-  },
-
-  // API Proxy configuration
-  async rewrites() {
-    return [
+    remotePatterns: [
       {
-        source: '/api/proxy/:path*',
-        destination: 'http://api:8000/api/:path*',
+        protocol: 'http',
+        hostname: 'localhost',
       },
-    ];
+      {
+        protocol: 'https',
+        hostname: 'keeltrader.joyeeassets.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'research.joyeeassets.com',
+      },
+    ],
+    formats: ['image/avif', 'image/webp'],
   },
 
   // Headers for security

@@ -2,7 +2,7 @@
  * Notification API client
  */
 
-import { API_V1_PREFIX } from "@/lib/config"
+import { apiFetch, apiJson } from "@/lib/api/client"
 
 export interface Notification {
   id: string
@@ -27,34 +27,13 @@ export interface DeviceToken {
 
 export const notificationApi = {
   async getNotifications(unreadOnly: boolean = false): Promise<Notification[]> {
-    const token = localStorage.getItem("keeltrader_access_token")
-    const response = await fetch(
-      `${API_V1_PREFIX}/notifications?unread_only=${unreadOnly}`,
-      {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-      }
-    )
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch notifications")
-    }
-
-    return response.json()
+    return apiJson<Notification[]>(`/notifications?unread_only=${unreadOnly}`)
   },
 
   async markAsRead(notificationId: string): Promise<void> {
-    const token = localStorage.getItem("keeltrader_access_token")
-    const response = await fetch(
-      `${API_V1_PREFIX}/notifications/${notificationId}/read`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-      }
-    )
+    const response = await apiFetch(`/notifications/${notificationId}/read`, {
+      method: "POST",
+    })
 
     if (!response.ok) {
       throw new Error("Failed to mark notification as read")
@@ -62,14 +41,9 @@ export const notificationApi = {
   },
 
   async registerDeviceToken(deviceToken: DeviceToken): Promise<void> {
-    const token = localStorage.getItem("keeltrader_access_token")
-    const response = await fetch(`${API_V1_PREFIX}/notifications/device-tokens`, {
+    const response = await apiFetch("/notifications/device-tokens", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: token ? `Bearer ${token}` : "",
-      },
-      body: JSON.stringify(deviceToken),
+      body: deviceToken,
     })
 
     if (!response.ok) {
@@ -78,16 +52,9 @@ export const notificationApi = {
   },
 
   async unregisterDeviceToken(token: string): Promise<void> {
-    const authToken = localStorage.getItem("keeltrader_access_token")
-    const response = await fetch(
-      `${API_V1_PREFIX}/notifications/device-tokens/${token}`,
-      {
-        method: "DELETE",
-        headers: {
-          Authorization: authToken ? `Bearer ${authToken}` : "",
-        },
-      }
-    )
+    const response = await apiFetch(`/notifications/device-tokens/${token}`, {
+      method: "DELETE",
+    })
 
     if (!response.ok) {
       throw new Error("Failed to unregister device token")
