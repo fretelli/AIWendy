@@ -10,6 +10,7 @@ import { ToolCallCard } from '@/components/v2/ToolCallCard';
 import { OrderConfirmCard } from '@/components/v2/OrderConfirmCard';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { apiStream, apiJson } from '@/lib/api/client';
 
 interface ChatMessage {
   id: string;
@@ -25,7 +26,7 @@ interface ToolCallData {
   result?: Record<string, any>;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const API_BASE = '/api/proxy/v1';
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -41,11 +42,6 @@ export default function ChatPage() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
-
-  const getAuthHeaders = (): Record<string, string> => {
-    const token = localStorage.getItem('keeltrader_access_token') || localStorage.getItem('auth_token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  };
 
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -70,19 +66,13 @@ export default function ChatPage() {
     setMessages(prev => [...prev, assistantMsg]);
 
     try {
-      const resp = await fetch(`${API_BASE}/api/v1/chat/send`, {
+      const resp = await apiStream(`${API_BASE}/chat/send`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({
+        body: {
           message: text,
           session_id: sessionId,
-        }),
+        },
       });
-
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 
       const reader = resp.body?.getReader();
       if (!reader) throw new Error('No response body');
@@ -181,16 +171,10 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
 
     try {
-      const resp = await fetch(`${API_BASE}/api/v1/chat/quick`, {
+      const data = await apiJson<{ result: Record<string, any> }>(`${API_BASE}/chat/quick`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({ action, params: params || {} }),
+        body: { action, params: params || {} },
       });
-
-      const data = await resp.json();
 
       const assistantMsg: ChatMessage = {
         id: crypto.randomUUID(),
