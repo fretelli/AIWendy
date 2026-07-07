@@ -30,6 +30,7 @@ import requests
 from bs4 import BeautifulSoup
 
 sys.path.insert(0, "/root/infra-root/scripts/lib")
+from agent_os_client import format_run_marker, load_memory_context, notify_content_run, record_content_run  # noqa: E402
 from xhs_editorial_guard import (  # noqa: E402
     EditorialGuardError,
     format_artifact_summary,
@@ -376,6 +377,9 @@ def extract_used_entries(post_text: str, entries: list[dict]) -> list[dict]:
 # ──────────────────────────────────────────────
 
 def _call_llm(prompt: str, temperature: float = 0.6, max_tokens: int = 2000) -> str:
+    memory_context = load_memory_context(source="keeltrader_digest")
+    if memory_context:
+        prompt = memory_context + "\n\n" + prompt
     headers = {"Authorization": f"Bearer {LLM_API_KEY}", "Content-Type": "application/json"}
     payload = {"model": LLM_MODEL, "messages": [{"role": "user", "content": prompt}],
                "temperature": temperature, "max_tokens": max_tokens}
@@ -912,6 +916,17 @@ def main():
             print(msg)
         else:
             _send_text(msg)
+        record_content_run(
+            source="keeltrader_digest",
+            status="needs_review",
+            column=column,
+            title=config["feishu_title"],
+            date_range=date_range,
+            guard_status="blocked",
+            guard_summary=reason,
+            metadata={"reason": "editorial_guard", "failures": len(failures)},
+            logger=logger,
+        )
         return
     logger.info("帖子生成完成 (%d 字)", len(post_text))
 
@@ -925,6 +940,16 @@ def main():
     send_key = f"{column}:{date_range}"
     if send_state.get(send_key):
         logger.info("发送去重命中，跳过重复推送: %s", send_key)
+        record_content_run(
+            source="keeltrader_digest",
+            status="skipped",
+            column=column,
+            title=_parse_post(post_text)[0],
+            date_range=date_range,
+            send_key=send_key,
+            metadata={"reason": "send_dedupe"},
+            logger=logger,
+        )
         return
 
     # 生成封面图
@@ -951,6 +976,30 @@ def main():
     mark_seen(used_entries, pruned_seen)
     save_seen(pruned_seen)
     logger.info("标记已用素材 %d/%d 条", len(used_entries), len(selected_entries))
+
+    run_id = record_content_run(
+        source="keeltrader_digest",
+        status="sent",
+        column=column,
+        title=_parse_post(post_text)[0],
+        date_range=date_range,
+        send_key=send_key,
+        feishu_title=feishu_title,
+        guard_status="passed" if guard_artifacts else "",
+        metadata={"used_entries": len(used_entries), "candidate_entries": len(selected_entries)},
+        logger=logger,
+    )
+    try:
+        if not notify_content_run(
+            source="keeltrader_digest",
+            run_id=run_id,
+            title=_parse_post(post_text)[0],
+            feishu_title=feishu_title,
+            logger=logger,
+        ):
+            _send_text(format_run_marker(run_id))
+    except Exception as exc:
+        logger.warning("Agent OS run_id 推送失败: %s", exc)
 
     logger.info("KeelTrader Digest 完成: %s", date_range)
     logger.info("=" * 50)
