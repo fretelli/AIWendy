@@ -56,7 +56,7 @@ def get_db_url() -> str:
     elif url.drivername.endswith("+aiosqlite"):
         url = url.set(drivername=url.drivername.replace("+aiosqlite", ""))
 
-    return str(url)
+    return url.render_as_string(hide_password=False)
 
 
 _sync_db_url = get_db_url()
@@ -94,6 +94,7 @@ async def init_database() -> None:
         from sqlalchemy import text
 
         from domain.analysis import models as analysis_models  # noqa
+        from domain.agentos import models as agentos_models  # noqa
         from domain.coach import models as coach_models  # noqa
         from domain.exchange import models as exchange_models  # noqa
         from domain.journal import models as journal_models  # noqa
