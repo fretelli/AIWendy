@@ -27,7 +27,8 @@ class MarketDataService:
         # Initialize all available adapters
         self.adapters: List[MarketDataAdapter] = []
 
-        # Priority order: Twelve Data > Alpha Vantage > Yahoo Finance > Mock
+        # Priority order: Twelve Data > Alpha Vantage > Yahoo Finance.
+        # Mock data is never a production fallback; it must be explicitly enabled.
         twelve_data_key = getattr(settings, "twelve_data_api_key", None)
         if twelve_data_key:
             self.adapters.append(TwelveDataAdapter(twelve_data_key))
@@ -42,9 +43,13 @@ class MarketDataService:
         self.adapters.append(YahooFinanceAdapter())
         logger.info("Yahoo Finance adapter initialized")
 
-        # Mock data as final fallback
-        self.adapters.append(MockDataAdapter())
-        logger.info("Mock data adapter initialized as fallback")
+        allow_mock = (
+            getattr(settings, "enable_mock_market_data", False)
+            and settings.environment.lower() in {"development", "dev", "test", "testing"}
+        )
+        if allow_mock:
+            self.adapters.append(MockDataAdapter())
+            logger.info("Mock data adapter initialized by explicit non-production setting")
 
         logger.info(f"Market data service initialized with {len(self.adapters)} data sources")
 

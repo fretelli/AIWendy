@@ -5,7 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +31,8 @@ class ProjectUpdateRequest(BaseModel):
 
 
 class ProjectResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     user_id: UUID
     name: str
@@ -39,9 +41,6 @@ class ProjectResponse(BaseModel):
     is_archived: bool
     created_at: datetime
     updated_at: datetime
-
-    class Config:
-        orm_mode = True
 
 
 @router.get("", response_model=List[ProjectResponse])

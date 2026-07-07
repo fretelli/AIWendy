@@ -86,6 +86,14 @@ class Settings(BaseSettings):
 
     # ========== Market Data API Keys ==========
     twelve_data_api_key: Optional[str] = None
+    enable_mock_market_data: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "KEELTRADER_ENABLE_MOCK_MARKET_DATA",
+            "ENABLE_MOCK_MARKET_DATA",
+            "enable_mock_market_data",
+        ),
+    )
 
     # ========== Exchange API Keys ==========
     # OKX
@@ -122,7 +130,7 @@ class Settings(BaseSettings):
 
     # ========== Trade Sync ==========
     trade_sync_enabled: bool = Field(
-        default=True,
+        default=False,
         validation_alias=AliasChoices("TRADE_SYNC_ENABLED", "trade_sync_enabled"),
     )
     trade_sync_interval_seconds: int = Field(

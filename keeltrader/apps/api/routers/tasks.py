@@ -44,6 +44,23 @@ class IngestKnowledgeRequest(BaseModel):
     embedding_model: Optional[str] = None
 
 
+async def _ensure_task_owner(task_id: str, current_user: User, locale: str) -> None:
+    cache = get_cache_service()
+    redis_client = await cache.async_client
+    owner = await redis_client.get(f"task:owner:{task_id}")
+    if owner and (str(owner) != str(current_user.id)) and (not current_user.is_admin):
+        raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
+
+
+def _queued_task_response(task_id: str, message: str) -> Dict[str, Any]:
+    return {
+        "task_id": task_id,
+        "status": "queued",
+        "message": message,
+        "check_status_url": f"/api/v1/tasks/status/{task_id}",
+    }
+
+
 @router.get("/status/{task_id}")
 async def get_task_status(
     task_id: str,
@@ -55,17 +72,7 @@ async def get_task_status(
     """
     locale = get_request_locale(http_request)
     try:
-        cache = get_cache_service()
-        redis_client = await cache.async_client
-        owner = await redis_client.get(f"task:owner:{task_id}")
-        if (
-            owner
-            and (str(owner) != str(current_user.id))
-            and (not current_user.is_admin)
-        ):
-            raise HTTPException(
-                status_code=403, detail=t("errors.access_denied", locale)
-            )
+        await _ensure_task_owner(task_id, current_user, locale)
 
         result = AsyncResult(task_id, app=celery_app)
 
@@ -96,6 +103,8 @@ async def get_task_status(
 
         return response
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to get task status: {str(e)}")
         raise HTTPException(status_code=500, detail=t("errors.internal", locale))
@@ -113,13 +122,10 @@ async def stream_task_status(
     This uses Redis pub/sub for push, with a best-effort AsyncResult state snapshot/heartbeat.
     """
     locale = get_request_locale(http_request)
+    await _ensure_task_owner(task_id, current_user, locale)
+
     cache = get_cache_service()
     redis_client = await cache.async_client
-
-    owner_key = f"task:owner:{task_id}"
-    owner = await redis_client.get(owner_key)
-    if owner and (str(owner) != str(current_user.id)) and (not current_user.is_admin):
-        raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
 
     channel = task_event_channel(task_id)
     result = AsyncResult(task_id, app=celery_app)
@@ -238,13 +244,10 @@ async def trigger_daily_report(
 
         logger.info(f"Daily report generation triggered: {task.id}")
 
-        return {
-            "task_id": task.id,
-            "status": "queued",
-            "message": t("messages.daily_report_queued", locale),
-            "check_status_url": f"/api/v1/tasks/status/{task.id}",
-        }
+        return _queued_task_response(task.id, t("messages.daily_report_queued", locale))
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to trigger daily report: {str(e)}")
         raise HTTPException(
@@ -279,13 +282,10 @@ async def trigger_weekly_report(
 
         logger.info(f"Weekly report generation triggered: {task.id}")
 
-        return {
-            "task_id": task.id,
-            "status": "queued",
-            "message": t("messages.weekly_report_queued", locale),
-            "check_status_url": f"/api/v1/tasks/status/{task.id}",
-        }
+        return _queued_task_response(task.id, t("messages.weekly_report_queued", locale))
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to trigger weekly report: {str(e)}")
         raise HTTPException(
@@ -323,13 +323,10 @@ async def trigger_monthly_report(
 
         logger.info(f"Monthly report generation triggered: {task.id}")
 
-        return {
-            "task_id": task.id,
-            "status": "queued",
-            "message": t("messages.monthly_report_queued", locale),
-            "check_status_url": f"/api/v1/tasks/status/{task.id}",
-        }
+        return _queued_task_response(task.id, t("messages.monthly_report_queued", locale))
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to trigger monthly report: {str(e)}")
         raise HTTPException(
@@ -381,13 +378,15 @@ async def trigger_knowledge_ingest(
         logger.info(f"Document processing triggered: {task.id}")
 
         return {
+            **_queued_task_response(
+                task.id, t("messages.knowledge_ingestion_queued", locale)
+            ),
             "task_id": task.id,
             "document_id": str(doc.id),
-            "status": "queued",
-            "message": t("messages.knowledge_ingestion_queued", locale),
-            "check_status_url": f"/api/v1/tasks/status/{task.id}",
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to trigger knowledge ingest: {str(e)}")
         raise HTTPException(status_code=500, detail=t("errors.internal", locale))
@@ -421,13 +420,10 @@ async def trigger_semantic_search(
 
         logger.info(f"Semantic search triggered: {task.id}")
 
-        return {
-            "task_id": task.id,
-            "status": "queued",
-            "message": t("messages.semantic_search_queued", locale),
-            "check_status_url": f"/api/v1/tasks/status/{task.id}",
-        }
+        return _queued_task_response(task.id, t("messages.semantic_search_queued", locale))
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to trigger semantic search: {str(e)}")
         raise HTTPException(status_code=500, detail=t("errors.internal", locale))
@@ -551,19 +547,7 @@ async def cancel_task(
     """
     locale = get_request_locale(http_request)
     try:
-        # Check task ownership (security fix)
-        cache = get_cache_service()
-        redis_client = await cache.async_client
-        owner = await redis_client.get(f"task:owner:{task_id}")
-
-        # Verify authorization: owner must match current user OR user must be admin
-        if owner and (str(owner) != str(current_user.id)) and (not current_user.is_admin):
-            logger.warning(
-                f"User {current_user.id} attempted to cancel task {task_id} owned by {owner}"
-            )
-            raise HTTPException(
-                status_code=403, detail=t("errors.access_denied", locale)
-            )
+        await _ensure_task_owner(task_id, current_user, locale)
 
         # Get task result
         result = AsyncResult(task_id, app=celery_app)
