@@ -46,16 +46,12 @@ import {
 } from '@/components/ui/sheet'
 import {
   BarChart3,
+  AlertCircle,
   Settings,
-  TrendingUp,
-  TrendingDown,
-  Activity,
-  Maximize2,
   ZoomIn,
   ZoomOut,
   RotateCcw,
   Download,
-  MoreVertical,
 } from 'lucide-react'
 import { JournalResponse } from '@/lib/types/journal'
 import { format } from 'date-fns'
@@ -190,41 +186,6 @@ function calculateBollingerBands(data: CandlestickData[], period: number = 20, s
   return { sma, upper, lower }
 }
 
-// Generate more realistic mock data
-function generateRealisticMockData(basePrice: number = 100, days: number = 90): CandlestickData[] {
-  const data: CandlestickData[] = []
-  const now = new Date()
-  let currentPrice = basePrice
-
-  for (let i = days; i >= 0; i--) {
-    const date = new Date(now)
-    date.setDate(date.getDate() - i)
-
-    // Add trend and volatility
-    const trend = Math.sin(i / 10) * 0.02
-    const volatility = 0.015 + Math.random() * 0.01
-    const gap = (Math.random() - 0.5) * volatility
-
-    const open = currentPrice * (1 + gap)
-    const change = trend + (Math.random() - 0.5) * volatility * 2
-    const close = open * (1 + change)
-    const high = Math.max(open, close) * (1 + Math.random() * volatility)
-    const low = Math.min(open, close) * (1 - Math.random() * volatility)
-
-    data.push({
-      time: format(date, 'yyyy-MM-dd') as any,
-      open: parseFloat(open.toFixed(2)),
-      high: parseFloat(high.toFixed(2)),
-      low: parseFloat(low.toFixed(2)),
-      close: parseFloat(close.toFixed(2)),
-    })
-
-    currentPrice = close
-  }
-
-  return data
-}
-
 export function AdvancedKLineChart({
   journals = [],
   symbol = 'SPY',
@@ -245,14 +206,16 @@ export function AdvancedKLineChart({
     { name: 'Volume', enabled: true },
   ])
 
-  const [chartType, setChartType] = useState<'candles' | 'line' | 'area'>('candles')
   const [showGrid, setShowGrid] = useState(true)
   const [showCrosshair, setShowCrosshair] = useState(true)
   const [darkMode, setDarkMode] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [retryNonce, setRetryNonce] = useState(0)
 
   useEffect(() => {
     const container = chartContainerRef.current
     if (!container) return
+    setLoadError(null)
 
     const chartOptions = {
       width: container.clientWidth || 800,
@@ -357,6 +320,13 @@ export function AdvancedKLineChart({
         )
 
         if (cancelled) return
+        if (marketData.length === 0) {
+          candlestickSeries.setData([])
+          if (volumeSeries) volumeSeries.setData([])
+          seriesMarkers.setMarkers([])
+          setLoadError(`No market data available for ${symbol}.`)
+          return
+        }
 
         const data: CandlestickData[] = marketData.map(d => ({
           time: format(new Date(d.time), 'yyyy-MM-dd') as any,
@@ -371,7 +341,7 @@ export function AdvancedKLineChart({
         if (volumeSeries) {
           const volumeData = marketData.map((d, i) => ({
             time: data[i].time,
-            value: d.volume || Math.random() * 1000000,
+            value: d.volume ?? 0,
             color: d.close >= d.open ? '#10b98150' : '#ef444450',
           }))
           volumeSeries.setData(volumeData)
@@ -453,20 +423,10 @@ export function AdvancedKLineChart({
       } catch (error) {
         if (cancelled) return
         console.error('Error loading chart data:', error)
-
-        const data = generateRealisticMockData(100, 90)
-        candlestickSeries.setData(data)
-
-        if (volumeSeries) {
-          const volumeData = data.map(d => ({
-            time: d.time,
-            value: Math.random() * 1000000,
-            color: d.close >= d.open ? '#10b98150' : '#ef444450',
-          }))
-          volumeSeries.setData(volumeData)
-        }
-
-        chart.timeScale().fitContent()
+        candlestickSeries.setData([])
+        if (volumeSeries) volumeSeries.setData([])
+        seriesMarkers.setMarkers([])
+        setLoadError(`Unable to load market data for ${symbol}.`)
       }
     }
 
@@ -489,7 +449,7 @@ export function AdvancedKLineChart({
       candleSeriesRef.current = null
       volumeSeriesRef.current = null
     }
-  }, [indicators, darkMode, showGrid, showCrosshair, symbol, height, journals, chartType])
+  }, [indicators, darkMode, showGrid, showCrosshair, symbol, interval, height, journals, retryNonce])
 
   const toggleIndicator = (indicatorName: string) => {
     setIndicators(prev =>
@@ -646,35 +606,6 @@ export function AdvancedKLineChart({
                     </div>
                   </div>
 
-                  <Separator />
-
-                  {/* Chart Type */}
-                  <div>
-                    <h3 className="font-medium mb-4">Chart Type</h3>
-                    <div className="grid grid-cols-3 gap-2">
-                      <Button
-                        variant={chartType === 'candles' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setChartType('candles')}
-                      >
-                        Candles
-                      </Button>
-                      <Button
-                        variant={chartType === 'line' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setChartType('line')}
-                      >
-                        Line
-                      </Button>
-                      <Button
-                        variant={chartType === 'area' ? 'default' : 'outline'}
-                        size="sm"
-                        onClick={() => setChartType('area')}
-                      >
-                        Area
-                      </Button>
-                    </div>
-                  </div>
                 </div>
               </SheetContent>
             </Sheet>
@@ -683,7 +614,18 @@ export function AdvancedKLineChart({
       </CardHeader>
 
       <CardContent className="p-0">
-        <div ref={chartContainerRef} className="w-full" />
+        <div className="relative">
+          <div ref={chartContainerRef} className="w-full" />
+          {loadError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/80 text-center">
+              <AlertCircle className="h-8 w-8 text-muted-foreground" />
+              <p className="max-w-sm text-sm text-muted-foreground">{loadError}</p>
+              <Button variant="outline" size="sm" onClick={() => setRetryNonce(value => value + 1)}>
+                Retry
+              </Button>
+            </div>
+          )}
+        </div>
 
         {/* Indicator Legend */}
         <div className="px-6 py-3 border-t bg-muted/30">

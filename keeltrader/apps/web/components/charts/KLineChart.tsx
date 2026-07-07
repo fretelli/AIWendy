@@ -16,7 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Activity, TrendingUp, TrendingDown, BarChart3, Loader2 } from 'lucide-react'
+import { AlertCircle, TrendingUp, TrendingDown, BarChart3, Loader2 } from 'lucide-react'
 import { JournalResponse } from '@/lib/types/journal'
 import { format } from 'date-fns'
 import { marketDataApi } from '@/lib/api/market-data'
@@ -27,54 +27,14 @@ interface KLineChartProps {
   onSymbolChange?: (symbol: string) => void
 }
 
-interface MarketData {
-  time: string
-  open: number
-  high: number
-  low: number
-  close: number
-  volume?: number
-}
-
-// Mock data generator for demonstration
-function generateMockData(basePrice: number = 100, days: number = 60): CandlestickData[] {
-  const data: CandlestickData[] = []
-  const now = new Date()
-  let currentPrice = basePrice
-
-  for (let i = days; i >= 0; i--) {
-    const date = new Date(now)
-    date.setDate(date.getDate() - i)
-
-    // Generate realistic OHLC data
-    const volatility = 0.02
-    const trend = Math.random() > 0.5 ? 1 : -1
-    const open = currentPrice
-    const close = open * (1 + trend * volatility * Math.random())
-    const high = Math.max(open, close) * (1 + volatility * Math.random() * 0.5)
-    const low = Math.min(open, close) * (1 - volatility * Math.random() * 0.5)
-
-    data.push({
-      time: format(date, 'yyyy-MM-dd') as any,
-      open: parseFloat(open.toFixed(2)),
-      high: parseFloat(high.toFixed(2)),
-      low: parseFloat(low.toFixed(2)),
-      close: parseFloat(close.toFixed(2)),
-    })
-
-    currentPrice = close
-  }
-
-  return data
-}
-
 export function KLineChart({ journals = [], symbol = 'SPY', onSymbolChange }: KLineChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const [timeframe, setTimeframe] = useState('1D')
-  const [chartType, setChartType] = useState<'candles' | 'line'>('candles')
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [retryNonce, setRetryNonce] = useState(0)
 
   // Get unique symbols from journals
   const symbols = Array.from(new Set(journals.map(j => j.symbol).filter(Boolean)))
@@ -84,6 +44,7 @@ export function KLineChart({ journals = [], symbol = 'SPY', onSymbolChange }: KL
     if (!container) return
 
     setIsLoading(true)
+    setLoadError(null)
 
     const chart = createChart(container, {
       width: container.clientWidth,
@@ -139,6 +100,13 @@ export function KLineChart({ journals = [], symbol = 'SPY', onSymbolChange }: KL
       try {
         const marketData = await marketDataApi.getHistoricalData(symbol, '1day', days)
         if (cancelled) return
+        if (marketData.length === 0) {
+          candlestickSeries.setData([])
+          volumeSeries.setData([])
+          tradeMarkers.setMarkers([])
+          setLoadError(`No market data available for ${symbol}.`)
+          return
+        }
 
         const chartData: CandlestickData[] = marketData.map(d => ({
           time: format(new Date(d.time), 'yyyy-MM-dd') as any,
@@ -151,7 +119,7 @@ export function KLineChart({ journals = [], symbol = 'SPY', onSymbolChange }: KL
 
         const volumeData = marketData.map(d => ({
           time: format(new Date(d.time), 'yyyy-MM-dd') as any,
-          value: d.volume || Math.random() * 1000000,
+          value: d.volume ?? 0,
           color: d.close >= d.open ? '#10b98150' : '#ef444450',
         }))
         volumeSeries.setData(volumeData)
@@ -174,32 +142,10 @@ export function KLineChart({ journals = [], symbol = 'SPY', onSymbolChange }: KL
       } catch (error) {
         if (cancelled) return
         console.error('Error loading chart data:', error)
-
-        const mockData = generateMockData(100, days)
-        candlestickSeries.setData(mockData)
-
-        const volumeData = mockData.map(d => ({
-          time: d.time,
-          value: Math.random() * 1000000,
-          color: d.close >= d.open ? '#10b98150' : '#ef444450',
-        }))
-        volumeSeries.setData(volumeData)
-
-        const markers = journals
-          .filter(j => j.symbol === symbol && j.trade_date && j.entry_price)
-          .map((j): SeriesMarker<any> => {
-            const isProfit = j.pnl_amount && j.pnl_amount > 0
-            return {
-              time: format(new Date(j.trade_date!), 'yyyy-MM-dd') as any,
-              position: isProfit ? 'aboveBar' : 'belowBar',
-              color: isProfit ? '#10b981' : '#ef4444',
-              shape: isProfit ? 'arrowUp' : 'arrowDown',
-              text: `${j.symbol}: ${isProfit ? '+' : ''}${j.pnl_amount?.toFixed(2)}`,
-            }
-          })
-        tradeMarkers.setMarkers(markers)
-
-        chart.timeScale().fitContent()
+        candlestickSeries.setData([])
+        volumeSeries.setData([])
+        tradeMarkers.setMarkers([])
+        setLoadError(`Unable to load market data for ${symbol}.`)
       } finally {
         if (!cancelled) setIsLoading(false)
       }
@@ -223,14 +169,10 @@ export function KLineChart({ journals = [], symbol = 'SPY', onSymbolChange }: KL
       chartRef.current = null
       seriesRef.current = null
     }
-  }, [journals, symbol, chartType, timeframe])
+  }, [journals, symbol, timeframe, retryNonce])
 
   const handleTimeframeChange = (tf: string) => {
     setTimeframe(tf)
-  }
-
-  const handleChartTypeToggle = () => {
-    setChartType(chartType === 'candles' ? 'line' : 'candles')
   }
 
   // Calculate statistics from journals
@@ -288,14 +230,6 @@ export function KLineChart({ journals = [], symbol = 'SPY', onSymbolChange }: KL
               ))}
             </div>
 
-            {/* Chart Type Toggle */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleChartTypeToggle}
-            >
-              {chartType === 'candles' ? 'Line' : 'Candles'}
-            </Button>
           </div>
         </div>
       </CardHeader>
@@ -312,6 +246,15 @@ export function KLineChart({ journals = [], symbol = 'SPY', onSymbolChange }: KL
               {isLoading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/50">
                   <Loader2 className="h-8 w-8 animate-spin" />
+                </div>
+              )}
+              {!isLoading && loadError && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/80 text-center">
+                  <AlertCircle className="h-8 w-8 text-muted-foreground" />
+                  <p className="max-w-sm text-sm text-muted-foreground">{loadError}</p>
+                  <Button variant="outline" size="sm" onClick={() => setRetryNonce(value => value + 1)}>
+                    Retry
+                  </Button>
                 </div>
               )}
             </div>
