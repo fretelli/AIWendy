@@ -1,0 +1,17 @@
+.git
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# API builds from the repo root but should not include frontend build artifacts
+# or dependencies in the Docker build context.
+apps/web/node_modules/
+apps/web/.next/
+apps/web/coverage/
+apps/web/.turbo/
+
+uploads/
+logs/
+*.log

@@ -3,26 +3,19 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    postgresql-client \
-    && rm -rf /var/lib/apt/lists/*
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 
-# Copy and install API requirements first for caching
-COPY apps/api/requirements.txt /app/requirements-api.txt
-RUN pip install --no-cache-dir -r /app/requirements-api.txt
+ENV PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=10 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_INDEX_URL=${PIP_INDEX_URL}
 
-# Install Agent Matrix dependencies (pydantic-ai, ccxt, numpy, etc.)
-# These are optional — if not present the agent routes degrade gracefully
-RUN pip install --no-cache-dir \
-    pydantic-ai>=0.1.0 \
-    ccxt>=4.0.0 \
-    numpy>=1.24.0 \
-    redis>=5.0.0 2>/dev/null || true
+# Copy and install API runtime requirements first for caching.
+COPY apps/api/requirements-prod.txt /app/requirements-api.txt
+RUN pip install --no-cache-dir --prefer-binary -r /app/requirements-api.txt
 
-# Copy all apps code (context = repo root)
-COPY apps/ /app/apps/
+# Copy only API code into the API image.
+COPY apps/api/ /app/apps/api/
 
 # Copy Alembic config and migrations for database schema management
 COPY alembic.ini /app/alembic.ini

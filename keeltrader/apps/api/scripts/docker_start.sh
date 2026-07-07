@@ -14,24 +14,31 @@ is_truthy() {
 }
 
 run_migrations() {
-  echo "[keeltrader] bootstrapping database tables..."
-  python scripts/bootstrap_projects.py
-  if [ $? -eq 0 ]; then
-    echo "[keeltrader] bootstrap complete, running alembic upgrade..."
-    alembic -c /app/alembic.ini upgrade head 2>&1 || echo "[keeltrader] alembic upgrade had warnings (may be OK if bootstrap handled schema)"
-  fi
+  echo "[keeltrader] running alembic upgrade..."
+  alembic -c /app/alembic.ini upgrade head
 }
 
-if is_truthy "${KEELTRADER_AUTO_INIT_DB:-1}"; then
+if [ "$(to_lower "${ENVIRONMENT:-development}")" = "production" ]; then
+  run_migrations
+elif is_truthy "${KEELTRADER_AUTO_INIT_DB:-1}"; then
   run_migrations
   echo "[keeltrader] auto-init db schema..."
+  python scripts/bootstrap_projects.py
   python scripts/init_db_simple.py
   python scripts/add_journal_tables.py
 fi
 
-if is_truthy "${KEELTRADER_AUTO_INIT_TEST_USERS:-0}"; then
+if [ "$(to_lower "${ENVIRONMENT:-development}")" = "production" ]; then
+  if is_truthy "${KEELTRADER_AUTO_INIT_TEST_USERS:-0}"; then
+    echo "[keeltrader] ignoring KEELTRADER_AUTO_INIT_TEST_USERS in production"
+  fi
+elif is_truthy "${KEELTRADER_AUTO_INIT_TEST_USERS:-0}"; then
   echo "[keeltrader] auto-init test users..."
   python scripts/init_user_simple.py
 fi
 
-exec uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+if is_truthy "${KEELTRADER_RELOAD:-0}"; then
+  exec uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+fi
+
+exec uvicorn main:app --host 0.0.0.0 --port 8000
