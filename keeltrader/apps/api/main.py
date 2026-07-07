@@ -26,6 +26,17 @@ setup_logging()
 logger = structlog.get_logger()
 
 
+def _import_domain_models():
+    """Register SQLAlchemy models before routes can trigger mapper configuration."""
+    import domain.coach.models  # noqa
+    import domain.exchange.models  # noqa
+    import domain.agentos.models  # noqa
+    import domain.journal.models  # noqa
+    import domain.project.models  # noqa
+    import domain.rpg.models  # noqa
+    import domain.user.models  # noqa
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan manager."""
@@ -34,12 +45,7 @@ async def lifespan(app: FastAPI):
     logger.info("Starting KeelTrader v2 API", version=settings.app_version)
 
     # Import all domain models so SQLAlchemy can resolve string relationships
-    import domain.coach.models  # noqa
-    import domain.exchange.models  # noqa
-    import domain.journal.models  # noqa
-    import domain.project.models  # noqa
-    import domain.rpg.models  # noqa
-    import domain.user.models  # noqa
+    _import_domain_models()
 
     # Initialize database
     logger.info("Skipping automatic database initialization (Base.metadata.create_all)")
@@ -60,6 +66,8 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     await stop_scheduler()
+    await market_data_service.close()
+    await market_data_ws_service.close()
     logger.info("Shutting down KeelTrader v2 API")
 
 
@@ -82,7 +90,10 @@ def _validate_security_config():
         errors.append(f"CRITICAL: JWT_SECRET too short ({len(settings.jwt_secret)} chars)")
 
     if settings.encryption_key is None:
-        logger.warning("ENCRYPTION_KEY not set. Using derived key (less secure).")
+        if settings.environment.lower() in {"production", "prod"}:
+            errors.append("CRITICAL: ENCRYPTION_KEY is required in production")
+        else:
+            logger.warning("ENCRYPTION_KEY not set. Using derived key (less secure).")
     elif len(settings.encryption_key) < 32:
         errors.append(f"CRITICAL: ENCRYPTION_KEY too short ({len(settings.encryption_key)} chars)")
 
@@ -149,12 +160,20 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 
 # === Route Groups ===
+_import_domain_models()
+
 from routers import auth, health
+from routers.agentos import router as agentos_router
 from routers.users import router as users_router
 from routers.chat_v2 import router as chat_v2_router
 from routers.settings_v2 import router as settings_v2_router
 from routers.webhook import router as webhook_router
 from routers.rpg import router as rpg_router
+from routers.market_data import (
+    market_data_service,
+    market_data_ws_service,
+    router as market_data_router,
+)
 
 app.include_router(health.router, prefix="/api", tags=["Health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
@@ -163,6 +182,8 @@ app.include_router(chat_v2_router, prefix="/api/v1/chat", tags=["Chat"])
 app.include_router(settings_v2_router, prefix="/api/v1/settings", tags=["Settings"])
 app.include_router(webhook_router, prefix="/api/v1/webhook", tags=["Webhook"])
 app.include_router(rpg_router, prefix="/api/v1/rpg", tags=["RPG"])
+app.include_router(agentos_router, prefix="/api/v1/agentos", tags=["AgentOS"])
+app.include_router(market_data_router, prefix="/api/v1/market-data", tags=["Market Data"])
 
 
 @app.get("/")
