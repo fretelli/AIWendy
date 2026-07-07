@@ -1099,6 +1099,10 @@
         "submit": "发送重置邮件",
         "error": "发送失败，请重试。",
         "backToLogin": "返回登录",
+        "unavailable": {
+          "subtitle": "密码重置暂未开放",
+          "body": "当前系统尚未接入邮件发送服务。请联系管理员或服务方协助重置密码。"
+        },
         "success": {
           "title": "请查收邮件",
           "subtitle": "我们已向 {email} 发送重置链接",
@@ -1120,6 +1124,10 @@
         "error": "重置密码失败",
         "invalidTitle": "无效的重置链接",
         "requestNew": "请求新的密码重置链接",
+        "unavailable": {
+          "subtitle": "重置链接暂不可用",
+          "body": "当前系统尚未开放自助密码重置。请返回登录页，或联系管理员协助处理。"
+        },
         "success": {
           "title": "密码重置成功",
           "subtitle": "您的密码已重置",

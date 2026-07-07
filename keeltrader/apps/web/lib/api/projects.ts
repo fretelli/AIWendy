@@ -1,4 +1,4 @@
-import { getApiUrl } from '@/lib/config'
+import { apiFetch, apiJson } from '@/lib/api/client'
 
 export interface Project {
   id: string
@@ -24,73 +24,35 @@ export interface UpdateProjectRequest {
 }
 
 class ProjectsAPI {
-  private apiUrl: string
-
-  constructor() {
-    this.apiUrl = getApiUrl()
-  }
-
-  private getHeaders() {
-    const token = localStorage.getItem('keeltrader_access_token')
-    return {
-      'Content-Type': 'application/json',
-      Authorization: token ? `Bearer ${token}` : '',
-    }
-  }
-
   async listProjects(includeArchived: boolean = false): Promise<Project[]> {
     const params = new URLSearchParams()
     if (includeArchived) params.append('include_archived', 'true')
-    const response = await fetch(`${this.apiUrl}/projects?${params}`, {
-      headers: this.getHeaders(),
-    })
-    if (!response.ok) {
-      throw new Error('Failed to fetch projects')
-    }
-    return response.json()
+    return apiJson<Project[]>(`/projects?${params}`)
   }
 
   async createProject(request: CreateProjectRequest): Promise<Project> {
-    const response = await fetch(`${this.apiUrl}/projects`, {
+    return apiJson<Project>('/projects', {
       method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(request),
+      body: request,
     })
-    if (!response.ok) {
-      const data = await response.json().catch(() => null)
-      const detail = typeof data?.detail === 'string' ? data.detail : 'Failed to create project'
-      throw new Error(detail)
-    }
-    return response.json()
   }
 
   async updateProject(projectId: string, request: UpdateProjectRequest): Promise<Project> {
-    const response = await fetch(`${this.apiUrl}/projects/${projectId}`, {
+    return apiJson<Project>(`/projects/${projectId}`, {
       method: 'PATCH',
-      headers: this.getHeaders(),
-      body: JSON.stringify(request),
+      body: request,
     })
-    if (!response.ok) {
-      const data = await response.json().catch(() => null)
-      const detail = typeof data?.detail === 'string' ? data.detail : 'Failed to update project'
-      throw new Error(detail)
-    }
-    return response.json()
   }
 
   async deleteProject(projectId: string, hardDelete: boolean = false): Promise<void> {
     const params = hardDelete ? '?hard_delete=true' : ''
-    const response = await fetch(`${this.apiUrl}/projects/${projectId}${params}`, {
+    const response = await apiFetch(`/projects/${projectId}${params}`, {
       method: 'DELETE',
-      headers: this.getHeaders(),
     })
     if (!response.ok) {
-      const data = await response.json().catch(() => null)
-      const detail = typeof data?.detail === 'string' ? data.detail : 'Failed to delete project'
-      throw new Error(detail)
+      throw new Error('Failed to delete project')
     }
   }
 }
 
 export const projectsAPI = new ProjectsAPI()
-

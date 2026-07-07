@@ -59,20 +59,6 @@ export default function RegisterPage() {
     }
   }
 
-  const handleGoogleSignup = async () => {
-    setError(null)
-    setIsLoading(true)
-
-    try {
-      // TODO: Implement Google OAuth
-      console.log('Google signup not yet implemented')
-    } catch (err: any) {
-      setError(err.message || 'Failed to sign up with Google.')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   return (
     <div className="container flex h-screen w-screen flex-col items-center justify-center">
       <Link
@@ -97,32 +83,6 @@ export default function RegisterPage() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-
-            <div className="grid grid-cols-2 gap-6">
-              <Button
-                variant="outline"
-                onClick={handleGoogleSignup}
-                disabled={isLoading}
-              >
-                <Icons.google className="mr-2 h-4 w-4" />
-                Google
-              </Button>
-              <Button variant="outline" disabled={isLoading}>
-                <Icons.gitHub className="mr-2 h-4 w-4" />
-                GitHub
-              </Button>
-            </div>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  {t('landing.auth.orContinueWith')}
-                </span>
-              </div>
-            </div>
 
             <form onSubmit={handleSubmit}>
               <div className="grid gap-2">

@@ -17,7 +17,7 @@ const translations: Record<Locale, typeof en> = {
  * Get the current locale from cookies or headers
  */
 export async function getLocale(): Promise<Locale> {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const localeCookie = cookieStore.get(LOCALE_COOKIE);
 
   if (localeCookie?.value && i18nConfig.locales.includes(localeCookie.value as Locale)) {

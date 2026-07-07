@@ -9,34 +9,18 @@ import {
   JournalImportPreviewResponse,
   JournalImportResponse
 } from '@/lib/types/journal';
+import { apiFetch, type ApiRequestInit } from '@/lib/api/client';
 
-const API_URL = '/api/proxy/v1';
-
-async function fetchWithAuth(url: string, options: RequestInit = {}) {
-  const token = localStorage.getItem('keeltrader_access_token');
-  const headers = new Headers(options.headers);
-
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  const hasBody = typeof options.body !== 'undefined' && options.body !== null;
-  const isFormData =
-    typeof FormData !== 'undefined' && options.body instanceof FormData;
-
-  if (hasBody && !isFormData && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-
-  return fetch(url, { ...options, headers });
+async function fetchWithAuth(url: string, options: ApiRequestInit = {}) {
+  return apiFetch(url, options);
 }
 
 export const journalApi = {
   // Create a new journal entry
   async create(entry: JournalCreate): Promise<JournalResponse> {
-    const response = await fetchWithAuth(`${API_URL}/journals`, {
+    const response = await fetchWithAuth('/journals', {
       method: 'POST',
-      body: JSON.stringify(entry),
+      body: entry,
     });
 
     if (!response.ok) {
@@ -65,7 +49,7 @@ export const journalApi = {
       });
     }
 
-    const response = await fetchWithAuth(`${API_URL}/journals?${queryParams}`);
+    const response = await fetchWithAuth(`/journals?${queryParams}`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch journal entries');
@@ -76,7 +60,7 @@ export const journalApi = {
 
   // Get a single journal entry
   async get(id: string): Promise<JournalResponse> {
-    const response = await fetchWithAuth(`${API_URL}/journals/${id}`);
+    const response = await fetchWithAuth(`/journals/${id}`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch journal entry');
@@ -87,9 +71,9 @@ export const journalApi = {
 
   // Update a journal entry
   async update(id: string, entry: JournalUpdate): Promise<JournalResponse> {
-    const response = await fetchWithAuth(`${API_URL}/journals/${id}`, {
+    const response = await fetchWithAuth(`/journals/${id}`, {
       method: 'PUT',
-      body: JSON.stringify(entry),
+      body: entry,
     });
 
     if (!response.ok) {
@@ -101,7 +85,7 @@ export const journalApi = {
 
   // Delete a journal entry
   async delete(id: string): Promise<void> {
-    const response = await fetchWithAuth(`${API_URL}/journals/${id}`, {
+    const response = await fetchWithAuth(`/journals/${id}`, {
       method: 'DELETE',
     });
 
@@ -112,7 +96,7 @@ export const journalApi = {
 
   // Get trading statistics
   async getStatistics(): Promise<JournalStatistics> {
-    const response = await fetchWithAuth(`${API_URL}/journals/statistics`);
+    const response = await fetchWithAuth('/journals/statistics');
 
     if (!response.ok) {
       throw new Error('Failed to fetch statistics');
@@ -123,9 +107,9 @@ export const journalApi = {
 
   // Create a quick journal entry
   async createQuick(entry: QuickJournalEntry): Promise<JournalResponse> {
-    const response = await fetchWithAuth(`${API_URL}/journals/quick`, {
+    const response = await fetchWithAuth('/journals/quick', {
       method: 'POST',
-      body: JSON.stringify(entry),
+      body: entry,
     });
 
     if (!response.ok) {
@@ -137,7 +121,7 @@ export const journalApi = {
 
   // Analyze a single journal entry with AI
   async analyzeEntry(id: string): Promise<any> {
-    const response = await fetchWithAuth(`${API_URL}/journals/${id}/analyze`, {
+    const response = await fetchWithAuth(`/journals/${id}/analyze`, {
       method: 'POST',
     });
 
@@ -153,7 +137,7 @@ export const journalApi = {
     const queryParams = new URLSearchParams();
     if (limit) queryParams.append('limit', limit.toString());
 
-    const response = await fetchWithAuth(`${API_URL}/journals/analyze/patterns?${queryParams}`);
+    const response = await fetchWithAuth(`/journals/analyze/patterns?${queryParams}`);
 
     if (!response.ok) {
       throw new Error('Failed to analyze trading patterns');
@@ -164,7 +148,7 @@ export const journalApi = {
 
   // Generate improvement plan
   async generateImprovementPlan(): Promise<any> {
-    const response = await fetchWithAuth(`${API_URL}/journals/analyze/improvement-plan`);
+    const response = await fetchWithAuth('/journals/analyze/improvement-plan');
 
     if (!response.ok) {
       throw new Error('Failed to generate improvement plan');
@@ -177,7 +161,7 @@ export const journalApi = {
     const formData = new FormData();
     formData.append('file', file);
 
-    const response = await fetchWithAuth(`${API_URL}/journals/import/preview?preview_rows=${previewRows}`, {
+    const response = await fetchWithAuth(`/journals/import/preview?preview_rows=${previewRows}`, {
       method: 'POST',
       body: formData,
     });
@@ -205,7 +189,7 @@ export const journalApi = {
     if (typeof params.dry_run === 'boolean') formData.append('dry_run', String(params.dry_run));
     if (typeof params.max_rows === 'number') formData.append('max_rows', String(params.max_rows));
 
-    const response = await fetchWithAuth(`${API_URL}/journals/import`, {
+    const response = await fetchWithAuth('/journals/import', {
       method: 'POST',
       body: formData,
     });

@@ -11,6 +11,7 @@ import {
   BarChart3,
   Trophy,
   Newspaper,
+  BrainCircuit,
   ScrollText,
   Crown,
   MessageSquare,
@@ -22,6 +23,7 @@ import {
 
 const NAV_ITEMS = [
   { href: '/character', icon: Sword, label: 'Character' },
+  { href: '/agentos', icon: BrainCircuit, label: 'AgentOS' },
   { href: '/research', icon: Newspaper, label: '研报' },
   { href: '/chat', icon: MessageSquare, label: 'Chat' },
   { href: '/achievements', icon: Trophy, label: 'Achievements' },
@@ -37,19 +39,17 @@ export default function AppLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
-      router.push('/auth/login');
+      router.push(`/auth/login?next=${encodeURIComponent(pathname)}`);
     }
-  }, [user, isLoading, router]);
+  }, [user, isLoading, router, pathname]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('keeltrader_access_token');
-    localStorage.removeItem('keeltrader_refresh_token');
-    localStorage.removeItem('auth_token');
+  const handleLogout = async () => {
+    await logout();
     router.push('/auth/login');
   };
 

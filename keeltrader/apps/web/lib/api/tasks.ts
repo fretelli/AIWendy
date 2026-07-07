@@ -1,4 +1,4 @@
-import { getApiUrl } from '@/lib/config'
+import { apiJson, apiStream } from '@/lib/api/client'
 
 export interface TaskStatus {
   task_id: string
@@ -15,30 +15,8 @@ export interface TaskStatus {
 export type TaskStreamEvent = TaskStatus & Record<string, any>
 
 class TasksAPI {
-  private apiUrl: string
-
-  constructor() {
-    this.apiUrl = getApiUrl()
-  }
-
-  private getHeaders() {
-    const token = localStorage.getItem('keeltrader_access_token')
-    return {
-      'Content-Type': 'application/json',
-      Authorization: token ? `Bearer ${token}` : '',
-    }
-  }
-
   async getStatus(taskId: string): Promise<TaskStatus> {
-    const response = await fetch(`${this.apiUrl}/tasks/status/${taskId}`, {
-      headers: this.getHeaders(),
-    })
-    if (!response.ok) {
-      const data = await response.json().catch(() => null)
-      const detail = typeof data?.detail === 'string' ? data.detail : 'Failed to fetch task status'
-      throw new Error(detail)
-    }
-    return response.json()
+    return apiJson<TaskStatus>(`/tasks/status/${taskId}`)
   }
 
   async waitForCompletion(
@@ -51,14 +29,7 @@ class TasksAPI {
     const timeoutMs = options?.timeoutMs ?? 8 * 60 * 1000
     const startedAt = Date.now()
 
-    const response = await fetch(`${this.apiUrl}/tasks/stream/${taskId}`, {
-      headers: this.getHeaders(),
-    })
-    if (!response.ok) {
-      const data = await response.json().catch(() => null)
-      const detail = typeof data?.detail === 'string' ? data.detail : 'Failed to stream task'
-      throw new Error(detail)
-    }
+    const response = await apiStream(`/tasks/stream/${taskId}`)
 
     if (!response.body) {
       throw new Error('Streaming not supported in this browser')

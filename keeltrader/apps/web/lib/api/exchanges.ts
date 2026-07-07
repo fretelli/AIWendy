@@ -2,9 +2,9 @@
  * Exchange API Client
  */
 
-import { API_PROXY_PREFIX } from '@/lib/config'
+import { apiJson } from '@/lib/api/client'
 
-const API_BASE_URL = `${API_PROXY_PREFIX}/exchanges`
+const API_BASE_URL = '/exchanges'
 
 export interface ExchangeInfo {
   name: string
@@ -79,51 +79,21 @@ export const exchangeApi = {
    * Get list of configured exchanges
    */
   async getExchanges(): Promise<ExchangeInfo[]> {
-    const response = await fetch(API_BASE_URL, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch exchanges: ${response.statusText}`)
-    }
-
-    return response.json()
+    return apiJson<ExchangeInfo[]>(API_BASE_URL)
   },
 
   /**
    * Get account balance from exchange
    */
   async getBalance(exchange: string): Promise<Balance> {
-    const response = await fetch(`${API_BASE_URL}/${exchange}/balance`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch balance: ${response.statusText}`)
-    }
-
-    return response.json()
+    return apiJson<Balance>(`${API_BASE_URL}/${exchange}/balance`)
   },
 
   /**
    * Get open positions from exchange
    */
   async getPositions(exchange: string): Promise<Position[]> {
-    const response = await fetch(`${API_BASE_URL}/${exchange}/positions`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch positions: ${response.statusText}`)
-    }
-
-    return response.json()
+    return apiJson<Position[]>(`${API_BASE_URL}/${exchange}/positions`)
   },
 
   /**
@@ -135,17 +105,7 @@ export const exchangeApi = {
 
     const url = `${API_BASE_URL}/${exchange}/orders${params.toString() ? `?${params}` : ''}`
 
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch orders: ${response.statusText}`)
-    }
-
-    return response.json()
+    return apiJson<Order[]>(url)
   },
 
   /**
@@ -166,33 +126,13 @@ export const exchangeApi = {
 
     const url = `${API_BASE_URL}/${exchange}/trades${params.toString() ? `?${params}` : ''}`
 
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch trades: ${response.statusText}`)
-    }
-
-    return response.json()
+    return apiJson<Trade[]>(url)
   },
 
   /**
    * Get available markets from exchange
    */
   async getMarkets(exchange: string): Promise<Market[]> {
-    const response = await fetch(`${API_BASE_URL}/${exchange}/markets`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch markets: ${response.statusText}`)
-    }
-
-    return response.json()
+    return apiJson<Market[]>(`${API_BASE_URL}/${exchange}/markets`)
   },
 }
