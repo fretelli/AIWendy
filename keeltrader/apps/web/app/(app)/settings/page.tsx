@@ -8,13 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
-
-function getAuthHeaders(): Record<string, string> {
-  const token = localStorage.getItem('keeltrader_access_token') || localStorage.getItem('auth_token');
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
+import { apiFetch } from '@/lib/api/client';
 
 interface Exchange {
   id: string;
@@ -51,9 +45,9 @@ export default function SettingsPage() {
   const fetchData = useCallback(async () => {
     try {
       const [exResp, riskResp, pushResp] = await Promise.all([
-        fetch(`${API_BASE}/api/v1/settings/exchanges`, { headers: getAuthHeaders() }),
-        fetch(`${API_BASE}/api/v1/settings/risk`, { headers: getAuthHeaders() }),
-        fetch(`${API_BASE}/api/v1/settings/push`, { headers: getAuthHeaders() }),
+        apiFetch('/settings/exchanges'),
+        apiFetch('/settings/risk'),
+        apiFetch('/settings/push'),
       ]);
 
       if (exResp.ok) {
@@ -71,10 +65,9 @@ export default function SettingsPage() {
 
   const addExchange = async () => {
     try {
-      const resp = await fetch(`${API_BASE}/api/v1/settings/exchanges`, {
+      const resp = await apiFetch('/settings/exchanges', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-        body: JSON.stringify(newExchange),
+        body: newExchange,
       });
       const data = await resp.json();
       if (resp.ok) {
@@ -90,9 +83,8 @@ export default function SettingsPage() {
   };
 
   const removeExchange = async (id: string) => {
-    const resp = await fetch(`${API_BASE}/api/v1/settings/exchanges/${id}`, {
+    const resp = await apiFetch(`/settings/exchanges/${id}`, {
       method: 'DELETE',
-      headers: getAuthHeaders(),
     });
     if (resp.ok) {
       toast.success('Disconnected');
@@ -101,19 +93,17 @@ export default function SettingsPage() {
   };
 
   const saveRiskSettings = async () => {
-    const resp = await fetch(`${API_BASE}/api/v1/settings/risk`, {
+    const resp = await apiFetch('/settings/risk', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-      body: JSON.stringify(riskSettings),
+      body: riskSettings,
     });
     if (resp.ok) toast.success('Risk settings saved');
   };
 
   const savePushSettings = async () => {
-    const resp = await fetch(`${API_BASE}/api/v1/settings/push`, {
+    const resp = await apiFetch('/settings/push', {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-      body: JSON.stringify(pushSettings),
+      body: pushSettings,
     });
     if (resp.ok) toast.success('Push settings saved');
   };
