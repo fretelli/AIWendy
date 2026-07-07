@@ -1,4 +1,4 @@
-import { getApiUrl } from '@/lib/config'
+import { apiFetch, apiJson } from '@/lib/api/client'
 
 export interface Coach {
   id: string
@@ -90,72 +90,27 @@ export interface EndSessionRequest {
 }
 
 class CoachesAPI {
-  private apiUrl: string
-
-  constructor() {
-    this.apiUrl = getApiUrl()
-  }
-
-  private getHeaders() {
-    const token = localStorage.getItem('keeltrader_access_token')
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': token ? `Bearer ${token}` : ''
-    }
-  }
-
   async getCoaches(style?: string, isPremium?: boolean): Promise<Coach[]> {
     const params = new URLSearchParams()
     if (style) params.append('style', style)
     if (isPremium !== undefined) params.append('is_premium', String(isPremium))
 
-    const response = await fetch(`${this.apiUrl}/coaches?${params}`, {
-      headers: this.getHeaders()
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch coaches')
-    }
-
-    return response.json()
+    return apiJson<Coach[]>(`/coaches?${params}`)
   }
 
   async getCoach(coachId: string): Promise<Coach> {
-    const response = await fetch(`${this.apiUrl}/coaches/${coachId}`, {
-      headers: this.getHeaders()
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch coach')
-    }
-
-    return response.json()
+    return apiJson<Coach>(`/coaches/${coachId}`)
   }
 
   async getDefaultCoach(): Promise<Coach> {
-    const response = await fetch(`${this.apiUrl}/coaches/default`, {
-      headers: this.getHeaders()
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch default coach')
-    }
-
-    return response.json()
+    return apiJson<Coach>('/coaches/default')
   }
 
   async createSession(request: CreateSessionRequest): Promise<ChatSession> {
-    const response = await fetch(`${this.apiUrl}/coaches/sessions`, {
+    return apiJson<ChatSession>('/coaches/sessions', {
       method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(request)
+      body: request
     })
-
-    if (!response.ok) {
-      throw new Error('Failed to create session')
-    }
-
-    return response.json()
   }
 
   async getUserSessions(
@@ -170,103 +125,46 @@ class CoachesAPI {
     if (isActive !== undefined) params.append('is_active', String(isActive))
     if (limit) params.append('limit', String(limit))
 
-    const response = await fetch(`${this.apiUrl}/coaches/sessions/user?${params}`, {
-      headers: this.getHeaders()
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch sessions')
-    }
-
-    return response.json()
+    return apiJson<ChatSession[]>(`/coaches/sessions/user?${params}`)
   }
 
   async getSession(sessionId: string): Promise<ChatSession> {
-    const response = await fetch(`${this.apiUrl}/coaches/sessions/${sessionId}`, {
-      headers: this.getHeaders()
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch session')
-    }
-
-    return response.json()
+    return apiJson<ChatSession>(`/coaches/sessions/${sessionId}`)
   }
 
   async endSession(sessionId: string, request: EndSessionRequest): Promise<ChatSession> {
-    const response = await fetch(`${this.apiUrl}/coaches/sessions/${sessionId}/end`, {
+    return apiJson<ChatSession>(`/coaches/sessions/${sessionId}/end`, {
       method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(request)
+      body: request
     })
-
-    if (!response.ok) {
-      throw new Error('Failed to end session')
-    }
-
-    return response.json()
   }
 
   async getSessionMessages(sessionId: string, limit?: number) {
     const params = limit ? `?limit=${limit}` : ''
-    const response = await fetch(
-      `${this.apiUrl}/coaches/sessions/${sessionId}/messages${params}`,
-      {
-        headers: this.getHeaders()
-      }
-    )
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch messages')
-    }
-
-    return response.json()
+    return apiJson(`/coaches/sessions/${sessionId}/messages${params}`)
   }
 
   async getCustomCoaches(): Promise<CustomCoach[]> {
-    const response = await fetch(`${this.apiUrl}/coaches/custom`, {
-      headers: this.getHeaders()
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch custom coaches')
-    }
-
-    return response.json()
+    return apiJson<CustomCoach[]>('/coaches/custom')
   }
 
   async createCustomCoach(request: CreateCustomCoachRequest): Promise<CustomCoach> {
-    const response = await fetch(`${this.apiUrl}/coaches/custom`, {
+    return apiJson<CustomCoach>('/coaches/custom', {
       method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(request)
+      body: request
     })
-
-    if (!response.ok) {
-      throw new Error('Failed to create custom coach')
-    }
-
-    return response.json()
   }
 
   async updateCustomCoach(coachId: string, request: UpdateCustomCoachRequest): Promise<CustomCoach> {
-    const response = await fetch(`${this.apiUrl}/coaches/custom/${coachId}`, {
+    return apiJson<CustomCoach>(`/coaches/custom/${coachId}`, {
       method: 'PATCH',
-      headers: this.getHeaders(),
-      body: JSON.stringify(request)
+      body: request
     })
-
-    if (!response.ok) {
-      throw new Error('Failed to update custom coach')
-    }
-
-    return response.json()
   }
 
   async deleteCustomCoach(coachId: string): Promise<{ ok: boolean }> {
-    const response = await fetch(`${this.apiUrl}/coaches/custom/${coachId}`, {
+    const response = await apiFetch(`/coaches/custom/${coachId}`, {
       method: 'DELETE',
-      headers: this.getHeaders(),
     })
 
     if (!response.ok) {

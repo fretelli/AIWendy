@@ -11,8 +11,19 @@ const EXCLUDED_PATHS = [
   '/robots.txt',
   '/sitemap.xml',
 ];
+const AUTH_COOKIE = 'keeltrader_access_token';
+const PROTECTED_PATHS = [
+  '/achievements',
+  '/agentos',
+  '/character',
+  '/chat',
+  '/leaderboard',
+  '/quests',
+  '/research',
+  '/settings',
+];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Skip public files and excluded paths
@@ -21,6 +32,18 @@ export function middleware(request: NextRequest) {
     EXCLUDED_PATHS.some((path) => pathname.startsWith(path))
   ) {
     return NextResponse.next();
+  }
+
+  const isProtectedPath = PROTECTED_PATHS.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  );
+
+  if (isProtectedPath && !request.cookies.get(AUTH_COOKIE)?.value) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = '/auth/login';
+    loginUrl.search = '';
+    loginUrl.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
+    return NextResponse.redirect(loginUrl);
   }
 
   // Get locale from cookie or Accept-Language header

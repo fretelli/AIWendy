@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import Cookies from 'js-cookie';
 import { Locale, i18nConfig, LOCALE_COOKIE, languages } from './config';
 import en from './translations/en.json';
 import zh from './translations/zh.json';
@@ -72,6 +71,31 @@ function replaceParams(text: string, params?: Record<string, any>): string {
   return result;
 }
 
+function getCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+
+  const prefix = `${encodeURIComponent(name)}=`;
+  const cookie = document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix));
+
+  if (!cookie) return null;
+  return decodeURIComponent(cookie.slice(prefix.length));
+}
+
+function setCookie(name: string, value: string, maxAgeDays: number): void {
+  if (typeof document === 'undefined') return;
+
+  const maxAge = maxAgeDays * 24 * 60 * 60;
+  document.cookie = [
+    `${encodeURIComponent(name)}=${encodeURIComponent(value)}`,
+    'Path=/',
+    `Max-Age=${maxAge}`,
+    'SameSite=Lax',
+  ].join('; ');
+}
+
 interface I18nProviderProps {
   children: ReactNode;
   initialLocale?: Locale;
@@ -86,7 +110,7 @@ export function I18nProvider({ children, initialLocale }: I18nProviderProps) {
     if (initialLocale) return initialLocale;
 
     // Try to get from cookie
-    const cookieLocale = Cookies.get(LOCALE_COOKIE) as Locale;
+    const cookieLocale = getCookie(LOCALE_COOKIE) as Locale | null;
     if (cookieLocale && i18nConfig.locales.includes(cookieLocale)) {
       return cookieLocale;
     }
@@ -106,7 +130,7 @@ export function I18nProvider({ children, initialLocale }: I18nProviderProps) {
     if (!i18nConfig.locales.includes(newLocale)) return;
 
     setLocaleState(newLocale);
-    Cookies.set(LOCALE_COOKIE, newLocale, { expires: 365, sameSite: 'lax' });
+    setCookie(LOCALE_COOKIE, newLocale, 365);
 
     // Update HTML lang attribute
     if (typeof document !== 'undefined') {

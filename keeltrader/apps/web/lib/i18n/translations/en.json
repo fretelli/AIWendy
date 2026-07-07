@@ -1099,6 +1099,10 @@
         "submit": "Send reset email",
         "error": "Failed to send reset email. Please try again.",
         "backToLogin": "Back to login",
+        "unavailable": {
+          "subtitle": "Password reset is not available yet",
+          "body": "Email delivery is not configured for this system yet. Contact an administrator or the service owner to reset your password."
+        },
         "success": {
           "title": "Check your email",
           "subtitle": "We've sent a reset link to {email}",
@@ -1120,6 +1124,10 @@
         "error": "Failed to reset password. Please try again.",
         "invalidTitle": "Invalid reset link",
         "requestNew": "Request a new password reset link",
+        "unavailable": {
+          "subtitle": "Reset links are not available",
+          "body": "Self-service password reset is not enabled yet. Return to login or contact an administrator for help."
+        },
         "success": {
           "title": "Password reset successful",
           "subtitle": "Your password has been reset",

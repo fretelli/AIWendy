@@ -1,4 +1,4 @@
-import { getApiUrl } from '@/lib/config'
+import { apiFetch, apiJson, apiStream } from '@/lib/api/client'
 import type {
   CoachPreset,
   RoundtableSession,
@@ -8,115 +8,24 @@ import type {
   RoundtableEvent,
 } from '@/lib/types/roundtable'
 
-type ApiErrorPayload =
-  | {
-      error?: {
-        message?: unknown
-      }
-      detail?: unknown
-    }
-  | null
-  | undefined
-
-function formatFastApiDetail(detail: unknown): string | null {
-  if (typeof detail === 'string') return detail
-
-  if (Array.isArray(detail)) {
-    const parts: string[] = []
-    for (const item of detail) {
-      if (!item || typeof item !== 'object') continue
-      const msg = (item as { msg?: unknown }).msg
-      const loc = (item as { loc?: unknown }).loc
-
-      if (typeof msg !== 'string') continue
-      if (Array.isArray(loc)) {
-        const locText = loc.map(String).join('.')
-        parts.push(locText ? `${locText}: ${msg}` : msg)
-      } else {
-        parts.push(msg)
-      }
-    }
-    if (parts.length) return parts.join('; ')
-  }
-
-  return null
-}
-
-function getErrorMessage(payload: ApiErrorPayload): string | null {
-  if (!payload || typeof payload !== 'object') return null
-
-  const errorMessage = payload.error?.message
-  if (typeof errorMessage === 'string' && errorMessage) return errorMessage
-
-  return formatFastApiDetail(payload.detail)
-}
-
-async function readErrorMessage(response: Response): Promise<string> {
-  const contentType = response.headers.get('content-type') ?? ''
-  if (contentType.includes('application/json')) {
-    const payload = (await response.json().catch(() => null)) as ApiErrorPayload
-    return getErrorMessage(payload) ?? response.statusText ?? 'Request failed'
-  }
-
-  const text = await response.text().catch(() => '')
-  return text || response.statusText || 'Request failed'
-}
-
 class RoundtableAPI {
-  private apiUrl: string
-
-  constructor() {
-    this.apiUrl = getApiUrl()
-  }
-
-  private getHeaders() {
-    const token = localStorage.getItem('keeltrader_access_token')
-    return {
-      'Content-Type': 'application/json',
-      'Authorization': token ? `Bearer ${token}` : '',
-    }
-  }
-
   // ============= Presets =============
 
   async getPresets(): Promise<CoachPreset[]> {
-    const response = await fetch(`${this.apiUrl}/roundtable/presets`, {
-      headers: this.getHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch presets')
-    }
-
-    return response.json()
+    return apiJson<CoachPreset[]>('/roundtable/presets')
   }
 
   async getPreset(presetId: string): Promise<CoachPreset> {
-    const response = await fetch(`${this.apiUrl}/roundtable/presets/${presetId}`, {
-      headers: this.getHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch preset')
-    }
-
-    return response.json()
+    return apiJson<CoachPreset>(`/roundtable/presets/${presetId}`)
   }
 
   // ============= Sessions =============
 
   async createSession(request: CreateRoundtableSessionRequest): Promise<RoundtableSession> {
-    const response = await fetch(`${this.apiUrl}/roundtable/sessions`, {
+    return apiJson<RoundtableSession>('/roundtable/sessions', {
       method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(request),
+      body: request,
     })
-
-    if (!response.ok) {
-      throw new Error(await readErrorMessage(response))
-    }
-
-    return response.json()
   }
 
   async getSessions(
@@ -129,33 +38,16 @@ class RoundtableAPI {
     if (isActive !== undefined) params.append('is_active', String(isActive))
     if (limit) params.append('limit', String(limit))
 
-    const response = await fetch(`${this.apiUrl}/roundtable/sessions?${params}`, {
-      headers: this.getHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch sessions')
-    }
-
-    return response.json()
+    return apiJson<RoundtableSession[]>(`/roundtable/sessions?${params}`)
   }
 
   async getSession(sessionId: string): Promise<SessionDetailResponse> {
-    const response = await fetch(`${this.apiUrl}/roundtable/sessions/${sessionId}`, {
-      headers: this.getHeaders(),
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch session')
-    }
-
-    return response.json()
+    return apiJson<SessionDetailResponse>(`/roundtable/sessions/${sessionId}`)
   }
 
   async endSession(sessionId: string): Promise<void> {
-    const response = await fetch(`${this.apiUrl}/roundtable/sessions/${sessionId}/end`, {
+    const response = await apiFetch(`/roundtable/sessions/${sessionId}/end`, {
       method: 'POST',
-      headers: this.getHeaders(),
     })
 
     if (!response.ok) {
@@ -176,17 +68,10 @@ class RoundtableAPI {
       kb_max_candidates: number | null
     }>
   ): Promise<RoundtableSession> {
-    const response = await fetch(`${this.apiUrl}/roundtable/sessions/${sessionId}`, {
+    return apiJson<RoundtableSession>(`/roundtable/sessions/${sessionId}`, {
       method: 'PATCH',
-      headers: this.getHeaders(),
-      body: JSON.stringify(request),
+      body: request,
     })
-
-    if (!response.ok) {
-      throw new Error(await readErrorMessage(response))
-    }
-
-    return response.json()
   }
 
   // ============= Chat (Streaming) =============
@@ -195,15 +80,10 @@ class RoundtableAPI {
     request: RoundtableChatRequest
   ): AsyncGenerator<RoundtableEvent, void, unknown> {
     const params = new URLSearchParams({ session_id: request.session_id })
-    const response = await fetch(`${this.apiUrl}/roundtable/chat?${params}`, {
+    const response = await apiStream(`/roundtable/chat?${params}`, {
       method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(request),
+      body: request,
     })
-
-    if (!response.ok) {
-      throw new Error(await readErrorMessage(response))
-    }
 
     const reader = response.body?.getReader()
     if (!reader) {

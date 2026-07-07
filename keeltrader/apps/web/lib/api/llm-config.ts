@@ -1,4 +1,4 @@
-import { API_V1_PREFIX } from '@/lib/config'
+import { apiJson } from '@/lib/api/client'
 
 // Types matching the backend API
 export interface LLMProviderConfig {
@@ -103,30 +103,6 @@ export interface FetchModelsRequest {
 }
 
 class LLMConfigApi {
-  private getHeaders(): HeadersInit {
-    const token = localStorage.getItem('keeltrader_access_token')
-    return {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
-  }
-
-  private async getErrorMessage(response: Response): Promise<string> {
-    const fallback = response.statusText || 'Request failed'
-    const payload = await response.json().catch(() => null as any)
-
-    const detail = payload?.detail
-    if (typeof detail === 'string' && detail.trim()) return detail
-
-    const message = payload?.error?.message
-    if (typeof message === 'string' && message.trim()) return message
-
-    const error = payload?.error
-    if (typeof error === 'string' && error.trim()) return error
-
-    return fallback
-  }
-
   /**
    * Get available LLM provider types and presets
    */
@@ -138,30 +114,14 @@ class LLMConfigApi {
       proxy: string[]
     }
   }> {
-    const response = await fetch(`${API_V1_PREFIX}/llm-config/providers`, {
-      headers: this.getHeaders()
-    })
-
-    if (!response.ok) {
-      throw new Error(await this.getErrorMessage(response))
-    }
-
-    return response.json()
+    return apiJson('/llm-config/providers')
   }
 
   /**
    * Get user's LLM configurations
    */
   async getUserConfigs(): Promise<LLMProviderConfig[]> {
-    const response = await fetch(`${API_V1_PREFIX}/llm-config/user-configs`, {
-      headers: this.getHeaders()
-    })
-
-    if (!response.ok) {
-      throw new Error(await this.getErrorMessage(response))
-    }
-
-    return response.json()
+    return apiJson('/llm-config/user-configs')
   }
 
   /**
@@ -172,17 +132,10 @@ class LLMConfigApi {
     message: string
     config_id: string
   }> {
-    const response = await fetch(`${API_V1_PREFIX}/llm-config/user-configs`, {
+    return apiJson('/llm-config/user-configs', {
       method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(config)
+      body: config,
     })
-
-    if (!response.ok) {
-      throw new Error(await this.getErrorMessage(response))
-    }
-
-    return response.json()
   }
 
   /**
@@ -192,17 +145,10 @@ class LLMConfigApi {
     status: string
     message: string
   }> {
-    const response = await fetch(`${API_V1_PREFIX}/llm-config/user-configs/${configId}`, {
+    return apiJson(`/llm-config/user-configs/${configId}`, {
       method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify(config)
+      body: config,
     })
-
-    if (!response.ok) {
-      throw new Error(await this.getErrorMessage(response))
-    }
-
-    return response.json()
   }
 
   /**
@@ -212,16 +158,9 @@ class LLMConfigApi {
     status: string
     message: string
   }> {
-    const response = await fetch(`${API_V1_PREFIX}/llm-config/user-configs/${configId}`, {
+    return apiJson(`/llm-config/user-configs/${configId}`, {
       method: 'DELETE',
-      headers: this.getHeaders()
     })
-
-    if (!response.ok) {
-      throw new Error(await this.getErrorMessage(response))
-    }
-
-    return response.json()
   }
 
   /**
@@ -234,17 +173,10 @@ class LLMConfigApi {
     model: string
     latency_ms: number
   }> {
-    const response = await fetch(`${API_V1_PREFIX}/llm-config/test`, {
+    return apiJson('/llm-config/test', {
       method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(request)
+      body: request,
     })
-
-    if (!response.ok) {
-      throw new Error(await this.getErrorMessage(response))
-    }
-
-    return response.json()
   }
 
   /**
@@ -258,17 +190,10 @@ class LLMConfigApi {
     provider: string
     model?: string
   }> {
-    const response = await fetch(`${API_V1_PREFIX}/llm-config/quick-test`, {
+    return apiJson('/llm-config/quick-test', {
       method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(request)
+      body: request,
     })
-
-    if (!response.ok) {
-      throw new Error(await this.getErrorMessage(response))
-    }
-
-    return response.json()
   }
 
   /**
@@ -277,32 +202,17 @@ class LLMConfigApi {
   async getTemplates(): Promise<{
     templates: Record<string, ProviderTemplate>
   }> {
-    const response = await fetch(`${API_V1_PREFIX}/llm-config/templates`, {
-      headers: this.getHeaders()
-    })
-
-    if (!response.ok) {
-      throw new Error(await this.getErrorMessage(response))
-    }
-
-    return response.json()
+    return apiJson('/llm-config/templates')
   }
 
   /**
    * Fetch models server-side (avoids browser CORS limits)
    */
   async fetchModels(request: FetchModelsRequest): Promise<string[]> {
-    const response = await fetch(`${API_V1_PREFIX}/llm-config/models`, {
+    const data = await apiJson<{ models?: unknown }>('/llm-config/models', {
       method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(request)
+      body: request,
     })
-
-    if (!response.ok) {
-      throw new Error(await this.getErrorMessage(response))
-    }
-
-    const data = await response.json()
     return Array.isArray(data.models) ? data.models : []
   }
 
@@ -310,15 +220,7 @@ class LLMConfigApi {
    * Fetch models for an existing saved configuration (uses encrypted key server-side)
    */
   async getModelsForConfig(configId: string): Promise<string[]> {
-    const response = await fetch(`${API_V1_PREFIX}/llm-config/user-configs/${configId}/models`, {
-      headers: this.getHeaders()
-    })
-
-    if (!response.ok) {
-      throw new Error(await this.getErrorMessage(response))
-    }
-
-    const data = await response.json()
+    const data = await apiJson<{ models?: unknown }>(`/llm-config/user-configs/${configId}/models`)
     return Array.isArray(data.models) ? data.models : []
   }
 }

@@ -2,7 +2,7 @@
  * Intervention API client
  */
 
-import { API_V1_PREFIX } from "@/lib/config"
+import { apiFetch, apiJson } from "@/lib/api/client"
 
 export interface Checklist {
   id: string
@@ -49,36 +49,14 @@ export interface CheckTradeResponse {
 
 export const interventionApi = {
   async checkTrade(tradeData: CheckTradeRequest): Promise<CheckTradeResponse> {
-    const token = localStorage.getItem("keeltrader_access_token")
-    const response = await fetch(`${API_V1_PREFIX}/intervention/check-trade`, {
+    return apiJson<CheckTradeResponse>("/intervention/check-trade", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: token ? `Bearer ${token}` : "",
-      },
-      body: JSON.stringify(tradeData),
+      body: tradeData,
     })
-
-    if (!response.ok) {
-      throw new Error("Failed to check trade")
-    }
-
-    return response.json()
   },
 
   async getChecklists(): Promise<Checklist[]> {
-    const token = localStorage.getItem("keeltrader_access_token")
-    const response = await fetch(`${API_V1_PREFIX}/intervention/checklists`, {
-      headers: {
-        Authorization: token ? `Bearer ${token}` : "",
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch checklists")
-    }
-
-    return response.json()
+    return apiJson<Checklist[]>("/intervention/checklists")
   },
 
   async createChecklist(
@@ -87,47 +65,28 @@ export const interventionApi = {
     description?: string,
     isRequired: boolean = false
   ): Promise<Checklist> {
-    const token = localStorage.getItem("keeltrader_access_token")
-    const response = await fetch(`${API_V1_PREFIX}/intervention/checklists`, {
+    return apiJson<Checklist>("/intervention/checklists", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: token ? `Bearer ${token}` : "",
-      },
-      body: JSON.stringify({
+      body: {
         name,
         description,
         items,
         is_required: isRequired,
-      }),
+      },
     })
-
-    if (!response.ok) {
-      throw new Error("Failed to create checklist")
-    }
-
-    return response.json()
   },
 
   async completeChecklist(
     checklistId: string,
     responses: Record<string, any>
   ): Promise<void> {
-    const token = localStorage.getItem("keeltrader_access_token")
-    const response = await fetch(
-      `${API_V1_PREFIX}/intervention/checklists/complete`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-        body: JSON.stringify({
-          checklist_id: checklistId,
-          responses,
-        }),
-      }
-    )
+    const response = await apiFetch("/intervention/checklists/complete", {
+      method: "POST",
+      body: {
+        checklist_id: checklistId,
+        responses,
+      },
+    })
 
     if (!response.ok) {
       throw new Error("Failed to complete checklist")
@@ -138,24 +97,13 @@ export const interventionApi = {
     maxDailyLossLimit?: number,
     maxTradesPerDay?: number
   ): Promise<TradingSession> {
-    const token = localStorage.getItem("keeltrader_access_token")
-    const response = await fetch(`${API_V1_PREFIX}/intervention/session/start`, {
+    return apiJson<TradingSession>("/intervention/session/start", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: token ? `Bearer ${token}` : "",
-      },
-      body: JSON.stringify({
+      body: {
         max_daily_loss_limit: maxDailyLossLimit,
         max_trades_per_day: maxTradesPerDay,
-      }),
+      },
     })
-
-    if (!response.ok) {
-      throw new Error("Failed to start trading session")
-    }
-
-    return response.json()
   },
 
   async acknowledgeIntervention(
@@ -163,21 +111,13 @@ export const interventionApi = {
     userProceeded: boolean = false,
     userNotes?: string
   ): Promise<void> {
-    const token = localStorage.getItem("keeltrader_access_token")
-    const response = await fetch(
-      `${API_V1_PREFIX}/intervention/interventions/${interventionId}/acknowledge`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token ? `Bearer ${token}` : "",
-        },
-        body: JSON.stringify({
-          user_proceeded: userProceeded,
-          user_notes: userNotes,
-        }),
-      }
-    )
+    const response = await apiFetch(`/intervention/interventions/${interventionId}/acknowledge`, {
+      method: "POST",
+      body: {
+        user_proceeded: userProceeded,
+        user_notes: userNotes,
+      },
+    })
 
     if (!response.ok) {
       throw new Error("Failed to acknowledge intervention")

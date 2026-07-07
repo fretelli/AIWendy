@@ -2,10 +2,7 @@
  * Ollama API client for local model management
  */
 
-import { getAuthHeaders } from './auth'
-import { API_V1_PREFIX } from '@/lib/config'
-
-const API_BASE_URL = API_V1_PREFIX
+import { apiJson, apiStream } from '@/lib/api/client'
 
 export interface OllamaHealthResponse {
   healthy: boolean
@@ -48,51 +45,21 @@ class OllamaApi {
    * Check if Ollama service is running
    */
   async checkHealth(): Promise<OllamaHealthResponse> {
-    const response = await fetch(`${API_BASE_URL}/ollama/health`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to check Ollama health')
-    }
-
-    return response.json()
+    return apiJson<OllamaHealthResponse>('/ollama/health')
   }
 
   /**
    * List available models in Ollama
    */
   async listModels(): Promise<ListModelsResponse> {
-    const response = await fetch(`${API_BASE_URL}/ollama/models`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to list models')
-    }
-
-    return response.json()
+    return apiJson<ListModelsResponse>('/ollama/models')
   }
 
   /**
    * Get recommended models for trading psychology coaching
    */
   async getRecommendedModels(): Promise<{ models: RecommendedModel[] }> {
-    const response = await fetch(`${API_BASE_URL}/ollama/recommended-models`, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    })
-
-    if (!response.ok) {
-      throw new Error('Failed to get recommended models')
-    }
-
-    return response.json()
+    return apiJson<{ models: RecommendedModel[] }>('/ollama/recommended-models')
   }
 
   /**
@@ -104,20 +71,10 @@ class OllamaApi {
     modelName: string,
     onProgress?: (progress: PullProgress) => void
   ): Promise<void> {
-    const headers = await getAuthHeaders()
-
-    const response = await fetch(`${API_BASE_URL}/ollama/models/pull`, {
+    const response = await apiStream('/ollama/models/pull', {
       method: 'POST',
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model_name: modelName }),
+      body: { model_name: modelName },
     })
-
-    if (!response.ok) {
-      throw new Error('Failed to pull model')
-    }
 
     // Handle Server-Sent Events stream
     const reader = response.body?.getReader()
@@ -164,23 +121,10 @@ class OllamaApi {
    * Test chat with a specific Ollama model
    */
   async testChat(model: string, message: string): Promise<TestChatResponse> {
-    const headers = await getAuthHeaders()
-
-    const response = await fetch(`${API_BASE_URL}/ollama/test-chat`, {
+    return apiJson<TestChatResponse>('/ollama/test-chat', {
       method: 'POST',
-      headers: {
-        ...headers,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model, message }),
+      body: { model, message },
     })
-
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(error || 'Failed to test chat')
-    }
-
-    return response.json()
   }
 }
 
