@@ -32,6 +32,7 @@ class Settings(BaseSettings):
 
     # ========== Database ==========
     database_url: str = "postgresql+asyncpg://keeltrader:password@localhost:5432/keeltrader"
+    tushare_database_url: Optional[str] = None
     database_echo: bool = False
     database_pool_size: int = 20
     database_max_overflow: int = 10
@@ -45,6 +46,8 @@ class Settings(BaseSettings):
     app_url: str = "http://localhost:8000"
     api_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:3000"
+    report_kb_url: Optional[str] = None
+    report_kb_timeout_seconds: float = 6.0
 
     # ========== Auth ==========
     jwt_secret: str = Field(
