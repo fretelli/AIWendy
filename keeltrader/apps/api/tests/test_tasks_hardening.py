@@ -65,6 +65,7 @@ sys.modules.setdefault(
 )
 
 tasks = import_module("routers.tasks")
+task_monitor = import_module("services.task_monitor")
 
 
 class _FakeRedis:
@@ -89,7 +90,7 @@ async def test_task_owner_mismatch_preserves_forbidden(monkeypatch):
     owner_id = uuid4()
     current_user = SimpleNamespace(id=uuid4(), is_admin=False)
 
-    monkeypatch.setattr(tasks, "get_cache_service", lambda: _FakeCache(str(owner_id)))
+    monkeypatch.setattr(task_monitor, "get_cache_service", lambda: _FakeCache(str(owner_id)))
 
     with pytest.raises(HTTPException) as exc:
         await tasks._ensure_task_owner("task-1", current_user, "en")
@@ -103,7 +104,7 @@ async def test_task_owner_mismatch_in_status_is_not_masked_as_500(monkeypatch):
     current_user = SimpleNamespace(id=uuid4(), is_admin=False)
     request = SimpleNamespace(headers={}, cookies={})
 
-    monkeypatch.setattr(tasks, "get_cache_service", lambda: _FakeCache(str(owner_id)))
+    monkeypatch.setattr(task_monitor, "get_cache_service", lambda: _FakeCache(str(owner_id)))
 
     with pytest.raises(HTTPException) as exc:
         await tasks.get_task_status("task-1", request, current_user)

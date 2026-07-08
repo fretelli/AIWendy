@@ -14,7 +14,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.auth import get_authenticated_user, get_current_user
-from core.cache_service import get_cache_service
 from core.database import get_session
 from core.i18n import get_request_locale, t
 from core.logging import get_logger
@@ -27,6 +26,12 @@ from workers.report_tasks import (
     generate_daily_report,
     generate_monthly_report,
     generate_weekly_report,
+)
+from services.task_monitor import (
+    ensure_task_owner as _ensure_task_owner,
+    queued_task_response as _queued_task_response,
+    task_result_snapshot,
+    task_status_response,
 )
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
@@ -44,23 +49,6 @@ class IngestKnowledgeRequest(BaseModel):
     embedding_model: Optional[str] = None
 
 
-async def _ensure_task_owner(task_id: str, current_user: User, locale: str) -> None:
-    cache = get_cache_service()
-    redis_client = await cache.async_client
-    owner = await redis_client.get(f"task:owner:{task_id}")
-    if owner and (str(owner) != str(current_user.id)) and (not current_user.is_admin):
-        raise HTTPException(status_code=403, detail=t("errors.access_denied", locale))
-
-
-def _queued_task_response(task_id: str, message: str) -> Dict[str, Any]:
-    return {
-        "task_id": task_id,
-        "status": "queued",
-        "message": message,
-        "check_status_url": f"/api/v1/tasks/status/{task_id}",
-    }
-
-
 @router.get("/status/{task_id}")
 async def get_task_status(
     task_id: str,
@@ -75,33 +63,7 @@ async def get_task_status(
         await _ensure_task_owner(task_id, current_user, locale)
 
         result = AsyncResult(task_id, app=celery_app)
-
-        response = {
-            "task_id": task_id,
-            "state": result.state,
-            "ready": result.ready(),
-            "successful": result.successful() if result.ready() else None,
-            "failed": result.failed() if result.ready() else None,
-        }
-
-        # Add result or error information
-        if result.ready():
-            if result.successful():
-                response["result"] = result.result
-            elif result.failed():
-                response["error"] = str(result.info)
-                response["traceback"] = result.traceback
-
-        # Add progress info for running tasks
-        elif result.state == states.PENDING:
-            response["info"] = t("messages.task_waiting", locale)
-        elif result.state == states.STARTED:
-            response["info"] = t("messages.task_started", locale)
-        elif result.state != states.FAILURE:
-            # Custom state with progress info
-            response["info"] = result.info
-
-        return response
+        return task_status_response(task_id, result, locale)
 
     except HTTPException:
         raise
@@ -138,19 +100,7 @@ async def stream_task_status(
             await pubsub.subscribe(channel)
 
             # Send an initial snapshot immediately.
-            snapshot = {
-                "task_id": task_id,
-                "state": result.state,
-                "ready": result.ready(),
-                "successful": result.successful() if result.ready() else None,
-                "failed": result.failed() if result.ready() else None,
-                "result": (
-                    result.result if result.ready() and result.successful() else None
-                ),
-                "error": (
-                    str(result.info) if result.ready() and result.failed() else None
-                ),
-            }
+            snapshot = task_result_snapshot(task_id, result)
             yield f"data: {json.dumps(snapshot, ensure_ascii=False)}\n\n"
             if snapshot["ready"]:
                 return
@@ -175,23 +125,7 @@ async def stream_task_status(
                 # Heartbeat / best-effort snapshot on state change.
                 if result.state != last_state:
                     last_state = result.state
-                    snapshot = {
-                        "task_id": task_id,
-                        "state": result.state,
-                        "ready": result.ready(),
-                        "successful": result.successful() if result.ready() else None,
-                        "failed": result.failed() if result.ready() else None,
-                        "result": (
-                            result.result
-                            if result.ready() and result.successful()
-                            else None
-                        ),
-                        "error": (
-                            str(result.info)
-                            if result.ready() and result.failed()
-                            else None
-                        ),
-                    }
+                    snapshot = task_result_snapshot(task_id, result)
                     yield f"data: {json.dumps(snapshot, ensure_ascii=False)}\n\n"
                     if snapshot["ready"]:
                         return
