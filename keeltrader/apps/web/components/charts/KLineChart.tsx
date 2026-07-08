@@ -4,14 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 import {
   createChart,
   createSeriesMarkers,
-  CandlestickData,
   CandlestickSeries,
   ColorType,
   HistogramSeries,
   IChartApi,
   ISeriesApi,
 } from 'lightweight-charts'
-import type { SeriesMarker } from 'lightweight-charts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
@@ -20,6 +18,12 @@ import { AlertCircle, TrendingUp, TrendingDown, BarChart3, Loader2 } from 'lucid
 import { JournalResponse } from '@/lib/types/journal'
 import { format } from 'date-fns'
 import { marketDataApi } from '@/lib/api/market-data'
+import {
+  calculateTradeStats,
+  journalTradeMarkers,
+  priceDataToCandlesticks,
+  priceDataToVolume,
+} from '@/lib/charts/kline-data'
 import { logClientError } from '@/lib/client-log'
 
 interface KLineChartProps {
@@ -109,35 +113,11 @@ export function KLineChart({ journals = [], symbol = 'SPY', onSymbolChange }: KL
           return
         }
 
-        const chartData: CandlestickData[] = marketData.map(d => ({
-          time: format(new Date(d.time), 'yyyy-MM-dd') as any,
-          open: d.open,
-          high: d.high,
-          low: d.low,
-          close: d.close,
-        }))
+        const chartData = priceDataToCandlesticks(marketData)
         candlestickSeries.setData(chartData)
 
-        const volumeData = marketData.map(d => ({
-          time: format(new Date(d.time), 'yyyy-MM-dd') as any,
-          value: d.volume ?? 0,
-          color: d.close >= d.open ? '#10b98150' : '#ef444450',
-        }))
-        volumeSeries.setData(volumeData)
-
-        const markers = journals
-          .filter(j => j.symbol === symbol && j.trade_date && j.entry_price)
-          .map((j): SeriesMarker<any> => {
-            const isProfit = j.pnl_amount && j.pnl_amount > 0
-            return {
-              time: format(new Date(j.trade_date!), 'yyyy-MM-dd') as any,
-              position: isProfit ? 'aboveBar' : 'belowBar',
-              color: isProfit ? '#10b981' : '#ef4444',
-              shape: isProfit ? 'arrowUp' : 'arrowDown',
-              text: `${j.symbol}: ${isProfit ? '+' : ''}${j.pnl_amount?.toFixed(2)}`,
-            }
-          })
-        tradeMarkers.setMarkers(markers)
+        volumeSeries.setData(priceDataToVolume(marketData, chartData))
+        tradeMarkers.setMarkers(journalTradeMarkers(journals, symbol))
 
         chart.timeScale().fitContent()
       } catch (error) {
@@ -177,19 +157,7 @@ export function KLineChart({ journals = [], symbol = 'SPY', onSymbolChange }: KL
   }
 
   // Calculate statistics from journals
-  const stats = {
-    totalTrades: journals.filter(j => j.symbol === symbol).length,
-    winRate: journals.filter(j => j.symbol === symbol && j.pnl_amount && j.pnl_amount > 0).length /
-              journals.filter(j => j.symbol === symbol).length * 100 || 0,
-    avgWin: journals
-      .filter(j => j.symbol === symbol && j.pnl_amount && j.pnl_amount > 0)
-      .reduce((sum, j) => sum + (j.pnl_amount || 0), 0) /
-      journals.filter(j => j.symbol === symbol && j.pnl_amount && j.pnl_amount > 0).length || 0,
-    avgLoss: journals
-      .filter(j => j.symbol === symbol && j.pnl_amount && j.pnl_amount < 0)
-      .reduce((sum, j) => sum + (j.pnl_amount || 0), 0) /
-      journals.filter(j => j.symbol === symbol && j.pnl_amount && j.pnl_amount < 0).length || 0,
-  }
+  const stats = calculateTradeStats(journals, symbol)
 
   return (
     <Card>

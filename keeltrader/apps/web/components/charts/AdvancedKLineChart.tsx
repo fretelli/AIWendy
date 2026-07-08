@@ -7,15 +7,12 @@ import {
   ColorType,
   IChartApi,
   ISeriesApi,
-  CandlestickData,
   CandlestickSeries,
   HistogramSeries,
   LineSeries,
   LineStyle,
-  LineData,
   CrosshairMode,
 } from 'lightweight-charts'
-import type { SeriesMarker } from 'lightweight-charts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -56,6 +53,15 @@ import {
 import { JournalResponse } from '@/lib/types/journal'
 import { format } from 'date-fns'
 import { marketDataApi } from '@/lib/api/market-data'
+import {
+  calculateBollingerBands,
+  calculateEMA,
+  calculateSMA,
+  intervalToMarketDataInterval,
+  journalTradeMarkers,
+  priceDataToCandlesticks,
+  priceDataToVolume,
+} from '@/lib/charts/kline-data'
 import { logClientError } from '@/lib/client-log'
 
 interface AdvancedKLineChartProps {
@@ -70,121 +76,6 @@ interface TechnicalIndicator {
   enabled: boolean
   series?: ISeriesApi<'Line'>
   params?: any
-}
-
-// Calculate Simple Moving Average
-function calculateSMA(data: CandlestickData[], period: number): LineData[] {
-  const sma: LineData[] = []
-  for (let i = period - 1; i < data.length; i++) {
-    let sum = 0
-    for (let j = 0; j < period; j++) {
-      sum += data[i - j].close
-    }
-    sma.push({
-      time: data[i].time,
-      value: sum / period,
-    })
-  }
-  return sma
-}
-
-// Calculate Exponential Moving Average
-function calculateEMA(data: CandlestickData[], period: number): LineData[] {
-  const ema: LineData[] = []
-  const multiplier = 2 / (period + 1)
-
-  // Start with SMA for the first EMA value
-  let sum = 0
-  for (let i = 0; i < period; i++) {
-    sum += data[i].close
-  }
-  let prevEMA = sum / period
-
-  ema.push({
-    time: data[period - 1].time,
-    value: prevEMA,
-  })
-
-  for (let i = period; i < data.length; i++) {
-    const currentEMA = (data[i].close - prevEMA) * multiplier + prevEMA
-    ema.push({
-      time: data[i].time,
-      value: currentEMA,
-    })
-    prevEMA = currentEMA
-  }
-
-  return ema
-}
-
-// Calculate RSI
-function calculateRSI(data: CandlestickData[], period: number = 14): LineData[] {
-  const rsi: LineData[] = []
-  const changes: number[] = []
-
-  for (let i = 1; i < data.length; i++) {
-    changes.push(data[i].close - data[i - 1].close)
-  }
-
-  for (let i = period; i < changes.length; i++) {
-    const gains: number[] = []
-    const losses: number[] = []
-
-    for (let j = i - period; j < i; j++) {
-      if (changes[j] > 0) {
-        gains.push(changes[j])
-        losses.push(0)
-      } else {
-        gains.push(0)
-        losses.push(Math.abs(changes[j]))
-      }
-    }
-
-    const avgGain = gains.reduce((a, b) => a + b, 0) / period
-    const avgLoss = losses.reduce((a, b) => a + b, 0) / period
-
-    const rs = avgLoss === 0 ? 100 : avgGain / avgLoss
-    const rsiValue = 100 - (100 / (1 + rs))
-
-    rsi.push({
-      time: data[i + 1].time,
-      value: rsiValue,
-    })
-  }
-
-  return rsi
-}
-
-// Calculate Bollinger Bands
-function calculateBollingerBands(data: CandlestickData[], period: number = 20, stdDev: number = 2) {
-  const sma = calculateSMA(data, period)
-  const upper: LineData[] = []
-  const lower: LineData[] = []
-
-  for (let i = 0; i < sma.length; i++) {
-    const dataIndex = i + period - 1
-    let sumSquaredDiff = 0
-
-    for (let j = 0; j < period; j++) {
-      const diff = data[dataIndex - j].close - sma[i].value
-      sumSquaredDiff += diff * diff
-    }
-
-    const variance = sumSquaredDiff / period
-    const standardDeviation = Math.sqrt(variance)
-
-    upper.push({
-      time: sma[i].time,
-      value: sma[i].value + (standardDeviation * stdDev),
-    })
-
-    lower.push({
-      time: sma[i].time,
-      value: sma[i].value - (standardDeviation * stdDev),
-    })
-  }
-
-  return { sma, upper, lower }
 }
 
 export function AdvancedKLineChart({
@@ -304,19 +195,9 @@ export function AdvancedKLineChart({
 
     const loadChartData = async () => {
       try {
-        const intervalMap: Record<string, string> = {
-          '1m': '1min',
-          '5m': '5min',
-          '15m': '15min',
-          '1h': '1h',
-          '4h': '1h',
-          '1d': '1day',
-          '1w': '1week',
-        }
-
         const marketData = await marketDataApi.getHistoricalData(
           symbol,
-          intervalMap[interval] || '1day',
+          intervalToMarketDataInterval(interval),
           90
         )
 
@@ -329,23 +210,12 @@ export function AdvancedKLineChart({
           return
         }
 
-        const data: CandlestickData[] = marketData.map(d => ({
-          time: format(new Date(d.time), 'yyyy-MM-dd') as any,
-          open: d.open,
-          high: d.high,
-          low: d.low,
-          close: d.close,
-        }))
+        const data = priceDataToCandlesticks(marketData)
 
         candlestickSeries.setData(data)
 
         if (volumeSeries) {
-          const volumeData = marketData.map((d, i) => ({
-            time: data[i].time,
-            value: d.volume ?? 0,
-            color: d.close >= d.open ? '#10b98150' : '#ef444450',
-          }))
-          volumeSeries.setData(volumeData)
+          volumeSeries.setData(priceDataToVolume(marketData, data))
         }
 
         indicators.forEach(indicator => {
@@ -402,23 +272,7 @@ export function AdvancedKLineChart({
           }
         })
 
-        if (journals.length > 0) {
-          const markers = journals
-            .filter(j => j.trade_date && j.symbol === symbol)
-            .map((j): SeriesMarker<any> => {
-              const isProfit = j.pnl_amount && j.pnl_amount > 0
-              return {
-                time: format(new Date(j.trade_date!), 'yyyy-MM-dd') as any,
-                position: isProfit ? 'aboveBar' : 'belowBar',
-                color: isProfit ? '#10b981' : '#ef4444',
-                shape: isProfit ? 'arrowUp' : 'arrowDown',
-                text: `${j.pnl_amount?.toFixed(0)}`,
-              }
-            })
-          seriesMarkers.setMarkers(markers)
-        } else {
-          seriesMarkers.setMarkers([])
-        }
+        seriesMarkers.setMarkers(journalTradeMarkers(journals, symbol, { textMode: 'pnl' }))
 
         chart.timeScale().fitContent()
       } catch (error) {
