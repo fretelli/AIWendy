@@ -24,6 +24,12 @@ interface MarketDataWSOptions {
   maxReconnectDelay?: number
 }
 
+function debugMarketDataWs(message: string): void {
+  if (process.env.NEXT_PUBLIC_MARKET_DATA_WS_DEBUG === '1') {
+    console.debug(message)
+  }
+}
+
 export class MarketDataWebSocket {
   private ws: WebSocket | null = null
   private symbol: string
@@ -50,7 +56,7 @@ export class MarketDataWebSocket {
    */
   connect(): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
-      console.log('WebSocket already connected')
+      debugMarketDataWs('WebSocket already connected')
       return
     }
 
@@ -66,7 +72,7 @@ export class MarketDataWebSocket {
     this.ws = new WebSocket(wsUrl)
 
     this.ws.onopen = () => {
-      console.log(`Connected to market data stream for ${this.symbol}`)
+      debugMarketDataWs(`Connected to market data stream for ${this.symbol}`)
       this.reconnectAttempts = 0
       this.options.onConnect()
     }
@@ -88,7 +94,7 @@ export class MarketDataWebSocket {
     }
 
     this.ws.onclose = () => {
-      console.log('WebSocket closed')
+      debugMarketDataWs('WebSocket closed')
       this.options.onDisconnect()
       this.ws = null
 
@@ -112,7 +118,7 @@ export class MarketDataWebSocket {
       this.options.maxReconnectDelay
     )
 
-    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1})`)
+    debugMarketDataWs(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts + 1})`)
 
     this.reconnectTimeout = setTimeout(() => {
       this.reconnectAttempts++
