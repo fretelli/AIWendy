@@ -18,6 +18,7 @@ SMOKE_ONLY=0
 TEST_ONLY=0
 SMOKE_ATTEMPTS="${KEELTRADER_API_SMOKE_ATTEMPTS:-12}"
 SMOKE_DELAY_SECONDS="${KEELTRADER_API_SMOKE_DELAY_SECONDS:-5}"
+PIP_INDEX_URL="${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}"
 
 usage() {
   cat <<'USAGE'
@@ -39,6 +40,7 @@ Environment:
   KEELTRADER_API_OVERLAY_BASE_IMAGE  Explicit base image for overlay builds. Default: use keeltrader-api:base, fall back to keeltrader-api:latest.
   KEELTRADER_API_SMOKE_ATTEMPTS      Smoke attempts per check. Default: 12
   KEELTRADER_API_SMOKE_DELAY_SECONDS Delay between smoke attempts. Default: 5
+  PIP_INDEX_URL                       Python package index for base/test image builds. Default: Aliyun PyPI mirror.
 USAGE
 }
 
@@ -84,6 +86,7 @@ build_api_base_image() {
 
   docker build --pull=false \
     -f "$API_DIR/Dockerfile" \
+    --build-arg PIP_INDEX_URL="$PIP_INDEX_URL" \
     -t "$image" \
     "$ROOT_DIR"
 }
@@ -115,6 +118,7 @@ run_quality_checks() {
   docker build --pull=false \
     -f "$API_DIR/Dockerfile.test" \
     --build-arg API_UNDER_TEST_IMAGE=keeltrader-api:test-overlay \
+    --build-arg PIP_INDEX_URL="$PIP_INDEX_URL" \
     -t keeltrader-api:test-runner \
     "$ROOT_DIR"
 

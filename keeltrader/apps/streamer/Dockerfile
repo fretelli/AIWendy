@@ -2,13 +2,18 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+
+ENV PIP_DEFAULT_TIMEOUT=120 \
+    PIP_RETRIES=10 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_INDEX_URL=${PIP_INDEX_URL}
 
 COPY streamer/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+RUN pip install --no-cache-dir --prefer-binary -r /tmp/requirements.txt
 
-# Copy streamer + shared engine types + exchange adapter + package init
+# Legacy standalone image. Current Compose runs the active worker from keeltrader-api.
+# Copy streamer + shared engine types + exchange adapter + package init.
 COPY __init__.py /app/apps/__init__.py
 COPY streamer/ /app/apps/streamer/
 COPY exchange/ /app/apps/exchange/
