@@ -33,6 +33,13 @@ from services.task_monitor import (
     task_result_snapshot,
     task_status_response,
 )
+from services.task_inspector import (
+    active_tasks_response,
+    empty_active_tasks_error_response,
+    empty_task_stats_error_response,
+    scheduled_tasks_response,
+    task_stats_response,
+)
 
 router = APIRouter(prefix="/api/v1/tasks", tags=["tasks"])
 logger = get_logger(__name__)
@@ -379,53 +386,11 @@ async def get_active_tasks(
         inspect = celery_app.control.inspect()
         active_tasks = inspect.active()
 
-        if not active_tasks:
-            return {"tasks": [], "total": 0, "timestamp": datetime.utcnow().isoformat()}
-
-        # Filter tasks for current user (unless admin)
-        user_tasks = []
-        for worker, tasks in active_tasks.items():
-            for task in tasks:
-                # Check if task belongs to current user
-                task_args = task.get("args", [])
-                task_kwargs = task.get("kwargs", {})
-
-                # Check if user_id matches (in args or kwargs)
-                user_id_match = (
-                    str(current_user.id) in task_args
-                    or task_kwargs.get("user_id") == str(current_user.id)
-                    or current_user.is_admin
-                )
-
-                if user_id_match:
-                    user_tasks.append(
-                        {
-                            "task_id": task.get("id"),
-                            "name": task.get("name"),
-                            "worker": worker,
-                            "args": task.get("args"),
-                            "kwargs": task.get("kwargs"),
-                            "time_start": task.get("time_start"),
-                        }
-                    )
-
-        # Limit results
-        user_tasks = user_tasks[:limit]
-
-        return {
-            "tasks": user_tasks,
-            "total": len(user_tasks),
-            "timestamp": datetime.utcnow().isoformat(),
-        }
+        return active_tasks_response(active_tasks, current_user, limit)
 
     except Exception as e:
         logger.error(f"Failed to get active tasks: {str(e)}")
-        return {
-            "tasks": [],
-            "total": 0,
-            "error": t("errors.internal", locale),
-            "timestamp": datetime.utcnow().isoformat(),
-        }
+        return empty_active_tasks_error_response(t("errors.internal", locale))
 
 
 @router.get("/scheduled")
@@ -444,25 +409,7 @@ async def get_scheduled_tasks(
         )
 
     try:
-        # Get scheduled tasks from Celery Beat
-        scheduled_tasks = []
-
-        for task_name, task_info in celery_app.conf.beat_schedule.items():
-            scheduled_tasks.append(
-                {
-                    "name": task_name,
-                    "task": task_info.get("task"),
-                    "schedule": str(task_info.get("schedule")),
-                    "args": task_info.get("args", []),
-                    "kwargs": task_info.get("kwargs", {}),
-                }
-            )
-
-        return {
-            "scheduled_tasks": scheduled_tasks,
-            "total": len(scheduled_tasks),
-            "timestamp": datetime.utcnow().isoformat(),
-        }
+        return scheduled_tasks_response(celery_app.conf.beat_schedule)
 
     except Exception as e:
         logger.error(f"Failed to get scheduled tasks: {str(e)}")
@@ -536,46 +483,8 @@ async def get_task_stats(
         scheduled = inspect.scheduled()
         reserved = inspect.reserved()
 
-        # Count tasks
-        active_count = sum(len(tasks) for tasks in (active or {}).values())
-        scheduled_count = sum(len(tasks) for tasks in (scheduled or {}).values())
-        reserved_count = sum(len(tasks) for tasks in (reserved or {}).values())
-
-        # Get worker stats
-        worker_stats = []
-        if stats:
-            for worker, worker_info in stats.items():
-                worker_stats.append(
-                    {
-                        "worker": worker,
-                        "pool": worker_info.get("pool", {}).get("implementation"),
-                        "max_concurrency": worker_info.get("pool", {}).get(
-                            "max-concurrency"
-                        ),
-                        "processes": worker_info.get("pool", {}).get("processes"),
-                        "total_tasks": worker_info.get("total", {}),
-                    }
-                )
-
-        return {
-            "queue_stats": {
-                "active_tasks": active_count,
-                "scheduled_tasks": scheduled_count,
-                "reserved_tasks": reserved_count,
-            },
-            "workers": worker_stats,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
+        return task_stats_response(stats, active, scheduled, reserved)
 
     except Exception as e:
         logger.error(f"Failed to get task stats: {str(e)}")
-        return {
-            "queue_stats": {
-                "active_tasks": 0,
-                "scheduled_tasks": 0,
-                "reserved_tasks": 0,
-            },
-            "workers": [],
-            "error": t("errors.internal", locale),
-            "timestamp": datetime.utcnow().isoformat(),
-        }
+        return empty_task_stats_error_response(t("errors.internal", locale))
