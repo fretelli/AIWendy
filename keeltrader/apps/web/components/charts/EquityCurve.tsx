@@ -17,10 +17,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { JournalResponse } from '@/lib/types/journal'
 import { format } from 'date-fns'
 import { TrendingUp, TrendingDown, Activity } from 'lucide-react'
+import { firstTooltipEntry, tooltipNumber, type ChartTooltipProps } from '@/lib/charts/recharts-tooltip'
 
 interface EquityCurveProps {
   journals: JournalResponse[]
   initialBalance?: number
+}
+
+interface EquityDataPoint {
+  date: string
+  balance: number
+  pnl: number
+  trade: string
+  drawdown: number
+  index: number
 }
 
 export function EquityCurve({ journals, initialBalance = 10000 }: EquityCurveProps) {
@@ -74,21 +84,24 @@ export function EquityCurve({ journals, initialBalance = 10000 }: EquityCurvePro
   const totalReturn = ((finalBalance - initialBalance) / initialBalance) * 100
   const isProfit = finalBalance >= initialBalance
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload[0]) {
+  const CustomTooltip = (props: ChartTooltipProps<EquityDataPoint>) => {
+    const entry = firstTooltipEntry(props)
+    const point = entry?.payload
+    if (entry && point) {
+      const balance = tooltipNumber(entry.value)
       return (
         <div className="bg-background border rounded-lg shadow-lg p-3">
-          <p className="font-semibold">{label}</p>
+          <p className="font-semibold">{props.label}</p>
           <p className="text-sm">
-            Balance: <span className="font-mono">${payload[0].value.toLocaleString()}</span>
+            Balance: <span className="font-mono">${balance.toLocaleString()}</span>
           </p>
-          {payload[0].payload.trade && (
+          {point.trade && (
             <p className="text-sm text-muted-foreground">
-              Trade: {payload[0].payload.trade}
+              Trade: {point.trade}
             </p>
           )}
           <p className="text-sm">
-            Drawdown: <span className="text-red-500">{payload[0].payload.drawdown}%</span>
+            Drawdown: <span className="text-red-500">{point.drawdown}%</span>
           </p>
         </div>
       )

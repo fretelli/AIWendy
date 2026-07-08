@@ -16,11 +16,31 @@ import {
 } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { JournalResponse, TradeResult } from '@/lib/types/journal'
-import { DollarSign, TrendingUp, TrendingDown } from 'lucide-react'
+import { DollarSign } from 'lucide-react'
+import { firstTooltipEntry, tooltipNumber, type ChartTooltipProps } from '@/lib/charts/recharts-tooltip'
 
 interface PnLDistributionProps {
   journals: JournalResponse[]
 }
+
+interface DistributionDataPoint {
+  range: string
+  count: number
+  total: number
+  avgPnL: number
+}
+
+interface PieDataPoint {
+  name: keyof typeof COLORS
+  value: number
+  pnl: number
+}
+
+const COLORS = {
+  Wins: '#10b981',
+  Losses: '#ef4444',
+  Breakeven: '#6b7280',
+} as const
 
 export function PnLDistribution({ journals }: PnLDistributionProps) {
   // Group trades by P&L ranges
@@ -61,34 +81,32 @@ export function PnLDistribution({ journals }: PnLDistributionProps) {
   const winTotal = wins.reduce((sum, j) => sum + (j.pnl_amount || 0), 0)
   const lossTotal = losses.reduce((sum, j) => sum + (j.pnl_amount || 0), 0)
 
-  const pieData = [
+  const pieDataSource: PieDataPoint[] = [
     { name: 'Wins', value: wins.length, pnl: winTotal },
     { name: 'Losses', value: losses.length, pnl: lossTotal },
     { name: 'Breakeven', value: breakeven.length, pnl: 0 },
-  ].filter(d => d.value > 0)
+  ]
+  const pieData = pieDataSource.filter(d => d.value > 0)
 
-  const COLORS = {
-    Wins: '#10b981',
-    Losses: '#ef4444',
-    Breakeven: '#6b7280',
-  }
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload[0]) {
+  const CustomTooltip = (props: ChartTooltipProps<DistributionDataPoint>) => {
+    const entry = firstTooltipEntry(props)
+    const point = entry?.payload
+    if (entry && point) {
+      const count = tooltipNumber(entry.value)
       return (
         <div className="bg-background border rounded-lg shadow-lg p-3">
-          <p className="font-semibold">{payload[0].payload.range}</p>
-          <p className="text-sm">Trades: {payload[0].value}</p>
+          <p className="font-semibold">{point.range}</p>
+          <p className="text-sm">Trades: {count}</p>
           <p className="text-sm">
             Total P&L:
-            <span className={`font-mono ml-1 ${payload[0].payload.total >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              ${payload[0].payload.total.toLocaleString()}
+            <span className={`font-mono ml-1 ${point.total >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              ${point.total.toLocaleString()}
             </span>
           </p>
           <p className="text-sm">
             Avg P&L:
-            <span className={`font-mono ml-1 ${payload[0].payload.avgPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              ${payload[0].payload.avgPnL.toLocaleString()}
+            <span className={`font-mono ml-1 ${point.avgPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              ${point.avgPnL.toLocaleString()}
             </span>
           </p>
         </div>
@@ -97,16 +115,18 @@ export function PnLDistribution({ journals }: PnLDistributionProps) {
     return null
   }
 
-  const PieTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload[0]) {
+  const PieTooltip = (props: ChartTooltipProps<PieDataPoint>) => {
+    const entry = firstTooltipEntry(props)
+    const point = entry?.payload
+    if (entry && point) {
       return (
         <div className="bg-background border rounded-lg shadow-lg p-3">
-          <p className="font-semibold">{payload[0].name}</p>
-          <p className="text-sm">Count: {payload[0].value}</p>
+          <p className="font-semibold">{entry.name}</p>
+          <p className="text-sm">Count: {tooltipNumber(entry.value)}</p>
           <p className="text-sm">
             Total P&L:
-            <span className={`font-mono ml-1 ${payload[0].payload.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              ${payload[0].payload.pnl.toFixed(2)}
+            <span className={`font-mono ml-1 ${point.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              ${point.pnl.toFixed(2)}
             </span>
           </p>
         </div>
@@ -187,7 +207,7 @@ export function PnLDistribution({ journals }: PnLDistributionProps) {
                     animationDuration={800}
                   >
                     {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[entry.name as keyof typeof COLORS]} />
+                      <Cell key={`cell-${index}`} fill={COLORS[entry.name]} />
                     ))}
                   </Pie>
                   <Tooltip content={<PieTooltip />} />
