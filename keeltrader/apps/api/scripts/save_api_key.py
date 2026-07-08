@@ -95,7 +95,7 @@ async def save_api_key():
             print(f"   User: {USER_EMAIL}")
             print(f"\nYou can now login at http://localhost:3000")
             print(f"Email: {USER_EMAIL}")
-            print(f"Password: Admin@123")
+            print("Password: use the password configured for this account")
 
             return True
 

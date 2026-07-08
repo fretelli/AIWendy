@@ -5,11 +5,26 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RELEASE_SCOPE="release-web"
 source "$ROOT_DIR/scripts/lib/release-common.sh"
+RELEASE_ENV_FILE="${KEELTRADER_RELEASE_ENV_FILE:-$ROOT_DIR/.env.release.local}"
+
+if [ -n "${KEELTRADER_RELEASE_ENV_FILE:-}" ] && [ ! -f "$RELEASE_ENV_FILE" ]; then
+  die "Explicit release env file not found: $RELEASE_ENV_FILE"
+fi
+
+if [ -f "$RELEASE_ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$RELEASE_ENV_FILE"
+  set +a
+  log "Loaded release env file: $RELEASE_ENV_FILE"
+fi
+
 init_release_metadata "$ROOT_DIR"
 WEB_DIR="$ROOT_DIR/apps/web"
 BASE_URL="${KEELTRADER_SMOKE_BASE_URL:-https://keeltrader.joyeeassets.com}"
 OVERLAY_BASE_IMAGE="${KEELTRADER_WEB_OVERLAY_BASE_IMAGE:-}"
 NPM_REGISTRY="${KEELTRADER_NPM_REGISTRY:-https://registry.npmjs.org/}"
+REQUIRE_AUTH_SMOKE="${KEELTRADER_REQUIRE_AUTH_SMOKE:-0}"
 DEFAULT_BASE_IMAGE="keeltrader-web:base"
 FALLBACK_BASE_IMAGE="keeltrader-web:latest"
 RUN_TESTS=1
@@ -36,6 +51,8 @@ Environment:
   KEELTRADER_SMOKE_BASE_URL       Base URL for smoke checks. Default: https://keeltrader.joyeeassets.com
   KEELTRADER_SMOKE_EMAIL          Optional login smoke email.
   KEELTRADER_SMOKE_PASSWORD       Optional login smoke password.
+  KEELTRADER_REQUIRE_AUTH_SMOKE   Set to 1 to fail release when login smoke credentials are missing.
+  KEELTRADER_RELEASE_ENV_FILE     Optional env file for release-only secrets. Default: .env.release.local when present.
   KEELTRADER_SMOKE_ATTEMPTS       Smoke attempts per check. Default: 12
   KEELTRADER_SMOKE_DELAY_SECONDS  Delay between smoke attempts. Default: 2
   KEELTRADER_NPM_REGISTRY         npm registry used for full/base Docker builds. Default: https://registry.npmjs.org/
@@ -75,6 +92,13 @@ http_code() {
   shift 3
 
   curl -ksS -X "$method" -o "$output" -w '%{http_code}' "$@" "$url"
+}
+
+is_truthy() {
+  case "${1:-}" in
+    1|true|TRUE|yes|YES|y|Y|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 expect_code() {
@@ -225,6 +249,9 @@ smoke() {
   fi
 
   if [ -z "${KEELTRADER_SMOKE_EMAIL:-}" ] || [ -z "${KEELTRADER_SMOKE_PASSWORD:-}" ]; then
+    if is_truthy "$REQUIRE_AUTH_SMOKE"; then
+      die "Logged-in smoke required but KEELTRADER_SMOKE_EMAIL/PASSWORD are not set."
+    fi
     log "Logged-in smoke incomplete: KEELTRADER_SMOKE_EMAIL/PASSWORD not set; release was not validated with an authenticated session."
     return
   fi

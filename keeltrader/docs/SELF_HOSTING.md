@@ -58,10 +58,12 @@ docker exec keeltrader-api python scripts/init_user_simple.py
 
 如果开启了 `KEELTRADER_AUTO_INIT_TEST_USERS=1`，测试账号为：
 
-| Type | Email | Password | Access |
-|------|-------|----------|--------|
-| User | test@example.com | Test@1234 | Free |
-| Admin | admin@keeltrader.com | Admin@123 | Elite + Admin |
+| Type | Email | Password env | Access |
+|------|-------|--------------|--------|
+| User | test@example.com | `KEELTRADER_DEV_USER_PASSWORD` | Free |
+| Admin | admin@keeltrader.com | `KEELTRADER_DEV_ADMIN_PASSWORD` | Elite + Admin |
+
+启用测试账号初始化前必须在 `.env` 中显式设置这两个密码变量；生产环境不要启用 `KEELTRADER_AUTO_INIT_TEST_USERS`。
 
 ## 访问地址
 
@@ -169,10 +171,12 @@ docker exec keeltrader-api python scripts/init_user_simple.py
 
 If `KEELTRADER_AUTO_INIT_TEST_USERS=1` is enabled, default test accounts are:
 
-| Type | Email | Password | Access |
-|------|-------|----------|--------|
-| User | test@example.com | Test@1234 | Free |
-| Admin | admin@keeltrader.com | Admin@123 | Elite + Admin |
+| Type | Email | Password env | Access |
+|------|-------|--------------|--------|
+| User | test@example.com | `KEELTRADER_DEV_USER_PASSWORD` | Free |
+| Admin | admin@keeltrader.com | `KEELTRADER_DEV_ADMIN_PASSWORD` | Elite + Admin |
+
+Set both password variables explicitly in `.env` before enabling test-account initialization. Do not enable `KEELTRADER_AUTO_INIT_TEST_USERS` in production.
 
 ## URLs
 

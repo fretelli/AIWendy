@@ -8,7 +8,7 @@ PIP_AUDIT_VULN_SERVICE ?= osv
 PIP_AUDIT_IGNORE_VULNS ?=
 PIP_AUDIT_IGNORE_ARGS = $(foreach vuln,$(PIP_AUDIT_IGNORE_VULNS),--ignore-vuln $(vuln))
 
-.PHONY: help setup dev check check-web check-api audit audit-web audit-api audit-api-strict test build deploy clean db-migrate db-rollback
+.PHONY: help setup dev check check-web check-api check-security-defaults audit audit-web audit-api audit-api-strict test build deploy clean db-migrate db-rollback
 
 # Default target
 help:
@@ -16,6 +16,7 @@ help:
 	@echo "  make check     - Run web checks and API container tests"
 	@echo "  make check-web - Run web lint, type-check, and Jest"
 	@echo "  make check-api - Build API test runner and run pytest"
+	@echo "  make check-security-defaults - Reject hardcoded development default passwords"
 	@echo "  make audit     - Run web and API dependency audits"
 	@echo "  make audit-web - Run npm audit for high/critical web dependency issues"
 	@echo "  make audit-api - Run strict pip-audit checks for API dependency issues"
@@ -43,6 +44,9 @@ check-web:
 
 check-api:
 	@scripts/release-api-overlay.sh --test-only
+
+check-security-defaults:
+	@repo_root="$$(git rev-parse --show-toplevel)" && ! git -C "$$repo_root" grep -nE 'Admin[@]123|Test[@]1234' -- . || { echo "Hardcoded development default password found. Use explicit environment variables instead." >&2; exit 1; }
 
 audit: audit-web audit-api
 
