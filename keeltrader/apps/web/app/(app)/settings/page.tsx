@@ -19,29 +19,64 @@ interface Exchange {
   last_sync: string | null;
 }
 
+interface RiskSettings {
+  max_order_value_usd: number;
+  max_daily_loss_usd: number;
+  max_positions: number;
+  require_confirmation: boolean;
+}
+
+interface PushSettings {
+  push_morning_report: boolean;
+  push_evening_report: boolean;
+  push_trade_alerts: boolean;
+  push_risk_alerts: boolean;
+}
+
+interface NewExchangeForm {
+  exchange: string;
+  api_key: string;
+  api_secret: string;
+  passphrase: string;
+  trading_mode: string;
+}
+
+const DEFAULT_RISK_SETTINGS: RiskSettings = {
+  max_order_value_usd: 5000,
+  max_daily_loss_usd: 500,
+  max_positions: 5,
+  require_confirmation: true,
+};
+
+const DEFAULT_PUSH_SETTINGS: PushSettings = {
+  push_morning_report: true,
+  push_evening_report: true,
+  push_trade_alerts: true,
+  push_risk_alerts: true,
+};
+
+const DEFAULT_NEW_EXCHANGE: NewExchangeForm = {
+  exchange: 'okx',
+  api_key: '',
+  api_secret: '',
+  passphrase: '',
+  trading_mode: 'swap',
+};
+
+const PUSH_SETTING_ITEMS: Array<{ key: keyof PushSettings; label: string }> = [
+  { key: 'push_morning_report', label: 'Morning Report (09:00)' },
+  { key: 'push_evening_report', label: 'Evening Summary (21:00)' },
+  { key: 'push_trade_alerts', label: 'Trade Alerts' },
+  { key: 'push_risk_alerts', label: 'Risk Alerts' },
+];
+
 export default function SettingsPage() {
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
-  const [riskSettings, setRiskSettings] = useState({
-    max_order_value_usd: 5000,
-    max_daily_loss_usd: 500,
-    max_positions: 5,
-    require_confirmation: true,
-  });
-  const [pushSettings, setPushSettings] = useState({
-    push_morning_report: true,
-    push_evening_report: true,
-    push_trade_alerts: true,
-    push_risk_alerts: true,
-  });
+  const [riskSettings, setRiskSettings] = useState<RiskSettings>(DEFAULT_RISK_SETTINGS);
+  const [pushSettings, setPushSettings] = useState<PushSettings>(DEFAULT_PUSH_SETTINGS);
 
   // New exchange form
-  const [newExchange, setNewExchange] = useState({
-    exchange: 'okx',
-    api_key: '',
-    api_secret: '',
-    passphrase: '',
-    trading_mode: 'swap',
-  });
+  const [newExchange, setNewExchange] = useState<NewExchangeForm>(DEFAULT_NEW_EXCHANGE);
 
   const fetchData = useCallback(async () => {
     try {
@@ -73,13 +108,13 @@ export default function SettingsPage() {
       const data = await resp.json();
       if (resp.ok) {
         toast.success(data.message || 'Connected successfully');
-        setNewExchange({ exchange: 'okx', api_key: '', api_secret: '', passphrase: '', trading_mode: 'swap' });
+        setNewExchange(DEFAULT_NEW_EXCHANGE);
         fetchData();
       } else {
         toast.error(data.detail || 'Connection failed');
       }
-    } catch (e: any) {
-      toast.error(e.message);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Connection failed');
     }
   };
 
@@ -244,16 +279,11 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-2">
-            {[
-              { key: 'push_morning_report', label: 'Morning Report (09:00)' },
-              { key: 'push_evening_report', label: 'Evening Summary (21:00)' },
-              { key: 'push_trade_alerts', label: 'Trade Alerts' },
-              { key: 'push_risk_alerts', label: 'Risk Alerts' },
-            ].map(({ key, label }) => (
+            {PUSH_SETTING_ITEMS.map(({ key, label }) => (
               <div key={key} className="flex items-center justify-between">
                 <Label>{label}</Label>
                 <Switch
-                  checked={(pushSettings as any)[key]}
+                  checked={pushSettings[key]}
                   onCheckedChange={v => setPushSettings(p => ({ ...p, [key]: v }))}
                 />
               </div>
