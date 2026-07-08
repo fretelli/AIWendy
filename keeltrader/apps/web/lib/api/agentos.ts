@@ -1,4 +1,5 @@
 import { apiJson, type ApiRequestInit } from "@/lib/api/client";
+import type { JsonObject, JsonValue } from "@/lib/types/json";
 
 const API_BASE = "/agentos";
 
@@ -6,8 +7,7 @@ async function request<T>(path: string, init?: ApiRequestInit): Promise<T> {
   return apiJson<T>(`${API_BASE}${path}`, init);
 }
 
-export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
-export type JsonMap = Record<string, JsonValue>;
+export type JsonMap = JsonObject;
 
 export type AgentOSHealth = {
   status: string;
