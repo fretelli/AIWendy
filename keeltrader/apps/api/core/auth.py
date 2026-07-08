@@ -5,9 +5,10 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import bcrypt
+import jwt
 from fastapi import Depends, HTTPException, Request, WebSocket, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
+from jwt import PyJWTError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -125,7 +126,7 @@ def decode_token(token: str) -> dict:
             algorithms=[settings.jwt_algorithm],
         )
         return payload
-    except JWTError:
+    except PyJWTError:
         raise InvalidTokenError()
 
 
@@ -172,7 +173,7 @@ async def get_current_user(
             if str(stored_user_id) != str(user_id):
                 raise InvalidTokenError()
 
-    except (InvalidTokenError, TokenExpiredError, JWTError):
+    except (InvalidTokenError, TokenExpiredError, PyJWTError):
         if not settings.auth_required:
             return await _ensure_guest_user(session)
         raise
@@ -232,7 +233,7 @@ async def get_websocket_user(
             stored_user_id = redis_client.get(f"session:{session_id}")
             if not stored_user_id or str(stored_user_id) != str(user_id):
                 raise InvalidTokenError()
-    except (InvalidTokenError, TokenExpiredError, JWTError):
+    except (InvalidTokenError, TokenExpiredError, PyJWTError):
         if not runtime_settings.auth_required:
             return await _ensure_guest_user(session)
         raise InvalidTokenError()
@@ -296,7 +297,7 @@ async def get_authenticated_user(
             if str(stored_user_id) != str(user_id):
                 raise InvalidTokenError()
 
-    except (InvalidTokenError, TokenExpiredError, JWTError):
+    except (InvalidTokenError, TokenExpiredError, PyJWTError):
         raise
 
     # Get user from database

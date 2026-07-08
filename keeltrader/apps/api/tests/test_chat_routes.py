@@ -2,7 +2,7 @@
 
 
 def test_chat_v2_routes_are_mounted_without_legacy_root(client):
-    paths = {route.path for route in client.app.routes}
+    paths = {route.path for route in client.app.routes if hasattr(route, "path")}
 
     assert "/api/v1/chat/send" in paths
     assert "/api/v1/chat/quick" in paths
