@@ -1,6 +1,20 @@
 ARG OVERLAY_BASE_IMAGE=keeltrader-web:base
 FROM ${OVERLAY_BASE_IMAGE}
 
+ARG GIT_SHA=unknown
+ARG BUILD_TIME=unknown
+ARG BUILD_TYPE=overlay
+
+LABEL org.opencontainers.image.revision="${GIT_SHA}" \
+      org.opencontainers.image.created="${BUILD_TIME}" \
+      com.keeltrader.build_type="${BUILD_TYPE}" \
+      com.keeltrader.service="web"
+
+ENV KEELTRADER_GIT_SHA="${GIT_SHA}" \
+    KEELTRADER_BUILD_TIME="${BUILD_TIME}" \
+    KEELTRADER_BUILD_TYPE="${BUILD_TYPE}" \
+    NEXT_PUBLIC_KEELTRADER_GIT_SHA="${GIT_SHA}"
+
 USER root
 WORKDIR /app
 

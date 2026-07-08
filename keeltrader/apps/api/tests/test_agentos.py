@@ -26,6 +26,8 @@ def test_backtest_metrics_penalize_trials():
     many_trials = summarize_trade_returns(returns, trials=100)
     assert one_trial["total_trades"] == 6
     assert many_trials["deflated_sharpe_proxy"] < one_trial["deflated_sharpe_proxy"]
+    assert one_trial["dsr_method"] == "conservative_proxy_v1"
+    assert one_trial["research_only"] is True
 
 
 def test_dsr_proxy_handles_small_samples():

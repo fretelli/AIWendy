@@ -248,6 +248,9 @@ export function AgentOSTabs({ state, actions }: { state: DashboardState; actions
                 <Stat label="Sharpe" value={displayValue(latestBacktest.metrics.sharpe_ratio)} />
                 <Stat label="DSR Proxy" value={displayValue(latestBacktest.metrics.deflated_sharpe_proxy)} />
               </div>
+              <p className="text-xs text-muted-foreground">
+                DSR Proxy uses conservative_proxy_v1 and is a research-only guardrail, not a deployment or trading signal.
+              </p>
               <JsonBlock data={latestBacktest.trades?.slice(0, 20) || []} />
             </CardContent>
           </Card>

@@ -14,6 +14,9 @@ FULL_BUILD=0
 SMOKE_ONLY=0
 SMOKE_ATTEMPTS="${KEELTRADER_SMOKE_ATTEMPTS:-12}"
 SMOKE_DELAY_SECONDS="${KEELTRADER_SMOKE_DELAY_SECONDS:-2}"
+GIT_SHA="${KEELTRADER_GIT_SHA:-$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || echo unknown)}"
+BUILD_TIME="${KEELTRADER_BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
+BUILD_TYPE="${KEELTRADER_BUILD_TYPE:-overlay}"
 
 usage() {
   cat <<'USAGE'
@@ -195,11 +198,17 @@ build_images() {
   resolve_overlay_base_image
 
   log "Building overlay image without pulling base images from base: $OVERLAY_BASE_IMAGE"
+  log "Build metadata: git_sha=$GIT_SHA build_time=$BUILD_TIME build_type=$BUILD_TYPE"
   docker build --pull=false \
     -f "$WEB_DIR/Dockerfile.overlay" \
     --build-arg OVERLAY_BASE_IMAGE="$OVERLAY_BASE_IMAGE" \
+    --build-arg GIT_SHA="$GIT_SHA" \
+    --build-arg BUILD_TIME="$BUILD_TIME" \
+    --build-arg BUILD_TYPE="$BUILD_TYPE" \
     -t keeltrader-web:test-overlay \
     "$WEB_DIR"
+
+  expect_image_revision keeltrader-web:test-overlay "$GIT_SHA"
 }
 
 deploy_web() {
@@ -212,6 +221,46 @@ deploy_web() {
   run docker compose up -d web
 }
 
+image_revision() {
+  local image="$1"
+
+  docker image inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image"
+}
+
+expect_image_revision() {
+  local image="$1"
+  local expected="$2"
+  local actual
+
+  actual="$(image_revision "$image" 2>/dev/null || true)"
+  if [ "$actual" != "$expected" ]; then
+    die "Image revision mismatch for $image: expected $expected, got ${actual:-missing}"
+  fi
+
+  log "smoke ok: $image revision $actual"
+}
+
+web_service_revision() {
+  local cid
+  local image_id
+
+  cid="$(docker compose ps -q web)"
+  [ -n "$cid" ] || return 1
+  image_id="$(docker inspect -f '{{.Image}}' "$cid")"
+  docker image inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image_id"
+}
+
+expect_web_service_revision() {
+  local actual
+
+  actual="$(web_service_revision 2>/dev/null || true)"
+  if [ "$actual" != "$GIT_SHA" ]; then
+    die "Running web revision mismatch: expected $GIT_SHA, got ${actual:-missing}"
+  fi
+
+  log "smoke ok: web image revision $actual"
+}
+
 smoke() {
   log "Running smoke checks against $BASE_URL"
 
@@ -219,6 +268,10 @@ smoke() {
   expect_code "agentos requires login" "302,303,307,308" "GET" "/agentos"
   expect_code "agentos API requires login" "401" "GET" "/api/proxy/v1/agentos/health"
   expect_code "research API requires login" "401" "GET" "/api/research/health"
+  if [ "$DEPLOY" -eq 1 ] && [ "$SMOKE_ONLY" -eq 0 ]; then
+    expect_code "web health" "200" "GET" "/api/health"
+    expect_web_service_revision
+  fi
 
   if [ -z "${KEELTRADER_SMOKE_EMAIL:-}" ] || [ -z "${KEELTRADER_SMOKE_PASSWORD:-}" ]; then
     log "Skipping logged-in smoke checks; KEELTRADER_SMOKE_EMAIL/PASSWORD not set."

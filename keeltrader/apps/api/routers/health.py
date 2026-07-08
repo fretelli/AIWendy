@@ -9,6 +9,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import get_settings
+from core.build_info import get_build_info
 from core.database import get_session
 from core.logging import get_logger
 
@@ -28,7 +29,11 @@ class HealthStatus(str, Enum):
 @router.get("/health")
 async def health():
     """Basic health check endpoint."""
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+    return {
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat(),
+        **get_build_info(),
+    }
 
 
 @router.get("/health/ready")
@@ -70,11 +75,11 @@ async def readiness_check(session: AsyncSession = Depends(get_session)):
         "status": overall_status.value,
         "checks": checks,
         "timestamp": datetime.utcnow().isoformat(),
-        "version": settings.app_version,
+        **get_build_info(),
     }
 
 
 @router.get("/health/live")
 async def liveness_check():
     """Kubernetes liveness probe endpoint."""
-    return {"status": "alive"}
+    return {"status": "alive", **get_build_info()}

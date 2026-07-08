@@ -58,6 +58,8 @@ def summarize_trade_returns(pct_returns: list[float], trials: int = 1) -> dict:
             "max_drawdown_pct": 0.0,
             "sharpe_ratio": 0.0,
             "deflated_sharpe_proxy": 0.0,
+            "dsr_method": "conservative_proxy_v1",
+            "research_only": True,
         }
 
     equity = [100.0]
@@ -82,4 +84,6 @@ def summarize_trade_returns(pct_returns: list[float], trials: int = 1) -> dict:
         "profit_factor": round(abs(sum(wins) / sum(losses)), 4) if losses and sum(losses) else 0.0,
         "sharpe_ratio": sharpe,
         "deflated_sharpe_proxy": deflated_sharpe_ratio_proxy(sharpe, len(pct_returns), trials),
+        "dsr_method": "conservative_proxy_v1",
+        "research_only": True,
     }
