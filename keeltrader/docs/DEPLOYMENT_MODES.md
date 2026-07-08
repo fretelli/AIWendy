@@ -41,7 +41,7 @@ DEPLOYMENT_MODE=self-hosted
 - ✅ 完全开源，Apache 2.0 许可证
 - ✅ 数据完全自主控制
 - ✅ 无使用限制
-- ✅ 可选禁用登录认证（`KEELTRADER_AUTH_REQUIRED=0`）
+- ✅ 本地/私有网络开发可选禁用登录认证（`KEELTRADER_AUTH_REQUIRED=0`；公网/生产必须开启）
 - ✅ 支持自定义 LLM API
 - ❌ 不包含计费功能
 - ❌ 不包含多租户隔离
@@ -418,7 +418,7 @@ Or leave it unset (default is `self-hosted`).
 - Fully open-source (Apache 2.0)
 - Full data control
 - No usage limits
-- Optional “no-login” guest mode (`KEELTRADER_AUTH_REQUIRED=0`)
+- Optional “no-login” guest mode for local/private-network development (`KEELTRADER_AUTH_REQUIRED=0`; public/production deployments must keep auth enabled)
 - Supports custom LLM APIs
 - No billing system
 - No multi-tenant isolation
