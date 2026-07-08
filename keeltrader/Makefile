@@ -1,16 +1,17 @@
 # KeelTrader Makefile
 
-.PHONY: help setup dev test build deploy clean
+.PHONY: help setup dev check check-web check-api test build deploy clean db-migrate db-rollback
 
 # Default target
 help:
 	@echo "Available commands:"
-	@echo "  make setup    - Set up development environment"
-	@echo "  make dev      - Start development servers"
-	@echo "  make test     - Run tests"
-	@echo "  make build    - Build production images"
-	@echo "  make deploy   - Deploy to production"
-	@echo "  make clean    - Clean up generated files"
+	@echo "  make check     - Run web checks and API container tests"
+	@echo "  make check-web - Run web lint, type-check, and Jest"
+	@echo "  make check-api - Build API test runner and run pytest"
+	@echo "  make test      - Alias for make check"
+	@echo "  make build     - Build production images"
+	@echo "  make deploy    - Deploy to production"
+	@echo "  make clean     - Clean up generated files"
 
 # Setup development environment
 setup:
@@ -19,27 +20,30 @@ setup:
 
 # Start development servers
 dev:
-	@docker-compose up -d db redis
-	@echo "Starting backend and frontend..."
-	@tmux new-session -d -s keeltrader-api "cd apps/api && source venv/bin/activate && uvicorn main:app --reload"
-	@tmux new-session -d -s keeltrader-web "cd apps/web && npm run dev"
-	@echo "Services started in tmux sessions: keeltrader-api, keeltrader-web"
+	@echo "Use apps/web/npm run dev for frontend work, or scripts/deploy.sh web --no-deploy for production build validation."
+
+check: check-web check-api
+
+check-web:
+	@cd apps/web && npm run lint
+	@cd apps/web && npm run type-check
+	@cd apps/web && npm test -- --runInBand
+
+check-api:
+	@scripts/release-api-overlay.sh --test-only
 
 # Run tests
-test:
-	@echo "Running backend tests..."
-	@cd apps/api && source venv/bin/activate && pytest
-	@echo "Running frontend tests..."
-	@cd apps/web && npm test
+test: check
 
 # Build production images
 build:
-	@docker-compose build
+	@docker compose build
 
 # Deploy to production
 deploy:
 	@chmod +x scripts/deploy.sh
-	@./scripts/deploy.sh production all
+	@./scripts/deploy.sh web
+	@./scripts/deploy.sh api
 
 # Clean up
 clean:
@@ -52,13 +56,7 @@ clean:
 
 # Database operations
 db-migrate:
-	@cd apps/api && source venv/bin/activate && alembic upgrade head
+	@docker compose exec -T api alembic upgrade head
 
 db-rollback:
-	@cd apps/api && source venv/bin/activate && alembic downgrade -1
-
-db-reset:
-	@docker-compose down -v
-	@docker-compose up -d db redis
-	@sleep 5
-	@make db-migrate
+	@docker compose exec -T api alembic downgrade -1

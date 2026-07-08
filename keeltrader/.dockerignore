@@ -1,16 +1,25 @@
 .git
+.env
+.env.*
 **/__pycache__/
 **/*.pyc
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+coverage/
+coverage.xml
+.coverage
+.coverage.*
+htmlcov/
 
 # API builds from the repo root but should not include frontend build artifacts
 # or dependencies in the Docker build context.
+node_modules/
 apps/web/node_modules/
 apps/web/.next/
 apps/web/coverage/
 apps/web/.turbo/
+.next/
 
 uploads/
 logs/

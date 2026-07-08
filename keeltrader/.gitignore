@@ -19,6 +19,9 @@ build/
 
 # Testing
 coverage/
+coverage.xml
+.coverage
+.coverage.*
 .nyc_output
 .pytest_cache/
 htmlcov/

@@ -14,6 +14,7 @@ RUN_TESTS=1
 DEPLOY=1
 FULL_BUILD=0
 SMOKE_ONLY=0
+TEST_ONLY=0
 SMOKE_ATTEMPTS="${KEELTRADER_API_SMOKE_ATTEMPTS:-12}"
 SMOKE_DELAY_SECONDS="${KEELTRADER_API_SMOKE_DELAY_SECONDS:-5}"
 
@@ -26,6 +27,7 @@ overlay image path.
 
 Options:
   --skip-tests   Skip pytest, but still build the production overlay and smoke.
+  --test-only    Build the production overlay and one-shot test image, then run pytest without deploy or smoke.
   --no-deploy    Build and validate the image without tagging latest or restarting services.
   --full-build   Build keeltrader-api:base from apps/api/Dockerfile before overlay.
   --smoke-only   Run smoke checks only against the current Compose stack.
@@ -42,6 +44,10 @@ while [ "$#" -gt 0 ]; do
   case "$1" in
     --skip-tests)
       RUN_TESTS=0
+      ;;
+    --test-only)
+      TEST_ONLY=1
+      DEPLOY=0
       ;;
     --no-deploy)
       DEPLOY=0
@@ -62,6 +68,14 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
+
+if [ "$TEST_ONLY" -eq 1 ] && [ "$RUN_TESTS" -eq 0 ]; then
+  die "--test-only cannot be combined with --skip-tests"
+fi
+
+if [ "$TEST_ONLY" -eq 1 ] && [ "$SMOKE_ONLY" -eq 1 ]; then
+  die "--test-only cannot be combined with --smoke-only"
+fi
 
 resolve_overlay_base_image() {
   if [ -n "$OVERLAY_BASE_IMAGE" ]; then
@@ -296,6 +310,11 @@ main() {
   check_workspace_writable "$API_DIR/.release-write-check"
   build_images
   run_quality_checks
+  if [ "$TEST_ONLY" -eq 1 ]; then
+    log "Test-only complete."
+    return
+  fi
+
   deploy_api
   smoke
 
