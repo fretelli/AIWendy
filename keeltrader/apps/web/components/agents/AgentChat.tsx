@@ -14,6 +14,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { agentsAPI } from '@/lib/api/agents'
 import type { AgentStatus } from '@/lib/types/agents'
+import type { JsonObject } from '@/lib/types/json'
 
 interface AgentChatProps {
   agents: AgentStatus[]
@@ -25,7 +26,22 @@ interface ChatMessage {
   agentId: string
   content: string
   timestamp: Date
-  data?: Record<string, any>
+  data?: JsonObject
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message
+    if (typeof message === 'string' && message.trim()) {
+      return message
+    }
+  }
+
+  return 'Failed to get response'
 }
 
 export function AgentChat({ agents, initialAgentId }: AgentChatProps) {
@@ -75,11 +91,11 @@ export function AgentChat({ agents, initialAgentId }: AgentChatProps) {
         data: resp.data,
       }
       setMessages(prev => [...prev, agentMsg])
-    } catch (e: any) {
+    } catch (e: unknown) {
       const errMsg: ChatMessage = {
         role: 'agent',
         agentId: selectedAgent,
-        content: `Error: ${e.message || 'Failed to get response'}`,
+        content: `Error: ${getErrorMessage(e)}`,
         timestamp: new Date(),
       }
       setMessages(prev => [...prev, errMsg])

@@ -19,12 +19,30 @@ function StatusBadge({ status }: { status: string }) {
   return <Badge variant={variant}>{status}</Badge>
 }
 
+function formatHealthValue(value: unknown): string | null {
+  if (value === undefined || value === null) {
+    return null
+  }
+
+  if (typeof value === 'string') {
+    return value
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+
+  return JSON.stringify(value)
+}
+
 export function HealthOverview({ health, prices, loading }: HealthOverviewProps) {
   if (loading && !health) {
     return <div className="text-sm text-muted-foreground">Loading...</div>
   }
 
   const services = health?.services
+  const eventEngineUptime = formatHealthValue(services?.event_engine?.uptime)
+  const marketStreamerSymbols = formatHealthValue(services?.market_streamer?.symbols)
 
   return (
     <div className="space-y-6">
@@ -36,9 +54,9 @@ export function HealthOverview({ health, prices, loading }: HealthOverviewProps)
           </CardHeader>
           <CardContent>
             <StatusBadge status={services?.event_engine?.status || 'unknown'} />
-            {services?.event_engine?.uptime && (
+            {eventEngineUptime && (
               <p className="mt-1 text-xs text-muted-foreground">
-                Uptime: {services.event_engine.uptime}
+                Uptime: {eventEngineUptime}
               </p>
             )}
           </CardContent>
@@ -50,9 +68,9 @@ export function HealthOverview({ health, prices, loading }: HealthOverviewProps)
           </CardHeader>
           <CardContent>
             <StatusBadge status={services?.market_streamer?.status || 'unknown'} />
-            {services?.market_streamer?.symbols && (
+            {marketStreamerSymbols && (
               <p className="mt-1 text-xs text-muted-foreground">
-                Symbols: {services.market_streamer.symbols}
+                Symbols: {marketStreamerSymbols}
               </p>
             )}
           </CardContent>

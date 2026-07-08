@@ -1,3 +1,5 @@
+import type { JsonObject, JsonValue } from '@/lib/types/json'
+
 export interface AgentStatus {
   agent_id: string
   name: string
@@ -16,8 +18,8 @@ export interface AgentDetailStatus {
 export interface HealthResponse {
   status: 'healthy' | 'degraded'
   services: {
-    event_engine: { status: string; [key: string]: any }
-    market_streamer: { status: string; [key: string]: any }
+    event_engine: JsonObject & { status: string }
+    market_streamer: JsonObject & { status: string }
     circuit_breaker: { active: boolean }
     event_bus: { status: string; length?: number; groups?: number }
     market_data: { cached_symbols: number }
@@ -75,9 +77,9 @@ export interface StreamEvent {
   agent_id?: string
   user_id?: string
   timestamp?: string
-  payload?: Record<string, any> | string
+  payload?: JsonObject | string
   correlation_id?: string
-  [key: string]: any
+  [key: string]: JsonValue | undefined
 }
 
 export interface RecentEventsResponse {
@@ -89,8 +91,8 @@ export interface RecentEventsResponse {
 export interface StreamInfo {
   stream: string
   length: number
-  first_entry?: any
-  last_entry?: any
+  first_entry?: JsonValue
+  last_entry?: JsonValue
   groups?: number
   message?: string
 }
@@ -98,7 +100,7 @@ export interface StreamInfo {
 export interface EventSubmitRequest {
   event_type: string
   user_id?: string
-  payload?: Record<string, any>
+  payload?: JsonObject
   correlation_id?: string
 }
 
@@ -118,7 +120,7 @@ export interface AgentChatResponse {
   agent_id: string
   success: boolean
   message: string
-  data: Record<string, any>
+  data: JsonObject
 }
 
 export interface CachedPrices {
