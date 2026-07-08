@@ -1,8 +1,7 @@
 """Trading journal endpoints."""
 
-import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 
 from fastapi import (
@@ -39,9 +38,13 @@ from services.journal_ai_analyzer import JournalAIAnalyzer
 from services.journal_importer import (
     MAX_IMPORT_ROWS,
     MAX_PREVIEW_ROWS,
-    build_journal_payload,
     parse_tabular_file,
     suggest_mapping,
+)
+from services.journal_import_service import (
+    build_journal_import_models,
+    clamp_import_max_rows,
+    parse_journal_import_mapping,
 )
 from services.llm_router import LLMRouter
 
@@ -241,61 +244,19 @@ async def import_journal_entries(
     if project_id is not None and not project_id.strip():
         project_id = None
 
-    try:
-        raw_mapping = json.loads(mapping_json or "{}")
-        if not isinstance(raw_mapping, dict):
-            raise ValueError("mapping_json must be an object")
-        mapping: Dict[str, str] = {
-            str(k): str(v)
-            for k, v in raw_mapping.items()
-            if v is not None and str(v).strip()
-        }
-    except Exception as e:
-        raise HTTPException(
-            status_code=400,
-            detail=t("errors.invalid_mapping_json", locale, error=str(e)),
-        )
-
-    if "symbol" not in mapping or "direction" not in mapping:
-        raise HTTPException(
-            status_code=400, detail=t("errors.mapping_missing_symbol_direction", locale)
-        )
-
-    if max_rows < 1 or max_rows > MAX_IMPORT_ROWS:
-        max_rows = MAX_IMPORT_ROWS
+    mapping = parse_journal_import_mapping(mapping_json, locale)
+    max_rows = clamp_import_max_rows(max_rows)
 
     content = await file.read()
     parsed = parse_tabular_file(file.filename, content, max_rows=max_rows)
-
-    created_models: List[JournalModel] = []
-    errors: List[str] = []
-    skipped = 0
-
-    for idx, row in enumerate(parsed.rows, start=2):
-        payload, error = build_journal_payload(row, mapping, project_id=project_id)
-        if error:
-            msg = t("messages.import_row_error", locale, row=idx, error=error)
-            if strict:
-                raise HTTPException(status_code=400, detail=msg)
-            skipped += 1
-            if len(errors) < 50:
-                errors.append(msg)
-            continue
-
-        try:
-            entry = JournalCreate(**payload)
-        except Exception as e:
-            msg = t("messages.import_row_error", locale, row=idx, error=str(e))
-            if strict:
-                raise HTTPException(status_code=400, detail=msg)
-            skipped += 1
-            if len(errors) < 50:
-                errors.append(msg)
-            continue
-
-        model_data: Dict[str, Any] = entry.dict(exclude_none=True)
-        journal = JournalModel(user_id=current_user.id, **model_data)
-        created_models.append(journal)
+    created_models, skipped, errors = build_journal_import_models(
+        parsed.rows,
+        mapping,
+        user_id=current_user.id,
+        project_id=project_id,
+        strict=strict,
+        locale=locale,
+    )
 
     if not dry_run and created_models:
         try:
