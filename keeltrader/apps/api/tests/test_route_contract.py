@@ -2,7 +2,7 @@
 
 
 def test_active_route_prefixes_are_mounted(client):
-    paths = {route.path for route in client.app.routes}
+    paths = {route.path for route in client.app.routes if hasattr(route, "path")}
 
     expected_paths = {
         "/api/health",
@@ -22,7 +22,7 @@ def test_active_route_prefixes_are_mounted(client):
 
 
 def test_legacy_routers_are_not_accidentally_exposed(client):
-    paths = {route.path for route in client.app.routes}
+    paths = {route.path for route in client.app.routes if hasattr(route, "path")}
 
     legacy_paths = {
         "/api/v1/tasks",

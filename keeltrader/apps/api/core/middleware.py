@@ -5,9 +5,10 @@ import uuid
 from typing import Callable, Optional
 
 import structlog
+import jwt
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
-from jose import JWTError, jwt
+from jwt import PyJWTError
 from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -122,7 +123,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
                             if user:
                                 request.state.user = user
-            except (JWTError, Exception) as e:
+            except (PyJWTError, Exception) as e:
                 # Token is invalid, but we don't fail here
                 # Let the endpoint handle authentication if required
                 logger = structlog.get_logger()

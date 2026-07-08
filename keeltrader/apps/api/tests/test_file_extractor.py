@@ -16,7 +16,7 @@ from services.file_extractor import (
 @pytest.mark.parametrize(
     ("module_name", "package_name"),
     [
-        ("PyPDF2", "PyPDF2"),
+        ("pypdf", "pypdf"),
         ("docx", "python-docx"),
         ("openpyxl", "openpyxl"),
         ("pptx", "python-pptx"),

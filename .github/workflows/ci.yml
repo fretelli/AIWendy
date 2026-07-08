@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, v2]
   push:
-    branches: [main, develop]
+    branches: [main, develop, v2]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: keeltrader/apps/web
+        working-directory: keeltrader
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,10 +25,10 @@ jobs:
           cache: npm
           cache-dependency-path: keeltrader/apps/web/package-lock.json
       - run: npm ci
-      - run: npm run lint
-      - run: npm run type-check
-      - run: npm run test
+        working-directory: keeltrader/apps/web
+      - run: make check-web
       - run: npm run build
+        working-directory: keeltrader/apps/web
       - name: Upload coverage
         if: always()
         uses: codecov/codecov-action@v3
@@ -38,32 +38,11 @@ jobs:
           fail_ci_if_error: false
 
   api:
-    name: API (lint + test + compile)
+    name: API (Docker pytest)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: keeltrader/apps/api
+        working-directory: keeltrader
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: keeltrader/apps/api/requirements.txt
-      - run: python -m pip install --upgrade pip
-      - run: pip install -r requirements.txt
-      - run: pip install pytest-cov
-      - run: black --check . || echo "Black formatting needed but not blocking CI"
-      - run: isort --check-only . || echo "isort formatting needed but not blocking CI"
-      - run: flake8 . || echo "flake8 issues found but not blocking CI"
-      - run: mypy . --install-types --non-interactive || true
-      - run: pytest --cov=. --cov-report=xml --cov-report=term
-      - run: python -m compileall .
-      - name: Upload coverage
-        if: always()
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./keeltrader/apps/api/coverage.xml
-          flags: backend
-          fail_ci_if_error: false
-
+      - run: make check-api

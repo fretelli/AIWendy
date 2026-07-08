@@ -11,7 +11,7 @@ from services.auth.sessions import AuthSessionService
 
 
 def test_auth_routes_are_mounted(client):
-    paths = {route.path for route in client.app.routes}
+    paths = {route.path for route in client.app.routes if hasattr(route, "path")}
 
     assert "/api/v1/auth/login" in paths
     assert "/api/v1/auth/register" in paths

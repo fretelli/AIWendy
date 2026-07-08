@@ -195,14 +195,14 @@ async def extract_text(file_path: Path, filename: str) -> ExtractionResult:
 async def _extract_pdf(file_path: Path) -> ExtractionResult:
     """Extract text from PDF file."""
     try:
-        import PyPDF2
+        import pypdf as PyPDF2
     except ImportError:
         try:
-            import pypdf as PyPDF2
+            import PyPDF2
         except ImportError:
             return ExtractionResult(
                 success=False,
-                error="PyPDF2 library not installed. Run: pip install PyPDF2",
+                error="PDF parser not installed. Run: pip install pypdf",
                 file_type="pdf",
             )
 
