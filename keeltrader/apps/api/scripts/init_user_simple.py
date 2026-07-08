@@ -6,8 +6,8 @@ Usage:
     python scripts/init_user_simple.py
 
 This will create test users with:
-    - test@example.com / Test@1234
-    - admin@keeltrader.com / Admin@123
+    - test@example.com / KEELTRADER_DEV_USER_PASSWORD
+    - admin@keeltrader.com / KEELTRADER_DEV_ADMIN_PASSWORD
 """
 
 import asyncio
@@ -44,25 +44,35 @@ def hash_password_simple(password: str) -> str:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Test user credentials
-TEST_USERS = [
-    {
-        "email": "test@example.com",
-        "password": "Test@1234",
-        "full_name": "Test User",
-        "subscription_tier": "free",
-    },
-    {
-        "email": "admin@keeltrader.com",
-        "password": "Admin@123",
-        "full_name": "Admin User",
-        "subscription_tier": "elite",
-        "is_admin": True,
-    },
-]
+def _required_password(env_name: str) -> str:
+    password = os.environ.get(env_name)
+    if not password:
+        raise RuntimeError(f"Missing {env_name}; set an explicit development password.")
+    return password
 
 
-async def create_test_users():
+def get_test_users():
+    """Return development users with passwords supplied by environment."""
+    return [
+        {
+            "email": os.environ.get("KEELTRADER_DEV_USER_EMAIL", "test@example.com"),
+            "password": _required_password("KEELTRADER_DEV_USER_PASSWORD"),
+            "password_env": "KEELTRADER_DEV_USER_PASSWORD",
+            "full_name": "Test User",
+            "subscription_tier": "free",
+        },
+        {
+            "email": os.environ.get("KEELTRADER_DEV_ADMIN_EMAIL", "admin@keeltrader.com"),
+            "password": _required_password("KEELTRADER_DEV_ADMIN_PASSWORD"),
+            "password_env": "KEELTRADER_DEV_ADMIN_PASSWORD",
+            "full_name": "Admin User",
+            "subscription_tier": "elite",
+            "is_admin": True,
+        },
+    ]
+
+
+async def create_test_users(test_users):
     """Create test users using raw SQL."""
     settings = get_settings()
 
@@ -73,7 +83,7 @@ async def create_test_users():
     skipped_users = []
 
     async with engine.begin() as conn:
-        for user_data in TEST_USERS:
+        for user_data in test_users:
             try:
                 # Check if user already exists
                 result = await conn.execute(
@@ -140,16 +150,17 @@ async def main():
     print("=" * 50)
 
     try:
-        created, skipped = await create_test_users()
+        test_users = get_test_users()
+        created, skipped = await create_test_users(test_users)
 
         print("\n✅ Script completed successfully!")
 
         if created:
             print(f"\n📝 Created {len(created)} user(s):")
             for email in created:
-                user = next(u for u in TEST_USERS if u["email"] == email)
+                user = next(u for u in test_users if u["email"] == email)
                 print(f"   - Email: {email}")
-                print(f"     Password: {user['password']}")
+                print(f"     Password env: {user['password_env']}")
                 print(f"     Name: {user['full_name']}")
                 print(f"     Tier: {user.get('subscription_tier', 'free')}")
 
@@ -158,18 +169,15 @@ async def main():
             for email in skipped:
                 print(f"   - {email}")
 
-        print("\n🚀 You can now login with the test credentials:")
+        print("\n🚀 You can now login with the configured development credentials:")
         print("   URL: http://localhost:3000/auth/login")
-        for user in TEST_USERS:
-            print(f"\n   User {TEST_USERS.index(user) + 1}:")
+        for user in test_users:
+            print(f"\n   User {test_users.index(user) + 1}:")
             print(f"   Email: {user['email']}")
-            print(f"   Password: {user['password']}")
+            print(f"   Password env: {user['password_env']}")
 
     except Exception as e:
         print(f"\n❌ Error: {e}")
-        import traceback
-
-        traceback.print_exc()
         sys.exit(1)
 
 
