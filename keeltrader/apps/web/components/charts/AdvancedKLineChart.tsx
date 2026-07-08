@@ -56,6 +56,7 @@ import {
 import { JournalResponse } from '@/lib/types/journal'
 import { format } from 'date-fns'
 import { marketDataApi } from '@/lib/api/market-data'
+import { logClientError } from '@/lib/client-log'
 
 interface AdvancedKLineChartProps {
   journals?: JournalResponse[]
@@ -422,7 +423,7 @@ export function AdvancedKLineChart({
         chart.timeScale().fitContent()
       } catch (error) {
         if (cancelled) return
-        console.error('Error loading chart data:', error)
+        logClientError('chart.advancedKline.load', error)
         candlestickSeries.setData([])
         if (volumeSeries) volumeSeries.setData([])
         seriesMarkers.setMarkers([])

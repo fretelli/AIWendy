@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RadarChart } from '@/components/rpg/RadarChart';
@@ -9,41 +10,61 @@ import { RankBadge } from '@/components/rpg/RankBadge';
 import { CharacterCard } from '@/components/rpg/CharacterCard';
 import { getCharacter, getCharacterCard, recalculateCharacter } from '@/lib/rpg-api';
 import type { CharacterData } from '@/lib/rpg-api';
+import { useAsyncData } from '@/hooks/use-async-data';
+import { clientErrorMessage, logClientError } from '@/lib/client-log';
+
+type CharacterCardAchievement = { id: string; name: string; icon: string; rarity: string };
+type CharacterPageData = {
+  character: CharacterData | null;
+  recentAchievements: CharacterCardAchievement[];
+};
+
+const EMPTY_CHARACTER_DATA: CharacterPageData = {
+  character: null,
+  recentAchievements: [],
+};
 
 export default function CharacterPage() {
-  const [character, setCharacter] = useState<CharacterData | null>(null);
-  const [recentAchievements, setRecentAchievements] = useState<{ id: string; name: string; icon: string; rarity: string }[]>([]);
-  const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
-
-  useEffect(() => {
-    Promise.all([getCharacter(), getCharacterCard()])
-      .then(([char, card]) => {
-        setCharacter(char);
-        setRecentAchievements(card.recent_achievements || []);
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false));
+  const [actionError, setActionError] = useState<string | null>(null);
+  const loadCharacter = useCallback(async (): Promise<CharacterPageData> => {
+    const [character, card] = await Promise.all([getCharacter(), getCharacterCard()]);
+    return {
+      character,
+      recentAchievements: card.recent_achievements || [],
+    };
   }, []);
 
+  const { data, setData, loading, error } = useAsyncData(loadCharacter, {
+    initialData: EMPTY_CHARACTER_DATA,
+    errorMessage: 'Failed to load character.',
+    logScope: 'character.load',
+  });
+
   const handleRecalculate = async () => {
+    setActionError(null);
     setRecalculating(true);
     try {
       const result = await recalculateCharacter();
-      setCharacter((prev) => prev ? {
+      setData((prev) => ({
         ...prev,
-        level: result.level,
-        xp: result.xp,
-        rank: result.rank,
-        attributes: result.attributes,
-      } : prev);
+        character: prev.character ? {
+          ...prev.character,
+          level: result.level,
+          xp: result.xp,
+          rank: result.rank,
+          attributes: result.attributes,
+        } : prev.character,
+      }));
       if (result.newly_unlocked.length > 0) {
         alert(`New achievements unlocked: ${result.newly_unlocked.map((a) => a.name).join(', ')}`);
       }
     } catch (e) {
-      console.error(e);
+      logClientError('character.recalculate', e);
+      setActionError(clientErrorMessage(e, 'Failed to recalculate character.'));
+    } finally {
+      setRecalculating(false);
     }
-    setRecalculating(false);
   };
 
   if (loading) {
@@ -54,7 +75,17 @@ export default function CharacterPage() {
     );
   }
 
-  if (!character) return <div className="p-6">Failed to load character</div>;
+  const { character, recentAchievements } = data;
+
+  if (!character) {
+    return (
+      <div className="p-6">
+        <Alert variant="destructive">
+          <AlertDescription>{error || 'Failed to load character.'}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6 overflow-y-auto h-full">
@@ -64,6 +95,11 @@ export default function CharacterPage() {
           {recalculating ? 'Recalculating...' : 'Recalculate'}
         </Button>
       </div>
+      {(error || actionError) && (
+        <Alert variant="destructive">
+          <AlertDescription>{actionError || error}</AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Left: Stats */}
