@@ -1,4 +1,5 @@
 import { apiFetch, apiJson, apiStream } from '@/lib/api/client'
+import { logClientError } from '@/lib/client-log'
 import type {
   CoachPreset,
   RoundtableSession,
@@ -110,7 +111,7 @@ class RoundtableAPI {
                 const event = JSON.parse(data) as RoundtableEvent
                 yield event
               } catch (e) {
-                console.error('Failed to parse SSE event:', data)
+                logClientError('roundtable.sse.parse', e)
               }
             }
           }
@@ -125,7 +126,7 @@ class RoundtableAPI {
             const event = JSON.parse(data) as RoundtableEvent
             yield event
           } catch (e) {
-            console.error('Failed to parse final SSE event:', data)
+            logClientError('roundtable.sse.parseFinal', e)
           }
         }
       }

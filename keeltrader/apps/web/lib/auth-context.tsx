@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { apiFetch, apiJson } from "@/lib/api/client"
+import { logClientError } from "@/lib/client-log"
 
 type LoginResponse = {
   access_token: string
@@ -35,7 +36,7 @@ export function useAuth() {
         const userData = await apiJson<User>("/users/me")
         setUser(userData)
       } catch (error) {
-        console.error("Auth check failed:", error)
+        logClientError("auth.check", error)
         setUser(null)
       } finally {
         setIsLoading(false)

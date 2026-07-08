@@ -20,6 +20,7 @@ import { AlertCircle, TrendingUp, TrendingDown, BarChart3, Loader2 } from 'lucid
 import { JournalResponse } from '@/lib/types/journal'
 import { format } from 'date-fns'
 import { marketDataApi } from '@/lib/api/market-data'
+import { logClientError } from '@/lib/client-log'
 
 interface KLineChartProps {
   journals?: JournalResponse[]
@@ -141,7 +142,7 @@ export function KLineChart({ journals = [], symbol = 'SPY', onSymbolChange }: KL
         chart.timeScale().fitContent()
       } catch (error) {
         if (cancelled) return
-        console.error('Error loading chart data:', error)
+        logClientError('chart.kline.load', error)
         candlestickSeries.setData([])
         volumeSeries.setData([])
         tradeMarkers.setMarkers([])

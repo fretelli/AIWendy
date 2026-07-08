@@ -1,24 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AchievementCard } from '@/components/rpg/AchievementCard';
 import { getAchievements } from '@/lib/rpg-api';
 import type { AchievementData } from '@/lib/rpg-api';
+import { useAsyncData } from '@/hooks/use-async-data';
 
 const CATEGORIES = ['all', 'trading', 'discipline', 'milestones', 'streaks'] as const;
 
 export default function AchievementsPage() {
-  const [achievements, setAchievements] = useState<AchievementData[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
+  const loadAchievements = useCallback(() => getAchievements(), []);
+  const { data, loading, error } = useAsyncData(loadAchievements, {
+    initialData: { achievements: [] as AchievementData[] },
+    errorMessage: 'Failed to load achievements.',
+    logScope: 'achievements.load',
+  });
 
-  useEffect(() => {
-    getAchievements()
-      .then((data) => setAchievements(data.achievements))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, []);
+  const achievements = data.achievements;
 
   if (loading) {
     return (
@@ -43,6 +44,11 @@ export default function AchievementsPage() {
           {achievements.filter((a) => a.unlocked).length} / {achievements.length} unlocked
         </span>
       </div>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       <Tabs value={filter} onValueChange={setFilter}>
         <TabsList>

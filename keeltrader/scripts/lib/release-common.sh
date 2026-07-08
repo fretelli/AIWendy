@@ -42,6 +42,12 @@ image_revision() {
   docker image inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image"
 }
 
+image_build_type() {
+  local image="$1"
+
+  docker image inspect -f '{{ index .Config.Labels "com.keeltrader.build_type" }}' "$image"
+}
+
 expect_image_revision() {
   local image="$1"
   local expected="$2"
