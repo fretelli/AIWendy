@@ -18,7 +18,7 @@ export function LanguageToggle({ className }: { className?: string }) {
         aria-pressed={locale === "en"}
         type="button"
       >
-        {t("landing.language.enShort" as any)}
+        {t("landing.language.enShort")}
       </Button>
       <Button
         size="sm"
@@ -27,7 +27,7 @@ export function LanguageToggle({ className }: { className?: string }) {
         aria-pressed={locale === "zh"}
         type="button"
       >
-        {t("landing.language.zhShort" as any)}
+        {t("landing.language.zhShort")}
       </Button>
     </div>
   )

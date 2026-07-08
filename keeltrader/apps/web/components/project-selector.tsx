@@ -73,7 +73,7 @@ export function ProjectSelector({ collapsed }: { collapsed?: boolean }) {
           {t('projects.selector.label')}
         </div>
         <Button asChild size="sm" variant="ghost" className="h-7 px-2">
-          <Link href="/projects">{t('nav.projects' as any)}</Link>
+          <Link href="/projects">{t('nav.projects')}</Link>
         </Button>
       </div>
 
@@ -98,4 +98,3 @@ export function ProjectSelector({ collapsed }: { collapsed?: boolean }) {
     </div>
   )
 }
-

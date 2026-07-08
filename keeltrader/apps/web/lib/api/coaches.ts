@@ -1,4 +1,5 @@
 import { apiFetch, apiJson } from '@/lib/api/client'
+import type { JsonValue } from '@/lib/types/json'
 
 export interface Coach {
   id: string
@@ -65,7 +66,7 @@ export interface ChatSession {
   coach_id: string
   project_id?: string | null
   title?: string
-  context?: any
+  context?: JsonValue
   mood_before?: number
   mood_after?: number
   message_count: number
@@ -79,7 +80,7 @@ export interface CreateSessionRequest {
   coach_id: string
   project_id?: string | null
   title?: string
-  context?: any
+  context?: JsonValue
   mood_before?: number
 }
 

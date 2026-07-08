@@ -3,6 +3,7 @@
  */
 
 import { apiFetch, apiJson } from "@/lib/api/client"
+import type { JsonValue } from "@/lib/types/json"
 
 export interface Notification {
   id: string
@@ -16,7 +17,7 @@ export interface Notification {
   sent_at: string | null
   read_at: string | null
   created_at: string
-  data?: any
+  data?: JsonValue
 }
 
 export interface DeviceToken {

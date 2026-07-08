@@ -8,12 +8,12 @@ import { RadarChart } from '@/components/rpg/RadarChart';
 import { XPBar } from '@/components/rpg/XPBar';
 import { RankBadge } from '@/components/rpg/RankBadge';
 import { getCharacterCard, getWeeklyCard } from '@/lib/rpg-api';
-import type { CharacterData, WeeklyCardData } from '@/lib/rpg-api';
+import type { CharacterCardData, WeeklyCardData } from '@/lib/rpg-api';
 
 export default function SharePage() {
   const params = useParams();
   const type = params.type as string;
-  const [characterData, setCharacterData] = useState<(CharacterData & { recent_achievements: any[] }) | null>(null);
+  const [characterData, setCharacterData] = useState<CharacterCardData | null>(null);
   const [weeklyData, setWeeklyData] = useState<WeeklyCardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

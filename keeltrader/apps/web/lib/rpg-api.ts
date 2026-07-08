@@ -83,6 +83,10 @@ export interface WeeklyCardData {
   attributes: CharacterData['attributes']
 }
 
+export type CharacterCardData = CharacterData & {
+  recent_achievements: Pick<AchievementData, 'id' | 'name' | 'icon' | 'rarity'>[]
+}
+
 export async function getCharacter(): Promise<CharacterData> {
   return fetchAPI('/character')
 }
@@ -112,7 +116,7 @@ export async function getLeaderboard(period: string = 'weekly'): Promise<{ perio
   return fetchAPI(`/leaderboard?period=${period}`)
 }
 
-export async function getCharacterCard(): Promise<CharacterData & { recent_achievements: { id: string; name: string; icon: string; rarity: string }[] }> {
+export async function getCharacterCard(): Promise<CharacterCardData> {
   return fetchAPI('/card/character')
 }
 

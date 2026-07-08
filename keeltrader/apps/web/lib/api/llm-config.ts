@@ -1,4 +1,5 @@
 import { apiJson } from '@/lib/api/client'
+import type { JsonObject } from '@/lib/types/json'
 
 // Types matching the backend API
 export interface LLMProviderConfig {
@@ -29,7 +30,7 @@ export interface LLMProviderConfig {
 
   // Extra configuration
   extra_headers?: Record<string, string>
-  extra_body_params?: Record<string, any>
+  extra_body_params?: JsonObject
 
   // Features
   supports_streaming?: boolean
