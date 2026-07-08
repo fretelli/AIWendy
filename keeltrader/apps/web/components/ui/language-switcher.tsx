@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { Check, ChevronDown, Globe } from 'lucide-react';
 import { useI18n } from '@/lib/i18n/provider';
-import { languages, Locale, i18nConfig } from '@/lib/i18n/config';
+import { languages, i18nConfig, isValidLocale } from '@/lib/i18n/config';
 import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
@@ -97,7 +97,9 @@ export function LanguageSwitcherSelect({ className }: { className?: string }) {
   return (
     <select
       value={locale}
-      onChange={(e) => setLocale(e.target.value as Locale)}
+      onChange={(e) => {
+        if (isValidLocale(e.target.value)) setLocale(e.target.value);
+      }}
       className={cn(
         'px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600',
         'bg-white dark:bg-gray-800 text-sm focus:outline-none',
