@@ -237,7 +237,7 @@ async def main():
             print("\nYou can now use KeelTrader with OneAPI:")
             print(f"1. Login at http://localhost:3000")
             print(f"2. Email: {USER_EMAIL}")
-            print(f"3. Password: Admin@123")
+            print("3. Password: use the password configured for this account")
             print("\nOneAPI will route your requests to various AI models")
             print("based on your OneAPI configuration and permissions.")
         else:

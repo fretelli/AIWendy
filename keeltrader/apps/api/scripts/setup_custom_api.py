@@ -248,7 +248,7 @@ async def main():
         print("\nYou can now login to KeelTrader:")
         print(f"  URL: http://localhost:3000")
         print(f"  Email: {USER_EMAIL}")
-        print(f"  Password: Admin@123")
+        print("  Password: use the password configured for this account")
 
         if connection_ok:
             print("\n✅ API connection is working!")
