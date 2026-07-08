@@ -21,7 +21,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - context: ./keeltrader/apps/api
+          - context: ./keeltrader
             dockerfile: ./keeltrader/apps/api/Dockerfile
             image: api
           - context: ./keeltrader/apps/web

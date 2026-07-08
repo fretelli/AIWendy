@@ -1,169 +1,135 @@
-# 部署与运行（开发/生产）
+# 部署与发布
 
 <a id="zh-cn"></a>
 [中文](#zh-cn) | [English](#en)
 
-如果你只需要本地一键运行，请直接看：`SELF_HOSTING.md`。
+## 当前生产形态
 
-## 本地开发（两种方式）
+KeelTrader 当前按本机 Docker Compose 部署：
 
-### 方式 A：全部用 Docker（最省心）
+- `web`：Next.js 前端
+- `api`：FastAPI 后端
+- `agent-engine`：复用 API 镜像运行 AgentOS 心跳/任务
+- PostgreSQL 与 Redis：外部服务，通过 `.env` 中的 `DATABASE_URL` / `REDIS_URL` 接入
 
-按 `SELF_HOSTING.md` 启动即可；适合 Windows/macOS/Linux 通用。
+旧的 Vercel/Railway/Fly.io 路径已停用。发布使用 overlay 镜像，默认复用已有 base image，避免不必要的完整依赖层 rebuild。
 
-### 方式 B：数据库/Redis 用 Docker，Web/API 在宿主机跑（适合 Linux/macOS/WSL）
+## 必要环境变量
 
-1. 启动基础服务：
-
-```bash
-docker compose up -d db redis
-```
-
-2. 启动后端（FastAPI）：
-
-```bash
-cd apps/api
-python -m venv venv
-source venv/bin/activate  # Windows: venv\\Scripts\\activate
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn main:app --reload --port 8000
-```
-
-3. 启动前端（Next.js）：
-
-```bash
-cd apps/web
-npm install
-NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
-```
-
-## 生产部署（建议组合）
-
-- Web：Vercel（或 Netlify）
-- API：Railway / Fly.io / AWS ECS
-- Postgres（pgvector）：Supabase / Neon / RDS
-- Redis：Upstash（或自建）
-
-### 必要环境变量（Web）
-
-- `NEXT_PUBLIC_API_URL`（例如 `https://api.example.com`）
-- `NEXTAUTH_URL`（例如 `https://app.example.com`）
-- `NEXTAUTH_SECRET`
-
-### 必要环境变量（API）
-
-- `DATABASE_URL`（建议 `postgresql+asyncpg://...`）
+- `DATABASE_URL`
 - `REDIS_URL`
 - `JWT_SECRET`
-- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`（至少一个）
+- `NEXTAUTH_SECRET`
+- `NEXTAUTH_URL`
+- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`（至少一个，按需）
+- `KEELTRADER_AUTH_REQUIRED=1`（公网/生产必须保持开启）
 
-### 数据库初始化与迁移
+## 发布命令
 
-确保数据库启用 pgvector：
-
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
-```
-
-运行迁移：
+验证构建但不部署：
 
 ```bash
-alembic upgrade head
+./build.sh
 ```
 
-### 健康检查
+发布 Web：
 
-- `GET /api/health`
-- `GET /api/health/ready`
+```bash
+scripts/deploy.sh web
+```
 
-## 相关文档
+发布 API + agent-engine：
 
-- 文档索引：`INDEX.md`
-- 自定义 LLM 配置：`CUSTOM_API_SETUP.md`
-- 自托管：`SELF_HOSTING.md`
+```bash
+scripts/deploy.sh api
+```
+
+只跑 smoke：
+
+```bash
+scripts/deploy.sh web --smoke-only
+scripts/deploy.sh api --smoke-only
+```
+
+## 迁移
+
+首次部署或升级后运行：
+
+```bash
+docker compose exec -T api alembic upgrade head
+```
+
+## 健康检查
+
+- Web：`GET /api/health`
+- API：`GET /api/health`
+- API liveness：`GET /api/health/live`
+- AgentOS：`GET /api/v1/agentos/health`
 
 ---
 
 <a id="en"></a>
 ## English
 
-If you only need a one-click local run, see: `SELF_HOSTING.md`.
+## Current Production Shape
 
-### Local development (two options)
+KeelTrader currently deploys on a local Docker Compose host:
 
-#### Option A: everything in Docker (easiest)
+- `web`: Next.js frontend
+- `api`: FastAPI backend
+- `agent-engine`: reuses the API image for AgentOS heartbeat/tasks
+- PostgreSQL and Redis: external services configured through `DATABASE_URL` / `REDIS_URL`
 
-Just follow `SELF_HOSTING.md`; works well across Windows/macOS/Linux.
+The old Vercel/Railway/Fly.io path is disabled. Releases use overlay images and reuse existing base images by default to avoid unnecessary dependency-layer rebuilds.
 
-#### Option B: DB/Redis in Docker, Web/API on host (good for Linux/macOS/WSL)
+## Required Environment Variables
 
-1. Start base services:
-
-```bash
-docker compose up -d db redis
-```
-
-2. Start backend (FastAPI):
-
-```bash
-cd apps/api
-python -m venv venv
-source venv/bin/activate  # Windows: venv\\Scripts\\activate
-pip install -r requirements.txt
-alembic upgrade head
-uvicorn main:app --reload --port 8000
-```
-
-3. Start frontend (Next.js):
-
-```bash
-cd apps/web
-npm install
-NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
-```
-
-### Production deployment (suggested stack)
-
-- Web: Vercel (or Netlify)
-- API: Railway / Fly.io / AWS ECS
-- Postgres (pgvector): Supabase / Neon / RDS
-- Redis: Upstash (or self-hosted)
-
-#### Required env vars (Web)
-
-- `NEXT_PUBLIC_API_URL` (e.g. `https://api.example.com`)
-- `NEXTAUTH_URL` (e.g. `https://app.example.com`)
-- `NEXTAUTH_SECRET`
-
-#### Required env vars (API)
-
-- `DATABASE_URL` (recommended: `postgresql+asyncpg://...`)
+- `DATABASE_URL`
 - `REDIS_URL`
 - `JWT_SECRET`
-- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` (at least one)
+- `NEXTAUTH_SECRET`
+- `NEXTAUTH_URL`
+- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` as needed
+- `KEELTRADER_AUTH_REQUIRED=1` for public/production deployments
 
-#### DB initialization & migrations
+## Release Commands
 
-Make sure `pgvector` is enabled:
-
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
-```
-
-Run migrations:
+Validate builds without deploy:
 
 ```bash
-alembic upgrade head
+./build.sh
 ```
 
-#### Health checks
+Release Web:
 
-- `GET /api/health`
-- `GET /api/health/ready`
+```bash
+scripts/deploy.sh web
+```
 
-### Related docs
+Release API + agent-engine:
 
-- Docs index: `INDEX.md`
-- Custom LLM configuration: `CUSTOM_API_SETUP.md`
-- Self-hosting: `SELF_HOSTING.md`
+```bash
+scripts/deploy.sh api
+```
+
+Smoke only:
+
+```bash
+scripts/deploy.sh web --smoke-only
+scripts/deploy.sh api --smoke-only
+```
+
+## Migrations
+
+After first deploy or upgrades:
+
+```bash
+docker compose exec -T api alembic upgrade head
+```
+
+## Health Checks
+
+- Web: `GET /api/health`
+- API: `GET /api/health`
+- API liveness: `GET /api/health/live`
+- AgentOS: `GET /api/v1/agentos/health`

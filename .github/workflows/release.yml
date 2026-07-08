@@ -9,6 +9,9 @@ jobs:
   test:
     name: Run Tests Before Release
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: keeltrader
     steps:
       - uses: actions/checkout@v4
 
@@ -19,34 +22,21 @@ jobs:
           cache: npm
           cache-dependency-path: keeltrader/apps/web/package-lock.json
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: pip
-          cache-dependency-path: keeltrader/apps/api/requirements.txt
-
-      - name: Run Web Tests
+      - name: Install Web Dependencies
+        run: npm ci
         working-directory: keeltrader/apps/web
-        run: |
-          npm ci
-          npm run lint
-          npm run type-check
-          npm run test
-          npm run build
 
-      - name: Run API Tests
-        working-directory: keeltrader/apps/api
+      - name: Run Web Checks
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest-cov
-          black --check .
-          isort --check-only .
-          flake8 .
-          mypy . --install-types --non-interactive || true
-          pytest
-          python -m compileall .
+          make check-security-defaults
+          make check-web
+          make audit-web
+
+      - name: Run API Checks
+        run: |
+          make check-security-defaults
+          make check-api
+          make audit-api
 
   release:
     name: Create Release
