@@ -5,6 +5,7 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RELEASE_SCOPE="release-api"
 source "$ROOT_DIR/scripts/lib/release-common.sh"
+load_release_env_file "$ROOT_DIR"
 init_release_metadata "$ROOT_DIR"
 API_DIR="$ROOT_DIR/apps/api"
 OVERLAY_BASE_IMAGE="${KEELTRADER_API_OVERLAY_BASE_IMAGE:-}"
@@ -34,6 +35,7 @@ Options:
   -h, --help     Show this help.
 
 Environment:
+  KEELTRADER_RELEASE_ENV_FILE        Optional env file for release-only secrets/settings. Default: .env.release.local when present.
   KEELTRADER_API_OVERLAY_BASE_IMAGE  Explicit base image for overlay builds. Default: use keeltrader-api:base, fall back to keeltrader-api:latest.
   KEELTRADER_API_SMOKE_ATTEMPTS      Smoke attempts per check. Default: 12
   KEELTRADER_API_SMOKE_DELAY_SECONDS Delay between smoke attempts. Default: 5
@@ -77,59 +79,17 @@ if [ "$TEST_ONLY" -eq 1 ] && [ "$SMOKE_ONLY" -eq 1 ]; then
   die "--test-only cannot be combined with --smoke-only"
 fi
 
-resolve_overlay_base_image() {
-  if [ -n "$OVERLAY_BASE_IMAGE" ]; then
-    if ! docker image inspect "$OVERLAY_BASE_IMAGE" >/dev/null 2>&1; then
-      die "Explicit overlay base image not found: $OVERLAY_BASE_IMAGE"
-    fi
-    log "Using explicit overlay base image: $OVERLAY_BASE_IMAGE"
-    return
-  fi
+build_api_base_image() {
+  local image="$1"
 
-  if [ "$FULL_BUILD" -eq 1 ]; then
-    OVERLAY_BASE_IMAGE="$DEFAULT_BASE_IMAGE"
-    log "Rebuilding overlay base image by request: $OVERLAY_BASE_IMAGE"
-    docker build --pull=false \
-      -f "$API_DIR/Dockerfile" \
-      -t "$OVERLAY_BASE_IMAGE" \
-      "$ROOT_DIR"
-    return
-  fi
-
-  if docker image inspect "$DEFAULT_BASE_IMAGE" >/dev/null 2>&1; then
-    OVERLAY_BASE_IMAGE="$DEFAULT_BASE_IMAGE"
-    log "Using overlay base image: $OVERLAY_BASE_IMAGE"
-    return
-  fi
-
-  if docker image inspect "$FALLBACK_BASE_IMAGE" >/dev/null 2>&1; then
-    local fallback_build_type
-    fallback_build_type="$(image_build_type "$FALLBACK_BASE_IMAGE" 2>/dev/null || true)"
-    if [ "$fallback_build_type" = "overlay" ]; then
-      OVERLAY_BASE_IMAGE="$DEFAULT_BASE_IMAGE"
-      log "Fallback image $FALLBACK_BASE_IMAGE is also an overlay; rebuilding $OVERLAY_BASE_IMAGE to avoid stacked overlay layers."
-      docker build --pull=false \
-        -f "$API_DIR/Dockerfile" \
-        -t "$OVERLAY_BASE_IMAGE" \
-        "$ROOT_DIR"
-      return
-    fi
-
-    OVERLAY_BASE_IMAGE="$FALLBACK_BASE_IMAGE"
-    log "Overlay base $DEFAULT_BASE_IMAGE not found; using $OVERLAY_BASE_IMAGE to avoid dependency-layer rebuild."
-    return
-  fi
-
-  OVERLAY_BASE_IMAGE="$DEFAULT_BASE_IMAGE"
-  log "No reusable overlay base image found; bootstrapping $OVERLAY_BASE_IMAGE without pulling base images."
   docker build --pull=false \
     -f "$API_DIR/Dockerfile" \
-    -t "$OVERLAY_BASE_IMAGE" \
+    -t "$image" \
     "$ROOT_DIR"
 }
 
 build_images() {
-  resolve_overlay_base_image
+  resolve_overlay_base_image "$OVERLAY_BASE_IMAGE" "$DEFAULT_BASE_IMAGE" "$FALLBACK_BASE_IMAGE" build_api_base_image
 
   log "Building API production overlay image without pulling base images from base: $OVERLAY_BASE_IMAGE"
   log "Build metadata: git_sha=$GIT_SHA build_time=$BUILD_TIME build_type=$BUILD_TYPE"

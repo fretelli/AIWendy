@@ -8,6 +8,23 @@ init_release_metadata() {
   BUILD_TYPE="${KEELTRADER_BUILD_TYPE:-overlay}"
 }
 
+load_release_env_file() {
+  local root_dir="$1"
+  local release_env_file="${KEELTRADER_RELEASE_ENV_FILE:-$root_dir/.env.release.local}"
+
+  if [ -n "${KEELTRADER_RELEASE_ENV_FILE:-}" ] && [ ! -f "$release_env_file" ]; then
+    die "Explicit release env file not found: $release_env_file"
+  fi
+
+  if [ -f "$release_env_file" ]; then
+    set -a
+    # shellcheck disable=SC1090
+    . "$release_env_file"
+    set +a
+    log "Loaded release env file: $release_env_file"
+  fi
+}
+
 log() {
   printf '[%s] %s\n' "${RELEASE_SCOPE:-release}" "$*"
 }
@@ -46,6 +63,54 @@ image_build_type() {
   local image="$1"
 
   docker image inspect -f '{{ index .Config.Labels "com.keeltrader.build_type" }}' "$image"
+}
+
+resolve_overlay_base_image() {
+  local explicit_image="$1"
+  local default_image="$2"
+  local fallback_image="$3"
+  local build_base_image_func="$4"
+  local fallback_build_type
+
+  if [ -n "$explicit_image" ]; then
+    if ! docker image inspect "$explicit_image" >/dev/null 2>&1; then
+      die "Explicit overlay base image not found: $explicit_image"
+    fi
+    OVERLAY_BASE_IMAGE="$explicit_image"
+    log "Using explicit overlay base image: $OVERLAY_BASE_IMAGE"
+    return
+  fi
+
+  if [ "${FULL_BUILD:-0}" -eq 1 ]; then
+    OVERLAY_BASE_IMAGE="$default_image"
+    log "Rebuilding overlay base image by request: $OVERLAY_BASE_IMAGE"
+    "$build_base_image_func" "$OVERLAY_BASE_IMAGE"
+    return
+  fi
+
+  if docker image inspect "$default_image" >/dev/null 2>&1; then
+    OVERLAY_BASE_IMAGE="$default_image"
+    log "Using overlay base image: $OVERLAY_BASE_IMAGE"
+    return
+  fi
+
+  if docker image inspect "$fallback_image" >/dev/null 2>&1; then
+    fallback_build_type="$(image_build_type "$fallback_image" 2>/dev/null || true)"
+    if [ "$fallback_build_type" = "overlay" ]; then
+      OVERLAY_BASE_IMAGE="$default_image"
+      log "Fallback image $fallback_image is also an overlay; rebuilding $OVERLAY_BASE_IMAGE to avoid stacked overlay layers."
+      "$build_base_image_func" "$OVERLAY_BASE_IMAGE"
+      return
+    fi
+
+    OVERLAY_BASE_IMAGE="$fallback_image"
+    log "Overlay base $default_image not found; using $OVERLAY_BASE_IMAGE to avoid dependency-layer rebuild."
+    return
+  fi
+
+  OVERLAY_BASE_IMAGE="$default_image"
+  log "No reusable overlay base image found; bootstrapping $OVERLAY_BASE_IMAGE without pulling base images."
+  "$build_base_image_func" "$OVERLAY_BASE_IMAGE"
 }
 
 expect_image_revision() {
