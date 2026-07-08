@@ -9,6 +9,7 @@ init_release_metadata "$ROOT_DIR"
 WEB_DIR="$ROOT_DIR/apps/web"
 BASE_URL="${KEELTRADER_SMOKE_BASE_URL:-https://keeltrader.joyeeassets.com}"
 OVERLAY_BASE_IMAGE="${KEELTRADER_WEB_OVERLAY_BASE_IMAGE:-}"
+NPM_REGISTRY="${KEELTRADER_NPM_REGISTRY:-https://registry.npmjs.org/}"
 DEFAULT_BASE_IMAGE="keeltrader-web:base"
 FALLBACK_BASE_IMAGE="keeltrader-web:latest"
 RUN_TESTS=1
@@ -37,6 +38,7 @@ Environment:
   KEELTRADER_SMOKE_PASSWORD       Optional login smoke password.
   KEELTRADER_SMOKE_ATTEMPTS       Smoke attempts per check. Default: 12
   KEELTRADER_SMOKE_DELAY_SECONDS  Delay between smoke attempts. Default: 2
+  KEELTRADER_NPM_REGISTRY         npm registry used for full/base Docker builds. Default: https://registry.npmjs.org/
   KEELTRADER_WEB_OVERLAY_BASE_IMAGE  Explicit base image for overlay builds. Default: use keeltrader-web:base, fall back to keeltrader-web:latest.
 USAGE
 }
@@ -136,6 +138,7 @@ resolve_overlay_base_image() {
     OVERLAY_BASE_IMAGE="$DEFAULT_BASE_IMAGE"
     log "Rebuilding overlay base image by request: $OVERLAY_BASE_IMAGE"
     docker build --pull=false \
+      --build-arg NPM_CONFIG_REGISTRY="$NPM_REGISTRY" \
       --build-arg NEXT_PUBLIC_API_URL=http://api:8000 \
       --build-arg NEXT_PUBLIC_AUTH_REQUIRED=1 \
       --build-arg NEXT_PUBLIC_SITE_URL=https://keeltrader.joyeeassets.com \
@@ -157,6 +160,7 @@ resolve_overlay_base_image() {
       OVERLAY_BASE_IMAGE="$DEFAULT_BASE_IMAGE"
       log "Fallback image $FALLBACK_BASE_IMAGE is also an overlay; rebuilding $OVERLAY_BASE_IMAGE to avoid stacked overlay layers."
       docker build --pull=false \
+        --build-arg NPM_CONFIG_REGISTRY="$NPM_REGISTRY" \
         --build-arg NEXT_PUBLIC_API_URL=http://api:8000 \
         --build-arg NEXT_PUBLIC_AUTH_REQUIRED=1 \
         --build-arg NEXT_PUBLIC_SITE_URL=https://keeltrader.joyeeassets.com \
@@ -173,6 +177,7 @@ resolve_overlay_base_image() {
   OVERLAY_BASE_IMAGE="$DEFAULT_BASE_IMAGE"
   log "No reusable overlay base image found; bootstrapping $OVERLAY_BASE_IMAGE without pulling base images."
   docker build --pull=false \
+    --build-arg NPM_CONFIG_REGISTRY="$NPM_REGISTRY" \
     --build-arg NEXT_PUBLIC_API_URL=http://api:8000 \
     --build-arg NEXT_PUBLIC_AUTH_REQUIRED=1 \
     --build-arg NEXT_PUBLIC_SITE_URL=https://keeltrader.joyeeassets.com \
@@ -220,7 +225,7 @@ smoke() {
   fi
 
   if [ -z "${KEELTRADER_SMOKE_EMAIL:-}" ] || [ -z "${KEELTRADER_SMOKE_PASSWORD:-}" ]; then
-    log "Skipping logged-in smoke checks; KEELTRADER_SMOKE_EMAIL/PASSWORD not set."
+    log "Logged-in smoke incomplete: KEELTRADER_SMOKE_EMAIL/PASSWORD not set; release was not validated with an authenticated session."
     return
   fi
 

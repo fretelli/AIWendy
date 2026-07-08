@@ -1,2 +1,73 @@
 version: 2
-updates: []
+updates:
+  - package-ecosystem: npm
+    directory: /keeltrader/apps/web
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - web
+
+  - package-ecosystem: pip
+    directory: /keeltrader/apps/api
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:30"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - api
+
+  - package-ecosystem: docker
+    directory: /keeltrader/apps/web
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:00"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - docker
+
+  - package-ecosystem: docker
+    directory: /keeltrader/apps/api
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:15"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - docker
+
+  - package-ecosystem: docker
+    directory: /keeltrader/apps/engine
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:30"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - docker
+
+  - package-ecosystem: docker
+    directory: /keeltrader/apps/streamer
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:45"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - docker

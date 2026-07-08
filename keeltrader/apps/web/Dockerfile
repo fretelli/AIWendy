@@ -1,10 +1,11 @@
 FROM node:20-alpine AS deps
 
 WORKDIR /app
+ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
 
 # Install dependencies
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm ci --registry="$NPM_CONFIG_REGISTRY"
 
 
 FROM node:20-alpine AS builder
@@ -28,6 +29,7 @@ RUN npm run build
 FROM node:20-alpine AS runner
 
 WORKDIR /app
+ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -41,7 +43,7 @@ ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 
 # Install only production dependencies
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev --registry="$NPM_CONFIG_REGISTRY" && npm cache clean --force
 
 # Copy build output and source files
 COPY --from=builder /app/public ./public
