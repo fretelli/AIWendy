@@ -15,9 +15,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import type { JsonObject } from './tool-call-types';
 
 interface QuickActionsProps {
-  onAction: (action: string, params?: Record<string, any>) => void;
+  onAction: (action: string, params?: JsonObject) => void;
   disabled?: boolean;
 }
 
