@@ -3,6 +3,9 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RELEASE_SCOPE="release-api"
+source "$ROOT_DIR/scripts/lib/release-common.sh"
+init_release_metadata "$ROOT_DIR"
 API_DIR="$ROOT_DIR/apps/api"
 OVERLAY_BASE_IMAGE="${KEELTRADER_API_OVERLAY_BASE_IMAGE:-}"
 DEFAULT_BASE_IMAGE="keeltrader-api:base"
@@ -13,9 +16,6 @@ FULL_BUILD=0
 SMOKE_ONLY=0
 SMOKE_ATTEMPTS="${KEELTRADER_API_SMOKE_ATTEMPTS:-12}"
 SMOKE_DELAY_SECONDS="${KEELTRADER_API_SMOKE_DELAY_SECONDS:-5}"
-GIT_SHA="${KEELTRADER_GIT_SHA:-$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || echo unknown)}"
-BUILD_TIME="${KEELTRADER_BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
-BUILD_TYPE="${KEELTRADER_BUILD_TYPE:-overlay}"
 
 usage() {
   cat <<'USAGE'
@@ -36,20 +36,6 @@ Environment:
   KEELTRADER_API_SMOKE_ATTEMPTS      Smoke attempts per check. Default: 12
   KEELTRADER_API_SMOKE_DELAY_SECONDS Delay between smoke attempts. Default: 5
 USAGE
-}
-
-log() {
-  printf '[release-api] %s\n' "$*"
-}
-
-die() {
-  printf '[release-api] ERROR: %s\n' "$*" >&2
-  exit 1
-}
-
-run() {
-  log "$*"
-  "$@"
 }
 
 while [ "$#" -gt 0 ]; do
@@ -76,20 +62,6 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
-
-require_command() {
-  command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
-}
-
-check_workspace_writable() {
-  local probe="$API_DIR/.release-write-check"
-
-  if ! ( : > "$probe" ) 2>/dev/null; then
-    die "Workspace is not writable from this shell. Remount/fix the execution namespace first, then rerun this script."
-  fi
-
-  rm -f "$probe"
-}
 
 resolve_overlay_base_image() {
   if [ -n "$OVERLAY_BASE_IMAGE" ]; then
@@ -171,49 +143,6 @@ deploy_api() {
 
   run docker tag keeltrader-api:test-overlay keeltrader-api:latest
   run docker compose up -d api agent-engine
-}
-
-image_revision() {
-  local image="$1"
-
-  docker image inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image"
-}
-
-expect_image_revision() {
-  local image="$1"
-  local expected="$2"
-  local actual
-
-  actual="$(image_revision "$image" 2>/dev/null || true)"
-  if [ "$actual" != "$expected" ]; then
-    die "Image revision mismatch for $image: expected $expected, got ${actual:-missing}"
-  fi
-
-  log "smoke ok: $image revision $actual"
-}
-
-service_image_revision() {
-  local service="$1"
-  local cid
-  local image_id
-
-  cid="$(docker compose ps -q "$service")"
-  [ -n "$cid" ] || return 1
-  image_id="$(docker inspect -f '{{.Image}}' "$cid")"
-  docker image inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image_id"
-}
-
-expect_service_revision() {
-  local service="$1"
-  local expected="$2"
-  local actual
-
-  actual="$(service_image_revision "$service" 2>/dev/null || true)"
-  if [ "$actual" != "$expected" ]; then
-    die "Running service revision mismatch for $service: expected $expected, got ${actual:-missing}"
-  fi
-
-  log "smoke ok: $service image revision $actual"
 }
 
 container_http_code() {
@@ -352,7 +281,7 @@ main() {
     return
   fi
 
-  check_workspace_writable
+  check_workspace_writable "$API_DIR/.release-write-check"
   build_images
   run_quality_checks
   deploy_api

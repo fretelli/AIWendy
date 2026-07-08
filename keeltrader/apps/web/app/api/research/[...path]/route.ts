@@ -1,22 +1,13 @@
 import {
   type RouteContext,
-  normalizeBaseUrl,
   proxyRequest,
 } from "@/lib/server/proxy";
+import { getResearchBaseUrl } from "@/lib/server/upstreams";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ACCESS_TOKEN_COOKIE = "keeltrader_access_token";
-
-function getResearchBaseUrl(): string {
-  return normalizeBaseUrl(
-    process.env.RESEARCH_API_URL ||
-      process.env.NEXT_PUBLIC_RESEARCH_API_URL ||
-      "https://research.joyeeassets.com",
-    "https"
-  );
-}
 
 function proxy(request: Request, context: RouteContext): Promise<Response> {
   const baseUrl = getResearchBaseUrl();
