@@ -22,7 +22,6 @@ from core.auth import get_authenticated_user, get_current_user
 from core.database import get_session
 from core.i18n import get_request_locale, t
 from core.logging import get_logger
-from domain.journal.models import Journal as JournalModel
 from domain.journal.repository import JournalRepository
 from domain.journal.schemas import (
     JournalCreate,
@@ -34,7 +33,6 @@ from domain.journal.schemas import (
     QuickJournalEntry,
 )
 from domain.user.models import User
-from services.journal_ai_analyzer import JournalAIAnalyzer
 from services.journal_importer import (
     MAX_IMPORT_ROWS,
     MAX_PREVIEW_ROWS,
@@ -46,7 +44,16 @@ from services.journal_import_service import (
     clamp_import_max_rows,
     parse_journal_import_mapping,
 )
-from services.llm_router import LLMRouter
+from services.journal_analysis_service import (
+    analyze_journal_with_ai,
+    analyze_recent_trades_with_ai,
+    generate_journal_improvement_plan,
+)
+from services.journal_entry_service import (
+    apply_journal_update,
+    create_journal_model,
+    quick_entry_to_create,
+)
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -78,19 +85,7 @@ async def create_journal_entry(
     try:
         repo = JournalRepository(session)
 
-        # Create journal model
-        journal = JournalModel(user_id=current_user.id, **entry.dict())
-
-        # Calculate computed fields
-        if journal.pnl_amount:
-            if journal.pnl_amount > 0:
-                journal.result = "win"
-            elif journal.pnl_amount < 0:
-                journal.result = "loss"
-            else:
-                journal.result = "breakeven"
-
-        # Save to database
+        journal = create_journal_model(current_user.id, entry)
         journal = await repo.create(journal)
 
         logger.info(f"Created journal entry {journal.id} for user {current_user.id}")
@@ -328,20 +323,7 @@ async def update_journal_entry(
                 detail=t("errors.journal_entry_not_found", locale),
             )
 
-        # Update fields
-        for field, value in entry.dict(exclude_unset=True).items():
-            setattr(journal, field, value)
-
-        # Recalculate result if PnL changed
-        if entry.pnl_amount is not None:
-            if entry.pnl_amount > 0:
-                journal.result = "win"
-            elif entry.pnl_amount < 0:
-                journal.result = "loss"
-            else:
-                journal.result = "breakeven"
-
-        # Save changes
+        apply_journal_update(journal, entry)
         journal = await repo.update(journal)
 
         return JournalResponse.from_orm(journal)
@@ -399,20 +381,8 @@ async def create_quick_journal_entry(
     try:
         repo = JournalRepository(session)
 
-        # Create full journal from quick entry
-        journal_data = JournalCreate(
-            symbol=entry.symbol,
-            direction=entry.direction,
-            result=entry.result,
-            pnl_amount=entry.pnl_amount,
-            emotion_after=entry.emotion_after,
-            followed_rules=not entry.violated_rules,
-            notes=entry.quick_note,
-            trade_date=datetime.utcnow(),
-        )
-
-        journal = JournalModel(user_id=current_user.id, **journal_data.dict())
-
+        journal_data = quick_entry_to_create(entry)
+        journal = create_journal_model(current_user.id, journal_data)
         journal = await repo.create(journal)
 
         logger.info(
@@ -449,22 +419,7 @@ async def analyze_journal_entry(
                 detail=t("errors.journal_entry_not_found", locale),
             )
 
-        # Get user statistics for context
-        stats = await repo.get_user_statistics(current_user.id)
-
-        # Initialize AI analyzer with user's LLM settings
-        llm_router = LLMRouter(user=current_user)
-        analyzer = JournalAIAnalyzer(llm_router)
-
-        # Perform analysis
-        analysis = await analyzer.analyze_single_journal(
-            JournalResponse.from_orm(journal), stats
-        )
-
-        # Update journal with AI insights
-        journal.ai_insights = analysis.get("analysis", "")
-        journal.detected_patterns = analysis.get("detected_patterns", [])
-        await session.commit()
+        analysis = await analyze_journal_with_ai(repo, session, current_user, journal)
 
         logger.info(f"Analyzed journal entry {journal_id} for user {current_user.id}")
 
@@ -492,28 +447,13 @@ async def analyze_trading_patterns(
     try:
         repo = JournalRepository(session)
 
-        # Get recent journal entries
-        journals = await repo.get_user_journals(
-            user_id=current_user.id, limit=limit, offset=0
-        )
-
-        if not journals:
+        analysis = await analyze_recent_trades_with_ai(repo, current_user, limit)
+        if analysis is None:
             return {
                 "message": t("messages.no_journal_entries_for_analysis", locale),
                 "patterns": [],
                 "recommendations": [],
             }
-
-        # Get user statistics
-        stats = await repo.get_user_statistics(current_user.id)
-
-        # Initialize AI analyzer
-        llm_router = LLMRouter(user=current_user)
-        analyzer = JournalAIAnalyzer(llm_router)
-
-        # Perform pattern analysis
-        journal_responses = [JournalResponse.from_orm(j) for j in journals]
-        analysis = await analyzer.analyze_recent_trades(journal_responses, stats)
 
         logger.info(f"Analyzed trading patterns for user {current_user.id}")
 
@@ -538,27 +478,12 @@ async def generate_improvement_plan(
     try:
         repo = JournalRepository(session)
 
-        # Get recent journal entries
-        journals = await repo.get_user_journals(
-            user_id=current_user.id, limit=30, offset=0
-        )
-
-        if not journals:
+        plan = await generate_journal_improvement_plan(repo, current_user)
+        if plan is None:
             return {
                 "message": t("messages.not_enough_data_for_improvement_plan", locale),
                 "plan": t("messages.improvement_plan_start_journaling", locale),
             }
-
-        # Get user statistics
-        stats = await repo.get_user_statistics(current_user.id)
-
-        # Initialize AI analyzer
-        llm_router = LLMRouter(user=current_user)
-        analyzer = JournalAIAnalyzer(llm_router)
-
-        # Generate improvement plan
-        journal_responses = [JournalResponse.from_orm(j) for j in journals]
-        plan = await analyzer.generate_improvement_plan(journal_responses, stats)
 
         logger.info(f"Generated improvement plan for user {current_user.id}")
 
