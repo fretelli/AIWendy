@@ -20,6 +20,21 @@ def test_market_data_routes_are_mounted(client):
     assert "/api/v1/market-data/symbols/search" in paths
 
 
+def test_market_data_adapter_compatibility_exports_are_preserved():
+    from services.market_data_adapters import (
+        AlphaVantageAdapter,
+        MarketDataAdapter,
+        MockDataAdapter,
+        TwelveDataAdapter,
+        YahooFinanceAdapter,
+    )
+
+    assert issubclass(TwelveDataAdapter, MarketDataAdapter)
+    assert issubclass(AlphaVantageAdapter, MarketDataAdapter)
+    assert issubclass(YahooFinanceAdapter, MarketDataAdapter)
+    assert issubclass(MockDataAdapter, MarketDataAdapter)
+
+
 def test_market_data_websocket_rejects_unauthenticated_client(client):
     with pytest.raises(WebSocketDisconnect) as exc:
         with client.websocket_connect("/api/v1/market-data/ws/SPY"):
