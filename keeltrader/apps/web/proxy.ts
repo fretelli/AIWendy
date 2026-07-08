@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { i18nConfig, LOCALE_COOKIE, Locale } from '@/lib/i18n/config';
+import { i18nConfig, isValidLocale, LOCALE_COOKIE, type Locale } from '@/lib/i18n/config';
 
 // Paths that should not be localized
 const PUBLIC_FILE = /\.(.*)$/;
@@ -47,10 +47,10 @@ export function proxy(request: NextRequest) {
   }
 
   // Get locale from cookie or Accept-Language header
-  const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value as Locale;
+  const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value;
   let locale: Locale = i18nConfig.defaultLocale;
 
-  if (cookieLocale && i18nConfig.locales.includes(cookieLocale)) {
+  if (cookieLocale && isValidLocale(cookieLocale)) {
     locale = cookieLocale;
   } else {
     // Try to detect from Accept-Language header
