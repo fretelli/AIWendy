@@ -3,21 +3,10 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-
-interface Position {
-  exchange: string;
-  symbol: string;
-  side: string;
-  size: number;
-  entry_price: number;
-  mark_price: number;
-  unrealized_pnl: number;
-  leverage: number;
-  error?: string;
-}
+import type { PositionData } from './tool-call-types';
 
 interface PositionCardProps {
-  positions: Position[];
+  positions: PositionData[];
   totalPnl: number;
 }
 

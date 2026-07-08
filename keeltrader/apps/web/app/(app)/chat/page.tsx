@@ -11,6 +11,16 @@ import { OrderConfirmCard } from '@/components/v2/OrderConfirmCard';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiStream, apiJson } from '@/lib/api/client';
+import {
+  getNumber,
+  getString,
+  isJsonObject,
+  isOrderData,
+  isPendingConfirmationResult,
+  type JsonObject,
+  type OrderData,
+  type ToolCallData,
+} from '@/components/v2/tool-call-types';
 
 interface ChatMessage {
   id: string;
@@ -20,13 +30,16 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-interface ToolCallData {
-  name: string;
-  args: Record<string, any>;
-  result?: Record<string, any>;
-}
-
 const API_BASE = '/api/proxy/v1';
+
+function parseStreamEvent(data: string): JsonObject | null {
+  try {
+    const parsed: unknown = JSON.parse(data);
+    return isJsonObject(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -93,63 +106,68 @@ export default function ChatPage() {
           const data = line.slice(6).trim();
           if (!data) continue;
 
-          try {
-            const event = JSON.parse(data);
+          const event = parseStreamEvent(data);
+          if (!event) continue;
 
             if (event.type === 'text') {
               setMessages(prev => {
                 const updated = [...prev];
                 const last = updated[updated.length - 1];
                 if (last.role === 'assistant') {
-                  last.content += event.content;
+                  last.content += getString(event.content);
                 }
                 return [...updated];
               });
             } else if (event.type === 'tool_call') {
+              const name = getString(event.name);
+              const args = isJsonObject(event.args) ? event.args : {};
+              if (!name) continue;
               setMessages(prev => {
                 const updated = [...prev];
                 const last = updated[updated.length - 1];
                 if (last.role === 'assistant') {
                   last.toolCalls = [...(last.toolCalls || []), {
-                    name: event.name,
-                    args: event.args,
+                    name,
+                    args,
                   }];
                 }
                 return [...updated];
               });
             } else if (event.type === 'tool_result') {
+              const name = getString(event.name);
+              const result = isJsonObject(event.result) ? event.result : {};
+              if (!name) continue;
               setMessages(prev => {
                 const updated = [...prev];
                 const last = updated[updated.length - 1];
                 if (last.role === 'assistant' && last.toolCalls) {
-                  const tc = last.toolCalls.find(t => t.name === event.name && !t.result);
-                  if (tc) tc.result = event.result;
+                  const tc = last.toolCalls.find(t => t.name === name && !t.result);
+                  if (tc) tc.result = result;
                 }
                 return [...updated];
               });
             } else if (event.type === 'done') {
-              if (event.session_id) setSessionId(event.session_id);
+              const nextSessionId = getString(event.session_id);
+              if (nextSessionId) setSessionId(nextSessionId);
             } else if (event.type === 'error') {
               setMessages(prev => {
                 const updated = [...prev];
                 const last = updated[updated.length - 1];
                 if (last.role === 'assistant') {
-                  last.content = `❌ ${event.message}`;
+                  last.content = `❌ ${getString(event.message, 'Request failed')}`;
                 }
                 return [...updated];
               });
             }
-          } catch (e) {
-            // Skip unparseable events
-          }
         }
       }
-    } catch (e: any) {
+    } catch (error) {
       setMessages(prev => {
         const updated = [...prev];
         const last = updated[updated.length - 1];
         if (last.role === 'assistant') {
-          last.content = `❌ Connection error: ${e.message}`;
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          last.content = `❌ Connection error: ${message}`;
         }
         return [...updated];
       });
@@ -158,7 +176,7 @@ export default function ChatPage() {
     }
   }, [isLoading, sessionId]);
 
-  const handleQuickAction = useCallback(async (action: string, params?: Record<string, any>) => {
+  const handleQuickAction = useCallback(async (action: string, params?: JsonObject) => {
     if (isLoading) return;
     setIsLoading(true);
 
@@ -171,7 +189,7 @@ export default function ChatPage() {
     setMessages(prev => [...prev, userMsg]);
 
     try {
-      const data = await apiJson<{ result: Record<string, any> }>(`${API_BASE}/chat/quick`, {
+      const data = await apiJson<{ result: JsonObject }>(`${API_BASE}/chat/quick`, {
         method: 'POST',
         body: { action, params: params || {} },
       });
@@ -188,11 +206,12 @@ export default function ChatPage() {
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, assistantMsg]);
-    } catch (e: any) {
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
       const assistantMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        content: `❌ ${e.message}`,
+        content: `❌ ${message}`,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, assistantMsg]);
@@ -208,8 +227,11 @@ export default function ChatPage() {
     }
   };
 
-  const handleConfirmOrder = useCallback(async (orderData: Record<string, any>) => {
-    await sendMessage(`Confirm execute: ${orderData.side} ${orderData.amount} ${orderData.symbol}`);
+  const handleConfirmOrder = useCallback(async (orderData: OrderData) => {
+    const side = getString(orderData.side, 'order');
+    const amount = getNumber(orderData.amount);
+    const symbol = getString(orderData.symbol, 'unknown');
+    await sendMessage(`Confirm execute: ${side} ${amount} ${symbol}`);
   }, [sendMessage]);
 
   return (
@@ -247,7 +269,7 @@ export default function ChatPage() {
               {/* Tool calls */}
               {msg.toolCalls?.map((tc, i) => (
                 <div key={i} className="mb-2">
-                  {tc.result?.status === 'pending_confirmation' ? (
+                  {isPendingConfirmationResult(tc.result) && isOrderData(tc.result.order) ? (
                     <OrderConfirmCard
                       order={tc.result.order}
                       message={tc.result.message}

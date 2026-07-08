@@ -4,27 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from 'recharts';
-
-interface BacktestData {
-  symbol: string;
-  strategy: string;
-  params?: Record<string, any>;
-  period_days: number;
-  stats: {
-    total_trades: number;
-    wins: number;
-    losses: number;
-    win_rate: number;
-    total_return_pct: number;
-    avg_win_pct: number;
-    avg_loss_pct: number;
-    max_drawdown_pct: number;
-    profit_factor: number;
-    sharpe_ratio: number;
-  };
-  equity_curve?: number[];
-  trades?: any[];
-}
+import type { BacktestData } from './tool-call-types';
 
 interface BacktestResultProps {
   data: BacktestData;

@@ -6,11 +6,19 @@ import { PositionCard } from './PositionCard';
 import { PnLChart } from './PnLChart';
 import { BacktestResult } from './BacktestResult';
 import { Loader2 } from 'lucide-react';
+import {
+  getNumber,
+  getString,
+  isBacktestData,
+  isPnLData,
+  isPositionData,
+  type JsonObject,
+} from './tool-call-types';
 
 interface ToolCallCardProps {
   name: string;
-  args: Record<string, any>;
-  result?: Record<string, any>;
+  args: JsonObject;
+  result?: JsonObject;
 }
 
 const TOOL_LABELS: Record<string, string> = {
@@ -52,23 +60,24 @@ export function ToolCallCard({ name, args, result }: ToolCallCardProps) {
           </div>
         </CardHeader>
         <CardContent className="px-3 pb-2 text-sm text-destructive">
-          {result.error}
+          {getString(result.error, 'Tool execution failed')}
         </CardContent>
       </Card>
     );
   }
 
   // Specialized renderers
-  if (name === 'get_positions' && result.positions) {
-    return <PositionCard positions={result.positions} totalPnl={result.total_unrealized_pnl} />;
+  if (name === 'get_positions' && Array.isArray(result.positions)) {
+    const positions = result.positions.filter(isPositionData);
+    return <PositionCard positions={positions} totalPnl={getNumber(result.total_unrealized_pnl)} />;
   }
 
-  if (name === 'get_pnl' && result.daily_pnl) {
-    return <PnLChart data={result as any} />;
+  if (name === 'get_pnl' && isPnLData(result)) {
+    return <PnLChart data={result} />;
   }
 
-  if (name === 'backtest_strategy' && result.stats) {
-    return <BacktestResult data={result as any} />;
+  if (name === 'backtest_strategy' && isBacktestData(result)) {
+    return <BacktestResult data={result} />;
   }
 
   // Generic result display

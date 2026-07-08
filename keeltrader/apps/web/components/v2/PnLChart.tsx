@@ -3,15 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
-
-interface PnLData {
-  period: string;
-  total_pnl: number;
-  wins: number;
-  losses: number;
-  trade_count: number;
-  daily_pnl: { date: string; pnl: number }[];
-}
+import type { PnLData } from './tool-call-types';
 
 interface PnLChartProps {
   data: PnLData;
