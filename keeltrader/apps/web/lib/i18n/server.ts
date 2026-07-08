@@ -3,33 +3,8 @@
  */
 
 import { cookies } from 'next/headers';
-import { Locale, i18nConfig, LOCALE_COOKIE, languages, localeCurrencies, localeDateFormats } from './config';
-import en from './translations/en.json';
-import zh from './translations/zh.json';
-import type { JsonPrimitive } from '@/lib/types/json';
-
-type TranslationKeys = typeof en;
-type TranslationParams = Record<string, JsonPrimitive>;
-
-// Translations
-const translations: Record<Locale, TranslationKeys> = {
-  en,
-  zh: zh as TranslationKeys,
-};
-
-function readNestedValue(source: unknown, path: string): unknown {
-  let value = source;
-
-  for (const key of path.split('.')) {
-    if (value && typeof value === 'object' && key in value) {
-      value = (value as Record<string, unknown>)[key];
-    } else {
-      return undefined;
-    }
-  }
-
-  return value;
-}
+import { Locale, i18nConfig, LOCALE_COOKIE, languages, localeCurrencies, localeDateFormats, isValidLocale as isSupportedLocale } from './config';
+import { readNestedValue, replaceParams, translations, type TranslationParams } from './translations';
 
 /**
  * Get the current locale from cookies or headers
@@ -38,8 +13,8 @@ export async function getLocale(): Promise<Locale> {
   const cookieStore = await cookies();
   const localeCookie = cookieStore.get(LOCALE_COOKIE);
 
-  if (localeCookie?.value && i18nConfig.locales.includes(localeCookie.value as Locale)) {
-    return localeCookie.value as Locale;
+  if (localeCookie?.value && isSupportedLocale(localeCookie.value)) {
+    return localeCookie.value;
   }
 
   // TODO: Could also check Accept-Language header here
@@ -120,21 +95,6 @@ export function formatCurrencyServer(
 }
 
 /**
- * Replace parameters in translation string
- */
-export function replaceParams(text: string, params?: TranslationParams): string {
-  if (!params) return text;
-
-  let result = text;
-  Object.keys(params).forEach((key) => {
-    const regex = new RegExp(`\\{${key}\\}`, 'g');
-    result = result.replace(regex, String(params[key]));
-  });
-
-  return result;
-}
-
-/**
  * Get dictionary for a specific namespace
  */
 export async function getDictionary(namespace: string, locale?: Locale) {
@@ -185,5 +145,5 @@ export function getAvailableLocales(): Locale[] {
  * Validate if a locale is supported
  */
 export function isValidLocale(locale: string): locale is Locale {
-  return i18nConfig.locales.includes(locale as Locale);
+  return isSupportedLocale(locale);
 }

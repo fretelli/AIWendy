@@ -2,27 +2,13 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Locale, i18nConfig, LOCALE_COOKIE, languages } from './config';
-import en from './translations/en.json';
-import zh from './translations/zh.json';
-import type { JsonPrimitive } from '@/lib/types/json';
-
-// Translation type
-type TranslationKeys = typeof en;
-type NestedKeyOf<ObjectType extends object> = {
-  [Key in keyof ObjectType & string]: ObjectType[Key] extends object
-    ? `${Key}` | `${Key}.${NestedKeyOf<ObjectType[Key]>}`
-    : `${Key}`;
-}[keyof ObjectType & string];
-
-type TranslationKey = NestedKeyOf<TranslationKeys>;
-type TranslationParams = Record<string, JsonPrimitive>;
-
-// Translations object
-const translations: Record<Locale, TranslationKeys> = {
-  en,
-  zh: zh as TranslationKeys,
-};
+import { Locale, i18nConfig, LOCALE_COOKIE, languages, isValidLocale } from './config';
+import {
+  getNestedTranslation,
+  replaceParams,
+  type TranslationKey,
+  type TranslationParams,
+} from './translations';
 
 // Context type
 interface I18nContextType {
@@ -38,40 +24,6 @@ interface I18nContextType {
 
 // Create context
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
-
-// Helper function to get nested translation value
-function getNestedTranslation(
-  translationMap: Record<Locale, TranslationKeys>,
-  key: string,
-  locale: Locale
-): string {
-  const keys = key.split('.');
-  let value: unknown = translationMap[locale];
-
-  for (const k of keys) {
-    if (value && typeof value === 'object' && k in value) {
-      value = (value as Record<string, unknown>)[k];
-    } else {
-      console.warn(`Translation key "${key}" not found for locale "${locale}"`);
-      return key; // Return the key itself as fallback
-    }
-  }
-
-  return typeof value === 'string' ? value : key;
-}
-
-// Helper function to replace parameters in translation
-function replaceParams(text: string, params?: TranslationParams): string {
-  if (!params) return text;
-
-  let result = text;
-  Object.keys(params).forEach((key) => {
-    const regex = new RegExp(`\\{${key}\\}`, 'g');
-    result = result.replace(regex, String(params[key]));
-  });
-
-  return result;
-}
 
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -112,8 +64,8 @@ export function I18nProvider({ children, initialLocale }: I18nProviderProps) {
     if (initialLocale) return initialLocale;
 
     // Try to get from cookie
-    const cookieLocale = getCookie(LOCALE_COOKIE) as Locale | null;
-    if (cookieLocale && i18nConfig.locales.includes(cookieLocale)) {
+    const cookieLocale = getCookie(LOCALE_COOKIE);
+    if (cookieLocale && isValidLocale(cookieLocale)) {
       return cookieLocale;
     }
 
@@ -147,7 +99,7 @@ export function I18nProvider({ children, initialLocale }: I18nProviderProps) {
 
   // Translation function
   const t = (key: TranslationKey, params?: TranslationParams): string => {
-    const translation = getNestedTranslation(translations, key, locale);
+    const translation = getNestedTranslation(key, locale);
     return replaceParams(translation, params);
   };
 
@@ -256,7 +208,9 @@ export function LanguageSwitcher({ className }: { className?: string }) {
   return (
     <select
       value={locale}
-      onChange={(e) => setLocale(e.target.value as Locale)}
+      onChange={(e) => {
+        if (isValidLocale(e.target.value)) setLocale(e.target.value);
+      }}
       className={`px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600
                  bg-white dark:bg-gray-800 text-sm focus:outline-none
                  focus:ring-2 focus:ring-blue-500 ${className}`}
