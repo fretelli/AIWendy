@@ -18,11 +18,19 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { JournalResponse } from '@/lib/types/journal'
 import { format } from 'date-fns'
-import { Brain, Heart, AlertTriangle } from 'lucide-react'
+import { Brain } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
+import { activeTooltipEntries, tooltipNumber, type ChartTooltipProps } from '@/lib/charts/recharts-tooltip'
 
 interface PsychologyMetricsProps {
   journals: JournalResponse[]
+}
+
+interface PsychologyTimeSeriesData {
+  date: string
+  confidence: number
+  stress: number
+  emotion: number
 }
 
 export function PsychologyMetrics({ journals }: PsychologyMetricsProps) {
@@ -97,15 +105,16 @@ export function PsychologyMetrics({ journals }: PsychologyMetricsProps) {
     !j.followed_rules && j.confidence_level && j.confidence_level <= 2
   ).length
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload[0]) {
+  const CustomTooltip = (props: ChartTooltipProps<PsychologyTimeSeriesData>) => {
+    const entries = activeTooltipEntries(props)
+    if (entries.length > 0) {
       return (
         <div className="bg-background border rounded-lg shadow-lg p-3">
-          <p className="font-semibold text-sm">{label}</p>
-          {payload.map((entry: any) => (
-            <p key={entry.name} className="text-sm">
+          <p className="font-semibold text-sm">{props.label}</p>
+          {entries.map((entry) => (
+            <p key={String(entry.name)} className="text-sm">
               {entry.name}:
-              <span className="font-mono ml-1">{entry.value.toFixed(1)}</span>
+              <span className="font-mono ml-1">{tooltipNumber(entry.value).toFixed(1)}</span>
             </p>
           ))}
         </div>

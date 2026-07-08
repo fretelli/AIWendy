@@ -15,13 +15,28 @@ import {
 } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { JournalResponse } from '@/lib/types/journal'
-import { format, startOfWeek, startOfMonth, endOfWeek, endOfMonth } from 'date-fns'
-import { Calendar, TrendingUp, TrendingDown } from 'lucide-react'
+import { format, startOfWeek } from 'date-fns'
+import { Calendar } from 'lucide-react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { firstTooltipEntry, tooltipNumber, type ChartTooltipProps } from '@/lib/charts/recharts-tooltip'
 
 interface TradingCalendarProps {
   journals: JournalResponse[]
 }
+
+interface CalendarChartData {
+  date?: string
+  week?: string
+  month?: string
+  pnl: number
+  trades: number
+  wins: number
+  losses: number
+  avgPnl?: number
+  winRate: number
+}
+
+type CalendarTimeframe = 'daily' | 'weekly' | 'monthly'
 
 export function TradingCalendar({ journals }: TradingCalendarProps) {
   // Group trades by day
@@ -111,26 +126,29 @@ export function TradingCalendar({ journals }: TradingCalendarProps) {
       winRate: d.trades > 0 ? (d.wins / d.trades) * 100 : 0,
     }))
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload[0]) {
+  const CustomTooltip = (props: ChartTooltipProps<CalendarChartData>) => {
+    const entry = firstTooltipEntry(props)
+    const point = entry?.payload
+    if (entry && point) {
+      const pnl = tooltipNumber(entry.value)
       return (
         <div className="bg-background border rounded-lg shadow-lg p-3">
-          <p className="font-semibold">{label}</p>
+          <p className="font-semibold">{props.label}</p>
           <p className="text-sm">
             P&L:
-            <span className={`font-mono ml-1 ${payload[0].value >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              ${payload[0].value.toLocaleString()}
+            <span className={`font-mono ml-1 ${pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              ${pnl.toLocaleString()}
             </span>
           </p>
-          <p className="text-sm">Trades: {payload[0].payload.trades}</p>
-          <p className="text-sm">Win Rate: {payload[0].payload.winRate.toFixed(1)}%</p>
+          <p className="text-sm">Trades: {point.trades}</p>
+          <p className="text-sm">Win Rate: {point.winRate.toFixed(1)}%</p>
         </div>
       )
     }
     return null
   }
 
-  const renderChart = (data: any[], timeframe: string) => (
+  const renderChart = (data: CalendarChartData[], timeframe: CalendarTimeframe) => (
     <ResponsiveContainer width="100%" height={350}>
       <ComposedChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
