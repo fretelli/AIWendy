@@ -3,14 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft, CreditCard, ExternalLink, FileText, Loader2, MessageSquare, Send, Share2, Volume2, Wand2 } from "lucide-react";
+import { ArrowLeft, CreditCard, ExternalLink, FileText, Loader2, MessageSquare, Share2, Volume2, Wand2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   captureOfficialArticleAttribution,
   createBillingOrder,
@@ -22,7 +18,6 @@ import {
   prepareBillingOrderPayment,
   savePendingInviteFromParams,
   synthesizeReportBriefing,
-  submitFeedback,
   trackClientEvent,
   triggerReportNote,
   type BillingOrderDetail,
@@ -31,99 +26,9 @@ import {
   type ReportDetail,
   type ReportNoteState,
 } from "@/lib/research-api";
-
-function formatDate(value?: string | null) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function titleFromReport(report: ReportDetail) {
-  return report.display_title || report.title?.replace(/\.pdf$/i, "") || "研报详情";
-}
-
-function summaryPoints(report: ReportDetail) {
-  return report.display_summary_points?.length
-    ? report.display_summary_points
-    : report.note?.display_summary_points?.length
-      ? report.note.display_summary_points
-      : report.note?.key_points || [];
-}
-
-function formatMoneyFen(value?: number | null) {
-  return `¥${((value || 0) / 100).toFixed(2)}`;
-}
-
-function FeedbackDialog({
-  open,
-  onOpenChange,
-  reportId,
-  digestId,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  reportId?: string;
-  digestId?: number | null;
-}) {
-  const [content, setContent] = useState("");
-  const [contact, setContact] = useState("");
-  const [status, setStatus] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  async function submit() {
-    const normalized = content.trim().replace(/\s+/g, " ");
-    if (normalized.length < 4) {
-      setStatus("请补充更具体的反馈内容");
-      return;
-    }
-    setSubmitting(true);
-    setStatus("");
-    try {
-      const result = await submitFeedback({
-        category: "report_access",
-        content: normalized,
-        contact,
-        page_path: reportId ? `/research/reports/${reportId}` : `/research/digests/${digestId || ""}`,
-        report_id: reportId || "",
-        digest_id: digestId || null,
-      });
-      setContent("");
-      setStatus(`已收到反馈 #${result.id}`);
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "提交失败");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>意见反馈</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Label>反馈内容</Label>
-            <Textarea value={content} onChange={(event) => setContent(event.target.value)} placeholder="请描述打不开、摘要错误或其他问题" />
-          </div>
-          <div className="space-y-2">
-            <Label>联系方式</Label>
-            <Input value={contact} onChange={(event) => setContact(event.target.value)} placeholder="可选" />
-          </div>
-          {status ? <div className="text-sm text-muted-foreground">{status}</div> : null}
-        </div>
-        <DialogFooter>
-          <Button onClick={submit} disabled={submitting}>
-            {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-            提交
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+import { FeedbackDialog } from "./FeedbackDialog";
+import { titleFromReport, summaryPoints } from "./detail-formatters";
+import { formatDate, formatMoneyFen } from "./hub/formatters";
 
 export function ResearchReportDetailView() {
   const params = useParams<{ id: string }>();
