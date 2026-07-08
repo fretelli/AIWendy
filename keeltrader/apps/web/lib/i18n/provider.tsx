@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Locale, i18nConfig, LOCALE_COOKIE, languages } from './config';
 import en from './translations/en.json';
 import zh from './translations/zh.json';
+import type { JsonPrimitive } from '@/lib/types/json';
 
 // Translation type
 type TranslationKeys = typeof en;
@@ -15,18 +16,19 @@ type NestedKeyOf<ObjectType extends object> = {
 }[keyof ObjectType & string];
 
 type TranslationKey = NestedKeyOf<TranslationKeys>;
+type TranslationParams = Record<string, JsonPrimitive>;
 
 // Translations object
 const translations: Record<Locale, TranslationKeys> = {
   en,
-  zh: zh as unknown as TranslationKeys, // Force type assertion to bypass type mismatch temporarily
+  zh: zh as TranslationKeys,
 };
 
 // Context type
 interface I18nContextType {
   locale: Locale;
   setLocale: (locale: Locale) => void;
-  t: (key: TranslationKey, params?: Record<string, any>) => string;
+  t: (key: TranslationKey, params?: TranslationParams) => string;
   formatDate: (date: Date | string, format?: 'short' | 'long' | 'full') => string;
   formatNumber: (number: number, options?: Intl.NumberFormatOptions) => string;
   formatCurrency: (amount: number, currency?: string) => string;
@@ -39,16 +41,16 @@ const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
 // Helper function to get nested translation value
 function getNestedTranslation(
-  translations: any,
+  translationMap: Record<Locale, TranslationKeys>,
   key: string,
   locale: Locale
 ): string {
   const keys = key.split('.');
-  let value: any = translations[locale];
+  let value: unknown = translationMap[locale];
 
   for (const k of keys) {
     if (value && typeof value === 'object' && k in value) {
-      value = value[k];
+      value = (value as Record<string, unknown>)[k];
     } else {
       console.warn(`Translation key "${key}" not found for locale "${locale}"`);
       return key; // Return the key itself as fallback
@@ -59,7 +61,7 @@ function getNestedTranslation(
 }
 
 // Helper function to replace parameters in translation
-function replaceParams(text: string, params?: Record<string, any>): string {
+function replaceParams(text: string, params?: TranslationParams): string {
   if (!params) return text;
 
   let result = text;
@@ -144,7 +146,7 @@ export function I18nProvider({ children, initialLocale }: I18nProviderProps) {
   };
 
   // Translation function
-  const t = (key: TranslationKey, params?: Record<string, any>): string => {
+  const t = (key: TranslationKey, params?: TranslationParams): string => {
     const translation = getNestedTranslation(translations, key, locale);
     return replaceParams(translation, params);
   };

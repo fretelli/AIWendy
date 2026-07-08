@@ -3,6 +3,7 @@
  */
 
 import { apiFetch, apiJson } from "@/lib/api/client"
+import type { JsonObject } from "@/lib/types/json"
 
 export interface Checklist {
   id: string
@@ -78,7 +79,7 @@ export const interventionApi = {
 
   async completeChecklist(
     checklistId: string,
-    responses: Record<string, any>
+    responses: JsonObject
   ): Promise<void> {
     const response = await apiFetch("/intervention/checklists/complete", {
       method: "POST",

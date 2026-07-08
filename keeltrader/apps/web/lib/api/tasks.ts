@@ -1,4 +1,5 @@
 import { apiJson, apiStream } from '@/lib/api/client'
+import type { JsonValue } from '@/lib/types/json'
 
 export interface TaskStatus {
   task_id: string
@@ -6,13 +7,13 @@ export interface TaskStatus {
   ready: boolean
   successful?: boolean | null
   failed?: boolean | null
-  result?: any
+  result?: JsonValue
   error?: string
-  info?: any
+  info?: JsonValue
   traceback?: string
 }
 
-export type TaskStreamEvent = TaskStatus & Record<string, any>
+export type TaskStreamEvent = TaskStatus & Record<string, JsonValue | undefined>
 
 class TasksAPI {
   async getStatus(taskId: string): Promise<TaskStatus> {
@@ -25,7 +26,7 @@ class TasksAPI {
       timeoutMs?: number
       onEvent?: (evt: TaskStreamEvent) => void
     }
-  ): Promise<any> {
+  ): Promise<JsonValue | undefined> {
     const timeoutMs = options?.timeoutMs ?? 8 * 60 * 1000
     const startedAt = Date.now()
 
@@ -50,7 +51,7 @@ class TasksAPI {
       }
       if (!data) return null
       try {
-        return JSON.parse(data)
+        return JSON.parse(data) as TaskStreamEvent
       } catch {
         return null
       }

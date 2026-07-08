@@ -1,4 +1,5 @@
 import { apiFetch, apiJson } from '@/lib/api/client'
+import type { JsonObject } from '@/lib/types/json'
 
 export interface KnowledgeDocument {
   id: string
@@ -17,7 +18,7 @@ export interface CreateKnowledgeDocumentRequest {
   content: string
   source_type?: string
   source_name?: string | null
-  metadata?: Record<string, any>
+  metadata?: JsonObject
   embedding_provider?: string | null
   embedding_model?: string | null
 }

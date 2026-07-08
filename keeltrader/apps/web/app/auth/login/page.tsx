@@ -13,6 +13,19 @@ import { useAuth } from '@/lib/auth-context'
 import { getPendingInvite, savePendingInviteFromParams } from '@/lib/research-api'
 import { useI18n } from '@/lib/i18n/provider'
 
+function getErrorMessage(error: unknown): string | null {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message
+    return typeof message === 'string' && message.trim() ? message : null
+  }
+
+  return null
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -47,8 +60,8 @@ export default function LoginPage() {
           ? next
           : '/agentos'
       router.replace(destination)
-    } catch (err: any) {
-      setError(err.message || t('landing.auth.login.error'))
+    } catch (err: unknown) {
+      setError(getErrorMessage(err) || t('landing.auth.login.error'))
     } finally {
       setIsLoading(false)
     }

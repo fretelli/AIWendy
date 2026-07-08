@@ -6,12 +6,30 @@ import { cookies } from 'next/headers';
 import { Locale, i18nConfig, LOCALE_COOKIE, languages, localeCurrencies, localeDateFormats } from './config';
 import en from './translations/en.json';
 import zh from './translations/zh.json';
+import type { JsonPrimitive } from '@/lib/types/json';
+
+type TranslationKeys = typeof en;
+type TranslationParams = Record<string, JsonPrimitive>;
 
 // Translations
-const translations: Record<Locale, typeof en> = {
+const translations: Record<Locale, TranslationKeys> = {
   en,
-  zh: zh as unknown as typeof en, // Force type assertion to bypass type mismatch temporarily
+  zh: zh as TranslationKeys,
 };
+
+function readNestedValue(source: unknown, path: string): unknown {
+  let value = source;
+
+  for (const key of path.split('.')) {
+    if (value && typeof value === 'object' && key in value) {
+      value = (value as Record<string, unknown>)[key];
+    } else {
+      return undefined;
+    }
+  }
+
+  return value;
+}
 
 /**
  * Get the current locale from cookies or headers
@@ -43,16 +61,10 @@ export async function getTranslation(key: string, locale?: Locale): Promise<stri
   const currentLocale = locale || (await getLocale());
   const trans = translations[currentLocale];
 
-  const keys = key.split('.');
-  let value: any = trans;
-
-  for (const k of keys) {
-    if (value && typeof value === 'object' && k in value) {
-      value = value[k];
-    } else {
-      console.warn(`Translation key "${key}" not found for locale "${currentLocale}"`);
-      return key;
-    }
+  const value = readNestedValue(trans, key);
+  if (value === undefined) {
+    console.warn(`Translation key "${key}" not found for locale "${currentLocale}"`);
+    return key;
   }
 
   return typeof value === 'string' ? value : key;
@@ -110,7 +122,7 @@ export function formatCurrencyServer(
 /**
  * Replace parameters in translation string
  */
-export function replaceParams(text: string, params?: Record<string, any>): string {
+export function replaceParams(text: string, params?: TranslationParams): string {
   if (!params) return text;
 
   let result = text;
@@ -128,16 +140,17 @@ export function replaceParams(text: string, params?: Record<string, any>): strin
 export async function getDictionary(namespace: string, locale?: Locale) {
   const currentLocale = locale || (await getLocale());
   const trans = translations[currentLocale];
+  const dictionary = readNestedValue(trans, namespace);
 
   // Return the specific namespace or the entire translations
-  return (trans as any)[namespace] || trans;
+  return dictionary || trans;
 }
 
 /**
  * Generate metadata for different locales
  */
 export function generateMetadata(locale: Locale) {
-  const meta = (translations[locale] as any).meta;
+  const meta = translations[locale].meta;
 
   return {
     title: meta.title,
