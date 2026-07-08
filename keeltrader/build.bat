@@ -1,43 +1,57 @@
 @echo off
-echo KeelTrader Docker Build Script
-echo ==========================
-echo.
-echo Choose build option:
-echo 1. Standard build (uses cache)
-echo 2. Clean build (no cache)
-echo 3. Optimized build (multi-stage, smaller image)
-echo 4. China-optimized build (uses China mirrors)
-echo.
-set /p choice="Enter your choice (1-4): "
+setlocal
 
-if "%choice%"=="1" (
-    echo Starting standard build with cache...
-    docker-compose build
-) else if "%choice%"=="2" (
-    echo Starting clean build without cache...
-    docker-compose build --no-cache
-) else if "%choice%"=="3" (
-    echo Starting optimized build...
-    docker-compose -f docker-compose.optimized.yml build
-) else if "%choice%"=="4" (
-    echo Starting China-optimized build...
-    REM Temporarily replace Dockerfiles with CN versions
-    copy apps\api\Dockerfile apps\api\Dockerfile.backup
-    copy apps\web\Dockerfile apps\web\Dockerfile.backup
-    copy apps\api\Dockerfile.cn apps\api\Dockerfile
-    copy apps\web\Dockerfile.cn apps\web\Dockerfile
+set TARGET=%1
+if "%TARGET%"=="" set TARGET=all
 
-    REM Build with China mirrors
-    docker-compose build
+if "%TARGET%"=="-h" goto :usage
+if "%TARGET%"=="--help" goto :usage
 
-    REM Restore original Dockerfiles
-    move /Y apps\api\Dockerfile.backup apps\api\Dockerfile
-    move /Y apps\web\Dockerfile.backup apps\web\Dockerfile
-) else (
-    echo Invalid choice. Exiting.
-    exit /b 1
+if not "%2"=="" (
+    echo Extra release options are supported by build.sh on Linux/macOS. 1>&2
+    exit /b 2
 )
 
+if "%TARGET%"=="all" (
+    call bash scripts/deploy.sh web --test-only
+    if errorlevel 1 exit /b %errorlevel%
+    call bash scripts/deploy.sh api --test-only
+    exit /b %errorlevel%
+)
+
+if "%TARGET%"=="web" (
+    call bash scripts/deploy.sh web --test-only
+    exit /b %errorlevel%
+)
+
+if "%TARGET%"=="api" (
+    call bash scripts/deploy.sh api --test-only
+    exit /b %errorlevel%
+)
+
+if "%TARGET%"=="backend" (
+    call bash scripts/deploy.sh api --test-only
+    exit /b %errorlevel%
+)
+
+echo Unsupported build target: %TARGET% 1>&2
+goto :usage_error
+
+:usage
+echo Usage:
+echo   build.bat [all^|web^|api] [release options]
 echo.
-echo Build complete! You can now run: docker-compose up -d
-pause
+echo Build validation uses the same overlay path as production release, but it does
+echo not tag latest, restart services, or run production smoke checks.
+echo.
+echo Examples:
+echo   build.bat
+echo   build.bat web
+echo   build.bat api
+exit /b 0
+
+:usage_error
+echo.
+echo Usage:
+echo   build.bat [all^|web^|api] [release options]
+exit /b 2

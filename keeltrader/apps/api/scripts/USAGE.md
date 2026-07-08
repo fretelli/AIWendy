@@ -23,7 +23,7 @@
 ```bash
 export KEELTRADER_DEV_USER_PASSWORD='choose-a-local-dev-password'
 export KEELTRADER_DEV_ADMIN_PASSWORD='choose-a-local-admin-password'
-docker exec keeltrader-api python scripts/init_user_simple.py
+docker compose exec -T api python scripts/init_user_simple.py
 ```
 
 ### 本地运行 API
@@ -72,7 +72,7 @@ In most cases the container startup auto-initializes; to run manually:
 ```bash
 export KEELTRADER_DEV_USER_PASSWORD='choose-a-local-dev-password'
 export KEELTRADER_DEV_ADMIN_PASSWORD='choose-a-local-admin-password'
-docker exec keeltrader-api python scripts/init_user_simple.py
+docker compose exec -T api python scripts/init_user_simple.py
 ```
 
 #### Running the API locally

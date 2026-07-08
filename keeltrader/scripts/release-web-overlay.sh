@@ -18,6 +18,7 @@ RUN_TESTS=1
 DEPLOY=1
 FULL_BUILD=0
 SMOKE_ONLY=0
+TEST_ONLY=0
 SMOKE_ATTEMPTS="${KEELTRADER_SMOKE_ATTEMPTS:-12}"
 SMOKE_DELAY_SECONDS="${KEELTRADER_SMOKE_DELAY_SECONDS:-2}"
 
@@ -29,6 +30,7 @@ Build and release the KeelTrader web service using the local overlay image path.
 
 Options:
   --skip-tests   Skip lint/type-check/jest, but still run Next build and smoke checks.
+  --test-only    Run checks, Next build, and overlay image build without deploy or smoke.
   --no-deploy    Build and validate the image without tagging latest or restarting web.
   --full-build   Rebuild keeltrader-web:base from apps/web/Dockerfile before overlay.
   --smoke-only   Run smoke checks only.
@@ -52,6 +54,10 @@ while [ "$#" -gt 0 ]; do
     --skip-tests)
       RUN_TESTS=0
       ;;
+    --test-only)
+      TEST_ONLY=1
+      DEPLOY=0
+      ;;
     --no-deploy)
       DEPLOY=0
       ;;
@@ -71,6 +77,14 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
+
+if [ "$TEST_ONLY" -eq 1 ] && [ "$RUN_TESTS" -eq 0 ]; then
+  die "--test-only cannot be combined with --skip-tests"
+fi
+
+if [ "$TEST_ONLY" -eq 1 ] && [ "$SMOKE_ONLY" -eq 1 ]; then
+  die "--test-only cannot be combined with --smoke-only"
+fi
 
 http_code() {
   local method="$1"
@@ -256,6 +270,11 @@ main() {
 
   cd "$ROOT_DIR"
   build_images
+  if [ "$TEST_ONLY" -eq 1 ]; then
+    log "Test-only complete."
+    return
+  fi
+
   deploy_web
   smoke
 
