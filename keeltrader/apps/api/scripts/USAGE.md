@@ -41,6 +41,12 @@ python scripts/init_user_simple.py
 - 仅用于开发/测试环境；生产环境不要启用自动测试账号初始化
 - 密码不会写在源码或文档里，必须由本地环境变量提供
 
+## 脚本边界
+
+`docker_start.sh` 是容器入口脚本。生产环境只执行 Alembic migration；开发环境在显式启用自动初始化时会调用 `bootstrap_projects.py`、`init_db_simple.py`、`add_journal_tables.py`，并按需调用 `init_user_simple.py` 创建测试账号。
+
+其他数据库脚本属于历史/手动维护脚本，只有在确认目标数据库、迁移状态和回滚方案后才应执行。优先使用 Alembic migrations 或 `core/bootstrap` 中的幂等 schema bootstrap，不要把一次性脚本加入生产启动路径。
+
 ---
 
 <a id="en"></a>
@@ -83,3 +89,9 @@ python scripts/init_user_simple.py
 
 - For development/testing only; do not enable test-account initialization in production
 - Passwords are not stored in source or docs and must come from local environment variables
+
+### Script Boundaries
+
+`docker_start.sh` is the container entrypoint. In production it only runs Alembic migrations; in development it calls `bootstrap_projects.py`, `init_db_simple.py`, and `add_journal_tables.py` only when automatic initialization is enabled, and it may call `init_user_simple.py` for test users.
+
+Other database scripts are legacy/manual maintenance tools. Run them only after confirming the target database, migration state, and rollback plan. Prefer Alembic migrations or the idempotent schema bootstrap in `core/bootstrap`; do not add one-off scripts to the production startup path.
