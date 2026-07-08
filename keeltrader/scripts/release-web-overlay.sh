@@ -3,6 +3,9 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+RELEASE_SCOPE="release-web"
+source "$ROOT_DIR/scripts/lib/release-common.sh"
+init_release_metadata "$ROOT_DIR"
 WEB_DIR="$ROOT_DIR/apps/web"
 BASE_URL="${KEELTRADER_SMOKE_BASE_URL:-https://keeltrader.joyeeassets.com}"
 OVERLAY_BASE_IMAGE="${KEELTRADER_WEB_OVERLAY_BASE_IMAGE:-}"
@@ -14,9 +17,6 @@ FULL_BUILD=0
 SMOKE_ONLY=0
 SMOKE_ATTEMPTS="${KEELTRADER_SMOKE_ATTEMPTS:-12}"
 SMOKE_DELAY_SECONDS="${KEELTRADER_SMOKE_DELAY_SECONDS:-2}"
-GIT_SHA="${KEELTRADER_GIT_SHA:-$(git -C "$ROOT_DIR" rev-parse HEAD 2>/dev/null || echo unknown)}"
-BUILD_TIME="${KEELTRADER_BUILD_TIME:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
-BUILD_TYPE="${KEELTRADER_BUILD_TYPE:-overlay}"
 
 usage() {
   cat <<'USAGE'
@@ -39,20 +39,6 @@ Environment:
   KEELTRADER_SMOKE_DELAY_SECONDS  Delay between smoke attempts. Default: 2
   KEELTRADER_WEB_OVERLAY_BASE_IMAGE  Explicit base image for overlay builds. Default: use keeltrader-web:base, fall back to keeltrader-web:latest.
 USAGE
-}
-
-log() {
-  printf '[release-web] %s\n' "$*"
-}
-
-die() {
-  printf '[release-web] ERROR: %s\n' "$*" >&2
-  exit 1
-}
-
-run() {
-  log "$*"
-  "$@"
 }
 
 while [ "$#" -gt 0 ]; do
@@ -79,20 +65,6 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
-
-require_command() {
-  command -v "$1" >/dev/null 2>&1 || die "Missing required command: $1"
-}
-
-check_workspace_writable() {
-  local probe="$WEB_DIR/.release-write-check"
-
-  if ! ( : > "$probe" ) 2>/dev/null; then
-    die "Workspace is not writable from this shell. Remount/fix the execution namespace first, then rerun this script."
-  fi
-
-  rm -f "$probe"
-}
 
 http_code() {
   local method="$1"
@@ -221,46 +193,6 @@ deploy_web() {
   run docker compose up -d web
 }
 
-image_revision() {
-  local image="$1"
-
-  docker image inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image"
-}
-
-expect_image_revision() {
-  local image="$1"
-  local expected="$2"
-  local actual
-
-  actual="$(image_revision "$image" 2>/dev/null || true)"
-  if [ "$actual" != "$expected" ]; then
-    die "Image revision mismatch for $image: expected $expected, got ${actual:-missing}"
-  fi
-
-  log "smoke ok: $image revision $actual"
-}
-
-web_service_revision() {
-  local cid
-  local image_id
-
-  cid="$(docker compose ps -q web)"
-  [ -n "$cid" ] || return 1
-  image_id="$(docker inspect -f '{{.Image}}' "$cid")"
-  docker image inspect -f '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$image_id"
-}
-
-expect_web_service_revision() {
-  local actual
-
-  actual="$(web_service_revision 2>/dev/null || true)"
-  if [ "$actual" != "$GIT_SHA" ]; then
-    die "Running web revision mismatch: expected $GIT_SHA, got ${actual:-missing}"
-  fi
-
-  log "smoke ok: web image revision $actual"
-}
-
 smoke() {
   log "Running smoke checks against $BASE_URL"
 
@@ -270,7 +202,7 @@ smoke() {
   expect_code "research API requires login" "401" "GET" "/api/research/health"
   if [ "$DEPLOY" -eq 1 ] && [ "$SMOKE_ONLY" -eq 0 ]; then
     expect_code "web health" "200" "GET" "/api/health"
-    expect_web_service_revision
+    expect_service_revision web "$GIT_SHA"
   fi
 
   if [ -z "${KEELTRADER_SMOKE_EMAIL:-}" ] || [ -z "${KEELTRADER_SMOKE_PASSWORD:-}" ]; then
@@ -331,7 +263,7 @@ main() {
     return
   fi
 
-  check_workspace_writable
+  check_workspace_writable "$WEB_DIR/.release-write-check"
 
   cd "$WEB_DIR"
   run_quality_checks
