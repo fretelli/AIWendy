@@ -1,25 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { RankBadge } from '@/components/rpg/RankBadge';
 import { getLeaderboard } from '@/lib/rpg-api';
 import type { LeaderboardEntry } from '@/lib/rpg-api';
+import { useAsyncData } from '@/hooks/use-async-data';
 
 export default function LeaderboardPage() {
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [period, setPeriod] = useState('weekly');
-  const [loading, setLoading] = useState(true);
+  const loadLeaderboard = useCallback(() => getLeaderboard(period), [period]);
+  const { data, loading, error } = useAsyncData(loadLeaderboard, {
+    initialData: { period: 'weekly', period_start: '', entries: [] as LeaderboardEntry[] },
+    errorMessage: 'Failed to load leaderboard.',
+    logScope: 'leaderboard.load',
+  });
 
-  useEffect(() => {
-    setLoading(true);
-    getLeaderboard(period)
-      .then((data) => setEntries(data.entries))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [period]);
+  const entries = data.entries;
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-6 overflow-y-auto h-full">
@@ -32,6 +32,11 @@ export default function LeaderboardPage() {
           </TabsList>
         </Tabs>
       </div>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
 
       <Card>
         <CardContent className="p-0">

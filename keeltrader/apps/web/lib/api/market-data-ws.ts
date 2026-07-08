@@ -7,6 +7,8 @@
  * wss://example.com/api/v1/market-data/ws
  */
 
+import { logClientError, logClientWarn } from '@/lib/client-log'
+
 interface PriceUpdate {
   type: 'price_update'
   symbol: string
@@ -62,7 +64,7 @@ export class MarketDataWebSocket {
 
     const configuredBaseUrl = process.env.NEXT_PUBLIC_MARKET_DATA_WS_URL?.replace(/\/+$/, '')
     if (!configuredBaseUrl) {
-      console.warn('Market data WebSocket URL is not configured')
+      logClientWarn('market-data-ws.config', 'Market data WebSocket URL is not configured')
       this.options.onDisconnect()
       return
     }
@@ -84,12 +86,12 @@ export class MarketDataWebSocket {
           this.options.onPriceUpdate(data)
         }
       } catch (error) {
-        console.error('Error parsing WebSocket message:', error)
+        logClientError('market-data-ws.message', error)
       }
     }
 
     this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error)
+      logClientError('market-data-ws.error', error)
       this.options.onError(error)
     }
 
@@ -136,7 +138,7 @@ export class MarketDataWebSocket {
         symbol,
       }))
     } else {
-      console.warn('Cannot subscribe: WebSocket not connected')
+      logClientWarn('market-data-ws.subscribe', 'Cannot subscribe: WebSocket not connected')
     }
   }
 
@@ -150,7 +152,7 @@ export class MarketDataWebSocket {
         symbol,
       }))
     } else {
-      console.warn('Cannot unsubscribe: WebSocket not connected')
+      logClientWarn('market-data-ws.unsubscribe', 'Cannot unsubscribe: WebSocket not connected')
     }
   }
 

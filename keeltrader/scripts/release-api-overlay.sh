@@ -89,6 +89,18 @@ resolve_overlay_base_image() {
   fi
 
   if docker image inspect "$FALLBACK_BASE_IMAGE" >/dev/null 2>&1; then
+    local fallback_build_type
+    fallback_build_type="$(image_build_type "$FALLBACK_BASE_IMAGE" 2>/dev/null || true)"
+    if [ "$fallback_build_type" = "overlay" ]; then
+      OVERLAY_BASE_IMAGE="$DEFAULT_BASE_IMAGE"
+      log "Fallback image $FALLBACK_BASE_IMAGE is also an overlay; rebuilding $OVERLAY_BASE_IMAGE to avoid stacked overlay layers."
+      docker build --pull=false \
+        -f "$API_DIR/Dockerfile" \
+        -t "$OVERLAY_BASE_IMAGE" \
+        "$ROOT_DIR"
+      return
+    fi
+
     OVERLAY_BASE_IMAGE="$FALLBACK_BASE_IMAGE"
     log "Overlay base $DEFAULT_BASE_IMAGE not found; using $OVERLAY_BASE_IMAGE to avoid dependency-layer rebuild."
     return

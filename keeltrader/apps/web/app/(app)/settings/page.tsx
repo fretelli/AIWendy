@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { apiFetch } from '@/lib/api/client';
+import { logClientError } from '@/lib/client-log';
 
 interface Exchange {
   id: string;
@@ -57,7 +58,7 @@ export default function SettingsPage() {
       if (riskResp.ok) setRiskSettings(await riskResp.json());
       if (pushResp.ok) setPushSettings(await pushResp.json());
     } catch (e) {
-      console.error('Failed to load settings', e);
+      logClientError('settings.load', e);
     }
   }, []);
 

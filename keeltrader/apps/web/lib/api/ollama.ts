@@ -3,6 +3,7 @@
  */
 
 import { apiJson, apiStream } from '@/lib/api/client'
+import { logClientError } from '@/lib/client-log'
 
 export interface OllamaHealthResponse {
   healthy: boolean
@@ -110,7 +111,7 @@ class OllamaApi {
               return
             }
           } catch (e) {
-            console.error('Failed to parse SSE data:', e)
+            logClientError('ollama.sse.parse', e)
           }
         }
       }
