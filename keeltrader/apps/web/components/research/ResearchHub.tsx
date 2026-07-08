@@ -2,19 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  AuthBridge,
-  DigestsPanel,
-  FeedbackPanel,
-  FundsPanel,
-  MallPanel,
-  MembershipPanel,
-  PreferencesPanel,
-  ReportsPanel,
-} from "@/components/research/hub/panels";
+import { AuthBridge } from "@/components/research/hub/panels";
 import { MODULES } from "@/components/research/hub/constants";
 import { ResearchHubFooter, ResearchHubHeader, ResearchModuleGrid } from "@/components/research/hub/ResearchHubChrome";
+import { ResearchHubTabs } from "@/components/research/hub/ResearchHubTabs";
 import { formatMoneyFen, officialArticleEventName } from "@/components/research/hub/formatters";
 import { type TabValue } from "@/components/research/hub/types";
 import {
@@ -367,81 +358,45 @@ export function ResearchHub() {
 
         <AuthBridge onSaved={refreshAll} />
 
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)} className="space-y-5">
-          <TabsList className="h-auto flex-wrap justify-start">
-            {MODULES.map((item) => (
-              <TabsTrigger key={item.value} value={item.value}>
-                {item.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          <TabsContent value="reports">
-            <ReportsPanel
-              data={recommendations}
-              freshness={freshness}
-              mode={recommendationMode}
-              loading={loadingRecommendations}
-              error={errors.reports || ""}
-              onReload={loadPublic}
-              onModeChange={changeRecommendationMode}
-            />
-          </TabsContent>
-          <TabsContent value="digests">
-            <DigestsPanel
-              feed={homeFeed}
-              notifications={notifications}
-              profile={profile}
-              publicItems={recommendations?.items || []}
-              error={errors.digests || ""}
-              onReload={loadPrivate}
-              onRefreshNotifications={refreshDigestNotifications}
-              onMarkRead={readNotification}
-              onMarkAllRead={readAllNotifications}
-              onGoPreferences={() => setActiveTab("preferences")}
-            />
-          </TabsContent>
-          <TabsContent value="funds">
-            <FundsPanel
-              archive={archive}
-              holdings={holdings}
-              activeFundId={activeFundId}
-              activeMarket={activeHoldingMarket}
-              activePeriod={activeHoldingPeriod}
-              error={errors.funds || ""}
-              onSelectFund={selectFund}
-              onSelectMarket={selectHoldingMarket}
-              onSelectPeriod={selectHoldingPeriod}
-              onDownloadMiniappCode={downloadFundMiniappCode}
-            />
-          </TabsContent>
-          <TabsContent value="mall">
-            <MallPanel mall={mall} error={errors.mall || ""} onReload={loadPrivate} />
-          </TabsContent>
-          <TabsContent value="membership">
-            <MembershipPanel
-              overview={billing}
-              profile={profile}
-              invite={invite}
-              catalog={catalog}
-              officialBinding={officialBinding}
-              orderDetail={orderDetail}
-              orderStatus={orderStatus}
-              error={errors.membership || errors.profile || ""}
-              onCheckIn={checkIn}
-              onReload={loadPrivate}
-              onCreateOrder={createOrderForProduct}
-              onOpenOrder={openOrder}
-              onRefreshOrderPayment={refreshOrderPayment}
-              onGoMall={() => setActiveTab("mall")}
-            />
-          </TabsContent>
-          <TabsContent value="preferences">
-            <PreferencesPanel profile={profile} preferenceOptions={preferenceOptions} error={errors.profile || ""} onReload={loadPrivate} />
-          </TabsContent>
-          <TabsContent value="feedback">
-            <FeedbackPanel />
-          </TabsContent>
-        </Tabs>
+        <ResearchHubTabs
+          activeTab={activeTab}
+          onActiveTabChange={setActiveTab}
+          recommendations={recommendations}
+          freshness={freshness}
+          recommendationMode={recommendationMode}
+          loadingRecommendations={loadingRecommendations}
+          homeFeed={homeFeed}
+          notifications={notifications}
+          profile={profile}
+          billing={billing}
+          invite={invite}
+          catalog={catalog}
+          officialBinding={officialBinding}
+          preferenceOptions={preferenceOptions}
+          orderDetail={orderDetail}
+          orderStatus={orderStatus}
+          mall={mall}
+          archive={archive}
+          holdings={holdings}
+          activeFundId={activeFundId}
+          activeHoldingMarket={activeHoldingMarket}
+          activeHoldingPeriod={activeHoldingPeriod}
+          errors={errors}
+          onLoadPublic={loadPublic}
+          onLoadPrivate={loadPrivate}
+          onRecommendationModeChange={changeRecommendationMode}
+          onRefreshNotifications={refreshDigestNotifications}
+          onMarkNotificationRead={readNotification}
+          onMarkAllNotificationsRead={readAllNotifications}
+          onSelectFund={selectFund}
+          onSelectHoldingMarket={selectHoldingMarket}
+          onSelectHoldingPeriod={selectHoldingPeriod}
+          onDownloadFundMiniappCode={downloadFundMiniappCode}
+          onCheckIn={checkIn}
+          onCreateOrder={createOrderForProduct}
+          onOpenOrder={openOrder}
+          onRefreshOrderPayment={refreshOrderPayment}
+        />
 
         <ResearchHubFooter />
       </div>
