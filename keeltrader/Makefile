@@ -55,7 +55,7 @@ audit-web:
 
 audit-api:
 	@docker image inspect "$(PIP_AUDIT_IMAGE)" >/dev/null 2>&1 || { echo "Missing $(PIP_AUDIT_IMAGE). Run make check-api first, or set PIP_AUDIT_IMAGE to an existing Python image." >&2; exit 1; }
-	@timeout "$(PIP_AUDIT_DOCKER_TIMEOUT)" docker run --rm -u root -v "$(CURDIR)/apps/api:/src:ro" "$(PIP_AUDIT_IMAGE)" sh -c 'python -m pip install --quiet --disable-pip-version-check pip-audit && python -m pip_audit --vulnerability-service "$(PIP_AUDIT_VULN_SERVICE)" --timeout "$(PIP_AUDIT_TIMEOUT)" --index-url "$(PIP_AUDIT_INDEX_URL)" $(PIP_AUDIT_IGNORE_ARGS) -r /src/requirements-prod.txt && python -m pip_audit --vulnerability-service "$(PIP_AUDIT_VULN_SERVICE)" --timeout "$(PIP_AUDIT_TIMEOUT)" --index-url "$(PIP_AUDIT_INDEX_URL)" $(PIP_AUDIT_IGNORE_ARGS) -r /src/requirements.txt'
+	@timeout "$(PIP_AUDIT_DOCKER_TIMEOUT)" docker run --rm -u root -v "$(CURDIR)/apps/api:/src:ro" "$(PIP_AUDIT_IMAGE)" sh -c 'python -m pip install --quiet --disable-pip-version-check --index-url "$(PIP_AUDIT_INDEX_URL)" pip-audit && python -m pip_audit --vulnerability-service "$(PIP_AUDIT_VULN_SERVICE)" --timeout "$(PIP_AUDIT_TIMEOUT)" --index-url "$(PIP_AUDIT_INDEX_URL)" $(PIP_AUDIT_IGNORE_ARGS) -r /src/requirements-prod.txt && python -m pip_audit --vulnerability-service "$(PIP_AUDIT_VULN_SERVICE)" --timeout "$(PIP_AUDIT_TIMEOUT)" --index-url "$(PIP_AUDIT_INDEX_URL)" $(PIP_AUDIT_IGNORE_ARGS) -r /src/requirements.txt'
 
 audit-api-strict:
 	@$(MAKE) audit-api PIP_AUDIT_IGNORE_VULNS=

@@ -125,9 +125,9 @@ docker compose up -d --build
 
 ## 认证
 
-默认 Docker Compose 配置会以 `NEXT_PUBLIC_AUTH_REQUIRED=1` 构建 Web，启动后需要登录。设置 `KEELTRADER_AUTO_INIT_TEST_USERS=1` 可在首次启动时创建测试账号。
+默认 Docker Compose 配置会以 `NEXT_PUBLIC_AUTH_REQUIRED=1` 构建 Web，启动后需要登录。公网或生产部署必须保持 `KEELTRADER_AUTH_REQUIRED=1` 和 `NEXT_PUBLIC_AUTH_REQUIRED=1`。设置 `KEELTRADER_AUTO_INIT_TEST_USERS=1` 可在首次启动时创建测试账号。
 
-如需免登录访客模式，将 `.env` 中 `KEELTRADER_AUTH_REQUIRED=0`，并以 `NEXT_PUBLIC_AUTH_REQUIRED=0` 重新构建 Web 镜像。
+仅本地或私有网络开发可以启用免登录访客模式：将 `.env` 中 `KEELTRADER_AUTH_REQUIRED=0`，并以 `NEXT_PUBLIC_AUTH_REQUIRED=0` 重新构建 Web 镜像。
 
 ## Roadmap（社区版）
 
@@ -211,9 +211,9 @@ Full guide: `keeltrader/docs/SELF_HOSTING.md`
 
 ### Authentication
 
-The default Docker Compose setup builds the web with login enabled (`NEXT_PUBLIC_AUTH_REQUIRED=1`). Set `KEELTRADER_AUTO_INIT_TEST_USERS=1` to create test accounts on first startup.
+The default Docker Compose setup builds the web with login enabled (`NEXT_PUBLIC_AUTH_REQUIRED=1`). Public or production deployments must keep `KEELTRADER_AUTH_REQUIRED=1` and `NEXT_PUBLIC_AUTH_REQUIRED=1`. Set `KEELTRADER_AUTO_INIT_TEST_USERS=1` to create test accounts on first startup.
 
-To disable login and use guest mode, set `KEELTRADER_AUTH_REQUIRED=0` in `.env` and rebuild the web image with `NEXT_PUBLIC_AUTH_REQUIRED=0`.
+For local or private-network development only, you can disable login and use guest mode by setting `KEELTRADER_AUTH_REQUIRED=0` in `.env` and rebuilding the web image with `NEXT_PUBLIC_AUTH_REQUIRED=0`.
 
 ### Roadmap (community)
 
