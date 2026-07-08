@@ -5,10 +5,7 @@ PIP_AUDIT_DOCKER_TIMEOUT ?= 600
 PIP_AUDIT_TIMEOUT ?= 120
 PIP_AUDIT_INDEX_URL ?= https://mirrors.aliyun.com/pypi/simple/
 PIP_AUDIT_VULN_SERVICE ?= osv
-# FastAPI 0.111 pins Starlette 0.37.x. FastAPI 0.139 + Starlette 1.x was
-# tested and changes route mounting semantics, so keep these as explicit,
-# reviewable exceptions until a dedicated framework migration.
-PIP_AUDIT_IGNORE_VULNS ?= PYSEC-2026-161 PYSEC-2026-249 PYSEC-2026-248 PYSEC-2026-1943 PYSEC-2026-1941 CVE-2026-48818 CVE-2026-48817
+PIP_AUDIT_IGNORE_VULNS ?=
 PIP_AUDIT_IGNORE_ARGS = $(foreach vuln,$(PIP_AUDIT_IGNORE_VULNS),--ignore-vuln $(vuln))
 
 .PHONY: help setup dev check check-web check-api audit audit-web audit-api audit-api-strict test build deploy clean db-migrate db-rollback
@@ -21,8 +18,8 @@ help:
 	@echo "  make check-api - Build API test runner and run pytest"
 	@echo "  make audit     - Run web and API dependency audits"
 	@echo "  make audit-web - Run npm audit for high/critical web dependency issues"
-	@echo "  make audit-api - Run pip-audit for API dependency issues"
-	@echo "  make audit-api-strict - Run API dependency audit without accepted Starlette exceptions"
+	@echo "  make audit-api - Run strict pip-audit checks for API dependency issues"
+	@echo "  make audit-api-strict - Alias for API dependency audit with no vulnerability exceptions"
 	@echo "  make test      - Alias for make check"
 	@echo "  make build     - Build production images"
 	@echo "  make deploy    - Deploy to production"
