@@ -8,6 +8,8 @@ KeelTrader 支持两种部署模式：
 1. **自托管模式（Self-Hosted）** - 开源社区版，适合个人和小团队
 2. **云托管模式（Cloud/SaaS）** - 托管服务版，提供多租户、计费、企业 SSO 等功能
 
+> 当前 `v2` 生产部署以本机 Docker Compose + 外部 PostgreSQL/Redis 为准。Compose 文件只编排 `api`、`web`、`agent-engine`，不内置数据库或 Redis；发布使用 `scripts/deploy.sh web|api` 的 overlay 路径。
+
 ## 部署模式对比
 
 | 特性 | 自托管模式 | 云托管模式 |
@@ -51,7 +53,7 @@ DEPLOYMENT_MODE=self-hosted
 cd keeltrader
 cp .env.example .env
 # 编辑 .env 设置必要的配置
-docker compose up -d --build
+docker compose up -d api web agent-engine
 ```
 
 访问 `http://localhost:3000`
@@ -146,7 +148,7 @@ STRIPE_PRICE_ID_ENTERPRISE=price_xxx
 
 ```bash
 # 运行迁移以创建租户表
-docker exec keeltrader-api alembic upgrade head
+docker compose exec -T api alembic upgrade head
 ```
 
 ### 适用场景
@@ -164,7 +166,7 @@ docker exec keeltrader-api alembic upgrade head
 ### 1. 备份数据
 
 ```bash
-docker exec keeltrader-postgres pg_dump -U keeltrader keeltrader > backup.sql
+pg_dump "$DATABASE_URL" > backup.sql
 ```
 
 ### 2. 更新配置
@@ -181,10 +183,10 @@ docker compose down
 git pull
 
 # 启动服务（会自动运行迁移）
-docker compose up -d --build
+docker compose up -d api web agent-engine
 
 # 或手动运行迁移
-docker exec keeltrader-api alembic upgrade head
+docker compose exec -T api alembic upgrade head
 ```
 
 ### 4. 创建租户
@@ -192,7 +194,7 @@ docker exec keeltrader-api alembic upgrade head
 为现有用户创建租户：
 
 ```bash
-docker exec keeltrader-api python scripts/migrate_to_multi_tenant.py
+docker compose exec -T api python scripts/migrate_to_multi_tenant.py
 ```
 
 ### 5. 配置外部服务
@@ -428,7 +430,7 @@ Or leave it unset (default is `self-hosted`).
 cd keeltrader
 cp .env.example .env
 # edit .env and fill required settings
-docker compose up -d --build
+docker compose up -d api web agent-engine
 ```
 
 Visit `http://localhost:3000`
@@ -523,7 +525,7 @@ Cloud mode requires additional tables:
 
 ```bash
 # run migrations to create tenant tables
-docker exec keeltrader-api alembic upgrade head
+docker compose exec -T api alembic upgrade head
 ```
 
 ### Best for
@@ -541,7 +543,7 @@ If you’re already running the self-hosted version and want to migrate to cloud
 ### 1. Back up data
 
 ```bash
-docker exec keeltrader-postgres pg_dump -U keeltrader keeltrader > backup.sql
+pg_dump "$DATABASE_URL" > backup.sql
 ```
 
 ### 2. Update configuration
@@ -558,10 +560,10 @@ docker compose down
 git pull
 
 # start services (migrations may run automatically depending on your setup)
-docker compose up -d --build
+docker compose up -d api web agent-engine
 
 # or run migrations manually
-docker exec keeltrader-api alembic upgrade head
+docker compose exec -T api alembic upgrade head
 ```
 
 ### 4. Create tenants
@@ -569,7 +571,7 @@ docker exec keeltrader-api alembic upgrade head
 Create tenants for existing users:
 
 ```bash
-docker exec keeltrader-api python scripts/migrate_to_multi_tenant.py
+docker compose exec -T api python scripts/migrate_to_multi_tenant.py
 ```
 
 ### 5. Configure external services

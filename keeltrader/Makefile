@@ -22,7 +22,7 @@ help:
 	@echo "  make audit-api - Run strict pip-audit checks for API dependency issues"
 	@echo "  make audit-api-strict - Alias for API dependency audit with no vulnerability exceptions"
 	@echo "  make test      - Alias for make check"
-	@echo "  make build     - Build production images"
+	@echo "  make build     - Validate production overlay images without deploy"
 	@echo "  make deploy    - Deploy to production"
 	@echo "  make clean     - Clean up generated files"
 
@@ -63,9 +63,10 @@ audit-api-strict:
 # Run tests
 test: check
 
-# Build production images
+# Validate production overlay images without deploying
 build:
-	@docker compose build
+	@scripts/deploy.sh web --test-only
+	@scripts/deploy.sh api --test-only
 
 # Deploy to production
 deploy:

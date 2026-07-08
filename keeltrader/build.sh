@@ -1,51 +1,51 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Build script for KeelTrader with optimization options
+set -Eeuo pipefail
 
-echo "KeelTrader Docker Build Script"
-echo "=========================="
-echo ""
-echo "Choose build option:"
-echo "1. Standard build (uses cache)"
-echo "2. Clean build (no cache)"
-echo "3. Optimized build (multi-stage, smaller image)"
-echo "4. China-optimized build (uses China mirrors)"
-echo ""
-read -p "Enter your choice (1-4): " choice
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-case $choice in
-    1)
-        echo "Starting standard build with cache..."
-        docker-compose build
-        ;;
-    2)
-        echo "Starting clean build without cache..."
-        docker-compose build --no-cache
-        ;;
-    3)
-        echo "Starting optimized build..."
-        docker-compose -f docker-compose.optimized.yml build
-        ;;
-    4)
-        echo "Starting China-optimized build..."
-        # Temporarily replace Dockerfiles with CN versions
-        cp apps/api/Dockerfile apps/api/Dockerfile.backup
-        cp apps/web/Dockerfile apps/web/Dockerfile.backup
-        cp apps/api/Dockerfile.cn apps/api/Dockerfile
-        cp apps/web/Dockerfile.cn apps/web/Dockerfile
+usage() {
+  cat <<'USAGE'
+Usage:
+  ./build.sh [all|web|api] [release options]
 
-        # Build with China mirrors
-        docker-compose build
+Build validation uses the same overlay path as production release, but it does
+not tag latest, restart services, or run production smoke checks.
 
-        # Restore original Dockerfiles
-        mv apps/api/Dockerfile.backup apps/api/Dockerfile
-        mv apps/web/Dockerfile.backup apps/web/Dockerfile
-        ;;
-    *)
-        echo "Invalid choice. Exiting."
-        exit 1
-        ;;
+Examples:
+  ./build.sh
+  ./build.sh web
+  ./build.sh api --full-build
+USAGE
+}
+
+target="${1:-all}"
+if [ "$#" -gt 0 ]; then
+  shift
+fi
+
+case "$target" in
+  all)
+    if [ "$#" -gt 0 ]; then
+      usage >&2
+      printf '\nExtra release options are only supported for web/api targets.\n' >&2
+      exit 2
+    fi
+    "$ROOT_DIR/scripts/deploy.sh" web --test-only
+    "$ROOT_DIR/scripts/deploy.sh" api --test-only
+    ;;
+  web)
+    "$ROOT_DIR/scripts/deploy.sh" web --test-only "$@"
+    ;;
+  api|backend)
+    "$ROOT_DIR/scripts/deploy.sh" api --test-only "$@"
+    ;;
+  -h|--help)
+    usage
+    ;;
+  *)
+    usage >&2
+    printf '\nUnsupported build target: %s\n' "$target" >&2
+    exit 2
+    ;;
 esac
-
-echo ""
-echo "Build complete! You can now run: docker-compose up -d"

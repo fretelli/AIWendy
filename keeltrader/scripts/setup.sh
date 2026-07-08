@@ -1,94 +1,75 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# KeelTrader Setup Script
-# This script sets up the development environment
+set -Eeuo pipefail
 
-set -e
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PIP_INDEX_URL="${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}"
+NPM_CONFIG_REGISTRY="${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org/}"
 
 echo "============================================"
 echo "KeelTrader Development Environment Setup"
 echo "============================================"
 
-# Check prerequisites
+require_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    echo "Missing required command: $1" >&2
+    exit 1
+  fi
+}
+
 echo "Checking prerequisites..."
+require_command node
+require_command npm
+require_command python3
 
-# Check Node.js
-if ! command -v node &> /dev/null; then
-    echo "❌ Node.js is not installed. Please install Node.js 20+"
-    exit 1
+if command -v docker >/dev/null 2>&1; then
+  echo "Docker detected. Use scripts/deploy.sh or ./build.sh for container build validation."
+else
+  echo "Docker not found. Container build validation will be unavailable."
 fi
 
-# Check Python
-if ! command -v python3 &> /dev/null; then
-    echo "❌ Python is not installed. Please install Python 3.11+"
-    exit 1
-fi
+cd "$ROOT_DIR"
 
-# Check Docker
-if ! command -v docker &> /dev/null; then
-    echo "⚠️  Docker is not installed. You'll need it for databases"
-fi
-
-echo "✅ Prerequisites checked"
-
-# Copy environment files
 echo "Setting up environment files..."
 if [ ! -f .env ]; then
-    cp .env.example .env
-    echo "✅ Created .env file from .env.example"
-    echo "⚠️  Please edit .env and add your API keys"
+  cp .env.example .env
+  echo "Created .env from .env.example. Edit DATABASE_URL, REDIS_URL, JWT_SECRET, and model keys before running the API."
 else
-    echo "✅ .env file already exists"
+  echo ".env already exists."
 fi
 
-# Start databases with Docker
-if command -v docker &> /dev/null; then
-    echo "Starting database services..."
-    docker-compose up -d db redis
-    echo "✅ Database services started"
-else
-    echo "⚠️  Skipping database setup (Docker not installed)"
-fi
-
-# Setup backend
-echo "Setting up backend..."
-cd apps/api
-
-# Create virtual environment
+echo "Setting up API dependencies..."
+cd "$ROOT_DIR/apps/api"
 if [ ! -d venv ]; then
-    python3 -m venv venv
-    echo "✅ Python virtual environment created"
+  python3 -m venv venv
+  echo "Created apps/api/venv."
 fi
 
-# Activate virtual environment and install dependencies
+# shellcheck disable=SC1091
 source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-echo "✅ Backend dependencies installed"
+python -m pip install --upgrade pip --index-url "$PIP_INDEX_URL"
+python -m pip install -r requirements.txt --index-url "$PIP_INDEX_URL"
+deactivate
 
-# Run database migrations
-echo "Running database migrations..."
-alembic upgrade head
-echo "✅ Database migrations completed"
+echo "Setting up web dependencies..."
+cd "$ROOT_DIR/apps/web"
+npm ci --registry="$NPM_CONFIG_REGISTRY"
 
-cd ../..
+cat <<'NEXT'
 
-# Setup frontend
-echo "Setting up frontend..."
-cd apps/web
-npm install
-echo "✅ Frontend dependencies installed"
+============================================
+Setup complete.
+============================================
 
-cd ../..
+Next steps:
+1. Edit .env and point DATABASE_URL/REDIS_URL at your actual services.
+2. Run API locally:
+   cd apps/api && source venv/bin/activate && uvicorn main:app --reload --port 8000
+3. Run web locally:
+   cd apps/web && NEXT_PUBLIC_API_URL=http://localhost:8000 npm run dev
+4. For container build validation, run:
+   ./build.sh
 
-echo ""
-echo "============================================"
-echo "✅ Setup completed successfully!"
-echo "============================================"
-echo ""
-echo "Next steps:"
-echo "1. Edit .env file and add your API keys"
-echo "2. Start the backend: cd apps/api && source venv/bin/activate && uvicorn main:app --reload"
-echo "3. Start the frontend: cd apps/web && npm run dev"
-echo "4. Open http://localhost:3000 in your browser"
-echo ""
+This setup script does not start PostgreSQL/Redis or run migrations.
+Use make db-migrate only after DATABASE_URL points at the intended database.
+NEXT
