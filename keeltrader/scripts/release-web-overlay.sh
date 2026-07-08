@@ -5,20 +5,7 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 RELEASE_SCOPE="release-web"
 source "$ROOT_DIR/scripts/lib/release-common.sh"
-RELEASE_ENV_FILE="${KEELTRADER_RELEASE_ENV_FILE:-$ROOT_DIR/.env.release.local}"
-
-if [ -n "${KEELTRADER_RELEASE_ENV_FILE:-}" ] && [ ! -f "$RELEASE_ENV_FILE" ]; then
-  die "Explicit release env file not found: $RELEASE_ENV_FILE"
-fi
-
-if [ -f "$RELEASE_ENV_FILE" ]; then
-  set -a
-  # shellcheck disable=SC1090
-  . "$RELEASE_ENV_FILE"
-  set +a
-  log "Loaded release env file: $RELEASE_ENV_FILE"
-fi
-
+load_release_env_file "$ROOT_DIR"
 init_release_metadata "$ROOT_DIR"
 WEB_DIR="$ROOT_DIR/apps/web"
 BASE_URL="${KEELTRADER_SMOKE_BASE_URL:-https://keeltrader.joyeeassets.com}"
@@ -149,68 +136,20 @@ run_next_build() {
     npm run build
 }
 
-resolve_overlay_base_image() {
-  if [ -n "$OVERLAY_BASE_IMAGE" ]; then
-    if ! docker image inspect "$OVERLAY_BASE_IMAGE" >/dev/null 2>&1; then
-      die "Explicit overlay base image not found: $OVERLAY_BASE_IMAGE"
-    fi
-    log "Using explicit overlay base image: $OVERLAY_BASE_IMAGE"
-    return
-  fi
+build_web_base_image() {
+  local image="$1"
 
-  if [ "$FULL_BUILD" -eq 1 ]; then
-    OVERLAY_BASE_IMAGE="$DEFAULT_BASE_IMAGE"
-    log "Rebuilding overlay base image by request: $OVERLAY_BASE_IMAGE"
-    docker build --pull=false \
-      --build-arg NPM_CONFIG_REGISTRY="$NPM_REGISTRY" \
-      --build-arg NEXT_PUBLIC_API_URL=http://api:8000 \
-      --build-arg NEXT_PUBLIC_AUTH_REQUIRED=1 \
-      --build-arg NEXT_PUBLIC_SITE_URL=https://keeltrader.joyeeassets.com \
-      -t "$OVERLAY_BASE_IMAGE" \
-      "$WEB_DIR"
-    return
-  fi
-
-  if docker image inspect "$DEFAULT_BASE_IMAGE" >/dev/null 2>&1; then
-    OVERLAY_BASE_IMAGE="$DEFAULT_BASE_IMAGE"
-    log "Using overlay base image: $OVERLAY_BASE_IMAGE"
-    return
-  fi
-
-  if docker image inspect "$FALLBACK_BASE_IMAGE" >/dev/null 2>&1; then
-    local fallback_build_type
-    fallback_build_type="$(image_build_type "$FALLBACK_BASE_IMAGE" 2>/dev/null || true)"
-    if [ "$fallback_build_type" = "overlay" ]; then
-      OVERLAY_BASE_IMAGE="$DEFAULT_BASE_IMAGE"
-      log "Fallback image $FALLBACK_BASE_IMAGE is also an overlay; rebuilding $OVERLAY_BASE_IMAGE to avoid stacked overlay layers."
-      docker build --pull=false \
-        --build-arg NPM_CONFIG_REGISTRY="$NPM_REGISTRY" \
-        --build-arg NEXT_PUBLIC_API_URL=http://api:8000 \
-        --build-arg NEXT_PUBLIC_AUTH_REQUIRED=1 \
-        --build-arg NEXT_PUBLIC_SITE_URL=https://keeltrader.joyeeassets.com \
-        -t "$OVERLAY_BASE_IMAGE" \
-        "$WEB_DIR"
-      return
-    fi
-
-    OVERLAY_BASE_IMAGE="$FALLBACK_BASE_IMAGE"
-    log "Overlay base $DEFAULT_BASE_IMAGE not found; using $OVERLAY_BASE_IMAGE to avoid dependency-layer rebuild."
-    return
-  fi
-
-  OVERLAY_BASE_IMAGE="$DEFAULT_BASE_IMAGE"
-  log "No reusable overlay base image found; bootstrapping $OVERLAY_BASE_IMAGE without pulling base images."
   docker build --pull=false \
     --build-arg NPM_CONFIG_REGISTRY="$NPM_REGISTRY" \
     --build-arg NEXT_PUBLIC_API_URL=http://api:8000 \
     --build-arg NEXT_PUBLIC_AUTH_REQUIRED=1 \
     --build-arg NEXT_PUBLIC_SITE_URL=https://keeltrader.joyeeassets.com \
-    -t "$OVERLAY_BASE_IMAGE" \
+    -t "$image" \
     "$WEB_DIR"
 }
 
 build_images() {
-  resolve_overlay_base_image
+  resolve_overlay_base_image "$OVERLAY_BASE_IMAGE" "$DEFAULT_BASE_IMAGE" "$FALLBACK_BASE_IMAGE" build_web_base_image
 
   log "Building overlay image without pulling base images from base: $OVERLAY_BASE_IMAGE"
   log "Build metadata: git_sha=$GIT_SHA build_time=$BUILD_TIME build_type=$BUILD_TYPE"
