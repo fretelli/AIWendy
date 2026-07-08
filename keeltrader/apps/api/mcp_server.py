@@ -88,7 +88,7 @@ def mount_mcp_sse(app):
     """Mount MCP SSE transport on the FastAPI app at /mcp."""
     try:
         from mcp.server.sse import SseServerTransport
-        from starlette.routing import Mount, Route
+        from starlette.routing import Route, Router
 
         server = create_mcp_server()
         sse_transport = SseServerTransport("/messages/")
@@ -109,12 +109,11 @@ def mount_mcp_sse(app):
         # Mount SSE endpoints
         app.mount(
             "/mcp",
-            app=Mount(
-                "",
+            app=Router(
                 routes=[
                     Route("/sse", endpoint=handle_sse),
                     Route("/messages/", endpoint=handle_messages, methods=["POST"]),
-                ],
+                ]
             ),
         )
         logger.info("MCP SSE transport mounted at /mcp/sse")
