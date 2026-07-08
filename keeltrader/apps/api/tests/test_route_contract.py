@@ -1,8 +1,10 @@
 """Route contract tests for the active production API surface."""
 
+from tests.route_utils import route_paths
+
 
 def test_active_route_prefixes_are_mounted(client):
-    paths = {route.path for route in client.app.routes if hasattr(route, "path")}
+    paths = route_paths(client.app)
 
     expected_paths = {
         "/api/health",
@@ -22,7 +24,7 @@ def test_active_route_prefixes_are_mounted(client):
 
 
 def test_legacy_routers_are_not_accidentally_exposed(client):
-    paths = {route.path for route in client.app.routes if hasattr(route, "path")}
+    paths = route_paths(client.app)
 
     legacy_paths = {
         "/api/v1/tasks",

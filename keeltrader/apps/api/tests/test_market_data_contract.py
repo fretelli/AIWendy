@@ -9,10 +9,11 @@ from starlette.websockets import WebSocketDisconnect
 
 from core.auth import create_access_token
 from core.exceptions import InvalidTokenError
+from tests.route_utils import route_paths
 
 
 def test_market_data_routes_are_mounted(client):
-    paths = {route.path for route in client.app.routes if hasattr(route, "path")}
+    paths = route_paths(client.app)
 
     assert "/api/v1/market-data/historical/{symbol}" in paths
     assert "/api/v1/market-data/real-time/{symbol}" in paths
