@@ -71,11 +71,16 @@ interface AdvancedKLineChartProps {
   height?: number
 }
 
+interface IndicatorParams {
+  period?: number
+  stdDev?: number
+}
+
 interface TechnicalIndicator {
   name: string
   enabled: boolean
   series?: ISeriesApi<'Line'>
-  params?: any
+  params?: IndicatorParams
 }
 
 export function AdvancedKLineChart({

@@ -5,20 +5,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import type { OrderData } from './tool-call-types';
 
 interface OrderConfirmCardProps {
-  order: {
-    symbol: string;
-    side: string;
-    amount: number;
-    order_type: string;
-    price?: number;
-    stop_loss?: number;
-    take_profit?: number;
-    estimated_value_usd?: number;
-  };
+  order: OrderData;
   message: string;
-  onConfirm: (orderData: Record<string, any>) => void;
+  onConfirm: (orderData: OrderData) => void;
 }
 
 export function OrderConfirmCard({ order, message, onConfirm }: OrderConfirmCardProps) {
