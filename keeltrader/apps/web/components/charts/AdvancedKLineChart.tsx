@@ -4,83 +4,42 @@ import { useEffect, useRef, useState } from 'react'
 import {
   createChart,
   createSeriesMarkers,
-  ColorType,
   IChartApi,
   ISeriesApi,
   CandlestickSeries,
   HistogramSeries,
-  LineSeries,
-  LineStyle,
-  CrosshairMode,
 } from 'lightweight-charts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Switch } from '@/components/ui/switch'
-import { Label } from '@/components/ui/label'
-import { Separator } from '@/components/ui/separator'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet'
 import {
   BarChart3,
   AlertCircle,
-  Settings,
-  ZoomIn,
-  ZoomOut,
-  RotateCcw,
-  Download,
 } from 'lucide-react'
 import { JournalResponse } from '@/lib/types/journal'
 import { format } from 'date-fns'
 import { marketDataApi } from '@/lib/api/market-data'
 import {
-  calculateBollingerBands,
-  calculateEMA,
-  calculateSMA,
   intervalToMarketDataInterval,
   journalTradeMarkers,
   priceDataToCandlesticks,
   priceDataToVolume,
 } from '@/lib/charts/kline-data'
 import { logClientError } from '@/lib/client-log'
+import {
+  DEFAULT_ADVANCED_KLINE_INDICATORS,
+  createAdvancedKLineChartOptions,
+  indicatorColor,
+  type AdvancedKLineInterval,
+  type TechnicalIndicator,
+} from './advanced-kline-config'
+import { applyAdvancedIndicatorSeries } from './advanced-kline-series'
+import { AdvancedKLineToolbar } from './AdvancedKLineToolbar'
 
 interface AdvancedKLineChartProps {
   journals?: JournalResponse[]
   symbol?: string
-  interval?: '1m' | '5m' | '15m' | '1h' | '4h' | '1d' | '1w'
+  interval?: AdvancedKLineInterval
   height?: number
-}
-
-interface IndicatorParams {
-  period?: number
-  stdDev?: number
-}
-
-interface TechnicalIndicator {
-  name: string
-  enabled: boolean
-  series?: ISeriesApi<'Line'>
-  params?: IndicatorParams
 }
 
 export function AdvancedKLineChart({
@@ -94,15 +53,10 @@ export function AdvancedKLineChart({
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null)
 
-  const [indicators, setIndicators] = useState<TechnicalIndicator[]>([
-    { name: 'SMA 20', enabled: false, params: { period: 20 } },
-    { name: 'SMA 50', enabled: false, params: { period: 50 } },
-    { name: 'EMA 20', enabled: false, params: { period: 20 } },
-    { name: 'EMA 50', enabled: false, params: { period: 50 } },
-    { name: 'Bollinger Bands', enabled: false, params: { period: 20, stdDev: 2 } },
-    { name: 'Volume', enabled: true },
-  ])
-
+  const [selectedInterval, setSelectedInterval] = useState<AdvancedKLineInterval>(interval)
+  const [indicators, setIndicators] = useState<TechnicalIndicator[]>(
+    DEFAULT_ADVANCED_KLINE_INDICATORS
+  )
   const [showGrid, setShowGrid] = useState(true)
   const [showCrosshair, setShowCrosshair] = useState(true)
   const [darkMode, setDarkMode] = useState(false)
@@ -110,58 +64,22 @@ export function AdvancedKLineChart({
   const [retryNonce, setRetryNonce] = useState(0)
 
   useEffect(() => {
+    setSelectedInterval(interval)
+  }, [interval])
+
+  useEffect(() => {
     const container = chartContainerRef.current
     if (!container) return
     setLoadError(null)
 
-    const chartOptions = {
+    const chartOptions = createAdvancedKLineChartOptions({
       width: container.clientWidth || 800,
       height,
-      layout: {
-        background: { type: ColorType.Solid, color: darkMode ? '#1a1a1a' : '#ffffff' },
-        textColor: darkMode ? '#d1d5db' : '#71717a',
-      },
-      grid: {
-        vertLines: {
-          color: darkMode ? '#2a2a2a' : '#e5e7eb',
-          visible: showGrid,
-        },
-        horzLines: {
-          color: darkMode ? '#2a2a2a' : '#e5e7eb',
-          visible: showGrid,
-        },
-      },
-      crosshair: {
-        mode: showCrosshair ? CrosshairMode.Normal : CrosshairMode.Hidden,
-        vertLine: {
-          width: 1 as 1,
-          color: darkMode ? '#666' : '#999',
-          style: LineStyle.Dashed,
-        },
-        horzLine: {
-          width: 1 as 1,
-          color: darkMode ? '#666' : '#999',
-          style: LineStyle.Dashed,
-        },
-      },
-      rightPriceScale: {
-        borderColor: darkMode ? '#2a2a2a' : '#e5e7eb',
-        visible: true,
-      },
-      timeScale: {
-        borderColor: darkMode ? '#2a2a2a' : '#e5e7eb',
-        timeVisible: true,
-        secondsVisible: false,
-      },
-      watermark: {
-        visible: true,
-        fontSize: 24,
-        horzAlign: 'center',
-        vertAlign: 'center',
-        color: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
-        text: symbol,
-      },
-    }
+      darkMode,
+      showGrid,
+      showCrosshair,
+      symbol,
+    })
 
     const chart = createChart(container, chartOptions)
     chartRef.current = chart
@@ -202,7 +120,7 @@ export function AdvancedKLineChart({
       try {
         const marketData = await marketDataApi.getHistoricalData(
           symbol,
-          intervalToMarketDataInterval(interval),
+          intervalToMarketDataInterval(selectedInterval),
           90
         )
 
@@ -223,59 +141,7 @@ export function AdvancedKLineChart({
           volumeSeries.setData(priceDataToVolume(marketData, data))
         }
 
-        indicators.forEach(indicator => {
-          if (indicator.enabled && indicator.name !== 'Volume') {
-            if (indicator.name.startsWith('SMA')) {
-              const period = indicator.params?.period || 20
-              const smaData = calculateSMA(data, period)
-              const smaSeries = chart.addSeries(LineSeries, {
-                color: period === 20 ? '#8b5cf6' : '#f59e0b',
-                lineWidth: 2,
-                title: indicator.name,
-              })
-              smaSeries.setData(smaData)
-            } else if (indicator.name.startsWith('EMA')) {
-              const period = indicator.params?.period || 20
-              const emaData = calculateEMA(data, period)
-              const emaSeries = chart.addSeries(LineSeries, {
-                color: period === 20 ? '#3b82f6' : '#ec4899',
-                lineWidth: 2,
-                title: indicator.name,
-                lineStyle: LineStyle.Solid,
-              })
-              emaSeries.setData(emaData)
-            } else if (indicator.name === 'Bollinger Bands') {
-              const { sma, upper, lower } = calculateBollingerBands(
-                data,
-                indicator.params?.period || 20,
-                indicator.params?.stdDev || 2
-              )
-
-              const middleSeries = chart.addSeries(LineSeries, {
-                color: '#6b7280',
-                lineWidth: 1,
-                title: 'BB Middle',
-              })
-              middleSeries.setData(sma)
-
-              const upperSeries = chart.addSeries(LineSeries, {
-                color: '#10b981',
-                lineWidth: 1,
-                lineStyle: LineStyle.Dashed,
-                title: 'BB Upper',
-              })
-              upperSeries.setData(upper)
-
-              const lowerSeries = chart.addSeries(LineSeries, {
-                color: '#ef4444',
-                lineWidth: 1,
-                lineStyle: LineStyle.Dashed,
-                title: 'BB Lower',
-              })
-              lowerSeries.setData(lower)
-            }
-          }
-        })
+        applyAdvancedIndicatorSeries(chart, data, indicators)
 
         seriesMarkers.setMarkers(journalTradeMarkers(journals, symbol, { textMode: 'pnl' }))
 
@@ -298,18 +164,39 @@ export function AdvancedKLineChart({
         chart.applyOptions({ width: current.clientWidth })
       }
     }
-    window.addEventListener('resize', handleResize)
+
+    let resizeObserver: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(handleResize)
+      resizeObserver.observe(container)
+    } else {
+      window.addEventListener('resize', handleResize)
+    }
 
     return () => {
       cancelled = true
-      window.removeEventListener('resize', handleResize)
+      if (resizeObserver) {
+        resizeObserver.disconnect()
+      } else {
+        window.removeEventListener('resize', handleResize)
+      }
       seriesMarkers.detach()
       chart.remove()
       chartRef.current = null
       candleSeriesRef.current = null
       volumeSeriesRef.current = null
     }
-  }, [indicators, darkMode, showGrid, showCrosshair, symbol, interval, height, journals, retryNonce])
+  }, [
+    indicators,
+    darkMode,
+    showGrid,
+    showCrosshair,
+    symbol,
+    selectedInterval,
+    height,
+    journals,
+    retryNonce,
+  ])
 
   const toggleIndicator = (indicatorName: string) => {
     setIndicators(prev =>
@@ -365,111 +252,22 @@ export function AdvancedKLineChart({
             <CardDescription>Technical analysis with indicators</CardDescription>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Interval Selector */}
-            <Select value={interval}>
-              <SelectTrigger className="w-[100px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1m">1m</SelectItem>
-                <SelectItem value="5m">5m</SelectItem>
-                <SelectItem value="15m">15m</SelectItem>
-                <SelectItem value="1h">1h</SelectItem>
-                <SelectItem value="4h">4h</SelectItem>
-                <SelectItem value="1d">1d</SelectItem>
-                <SelectItem value="1w">1w</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Chart Controls */}
-            <div className="flex gap-1">
-              <Button variant="ghost" size="icon" onClick={handleZoomIn}>
-                <ZoomIn className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={handleZoomOut}>
-                <ZoomOut className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={handleResetChart}>
-                <RotateCcw className="h-4 w-4" />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={handleExportImage}>
-                <Download className="h-4 w-4" />
-              </Button>
-            </div>
-
-            {/* Settings Sheet */}
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="icon">
-                  <Settings className="h-4 w-4" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent>
-                <SheetHeader>
-                  <SheetTitle>Chart Settings</SheetTitle>
-                  <SheetDescription>
-                    Customize indicators and appearance
-                  </SheetDescription>
-                </SheetHeader>
-
-                <div className="space-y-6 mt-6">
-                  {/* Indicators */}
-                  <div>
-                    <h3 className="font-medium mb-4">Technical Indicators</h3>
-                    <div className="space-y-3">
-                      {indicators.map(indicator => (
-                        <div key={indicator.name} className="flex items-center justify-between">
-                          <Label htmlFor={indicator.name} className="font-normal">
-                            {indicator.name}
-                          </Label>
-                          <Switch
-                            id={indicator.name}
-                            checked={indicator.enabled}
-                            onCheckedChange={() => toggleIndicator(indicator.name)}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Appearance */}
-                  <div>
-                    <h3 className="font-medium mb-4">Appearance</h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="grid" className="font-normal">Show Grid</Label>
-                        <Switch
-                          id="grid"
-                          checked={showGrid}
-                          onCheckedChange={setShowGrid}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="crosshair" className="font-normal">Show Crosshair</Label>
-                        <Switch
-                          id="crosshair"
-                          checked={showCrosshair}
-                          onCheckedChange={setShowCrosshair}
-                        />
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="dark" className="font-normal">Dark Mode</Label>
-                        <Switch
-                          id="dark"
-                          checked={darkMode}
-                          onCheckedChange={setDarkMode}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
+          <AdvancedKLineToolbar
+            interval={selectedInterval}
+            onIntervalChange={setSelectedInterval}
+            onZoomIn={handleZoomIn}
+            onZoomOut={handleZoomOut}
+            onReset={handleResetChart}
+            onExport={handleExportImage}
+            indicators={indicators}
+            onToggleIndicator={toggleIndicator}
+            showGrid={showGrid}
+            onShowGridChange={setShowGrid}
+            showCrosshair={showCrosshair}
+            onShowCrosshairChange={setShowCrosshair}
+            darkMode={darkMode}
+            onDarkModeChange={setDarkMode}
+          />
         </div>
       </CardHeader>
 
@@ -499,15 +297,7 @@ export function AdvancedKLineChart({
                     className="w-3 h-[2px]"
                     style={{
                       backgroundColor:
-                        indicator.name === 'SMA 20'
-                          ? '#8b5cf6'
-                          : indicator.name === 'SMA 50'
-                          ? '#f59e0b'
-                          : indicator.name === 'EMA 20'
-                          ? '#3b82f6'
-                          : indicator.name === 'EMA 50'
-                          ? '#ec4899'
-                          : '#6b7280',
+                        indicatorColor(indicator.name),
                     }}
                   />
                   <span>{indicator.name}</span>
