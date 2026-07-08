@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { agentsAPI } from '@/lib/api/agents'
+import type { JsonObject } from '@/lib/types/json'
 
 interface EventSubmitDialogProps {
   open: boolean
@@ -43,6 +44,25 @@ const EVENT_TYPES = [
   'health.check',
 ]
 
+function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message
+    if (typeof message === 'string' && message.trim()) {
+      return message
+    }
+  }
+
+  return 'Failed to submit event'
+}
+
 export function EventSubmitDialog({ open, onClose, onSuccess }: EventSubmitDialogProps) {
   const [eventType, setEventType] = useState('')
   const [userId, setUserId] = useState('')
@@ -56,9 +76,14 @@ export function EventSubmitDialog({ open, onClose, onSuccess }: EventSubmitDialo
       return
     }
 
-    let payload: Record<string, any> = {}
+    let payload: JsonObject = {}
     try {
-      payload = JSON.parse(payloadStr)
+      const parsed: unknown = JSON.parse(payloadStr)
+      if (!isJsonObject(parsed)) {
+        setError('Payload must be a JSON object')
+        return
+      }
+      payload = parsed
     } catch {
       setError('Invalid JSON payload')
       return
@@ -77,8 +102,8 @@ export function EventSubmitDialog({ open, onClose, onSuccess }: EventSubmitDialo
       setEventType('')
       setUserId('')
       setPayloadStr('{}')
-    } catch (e: any) {
-      setError(e.message || 'Failed to submit event')
+    } catch (e: unknown) {
+      setError(getErrorMessage(e))
     } finally {
       setSubmitting(false)
     }
