@@ -5,15 +5,9 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import {
-  Sword,
-  BarChart3,
-  Trophy,
   Newspaper,
   BrainCircuit,
-  ScrollText,
-  Crown,
   MessageSquare,
   Settings,
   LogOut,
@@ -22,13 +16,9 @@ import {
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { href: '/character', icon: Sword, label: 'Character' },
   { href: '/agentos', icon: BrainCircuit, label: 'AgentOS' },
   { href: '/research', icon: Newspaper, label: '研报' },
   { href: '/chat', icon: MessageSquare, label: 'Chat' },
-  { href: '/achievements', icon: Trophy, label: 'Achievements' },
-  { href: '/quests', icon: ScrollText, label: 'Quests' },
-  { href: '/leaderboard', icon: Crown, label: 'Leaderboard' },
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
 
@@ -74,9 +64,8 @@ export default function AppLayout({
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
-          <Link href="/character" className="flex items-center gap-2">
+          <Link href="/agentos" className="flex items-center gap-2">
             <span className="text-lg font-bold">KeelTrader</span>
-            <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">RPG</span>
           </Link>
         </div>
 

@@ -114,8 +114,8 @@ async def detect_patterns(
     user_id: UUID,
     days: int = 14,
 ) -> dict[str, Any]:
-    """Detect behavior patterns — ML analytics removed in RPG overhaul."""
-    return {"patterns": [], "message": "Pattern detection deprecated, use RPG character attributes instead"}
+    """Detect behavior patterns placeholder."""
+    return {"patterns": [], "message": "Pattern detection is currently unavailable."}
 
 
 async def analyze_market(

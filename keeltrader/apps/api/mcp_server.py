@@ -1,4 +1,4 @@
-"""KeelTrader MCP Server — exposes 15 tools as standard MCP tools.
+"""KeelTrader MCP Server — exposes KeelTrader tools as standard MCP tools.
 
 Supports both stdio and SSE transports.
 SSE transport is mounted at /mcp on the FastAPI app.

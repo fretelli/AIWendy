@@ -7,7 +7,7 @@ export default function HomePage() {
   const router = useRouter()
 
   useEffect(() => {
-    router.replace("/chat")
+    router.replace("/agentos")
   }, [router])
 
   return (
