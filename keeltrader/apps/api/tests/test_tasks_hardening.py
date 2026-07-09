@@ -85,6 +85,49 @@ class _FakeCache:
         return _FakeRedis(self.owner)
 
 
+class _ReadyResult:
+    state = "SUCCESS"
+    result = {"ok": True}
+    info = None
+    traceback = None
+
+    def ready(self):
+        return True
+
+    def successful(self):
+        return True
+
+    def failed(self):
+        return False
+
+
+class _FakePubSub:
+    def __init__(self):
+        self.subscribed = []
+        self.unsubscribed = []
+        self.closed = False
+
+    async def subscribe(self, channel):
+        self.subscribed.append(channel)
+
+    async def get_message(self, **kwargs):
+        return None
+
+    async def unsubscribe(self, channel):
+        self.unsubscribed.append(channel)
+
+    async def close(self):
+        self.closed = True
+
+
+class _FakeRedisClient:
+    def __init__(self):
+        self.pubsub_instance = _FakePubSub()
+
+    def pubsub(self):
+        return self.pubsub_instance
+
+
 @pytest.mark.asyncio
 async def test_task_owner_mismatch_preserves_forbidden(monkeypatch):
     owner_id = uuid4()
@@ -119,3 +162,22 @@ def test_queued_task_response_shape():
         "message": "queued",
         "check_status_url": "/api/v1/tasks/status/task-1",
     }
+
+
+@pytest.mark.asyncio
+async def test_task_status_event_stream_emits_ready_snapshot_and_cleans_up():
+    redis_client = _FakeRedisClient()
+    events = []
+
+    async for event in task_monitor.task_status_event_stream(
+        "task-1",
+        _ReadyResult(),
+        redis_client,
+    ):
+        events.append(event)
+
+    assert len(events) == 1
+    assert '"ready": true' in events[0]
+    assert redis_client.pubsub_instance.subscribed == ["task:events:task-1"]
+    assert redis_client.pubsub_instance.unsubscribed == ["task:events:task-1"]
+    assert redis_client.pubsub_instance.closed is True

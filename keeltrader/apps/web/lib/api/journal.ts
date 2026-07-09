@@ -7,7 +7,10 @@ import {
   JournalFilter,
   QuickJournalEntry,
   JournalImportPreviewResponse,
-  JournalImportResponse
+  JournalImportResponse,
+  JournalEntryAnalysisResponse,
+  JournalPatternAnalysisResponse,
+  JournalImprovementPlanResponse,
 } from '@/lib/types/journal';
 import { apiFetch, type ApiRequestInit } from '@/lib/api/client';
 
@@ -120,7 +123,7 @@ export const journalApi = {
   },
 
   // Analyze a single journal entry with AI
-  async analyzeEntry(id: string): Promise<any> {
+  async analyzeEntry(id: string): Promise<JournalEntryAnalysisResponse> {
     const response = await fetchWithAuth(`/journals/${id}/analyze`, {
       method: 'POST',
     });
@@ -133,7 +136,7 @@ export const journalApi = {
   },
 
   // Analyze trading patterns
-  async analyzePatterns(limit?: number): Promise<any> {
+  async analyzePatterns(limit?: number): Promise<JournalPatternAnalysisResponse> {
     const queryParams = new URLSearchParams();
     if (limit) queryParams.append('limit', limit.toString());
 
@@ -147,7 +150,7 @@ export const journalApi = {
   },
 
   // Generate improvement plan
-  async generateImprovementPlan(): Promise<any> {
+  async generateImprovementPlan(): Promise<JournalImprovementPlanResponse> {
     const response = await fetchWithAuth('/journals/analyze/improvement-plan');
 
     if (!response.ok) {
