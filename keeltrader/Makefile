@@ -56,7 +56,7 @@ check-api-static:
 	@scripts/check-api-static.sh
 
 check-security-defaults:
-	@repo_root="$$(git rev-parse --show-toplevel)" && ! git -C "$$repo_root" grep -nE 'Admin[@]123|Test[@]1234' -- . || { echo "Hardcoded development default password found. Use explicit environment variables instead." >&2; exit 1; }
+	@scripts/check-public-safety.sh
 
 audit: audit-root audit-web audit-api
 
