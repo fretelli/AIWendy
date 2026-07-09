@@ -1,0 +1,5 @@
+# Non-enforcing static audit tools.
+# Keep this separate from requirements.txt so API pytest images stay lean.
+black==24.10.0
+isort==5.13.2
+mypy==1.13.0

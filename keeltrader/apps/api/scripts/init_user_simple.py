@@ -15,10 +15,11 @@ import os
 import sys
 import uuid
 from datetime import datetime
-from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from _path_setup import ensure_api_import_path
+from _script_guard import require_non_production_script
+
+ensure_api_import_path()
 
 import logging
 
@@ -145,6 +146,8 @@ async def create_test_users(test_users):
 
 async def main():
     """Main function."""
+    require_non_production_script("init_user_simple.py")
+
     print("=" * 50)
     print("KeelTrader - Initialize Test Users (Simple Version)")
     print("=" * 50)

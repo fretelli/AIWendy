@@ -8,8 +8,10 @@ import sys
 from datetime import datetime
 from uuid import uuid4
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from _path_setup import ensure_api_import_path
+from _script_guard import require_non_production_script
+
+ensure_api_import_path()
 
 from sqlalchemy import text
 
@@ -150,6 +152,8 @@ async def test_api_connection():
 
 async def main():
     """Main function."""
+    require_non_production_script("save_api_key.py")
+
     print("=" * 60)
     print("KeelTrader - Save API Key Configuration")
     print("=" * 60)

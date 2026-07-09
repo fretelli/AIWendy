@@ -1,11 +1,10 @@
 """Add journal tables to database."""
 
 import asyncio
-import os
-import sys
 
-# Add parent directory to path to import modules
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from _path_setup import ensure_api_import_path
+
+ensure_api_import_path()
 
 from sqlalchemy import text
 

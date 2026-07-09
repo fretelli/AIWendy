@@ -4,12 +4,13 @@
 import asyncio
 import json
 import os
-import sys
 from datetime import datetime
 from uuid import uuid4
 
-# Add parent directory to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from _path_setup import ensure_api_import_path
+from _script_guard import require_non_production_script
+
+ensure_api_import_path()
 
 from sqlalchemy import text
 
@@ -195,6 +196,8 @@ async def test_connection(base_url: str):
 
 async def main():
     """Main function."""
+    require_non_production_script("setup_custom_api.py")
+
     print("=" * 60)
     print("KeelTrader - Custom API Service Setup")
     print("=" * 60)
