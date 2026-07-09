@@ -5,7 +5,9 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 
+import services.journal_analysis_service as journal_analysis_service
 from domain.journal.models import (
     Journal,
     TradeDirection as ModelTradeDirection,
@@ -13,8 +15,11 @@ from domain.journal.models import (
 )
 from domain.journal.schemas import JournalStatistics
 from services.journal_analysis_service import (
+    analyze_journal_entry_for_user,
     analyze_journal_with_ai,
+    analyze_recent_trades_or_fallback,
     analyze_recent_trades_with_ai,
+    generate_improvement_plan_or_fallback,
     generate_journal_improvement_plan,
 )
 
@@ -24,6 +29,16 @@ class FakeRepo:
         self.journals = journals
         self.statistics_calls = 0
         self.journal_limits = []
+        self.get_by_id_calls = []
+
+    async def get_by_id(self, journal_id, user_id):
+        self.get_by_id_calls.append((journal_id, user_id))
+        for journal in self.journals:
+            if str(journal.id) == str(journal_id) and str(journal.user_id) == str(
+                user_id
+            ):
+                return journal
+        return None
 
     async def get_user_journals(self, user_id, limit, offset):
         del user_id, offset
@@ -150,3 +165,58 @@ async def test_generate_journal_improvement_plan_uses_fixed_recent_window():
     assert result == {"plan": "reduce size after rule breaks"}
     assert analyzer.plan_trade_count == 1
     assert repo.journal_limits == [30]
+
+
+@pytest.mark.asyncio
+async def test_analyze_journal_entry_for_user_rejects_missing_journal():
+    user = SimpleNamespace(id=uuid4())
+    repo = FakeRepo([])
+
+    with pytest.raises(HTTPException) as exc:
+        await analyze_journal_entry_for_user(repo, FakeSession(), user, uuid4(), "en")
+
+    assert exc.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_analyze_journal_entry_for_user_delegates_existing_journal(monkeypatch):
+    user = SimpleNamespace(id=uuid4())
+    journal = make_journal(user.id)
+    repo = FakeRepo([journal])
+    session = FakeSession()
+
+    async def fake_analyze(repo_arg, session_arg, user_arg, journal_arg):
+        assert repo_arg is repo
+        assert session_arg is session
+        assert user_arg is user
+        assert journal_arg is journal
+        return {"analysis": "ok"}
+
+    monkeypatch.setattr(journal_analysis_service, "analyze_journal_with_ai", fake_analyze)
+
+    result = await analyze_journal_entry_for_user(repo, session, user, journal.id, "en")
+
+    assert result == {"analysis": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_analyze_recent_trades_or_fallback_returns_no_data_shape():
+    user = SimpleNamespace(id=uuid4())
+    repo = FakeRepo([])
+
+    result = await analyze_recent_trades_or_fallback(repo, user, 10, "en")
+
+    assert result["patterns"] == []
+    assert result["recommendations"] == []
+    assert "message" in result
+
+
+@pytest.mark.asyncio
+async def test_generate_improvement_plan_or_fallback_returns_no_data_shape():
+    user = SimpleNamespace(id=uuid4())
+    repo = FakeRepo([])
+
+    result = await generate_improvement_plan_or_fallback(repo, user, "en")
+
+    assert "message" in result
+    assert "plan" in result
