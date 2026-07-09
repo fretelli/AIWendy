@@ -1,7 +1,7 @@
 FROM node:20-alpine AS deps
 
 WORKDIR /app
-ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
+ARG NPM_CONFIG_REGISTRY=https://registry.npmmirror.com/
 
 # Install dependencies
 COPY package.json package-lock.json ./
@@ -29,7 +29,7 @@ RUN npm run build
 FROM node:20-alpine AS runner
 
 WORKDIR /app
-ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
+ARG NPM_CONFIG_REGISTRY=https://registry.npmmirror.com/
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
