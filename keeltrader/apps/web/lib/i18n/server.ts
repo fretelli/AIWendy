@@ -2,7 +2,7 @@
  * Server-side i18n utilities for Next.js App Router
  */
 
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { Locale, i18nConfig, LOCALE_COOKIE, languages, localeCurrencies, localeDateFormats, isValidLocale as isSupportedLocale } from './config';
 import { readNestedValue, replaceParams, translations, type TranslationParams } from './translations';
 
@@ -17,8 +17,35 @@ export async function getLocale(): Promise<Locale> {
     return localeCookie.value;
   }
 
-  // TODO: Could also check Accept-Language header here
+  const headerStore = await headers();
+  const acceptLanguage = headerStore.get('Accept-Language');
+  const detectedLocale = acceptLanguage ? detectLocaleFromHeader(acceptLanguage) : null;
+  if (detectedLocale) {
+    return detectedLocale;
+  }
+
   return i18nConfig.defaultLocale;
+}
+
+function detectLocaleFromHeader(acceptLanguage: string): Locale | null {
+  const languagesByPriority = acceptLanguage
+    .split(',')
+    .map((item) => {
+      const [rawCode, rawPriority = 'q=1'] = item.trim().split(';');
+      const priority = Number.parseFloat(rawPriority.replace('q=', ''));
+      return {
+        code: rawCode.toLowerCase(),
+        priority: Number.isFinite(priority) ? priority : 1,
+      };
+    })
+    .sort((a, b) => b.priority - a.priority);
+
+  for (const language of languagesByPriority) {
+    if (language.code === 'zh' || language.code.startsWith('zh-')) return 'zh';
+    if (language.code === 'en' || language.code.startsWith('en-')) return 'en';
+  }
+
+  return null;
 }
 
 /**

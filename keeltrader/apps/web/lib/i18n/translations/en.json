@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "KeelTrader",
-    "tagline": "Your AI Trading Psychology Coach",
+    "tagline": "Investment Research AgentOS",
     "loading": "Loading...",
     "error": "Error",
     "success": "Success",
@@ -50,6 +50,8 @@
     "journal": "Trading Journal",
     "analysis": "Analysis",
     "reports": "Reports",
+    "agentos": "AgentOS",
+    "research": "Research",
     "coaches": "AI Coaches",
     "chat": "Chat",
     "roundtable": "Roundtable",
@@ -1004,8 +1006,8 @@
       "zhShort": "中文"
     },
     "hero": {
-      "title": "AI Trading Psychology Coach",
-      "subtitle": "Like Wendy Rhodes in \"Billions\" — helping you stay calm, consistent, and perform better.",
+      "title": "Investment Research AgentOS",
+      "subtitle": "Research support, decision discipline, report-KB search, and guarded strategy experiments.",
       "cta": {
         "startFree": "Start free",
         "signIn": "Sign in",
@@ -1075,7 +1077,12 @@
         "submit": "Sign in",
         "forgot": "Forgot your password?",
         "noAccount": "Don't have an account? Sign up",
-        "error": "Failed to sign in. Please try again."
+        "error": "Failed to sign in. Please try again.",
+        "checking": "Checking account status...",
+        "alreadySignedIn": "You are already signed in. Submit to enter AgentOS or return to the requested page.",
+        "inviteCaptured": "Captured invite source: {source} · {type}",
+        "protectedNotice": "Sign in to access AgentOS, Research, Chat, Settings, and other workspace pages.",
+        "researchNotice": "Research feedback and requests are routed to the research backend for administrator review."
       },
       "register": {
         "title": "Create an account",
@@ -1175,11 +1182,107 @@
       "chat": "Agent Chat"
     }
   },
+  "agentos": {
+    "subtitle": "Research support, decision discipline, and guarded strategy experiments.",
+    "stats": {
+      "briefs": "Briefs",
+      "researchMemos": "Research Memos",
+      "decisions": "Decisions",
+      "approvedLessons": "Approved Lessons"
+    },
+    "tabs": {
+      "briefs": "Briefs",
+      "research": "Research Lab",
+      "decisions": "Decisions",
+      "reviews": "Reviews",
+      "strategy": "Strategy Lab",
+      "memory": "Memory"
+    },
+    "status": {
+      "apiOk": "API OK",
+      "apiDown": "API Down",
+      "engine": "Engine",
+      "reportKb": "Report KB",
+      "ok": "OK",
+      "off": "off",
+      "noTushareToken": "No Tushare token"
+    },
+    "briefs": {
+      "runTitle": "Run Daily Brief",
+      "generate": "Generate",
+      "close": "close",
+      "change": "change",
+      "reports": "reports",
+      "latest": "latest"
+    },
+    "research": {
+      "deepTitle": "Deep Research",
+      "run": "Run",
+      "reportSearchTitle": "Report KB Search",
+      "searchReports": "Search Reports",
+      "thesis": "Thesis",
+      "bullCase": "Bull Case",
+      "bearCase": "Bear Case",
+      "redTeam": "Red Team",
+      "riskView": "Risk View",
+      "analystViews": "Analyst Views",
+      "relatedReports": "Related Reports"
+    },
+    "decisions": {
+      "recordTitle": "Record Decision",
+      "symbol": "Symbol",
+      "actionPlaceholder": "watch/buy/sell/hold",
+      "confidence": "Confidence",
+      "humanDecisionPlaceholder": "pending/accepted/rejected",
+      "thesisPlaceholder": "Decision thesis",
+      "humanReason": "Human reason",
+      "save": "Save Decision"
+    },
+    "reviews": {
+      "run": "Run Weekly Review",
+      "approve": "Approve"
+    },
+    "strategy": {
+      "hypothesisTitle": "Strategy Hypothesis",
+      "hypothesisName": "Hypothesis name",
+      "testableHypothesis": "Testable hypothesis",
+      "rationale": "Economic rationale",
+      "assetUniverse": "Asset universe",
+      "createHypothesis": "Create Hypothesis",
+      "backtestTitle": "Guarded Backtest",
+      "noHypothesis": "No hypothesis",
+      "runMa": "Run MA 20/60",
+      "passedGate": "Passed Gate",
+      "notPassed": "Not Passed",
+      "trades": "Trades",
+      "returnPct": "Return %",
+      "maxDdPct": "Max DD %",
+      "sharpe": "Sharpe",
+      "dsrProxy": "DSR Proxy",
+      "dsrNotice": "DSR Proxy uses conservative_proxy_v1 and is a research-only guardrail, not a deployment or trading signal."
+    },
+    "memory": {
+      "approved": "Approved"
+    },
+    "reports": {
+      "untitled": "Untitled report",
+      "score": "score"
+    },
+    "empty": {
+      "briefs": "No briefs yet.",
+      "research": "No research memos yet.",
+      "decisions": "No decisions yet.",
+      "pendingLessons": "No pending lessons.",
+      "backtests": "No backtests yet.",
+      "approvedLessons": "No approved lessons yet.",
+      "relatedReports": "No related reports."
+    }
+  },
   "meta": {
-    "title": "KeelTrader - Your AI Trading Psychology Coach",
-    "description": "KeelTrader is an AI-powered trading psychology coaching platform that helps traders overcome emotional barriers and improve trading performance.",
-    "keywords": "trading psychology,AI coach,trading journal,risk management,quantitative trading,trade analysis",
-    "ogTitle": "KeelTrader - AI Trading Psychology Coach",
-    "ogDescription": "Enhance your trading psychology and performance with AI"
+    "title": "KeelTrader - Investment Research AgentOS",
+    "description": "KeelTrader is a self-evolving investment research AgentOS for human-in-the-loop research briefs, report-KB search, decision journals, reviews, and backtesting workflows.",
+    "keywords": "investment research,AgentOS,financial AI,decision journal,report search,multi-agent,backtesting,human in the loop",
+    "ogTitle": "KeelTrader - Investment Research AgentOS",
+    "ogDescription": "Research support, decision discipline, report-KB search, and guarded strategy experiments."
   }
 }

@@ -30,12 +30,14 @@ import {
 import type { JsonMap, ResearchReportHit } from '@/lib/api/agentos'
 import { formatDate } from '@/lib/agentos/format'
 import type { useAgentOSDashboard } from '@/lib/agentos/use-agentos-dashboard'
+import { useI18n } from '@/lib/i18n/provider'
 
 type Dashboard = ReturnType<typeof useAgentOSDashboard>
 type DashboardState = Dashboard['state']
 type DashboardActions = Dashboard['actions']
 
 export function AgentOSTabs({ state, actions }: { state: DashboardState; actions: DashboardActions }) {
+  const { t } = useI18n()
   const latestBrief = state.briefs[0] || null
   const latestMemo = state.memos[0] || null
   const latestBacktest = state.backtests[0] || null
@@ -43,22 +45,22 @@ export function AgentOSTabs({ state, actions }: { state: DashboardState; actions
   return (
     <Tabs defaultValue="briefs" className="space-y-4">
       <TabsList className="flex h-auto flex-wrap justify-start">
-        <TabsTrigger value="briefs"><Activity className="mr-2 h-4 w-4" />Briefs</TabsTrigger>
-        <TabsTrigger value="research"><Search className="mr-2 h-4 w-4" />Research Lab</TabsTrigger>
-        <TabsTrigger value="decisions"><ClipboardList className="mr-2 h-4 w-4" />Decisions</TabsTrigger>
-        <TabsTrigger value="reviews"><ShieldCheck className="mr-2 h-4 w-4" />Reviews</TabsTrigger>
-        <TabsTrigger value="strategy"><FlaskConical className="mr-2 h-4 w-4" />Strategy Lab</TabsTrigger>
-        <TabsTrigger value="memory"><BookOpen className="mr-2 h-4 w-4" />Memory</TabsTrigger>
+        <TabsTrigger value="briefs"><Activity className="mr-2 h-4 w-4" />{t('agentos.tabs.briefs')}</TabsTrigger>
+        <TabsTrigger value="research"><Search className="mr-2 h-4 w-4" />{t('agentos.tabs.research')}</TabsTrigger>
+        <TabsTrigger value="decisions"><ClipboardList className="mr-2 h-4 w-4" />{t('agentos.tabs.decisions')}</TabsTrigger>
+        <TabsTrigger value="reviews"><ShieldCheck className="mr-2 h-4 w-4" />{t('agentos.tabs.reviews')}</TabsTrigger>
+        <TabsTrigger value="strategy"><FlaskConical className="mr-2 h-4 w-4" />{t('agentos.tabs.strategy')}</TabsTrigger>
+        <TabsTrigger value="memory"><BookOpen className="mr-2 h-4 w-4" />{t('agentos.tabs.memory')}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="briefs" className="space-y-4">
         <Card>
-          <CardHeader><CardTitle className="text-base">Run Daily Brief</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t('agentos.briefs.runTitle')}</CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-3 md:flex-row">
             <Input value={state.watchlist} onChange={(e) => actions.setWatchlist(e.target.value)} placeholder="000001.SZ 600519.SH" />
             <Button onClick={actions.runBrief} disabled={state.busy === 'brief'}>
               {state.busy === 'brief' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Activity className="mr-2 h-4 w-4" />}
-              Generate
+              {t('agentos.briefs.generate')}
             </Button>
           </CardContent>
         </Card>
@@ -77,11 +79,11 @@ export function AgentOSTabs({ state, actions }: { state: DashboardState; actions
                     <div key={idx} className="rounded-md border p-3 text-sm">
                       <div className="font-medium">{String(signal.symbol || '')} {signal.name ? `· ${String(signal.name)}` : ''}</div>
                       <div className="mt-1 text-muted-foreground">
-                        close {displayValue(signal.close)} · change {displayValue(signal.change_pct)}%
+                        {t('agentos.briefs.close')} {displayValue(signal.close)} · {t('agentos.briefs.change')} {displayValue(signal.change_pct)}%
                       </div>
                       <div className="mt-1 text-muted-foreground">
-                        reports {displayValue(signal.report_count ?? 0)}
-                        {typeof signal.latest_report_date === 'string' ? ` · latest ${formatDate(signal.latest_report_date)}` : ''}
+                        {t('agentos.briefs.reports')} {displayValue(signal.report_count ?? 0)}
+                        {typeof signal.latest_report_date === 'string' ? ` · ${t('agentos.briefs.latest')} ${formatDate(signal.latest_report_date)}` : ''}
                       </div>
                       <Badge className="mt-2" variant="outline">{String(signal.signal || 'watch')}</Badge>
                       <ReportList reports={reports} compact />
@@ -92,28 +94,28 @@ export function AgentOSTabs({ state, actions }: { state: DashboardState; actions
               <RiskNotice risks={latestBrief.risks || []} />
             </CardContent>
           </Card>
-        ) : <EmptyState title="No briefs yet." />}
+        ) : <EmptyState title={t('agentos.empty.briefs')} />}
       </TabsContent>
 
       <TabsContent value="research" className="space-y-4">
         <Card>
-          <CardHeader><CardTitle className="text-base">Deep Research</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t('agentos.research.deepTitle')}</CardTitle></CardHeader>
           <CardContent className="flex flex-col gap-3 md:flex-row">
             <Input value={state.researchSymbol} onChange={(e) => actions.setResearchSymbol(e.target.value)} placeholder="000001.SZ" />
             <Button onClick={actions.runResearch} disabled={state.busy === 'research'}>
               {state.busy === 'research' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
-              Run
+              {t('agentos.research.run')}
             </Button>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle className="text-base">Report KB Search</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t('agentos.research.reportSearchTitle')}</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="flex flex-col gap-3 md:flex-row">
               <Input value={state.reportQuery} onChange={(e) => actions.setReportQuery(e.target.value)} placeholder="平安银行 投资 研报" />
               <Button onClick={actions.searchReports} disabled={state.busy === 'reports'}>
                 {state.busy === 'reports' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
-                Search Reports
+                {t('agentos.research.searchReports')}
               </Button>
             </div>
             <ReportList reports={state.reportHits} />
@@ -127,40 +129,40 @@ export function AgentOSTabs({ state, actions }: { state: DashboardState; actions
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
               <div className="space-y-3">
-                <Section title="Thesis" value={latestMemo.thesis} />
-                <Section title="Bull Case" value={latestMemo.bull_case} />
-                <Section title="Bear Case" value={latestMemo.bear_case} />
-                <Section title="Red Team" value={latestMemo.red_team} />
-                <Section title="Risk View" value={latestMemo.risk_view} />
+                <Section title={t('agentos.research.thesis')} value={latestMemo.thesis} />
+                <Section title={t('agentos.research.bullCase')} value={latestMemo.bull_case} />
+                <Section title={t('agentos.research.bearCase')} value={latestMemo.bear_case} />
+                <Section title={t('agentos.research.redTeam')} value={latestMemo.red_team} />
+                <Section title={t('agentos.research.riskView')} value={latestMemo.risk_view} />
               </div>
               <div>
-                <Label>Analyst Views</Label>
+                <Label>{t('agentos.research.analystViews')}</Label>
                 <JsonBlock data={latestMemo.analyst_views} />
               </div>
               <div className="md:col-span-2">
-                <Label>Related Reports</Label>
+                <Label>{t('agentos.research.relatedReports')}</Label>
                 <ReportList reports={memoReports(latestMemo.analyst_views)} />
               </div>
             </CardContent>
           </Card>
-        ) : <EmptyState title="No research memos yet." />}
+        ) : <EmptyState title={t('agentos.empty.research')} />}
       </TabsContent>
 
       <TabsContent value="decisions" className="space-y-4">
         <Card>
-          <CardHeader><CardTitle className="text-base">Record Decision</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t('agentos.decisions.recordTitle')}</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             <div className="grid gap-3 md:grid-cols-4">
-              <Input value={state.decisionForm.symbol} onChange={(e) => actions.setDecisionForm((p) => ({ ...p, symbol: e.target.value }))} placeholder="Symbol" />
-              <Input value={state.decisionForm.action} onChange={(e) => actions.setDecisionForm((p) => ({ ...p, action: e.target.value }))} placeholder="watch/buy/sell/hold" />
-              <Input type="number" value={state.decisionForm.confidence} onChange={(e) => actions.setDecisionForm((p) => ({ ...p, confidence: Number(e.target.value) }))} placeholder="Confidence" />
-              <Input value={state.decisionForm.human_decision} onChange={(e) => actions.setDecisionForm((p) => ({ ...p, human_decision: e.target.value }))} placeholder="pending/accepted/rejected" />
+              <Input value={state.decisionForm.symbol} onChange={(e) => actions.setDecisionForm((p) => ({ ...p, symbol: e.target.value }))} placeholder={t('agentos.decisions.symbol')} />
+              <Input value={state.decisionForm.action} onChange={(e) => actions.setDecisionForm((p) => ({ ...p, action: e.target.value }))} placeholder={t('agentos.decisions.actionPlaceholder')} />
+              <Input type="number" value={state.decisionForm.confidence} onChange={(e) => actions.setDecisionForm((p) => ({ ...p, confidence: Number(e.target.value) }))} placeholder={t('agentos.decisions.confidence')} />
+              <Input value={state.decisionForm.human_decision} onChange={(e) => actions.setDecisionForm((p) => ({ ...p, human_decision: e.target.value }))} placeholder={t('agentos.decisions.humanDecisionPlaceholder')} />
             </div>
-            <Textarea value={state.decisionForm.thesis} onChange={(e) => actions.setDecisionForm((p) => ({ ...p, thesis: e.target.value }))} placeholder="Decision thesis" />
-            <Input value={state.decisionForm.human_reason} onChange={(e) => actions.setDecisionForm((p) => ({ ...p, human_reason: e.target.value }))} placeholder="Human reason" />
+            <Textarea value={state.decisionForm.thesis} onChange={(e) => actions.setDecisionForm((p) => ({ ...p, thesis: e.target.value }))} placeholder={t('agentos.decisions.thesisPlaceholder')} />
+            <Input value={state.decisionForm.human_reason} onChange={(e) => actions.setDecisionForm((p) => ({ ...p, human_reason: e.target.value }))} placeholder={t('agentos.decisions.humanReason')} />
             <Button onClick={actions.recordDecision} disabled={state.busy === 'decision'}>
               {state.busy === 'decision' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ClipboardList className="mr-2 h-4 w-4" />}
-              Save Decision
+              {t('agentos.decisions.save')}
             </Button>
           </CardContent>
         </Card>
@@ -176,14 +178,14 @@ export function AgentOSTabs({ state, actions }: { state: DashboardState; actions
                 <div className="text-xs text-muted-foreground">{formatDate(item.created_at)}</div>
               </CardContent>
             </Card>
-          )) : <EmptyState title="No decisions yet." />}
+          )) : <EmptyState title={t('agentos.empty.decisions')} />}
         </div>
       </TabsContent>
 
       <TabsContent value="reviews" className="space-y-4">
         <Button onClick={actions.runReview} disabled={state.busy === 'review'}>
           {state.busy === 'review' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-          Run Weekly Review
+          {t('agentos.reviews.run')}
         </Button>
         <div className="space-y-2">
           {state.lessons.length ? state.lessons.map((item) => (
@@ -196,41 +198,41 @@ export function AgentOSTabs({ state, actions }: { state: DashboardState; actions
                   </div>
                   <Button size="sm" onClick={() => actions.approveLesson(item.id)} disabled={state.busy === item.id}>
                     <Check className="mr-2 h-4 w-4" />
-                    Approve
+                    {t('agentos.reviews.approve')}
                   </Button>
                 </div>
                 <JsonBlock data={item.evidence} />
               </CardContent>
             </Card>
-          )) : <EmptyState title="No pending lessons." />}
+          )) : <EmptyState title={t('agentos.empty.pendingLessons')} />}
         </div>
       </TabsContent>
 
       <TabsContent value="strategy" className="space-y-4">
         <Card>
-          <CardHeader><CardTitle className="text-base">Strategy Hypothesis</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t('agentos.strategy.hypothesisTitle')}</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            <Input value={state.hypothesisForm.name} onChange={(e) => actions.setHypothesisForm((p) => ({ ...p, name: e.target.value }))} placeholder="Hypothesis name" />
-            <Textarea value={state.hypothesisForm.hypothesis} onChange={(e) => actions.setHypothesisForm((p) => ({ ...p, hypothesis: e.target.value }))} placeholder="Testable hypothesis" />
-            <Input value={state.hypothesisForm.rationale} onChange={(e) => actions.setHypothesisForm((p) => ({ ...p, rationale: e.target.value }))} placeholder="Economic rationale" />
-            <Input value={state.hypothesisForm.asset_universe} onChange={(e) => actions.setHypothesisForm((p) => ({ ...p, asset_universe: e.target.value }))} placeholder="Asset universe" />
+            <Input value={state.hypothesisForm.name} onChange={(e) => actions.setHypothesisForm((p) => ({ ...p, name: e.target.value }))} placeholder={t('agentos.strategy.hypothesisName')} />
+            <Textarea value={state.hypothesisForm.hypothesis} onChange={(e) => actions.setHypothesisForm((p) => ({ ...p, hypothesis: e.target.value }))} placeholder={t('agentos.strategy.testableHypothesis')} />
+            <Input value={state.hypothesisForm.rationale} onChange={(e) => actions.setHypothesisForm((p) => ({ ...p, rationale: e.target.value }))} placeholder={t('agentos.strategy.rationale')} />
+            <Input value={state.hypothesisForm.asset_universe} onChange={(e) => actions.setHypothesisForm((p) => ({ ...p, asset_universe: e.target.value }))} placeholder={t('agentos.strategy.assetUniverse')} />
             <Button onClick={actions.createHypothesis} disabled={state.busy === 'hypothesis'}>
               <Lightbulb className="mr-2 h-4 w-4" />
-              Create Hypothesis
+              {t('agentos.strategy.createHypothesis')}
             </Button>
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle className="text-base">Guarded Backtest</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">{t('agentos.strategy.backtestTitle')}</CardTitle></CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-3">
             <Input value={state.backtestSymbol} onChange={(e) => actions.setBacktestSymbol(e.target.value)} placeholder="000001.SZ" />
             <select className="rounded-md border bg-background px-3 py-2 text-sm" value={state.selectedHypothesisId} onChange={(e) => actions.setSelectedHypothesisId(e.target.value)}>
-              <option value="">No hypothesis</option>
+              <option value="">{t('agentos.strategy.noHypothesis')}</option>
               {state.hypotheses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
             <Button onClick={actions.runBacktest} disabled={state.busy === 'backtest'}>
               {state.busy === 'backtest' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FlaskConical className="mr-2 h-4 w-4" />}
-              Run MA 20/60
+              {t('agentos.strategy.runMa')}
             </Button>
           </CardContent>
         </Card>
@@ -238,23 +240,23 @@ export function AgentOSTabs({ state, actions }: { state: DashboardState; actions
           <Card>
             <CardHeader>
               <CardTitle className="text-base">{latestBacktest.symbol} · {latestBacktest.strategy}</CardTitle>
-              <Badge variant={latestBacktest.passed_gate ? 'default' : 'outline'}>{latestBacktest.passed_gate ? 'Passed Gate' : 'Not Passed'}</Badge>
+              <Badge variant={latestBacktest.passed_gate ? 'default' : 'outline'}>{latestBacktest.passed_gate ? t('agentos.strategy.passedGate') : t('agentos.strategy.notPassed')}</Badge>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid gap-3 md:grid-cols-5">
-                <Stat label="Trades" value={displayValue(latestBacktest.metrics.total_trades)} />
-                <Stat label="Return %" value={displayValue(latestBacktest.metrics.total_return_pct)} />
-                <Stat label="Max DD %" value={displayValue(latestBacktest.metrics.max_drawdown_pct)} />
-                <Stat label="Sharpe" value={displayValue(latestBacktest.metrics.sharpe_ratio)} />
-                <Stat label="DSR Proxy" value={displayValue(latestBacktest.metrics.deflated_sharpe_proxy)} />
+                <Stat label={t('agentos.strategy.trades')} value={displayValue(latestBacktest.metrics.total_trades)} />
+                <Stat label={t('agentos.strategy.returnPct')} value={displayValue(latestBacktest.metrics.total_return_pct)} />
+                <Stat label={t('agentos.strategy.maxDdPct')} value={displayValue(latestBacktest.metrics.max_drawdown_pct)} />
+                <Stat label={t('agentos.strategy.sharpe')} value={displayValue(latestBacktest.metrics.sharpe_ratio)} />
+                <Stat label={t('agentos.strategy.dsrProxy')} value={displayValue(latestBacktest.metrics.deflated_sharpe_proxy)} />
               </div>
               <p className="text-xs text-muted-foreground">
-                DSR Proxy uses conservative_proxy_v1 and is a research-only guardrail, not a deployment or trading signal.
+                {t('agentos.strategy.dsrNotice')}
               </p>
               <JsonBlock data={latestBacktest.trades?.slice(0, 20) || []} />
             </CardContent>
           </Card>
-        ) : <EmptyState title="No backtests yet." />}
+        ) : <EmptyState title={t('agentos.empty.backtests')} />}
       </TabsContent>
 
       <TabsContent value="memory" className="space-y-3">
@@ -263,10 +265,10 @@ export function AgentOSTabs({ state, actions }: { state: DashboardState; actions
             <CardContent className="p-4">
               <div className="font-medium">{item.title}</div>
               <p className="mt-1 text-sm text-muted-foreground">{item.lesson}</p>
-              <div className="mt-2 text-xs text-muted-foreground">Approved {formatDate(item.approved_at)}</div>
+              <div className="mt-2 text-xs text-muted-foreground">{t('agentos.memory.approved')} {formatDate(item.approved_at)}</div>
             </CardContent>
           </Card>
-        )) : <EmptyState title="No approved lessons yet." />}
+        )) : <EmptyState title={t('agentos.empty.approvedLessons')} />}
       </TabsContent>
     </Tabs>
   )

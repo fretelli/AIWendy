@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Icons } from '@/components/icons'
 import { useAuth } from '@/lib/auth-context'
 import { getPendingInvite, savePendingInviteFromParams } from '@/lib/research-api'
-import { useI18n } from '@/lib/i18n/provider'
+import { LanguageSwitcher, useI18n } from '@/lib/i18n/provider'
 
 function getErrorMessage(error: unknown): string | null {
   if (error instanceof Error) {
@@ -31,7 +31,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [inviteNotice, setInviteNotice] = useState<string | null>(null)
+  const [inviteNotice, setInviteNotice] = useState<{ source: string; type: string } | null>(null)
 
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -44,7 +44,10 @@ export default function LoginPage() {
     if (pendingInvite) {
       const latestInvite = getPendingInvite()
       queueMicrotask(() => {
-        setInviteNotice(`已捕获邀请来源：${latestInvite?.invite_code || latestInvite?.inviter_user_id || '-'} · ${latestInvite?.source_type || 'auth_login'}`)
+        setInviteNotice({
+          source: String(latestInvite?.invite_code || latestInvite?.inviter_user_id || '-'),
+          type: String(latestInvite?.source_type || 'auth_login'),
+        })
       })
     }
   }, [searchParams])
@@ -77,6 +80,7 @@ export default function LoginPage() {
             <Icons.chevronLeft className="mr-2 inline h-4 w-4" />
             {t('landing.auth.back')}
           </Link>
+          <LanguageSwitcher />
         </div>
 
         <div className="mx-auto grid w-full max-w-md gap-6">
@@ -91,19 +95,21 @@ export default function LoginPage() {
               <CardContent className="grid gap-4">
                 {authLoading ? (
                   <Alert>
-                    <AlertDescription>正在检查账号状态...</AlertDescription>
+                    <AlertDescription>{t('landing.auth.login.checking')}</AlertDescription>
                   </Alert>
                 ) : null}
                 {user ? (
                   <Alert>
                     <AlertDescription>
-                      已登录。提交后会进入 AgentOS，或回到刚才请求的页面。
+                      {t('landing.auth.login.alreadySignedIn')}
                     </AlertDescription>
                   </Alert>
                 ) : null}
                 {inviteNotice && (
                   <Alert>
-                    <AlertDescription>{inviteNotice}</AlertDescription>
+                    <AlertDescription>
+                      {t('landing.auth.login.inviteCaptured', inviteNotice)}
+                    </AlertDescription>
                   </Alert>
                 )}
                 {error && (
@@ -164,10 +170,10 @@ export default function LoginPage() {
 
             <div className="grid gap-3 text-sm text-muted-foreground">
               <div className="rounded-md border p-4">
-                登录后才能访问 AgentOS、研报中心、Chat、设置和其它业务页面。
+                {t('landing.auth.login.protectedNotice')}
               </div>
               <div className="rounded-md border p-4">
-                积分商城许愿会写入 research 后台反馈列表，管理员能在同一处看到并处理。
+                {t('landing.auth.login.researchNotice')}
               </div>
             </div>
           </div>

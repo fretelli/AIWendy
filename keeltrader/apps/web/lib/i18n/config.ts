@@ -4,7 +4,7 @@
  */
 
 export const i18nConfig = {
-  defaultLocale: 'en',
+  defaultLocale: 'zh',
   locales: ['en', 'zh'] as const,
 } as const;
 
@@ -40,7 +40,7 @@ export const languageDetection = {
   cookieSameSite: 'lax' as const,
   // Redirect settings
   alwaysRedirect: false,
-  fallbackLocale: 'en',
+  fallbackLocale: 'zh',
 };
 
 // Locale paths for different regions

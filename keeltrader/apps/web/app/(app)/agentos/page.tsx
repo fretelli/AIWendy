@@ -7,10 +7,12 @@ import { AgentOSTabs } from '@/components/agentos/AgentOSTabs'
 import { Stat, StatusBadges } from '@/components/agentos/agentos-primitives'
 import { Button } from '@/components/ui/button'
 import { useAgentOSDashboard } from '@/lib/agentos/use-agentos-dashboard'
+import { useI18n } from '@/lib/i18n/provider'
 
 export default function AgentOSPage() {
   const { state, actions } = useAgentOSDashboard()
   const { refresh } = actions
+  const { t } = useI18n()
 
   useEffect(() => {
     refresh()
@@ -34,23 +36,23 @@ export default function AgentOSPage() {
               AgentOS
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Research support, decision discipline, and guarded strategy experiments.
+              {t('agentos.subtitle')}
             </p>
           </div>
           <div className="flex flex-col items-start gap-2 md:items-end">
             <StatusBadges health={state.health} />
             <Button size="sm" variant="outline" onClick={actions.refresh}>
               <RefreshCw className="mr-2 h-4 w-4" />
-              Refresh
+              {t('common.update')}
             </Button>
           </div>
         </div>
 
         <div className="grid gap-3 md:grid-cols-4">
-          <Stat label="Briefs" value={state.briefs.length} />
-          <Stat label="Research Memos" value={state.memos.length} />
-          <Stat label="Decisions" value={state.decisions.length} />
-          <Stat label="Approved Lessons" value={state.memory.length} />
+          <Stat label={t('agentos.stats.briefs')} value={state.briefs.length} />
+          <Stat label={t('agentos.stats.researchMemos')} value={state.memos.length} />
+          <Stat label={t('agentos.stats.decisions')} value={state.decisions.length} />
+          <Stat label={t('agentos.stats.approvedLessons')} value={state.memory.length} />
         </div>
 
         <AgentOSTabs state={state} actions={actions} />
