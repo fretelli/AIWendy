@@ -97,7 +97,11 @@ export default function SettingsPage() {
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    queueMicrotask(() => {
+      void fetchData();
+    });
+  }, [fetchData]);
 
   const addExchange = async () => {
     try {

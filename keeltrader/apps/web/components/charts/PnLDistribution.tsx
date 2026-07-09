@@ -42,6 +42,53 @@ const COLORS = {
   Breakeven: '#6b7280',
 } as const
 
+function PnLDistributionTooltip(props: ChartTooltipProps<DistributionDataPoint>) {
+  const entry = firstTooltipEntry(props)
+  const point = entry?.payload
+  if (entry && point) {
+    const count = tooltipNumber(entry.value)
+    return (
+      <div className="bg-background border rounded-lg shadow-lg p-3">
+        <p className="font-semibold">{point.range}</p>
+        <p className="text-sm">Trades: {count}</p>
+        <p className="text-sm">
+          Total P&L:
+          <span className={`font-mono ml-1 ${point.total >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            ${point.total.toLocaleString()}
+          </span>
+        </p>
+        <p className="text-sm">
+          Avg P&L:
+          <span className={`font-mono ml-1 ${point.avgPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            ${point.avgPnL.toLocaleString()}
+          </span>
+        </p>
+      </div>
+    )
+  }
+  return null
+}
+
+function PnLPieTooltip(props: ChartTooltipProps<PieDataPoint>) {
+  const entry = firstTooltipEntry(props)
+  const point = entry?.payload
+  if (entry && point) {
+    return (
+      <div className="bg-background border rounded-lg shadow-lg p-3">
+        <p className="font-semibold">{entry.name}</p>
+        <p className="text-sm">Count: {tooltipNumber(entry.value)}</p>
+        <p className="text-sm">
+          Total P&L:
+          <span className={`font-mono ml-1 ${point.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+            ${point.pnl.toFixed(2)}
+          </span>
+        </p>
+      </div>
+    )
+  }
+  return null
+}
+
 export function PnLDistribution({ journals }: PnLDistributionProps) {
   // Group trades by P&L ranges
   const pnlRanges = [
@@ -88,53 +135,6 @@ export function PnLDistribution({ journals }: PnLDistributionProps) {
   ]
   const pieData = pieDataSource.filter(d => d.value > 0)
 
-  const CustomTooltip = (props: ChartTooltipProps<DistributionDataPoint>) => {
-    const entry = firstTooltipEntry(props)
-    const point = entry?.payload
-    if (entry && point) {
-      const count = tooltipNumber(entry.value)
-      return (
-        <div className="bg-background border rounded-lg shadow-lg p-3">
-          <p className="font-semibold">{point.range}</p>
-          <p className="text-sm">Trades: {count}</p>
-          <p className="text-sm">
-            Total P&L:
-            <span className={`font-mono ml-1 ${point.total >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              ${point.total.toLocaleString()}
-            </span>
-          </p>
-          <p className="text-sm">
-            Avg P&L:
-            <span className={`font-mono ml-1 ${point.avgPnL >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              ${point.avgPnL.toLocaleString()}
-            </span>
-          </p>
-        </div>
-      )
-    }
-    return null
-  }
-
-  const PieTooltip = (props: ChartTooltipProps<PieDataPoint>) => {
-    const entry = firstTooltipEntry(props)
-    const point = entry?.payload
-    if (entry && point) {
-      return (
-        <div className="bg-background border rounded-lg shadow-lg p-3">
-          <p className="font-semibold">{entry.name}</p>
-          <p className="text-sm">Count: {tooltipNumber(entry.value)}</p>
-          <p className="text-sm">
-            Total P&L:
-            <span className={`font-mono ml-1 ${point.pnl >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              ${point.pnl.toFixed(2)}
-            </span>
-          </p>
-        </div>
-      )
-    }
-    return null
-  }
-
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {/* P&L Distribution Bar Chart */}
@@ -163,7 +163,7 @@ export function PnLDistribution({ journals }: PnLDistributionProps) {
                   className="text-xs"
                   tick={{ fill: 'currentColor' }}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<PnLDistributionTooltip />} />
                 <ReferenceLine y={0} stroke="currentColor" opacity={0.5} />
                 <Bar dataKey="count" name="Trades">
                   {distributionData.map((entry, index) => (
@@ -210,7 +210,7 @@ export function PnLDistribution({ journals }: PnLDistributionProps) {
                       <Cell key={`cell-${index}`} fill={COLORS[entry.name]} />
                     ))}
                   </Pie>
-                  <Tooltip content={<PieTooltip />} />
+                  <Tooltip content={<PnLPieTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
 

@@ -30,51 +30,53 @@ export function ResearchDigestDetailView() {
   const digestId = decodeURIComponent(String(params.id || ""));
 
   useEffect(() => {
-    setLoading(true);
-    setError("");
-    const query = new URLSearchParams(window.location.search);
-    const attribution = captureOfficialArticleAttribution(query);
-    if (attribution) {
-      trackClientEvent({
-        event_name: "official_article_digest_open",
-        page_path: `/research/digests/${digestId}`,
-        digest_id: Number(digestId) || undefined,
-        status: "success",
-        metadata: {
-          source: attribution.source,
-          campaign_key: attribution.campaign_key,
-          article_type: attribution.article_type,
-          entry: attribution.entry,
-        },
-      }).catch(() => undefined);
-    }
-    const pendingInvite = savePendingInviteFromParams(query, "digest_share", digestId);
-    if (pendingInvite) {
-      trackClientEvent({
-        event_name: "web_pending_invite_captured",
-        page_path: `/research/digests/${digestId}`,
-        digest_id: Number(digestId) || undefined,
-        status: "success",
-        metadata: {
-          inviter_user_id: pendingInvite.inviter_user_id || null,
-          invite_code: pendingInvite.invite_code || "",
-          source_type: pendingInvite.source_type,
-          source_id: pendingInvite.source_id,
-        },
-      }).catch(() => undefined);
-    }
-    getDigestDetail(digestId)
-      .then((data) => {
-        setDigest(data);
+    queueMicrotask(() => {
+      setLoading(true);
+      setError("");
+      const query = new URLSearchParams(window.location.search);
+      const attribution = captureOfficialArticleAttribution(query);
+      if (attribution) {
         trackClientEvent({
-          event_name: "web_digest_detail_opened",
+          event_name: "official_article_digest_open",
           page_path: `/research/digests/${digestId}`,
           digest_id: Number(digestId) || undefined,
-          metadata: { can_view_full_digest: data.access?.can_view_full_digest, can_view_history: data.access?.can_view_history },
+          status: "success",
+          metadata: {
+            source: attribution.source,
+            campaign_key: attribution.campaign_key,
+            article_type: attribution.article_type,
+            entry: attribution.entry,
+          },
         }).catch(() => undefined);
-      })
-      .catch((nextError) => setError(nextError instanceof Error ? nextError.message : "期刊详情加载失败"))
-      .finally(() => setLoading(false));
+      }
+      const pendingInvite = savePendingInviteFromParams(query, "digest_share", digestId);
+      if (pendingInvite) {
+        trackClientEvent({
+          event_name: "web_pending_invite_captured",
+          page_path: `/research/digests/${digestId}`,
+          digest_id: Number(digestId) || undefined,
+          status: "success",
+          metadata: {
+            inviter_user_id: pendingInvite.inviter_user_id || null,
+            invite_code: pendingInvite.invite_code || "",
+            source_type: pendingInvite.source_type,
+            source_id: pendingInvite.source_id,
+          },
+        }).catch(() => undefined);
+      }
+      getDigestDetail(digestId)
+        .then((data) => {
+          setDigest(data);
+          trackClientEvent({
+            event_name: "web_digest_detail_opened",
+            page_path: `/research/digests/${digestId}`,
+            digest_id: Number(digestId) || undefined,
+            metadata: { can_view_full_digest: data.access?.can_view_full_digest, can_view_history: data.access?.can_view_history },
+          }).catch(() => undefined);
+        })
+        .catch((nextError) => setError(nextError instanceof Error ? nextError.message : "期刊详情加载失败"))
+        .finally(() => setLoading(false));
+    });
   }, [digestId]);
 
   async function copyDigestLink() {
