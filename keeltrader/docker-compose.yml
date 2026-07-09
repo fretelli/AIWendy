@@ -10,6 +10,8 @@ services:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}
     image: keeltrader-api:latest
     container_name: keeltrader-api
     restart: unless-stopped
@@ -53,6 +55,7 @@ services:
       context: ./apps/web
       dockerfile: Dockerfile
       args:
+        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com/}
         NEXT_PUBLIC_API_URL: http://api:8000
         NEXT_PUBLIC_AUTH_REQUIRED: "1"
         NEXT_PUBLIC_SITE_URL: https://keeltrader.joyeeassets.com

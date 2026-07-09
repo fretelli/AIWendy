@@ -24,16 +24,20 @@ jobs:
           - context: ./keeltrader
             dockerfile: ./keeltrader/apps/api/Dockerfile
             image: api
+            build-args: |
+              PIP_INDEX_URL=https://pypi.org/simple/
           - context: ./keeltrader/apps/web
             dockerfile: ./keeltrader/apps/web/Dockerfile
             image: web
+            build-args: |
+              NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Log in to the Container registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -41,7 +45,7 @@ jobs:
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image }}
           tags: |
@@ -53,10 +57,11 @@ jobs:
             type=sha
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
+          build-args: ${{ matrix.build-args }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
