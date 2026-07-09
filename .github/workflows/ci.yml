@@ -49,5 +49,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: make check-security-defaults
+      - run: make check-api-static
       - run: make check-api
       - run: make audit-api

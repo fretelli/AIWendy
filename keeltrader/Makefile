@@ -12,7 +12,7 @@ NPM_AUDIT_LEVEL ?= high
 NPM_AUDIT_FETCH_RETRIES ?= 3
 NPM_AUDIT_FETCH_TIMEOUT ?= 120000
 
-.PHONY: help setup dev check check-web check-api check-security-defaults audit audit-root audit-web audit-api audit-api-strict test build deploy clean db-migrate db-rollback
+.PHONY: help setup dev check check-web check-api check-api-static check-security-defaults audit audit-root audit-web audit-api audit-api-strict audit-api-static-candidates test build deploy clean db-migrate db-rollback
 
 # Default target
 help:
@@ -20,12 +20,14 @@ help:
 	@echo "  make check     - Run web checks and API container tests"
 	@echo "  make check-web - Run web lint, type-check, and Jest"
 	@echo "  make check-api - Build API test runner and run pytest"
+	@echo "  make check-api-static - Run lightweight API static contract checks"
 	@echo "  make check-security-defaults - Reject hardcoded development default passwords"
 	@echo "  make audit     - Run root, web, and API dependency audits"
 	@echo "  make audit-root - Run npm audit for root release tooling dependency issues"
 	@echo "  make audit-web - Run npm audit for high/critical web dependency issues"
 	@echo "  make audit-api - Run strict pip-audit checks for API dependency issues"
 	@echo "  make audit-api-strict - Alias for API dependency audit with no vulnerability exceptions"
+	@echo "  make audit-api-static-candidates - Report black/isort/mypy candidates without enforcing them"
 	@echo "  make test      - Alias for make check"
 	@echo "  make build     - Validate production overlay images without deploy"
 	@echo "  make deploy    - Deploy to production"
@@ -40,7 +42,7 @@ setup:
 dev:
 	@echo "Use apps/web/npm run dev for frontend work, or scripts/deploy.sh web --no-deploy for production build validation."
 
-check: check-web check-api
+check: check-web check-api-static check-api
 
 check-web:
 	@cd apps/web && npm run lint
@@ -49,6 +51,9 @@ check-web:
 
 check-api:
 	@scripts/release-api-overlay.sh --test-only
+
+check-api-static:
+	@scripts/check-api-static.sh
 
 check-security-defaults:
 	@repo_root="$$(git rev-parse --show-toplevel)" && ! git -C "$$repo_root" grep -nE 'Admin[@]123|Test[@]1234' -- . || { echo "Hardcoded development default password found. Use explicit environment variables instead." >&2; exit 1; }
@@ -67,6 +72,10 @@ audit-api:
 
 audit-api-strict:
 	@$(MAKE) audit-api PIP_AUDIT_IGNORE_VULNS=
+
+audit-api-static-candidates:
+	@docker image inspect "$(PIP_AUDIT_IMAGE)" >/dev/null 2>&1 || { echo "Missing $(PIP_AUDIT_IMAGE). Run make check-api first, or set PIP_AUDIT_IMAGE to an existing Python image." >&2; exit 0; }
+	@docker run --rm -u root -v "$(CURDIR)/apps/api:/src:ro" "$(PIP_AUDIT_IMAGE)" sh -lc 'cd /src && echo "[candidate] black --check ." && black --check . || true; echo "[candidate] isort --check-only ." && isort --check-only . || true; echo "[candidate] mypy ." && mypy . || true'
 
 # Run tests
 test: check

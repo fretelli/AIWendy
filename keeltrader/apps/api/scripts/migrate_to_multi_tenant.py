@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from _script_guard import require_non_production_script
 from config import get_settings
 from core.database import engine, get_db_session
 from domain.tenant.models import (
@@ -129,6 +130,8 @@ async def verify_migration(session: AsyncSession, tenant: Tenant):
 
 async def main():
     """Run the migration."""
+    require_non_production_script("migrate_to_multi_tenant.py")
+
     settings = get_settings()
 
     print("=" * 60)
