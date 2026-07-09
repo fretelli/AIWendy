@@ -149,7 +149,8 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="h-full overflow-y-auto">
+      <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-6">
       <h1 className="text-2xl font-bold">Settings</h1>
 
       {/* Exchange connections */}
@@ -296,6 +297,7 @@ export default function SettingsPage() {
           <Button onClick={savePushSettings}>Save Push Settings</Button>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

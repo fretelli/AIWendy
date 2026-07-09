@@ -11,7 +11,7 @@ export default function HomePage() {
   }, [router])
 
   return (
-    <div className="flex items-center justify-center h-screen">
+    <div className="flex h-dvh items-center justify-center">
       <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
     </div>
   )

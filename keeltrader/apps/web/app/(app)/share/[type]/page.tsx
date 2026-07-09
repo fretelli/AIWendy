@@ -40,7 +40,7 @@ export default function SharePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
       </div>
     );
@@ -48,7 +48,7 @@ export default function SharePage() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="flex h-full items-center justify-center">
         <p className="text-muted-foreground">{error}</p>
       </div>
     );
@@ -56,58 +56,62 @@ export default function SharePage() {
 
   if (type === 'character' && characterData) {
     return (
-      <div className="p-4 md:p-6 max-w-md mx-auto">
-        <CharacterCard
-          character={characterData}
-          recentAchievements={characterData.recent_achievements}
-        />
+      <div className="h-full overflow-y-auto">
+        <div className="mx-auto max-w-md p-4 md:p-6">
+          <CharacterCard
+            character={characterData}
+            recentAchievements={characterData.recent_achievements}
+          />
+        </div>
       </div>
     );
   }
 
   if (type === 'weekly' && weeklyData) {
     return (
-      <div className="p-4 md:p-6 max-w-md mx-auto">
-        <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0">
-          <CardContent className="p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold">{weeklyData.nickname}</h2>
-                <p className="text-sm text-slate-400">Weekly Report - {weeklyData.week_start}</p>
-              </div>
-              <RankBadge rank={weeklyData.rank} size="lg" />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 text-center">
-              <div>
-                <div className="text-2xl font-bold">{weeklyData.stats.total_trades}</div>
-                <div className="text-xs text-slate-400">Total Trades</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold">{weeklyData.stats.win_rate}%</div>
-                <div className="text-xs text-slate-400">Win Rate</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-400">
-                  {weeklyData.stats.wins}W
+      <div className="h-full overflow-y-auto">
+        <div className="mx-auto max-w-md p-4 md:p-6">
+          <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-0">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold">{weeklyData.nickname}</h2>
+                  <p className="text-sm text-slate-400">Weekly Report - {weeklyData.week_start}</p>
                 </div>
-                <div className="text-xs text-slate-400">Wins</div>
+                <RankBadge rank={weeklyData.rank} size="lg" />
               </div>
-              <div>
-                <div className={`text-2xl font-bold ${weeklyData.stats.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  ${weeklyData.stats.total_pnl >= 0 ? '+' : ''}{weeklyData.stats.total_pnl}
+
+              <div className="grid grid-cols-2 gap-4 text-center">
+                <div>
+                  <div className="text-2xl font-bold">{weeklyData.stats.total_trades}</div>
+                  <div className="text-xs text-slate-400">Total Trades</div>
                 </div>
-                <div className="text-xs text-slate-400">PnL</div>
+                <div>
+                  <div className="text-2xl font-bold">{weeklyData.stats.win_rate}%</div>
+                  <div className="text-xs text-slate-400">Win Rate</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-green-400">
+                    {weeklyData.stats.wins}W
+                  </div>
+                  <div className="text-xs text-slate-400">Wins</div>
+                </div>
+                <div>
+                  <div className={`text-2xl font-bold ${weeklyData.stats.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    ${weeklyData.stats.total_pnl >= 0 ? '+' : ''}{weeklyData.stats.total_pnl}
+                  </div>
+                  <div className="text-xs text-slate-400">PnL</div>
+                </div>
               </div>
-            </div>
 
-            <RadarChart attributes={weeklyData.attributes} />
+              <RadarChart attributes={weeklyData.attributes} />
 
-            <div className="text-center text-xs text-slate-500">
-              KeelTrader RPG - Lv.{weeklyData.level}
-            </div>
-          </CardContent>
-        </Card>
+              <div className="text-center text-xs text-slate-500">
+                KeelTrader RPG - Lv.{weeklyData.level}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }

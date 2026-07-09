@@ -55,16 +55,16 @@ export default function AppLayout({
 
   if (isLoading || !user) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex h-dvh items-center justify-center">
         <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
+    <div className="flex h-dvh min-h-0 flex-col bg-background">
       {/* Top bar */}
-      <header className="flex h-14 items-center justify-between border-b px-4">
+      <header className="flex h-14 shrink-0 items-center justify-between border-b px-4">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -107,7 +107,7 @@ export default function AppLayout({
 
       {/* Mobile menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-b p-2 space-y-1">
+        <div className="shrink-0 border-b p-2 space-y-1 md:hidden">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -127,7 +127,7 @@ export default function AppLayout({
       )}
 
       {/* Content */}
-      <main className="flex-1 overflow-hidden">
+      <main className="min-h-0 flex-1 overflow-y-auto">
         {children}
       </main>
     </div>
