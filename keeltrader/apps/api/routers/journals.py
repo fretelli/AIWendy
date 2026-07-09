@@ -1,7 +1,7 @@
 """Trading journal endpoints."""
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Optional
 from uuid import UUID
 
 from fastapi import (
@@ -15,7 +15,6 @@ from fastapi import (
     UploadFile,
     status,
 )
-from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.auth import get_authenticated_user, get_current_user
@@ -26,6 +25,8 @@ from domain.journal.repository import JournalRepository
 from domain.journal.schemas import (
     JournalCreate,
     JournalFilter,
+    JournalImportPreviewResponse,
+    JournalImportResponse,
     JournalListResponse,
     JournalResponse,
     JournalStatistics,
@@ -36,18 +37,15 @@ from domain.user.models import User
 from services.journal_importer import (
     MAX_IMPORT_ROWS,
     MAX_PREVIEW_ROWS,
-    parse_tabular_file,
-    suggest_mapping,
 )
 from services.journal_import_service import (
-    build_journal_import_models,
-    clamp_import_max_rows,
-    parse_journal_import_mapping,
+    import_journal_file,
+    preview_journal_import_file,
 )
 from services.journal_analysis_service import (
-    analyze_journal_with_ai,
-    analyze_recent_trades_with_ai,
-    generate_journal_improvement_plan,
+    analyze_journal_entry_for_user,
+    analyze_recent_trades_or_fallback,
+    generate_improvement_plan_or_fallback,
 )
 from services.journal_entry_service import (
     apply_journal_update,
@@ -57,19 +55,6 @@ from services.journal_entry_service import (
 
 router = APIRouter()
 logger = get_logger(__name__)
-
-
-class JournalImportPreviewResponse(BaseModel):
-    columns: List[str]
-    sample_rows: List[Dict[str, str]]
-    suggested_mapping: Dict[str, Optional[str]]
-    warnings: List[str] = Field(default_factory=list)
-
-
-class JournalImportResponse(BaseModel):
-    created: int
-    skipped: int
-    errors: List[str] = Field(default_factory=list)
 
 
 @router.post("", response_model=JournalResponse)
@@ -190,24 +175,12 @@ async def preview_journal_import(
 
     locale = get_request_locale(http_request)
 
-    if not file.filename:
-        raise HTTPException(
-            status_code=400, detail=t("errors.filename_required", locale)
-        )
-
     content = await file.read()
-    parsed = parse_tabular_file(file.filename, content, max_rows=preview_rows)
-    suggested = suggest_mapping(parsed.columns)
-
-    sample_rows: List[Dict[str, str]] = []
-    for row in parsed.rows[:preview_rows]:
-        sample_rows.append({col: str(row.get(col, "") or "") for col in parsed.columns})
-
-    return JournalImportPreviewResponse(
-        columns=parsed.columns,
-        sample_rows=sample_rows,
-        suggested_mapping=suggested,
-        warnings=parsed.warnings,
+    return preview_journal_import_file(
+        file.filename,
+        content,
+        preview_rows=preview_rows,
+        locale=locale,
     )
 
 
@@ -231,44 +204,18 @@ async def import_journal_entries(
     - `dry_run`: validate only, do not write to DB
     """
     locale = get_request_locale(http_request)
-    if not file.filename:
-        raise HTTPException(
-            status_code=400, detail=t("errors.filename_required", locale)
-        )
-
-    if project_id is not None and not project_id.strip():
-        project_id = None
-
-    mapping = parse_journal_import_mapping(mapping_json, locale)
-    max_rows = clamp_import_max_rows(max_rows)
-
     content = await file.read()
-    parsed = parse_tabular_file(file.filename, content, max_rows=max_rows)
-    created_models, skipped, errors = build_journal_import_models(
-        parsed.rows,
-        mapping,
-        user_id=current_user.id,
+    return await import_journal_file(
+        session,
+        file.filename,
+        content,
+        mapping_json=mapping_json,
         project_id=project_id,
         strict=strict,
+        dry_run=dry_run,
+        max_rows=max_rows,
+        user_id=current_user.id,
         locale=locale,
-    )
-
-    if not dry_run and created_models:
-        try:
-            session.add_all(created_models)
-            await session.commit()
-        except Exception as e:
-            await session.rollback()
-            logger.error(f"Failed to import journal entries: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail=t("errors.failed_to_import_journal_entries", locale),
-            )
-
-    return JournalImportResponse(
-        created=len(created_models),
-        skipped=skipped,
-        errors=errors + parsed.warnings,
     )
 
 
@@ -411,15 +358,9 @@ async def analyze_journal_entry(
     try:
         repo = JournalRepository(session)
 
-        # Get the journal entry
-        journal = await repo.get_by_id(journal_id, current_user.id)
-        if not journal:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=t("errors.journal_entry_not_found", locale),
-            )
-
-        analysis = await analyze_journal_with_ai(repo, session, current_user, journal)
+        analysis = await analyze_journal_entry_for_user(
+            repo, session, current_user, journal_id, locale
+        )
 
         logger.info(f"Analyzed journal entry {journal_id} for user {current_user.id}")
 
@@ -447,13 +388,9 @@ async def analyze_trading_patterns(
     try:
         repo = JournalRepository(session)
 
-        analysis = await analyze_recent_trades_with_ai(repo, current_user, limit)
-        if analysis is None:
-            return {
-                "message": t("messages.no_journal_entries_for_analysis", locale),
-                "patterns": [],
-                "recommendations": [],
-            }
+        analysis = await analyze_recent_trades_or_fallback(
+            repo, current_user, limit, locale
+        )
 
         logger.info(f"Analyzed trading patterns for user {current_user.id}")
 
@@ -478,12 +415,7 @@ async def generate_improvement_plan(
     try:
         repo = JournalRepository(session)
 
-        plan = await generate_journal_improvement_plan(repo, current_user)
-        if plan is None:
-            return {
-                "message": t("messages.not_enough_data_for_improvement_plan", locale),
-                "plan": t("messages.improvement_plan_start_journaling", locale),
-            }
+        plan = await generate_improvement_plan_or_fallback(repo, current_user, locale)
 
         logger.info(f"Generated improvement plan for user {current_user.id}")
 

@@ -3,7 +3,7 @@
 import uuid
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -193,6 +193,23 @@ class JournalListResponse(BaseModel):
     total: int
     page: int = 1
     per_page: int = 20
+
+
+class JournalImportPreviewResponse(BaseModel):
+    """Journal import preview response."""
+
+    columns: List[str]
+    sample_rows: List[Dict[str, str]]
+    suggested_mapping: Dict[str, Optional[str]]
+    warnings: List[str] = Field(default_factory=list)
+
+
+class JournalImportResponse(BaseModel):
+    """Journal import result response."""
+
+    created: int
+    skipped: int
+    errors: List[str] = Field(default_factory=list)
 
 
 class JournalStatistics(BaseModel):
