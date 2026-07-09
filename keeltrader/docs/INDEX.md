@@ -6,7 +6,7 @@
 - 自托管（Docker Compose）：`SELF_HOSTING.md`
 - 部署与运行：`DEPLOYMENT.md`
 - 系统架构：`ARCHITECTURE.md`
-- Docker 网络/镜像问题：`../DOCKER_SETUP.md`
+- Docker 网络/镜像问题：`DOCKER_SETUP.md`
 - 自定义第三方 LLM / OpenAI 兼容 API：`CUSTOM_API_SETUP.md`
 - 国际化（i18n）：`I18N_GUIDE.md`
 - 版本管理：`../../docs/VERSION_MANAGEMENT.md`
@@ -22,7 +22,7 @@
 - Self-hosting (Docker Compose): `SELF_HOSTING.md`
 - Deployment & running: `DEPLOYMENT.md`
 - System architecture: `ARCHITECTURE.md`
-- Docker networking/image issues: `../DOCKER_SETUP.md`
+- Docker networking/image issues: `DOCKER_SETUP.md`
 - Custom third-party LLM / OpenAI-compatible API: `CUSTOM_API_SETUP.md`
 - Internationalization (i18n): `I18N_GUIDE.md`
 - Version management: `../../docs/VERSION_MANAGEMENT.md`
