@@ -52,6 +52,10 @@ from services.journal_entry_service import (
     create_journal_model,
     quick_entry_to_create,
 )
+from services.journal_response_service import (
+    journal_to_response,
+    journals_to_list_response,
+)
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -75,7 +79,7 @@ async def create_journal_entry(
 
         logger.info(f"Created journal entry {journal.id} for user {current_user.id}")
 
-        return JournalResponse.from_orm(journal)
+        return journal_to_response(journal)
 
     except Exception as e:
         logger.error(f"Failed to create journal entry: {e}")
@@ -128,11 +132,11 @@ async def list_journal_entries(
             offset=offset,
         )
 
-        # Convert to response models
-        items = [JournalResponse.from_orm(j) for j in journals]
-
-        return JournalListResponse(
-            items=items, total=total, page=page, per_page=per_page
+        return journals_to_list_response(
+            journals,
+            total=total,
+            page=page,
+            per_page=per_page,
         )
 
     except Exception as e:
@@ -238,7 +242,7 @@ async def get_journal_entry(
                 detail=t("errors.journal_entry_not_found", locale),
             )
 
-        return JournalResponse.from_orm(journal)
+        return journal_to_response(journal)
 
     except HTTPException:
         raise
@@ -273,7 +277,7 @@ async def update_journal_entry(
         apply_journal_update(journal, entry)
         journal = await repo.update(journal)
 
-        return JournalResponse.from_orm(journal)
+        return journal_to_response(journal)
 
     except HTTPException:
         raise
@@ -336,7 +340,7 @@ async def create_quick_journal_entry(
             f"Created quick journal entry {journal.id} for user {current_user.id}"
         )
 
-        return JournalResponse.from_orm(journal)
+        return journal_to_response(journal)
 
     except Exception as e:
         logger.error(f"Failed to create quick journal entry: {e}")
