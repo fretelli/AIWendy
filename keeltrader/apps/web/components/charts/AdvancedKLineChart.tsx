@@ -53,7 +53,13 @@ export function AdvancedKLineChart({
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null)
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null)
 
-  const [selectedInterval, setSelectedInterval] = useState<AdvancedKLineInterval>(interval)
+  const [intervalSelection, setIntervalSelection] = useState(() => ({
+    propInterval: interval,
+    value: interval,
+  }))
+  const selectedInterval = intervalSelection.propInterval === interval
+    ? intervalSelection.value
+    : interval
   const [indicators, setIndicators] = useState<TechnicalIndicator[]>(
     DEFAULT_ADVANCED_KLINE_INDICATORS
   )
@@ -63,9 +69,9 @@ export function AdvancedKLineChart({
   const [loadError, setLoadError] = useState<string | null>(null)
   const [retryNonce, setRetryNonce] = useState(0)
 
-  useEffect(() => {
-    setSelectedInterval(interval)
-  }, [interval])
+  const setSelectedInterval = (value: AdvancedKLineInterval) => {
+    setIntervalSelection({ propInterval: interval, value })
+  }
 
   useEffect(() => {
     const container = chartContainerRef.current

@@ -33,6 +33,39 @@ interface EquityDataPoint {
   index: number
 }
 
+interface EquityCurveData {
+  balance: number
+  cumulativePnL: number
+  data: EquityDataPoint[]
+  maxDrawdown: number
+  peak: number
+}
+
+function EquityCurveTooltip(props: ChartTooltipProps<EquityDataPoint>) {
+  const entry = firstTooltipEntry(props)
+  const point = entry?.payload
+  if (entry && point) {
+    const balance = tooltipNumber(entry.value)
+    return (
+      <div className="bg-background border rounded-lg shadow-lg p-3">
+        <p className="font-semibold">{props.label}</p>
+        <p className="text-sm">
+          Balance: <span className="font-mono">${balance.toLocaleString()}</span>
+        </p>
+        {point.trade && (
+          <p className="text-sm text-muted-foreground">
+            Trade: {point.trade}
+          </p>
+        )}
+        <p className="text-sm">
+          Drawdown: <span className="text-red-500">{point.drawdown}%</span>
+        </p>
+      </div>
+    )
+  }
+  return null
+}
+
 export function EquityCurve({ journals, initialBalance = 10000 }: EquityCurveProps) {
   // Calculate cumulative P&L
   const sortedJournals = [...journals].sort((a, b) => {
@@ -41,32 +74,36 @@ export function EquityCurve({ journals, initialBalance = 10000 }: EquityCurvePro
     return dateA.getTime() - dateB.getTime()
   })
 
-  let cumulativePnL = 0
-  let balance = initialBalance
-  let maxDrawdown = 0
-  let peak = initialBalance
-
-  const data = sortedJournals.map((journal, index) => {
+  const curve = sortedJournals.reduce<EquityCurveData>((state, journal, index) => {
     const pnl = journal.pnl_amount || 0
-    cumulativePnL += pnl
-    balance += pnl
+    const cumulativePnL = state.cumulativePnL + pnl
+    const balance = state.balance + pnl
 
     // Calculate drawdown
-    if (balance > peak) {
-      peak = balance
-    }
+    const peak = Math.max(state.peak, balance)
     const drawdown = ((peak - balance) / peak) * 100
-    maxDrawdown = Math.max(maxDrawdown, drawdown)
+    const maxDrawdown = Math.max(state.maxDrawdown, drawdown)
 
-    return {
+    state.data.push({
       date: format(new Date(journal.trade_date || journal.created_at), 'MMM dd'),
       balance: parseFloat(balance.toFixed(2)),
       pnl: parseFloat(cumulativePnL.toFixed(2)),
       trade: journal.symbol,
       drawdown: parseFloat(drawdown.toFixed(2)),
       index: index + 1,
-    }
+    })
+
+    return { balance, cumulativePnL, data: state.data, maxDrawdown, peak }
+  }, {
+    balance: initialBalance,
+    cumulativePnL: 0,
+    data: [],
+    maxDrawdown: 0,
+    peak: initialBalance,
   })
+
+  const data = curve.data
+  const maxDrawdown = curve.maxDrawdown
 
   // Add initial balance point
   if (data.length > 0) {
@@ -83,31 +120,6 @@ export function EquityCurve({ journals, initialBalance = 10000 }: EquityCurvePro
   const finalBalance = data[data.length - 1]?.balance || initialBalance
   const totalReturn = ((finalBalance - initialBalance) / initialBalance) * 100
   const isProfit = finalBalance >= initialBalance
-
-  const CustomTooltip = (props: ChartTooltipProps<EquityDataPoint>) => {
-    const entry = firstTooltipEntry(props)
-    const point = entry?.payload
-    if (entry && point) {
-      const balance = tooltipNumber(entry.value)
-      return (
-        <div className="bg-background border rounded-lg shadow-lg p-3">
-          <p className="font-semibold">{props.label}</p>
-          <p className="text-sm">
-            Balance: <span className="font-mono">${balance.toLocaleString()}</span>
-          </p>
-          {point.trade && (
-            <p className="text-sm text-muted-foreground">
-              Trade: {point.trade}
-            </p>
-          )}
-          <p className="text-sm">
-            Drawdown: <span className="text-red-500">{point.drawdown}%</span>
-          </p>
-        </div>
-      )
-    }
-    return null
-  }
 
   return (
     <Card>
@@ -155,7 +167,7 @@ export function EquityCurve({ journals, initialBalance = 10000 }: EquityCurvePro
                 tick={{ fill: 'currentColor' }}
                 tickFormatter={(value) => `$${value.toLocaleString()}`}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<EquityCurveTooltip />} />
               <ReferenceLine
                 y={initialBalance}
                 stroke="currentColor"

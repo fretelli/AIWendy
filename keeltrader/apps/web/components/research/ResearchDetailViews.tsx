@@ -44,56 +44,58 @@ export function ResearchReportDetailView() {
   const points = useMemo(() => (report ? summaryPoints(report) : []), [report]);
 
   useEffect(() => {
-    setLoading(true);
-    setError("");
-    const query = new URLSearchParams(window.location.search);
-    const attribution = captureOfficialArticleAttribution(query);
-    if (attribution) {
-      trackClientEvent({
-        event_name: "official_article_report_open",
-        page_path: `/research/reports/${reportId}`,
-        report_id: reportId,
-        digest_id: digestId ? Number(digestId) : undefined,
-        status: "success",
-        metadata: {
-          source: attribution.source,
-          campaign_key: attribution.campaign_key,
-          article_type: attribution.article_type,
-          entry: attribution.entry,
-        },
-      }).catch(() => undefined);
-    }
-    const pendingInvite = savePendingInviteFromParams(query, "report_share", reportId);
-    if (pendingInvite) {
-      trackClientEvent({
-        event_name: "web_pending_invite_captured",
-        page_path: `/research/reports/${reportId}`,
-        report_id: reportId,
-        digest_id: digestId ? Number(digestId) : undefined,
-        status: "success",
-        metadata: {
-          inviter_user_id: pendingInvite.inviter_user_id || null,
-          invite_code: pendingInvite.invite_code || "",
-          source_type: pendingInvite.source_type,
-          source_id: pendingInvite.source_id,
-        },
-      }).catch(() => undefined);
-    }
-    getReportDetail(reportId, digestId)
-      .then((data) => {
-        setReport(data);
+    queueMicrotask(() => {
+      setLoading(true);
+      setError("");
+      const query = new URLSearchParams(window.location.search);
+      const attribution = captureOfficialArticleAttribution(query);
+      if (attribution) {
         trackClientEvent({
-          event_name: "web_report_detail_opened",
+          event_name: "official_article_report_open",
           page_path: `/research/reports/${reportId}`,
           report_id: reportId,
           digest_id: digestId ? Number(digestId) : undefined,
-          metadata: { can_view_pdf: data.access?.can_view_pdf, can_view_full_report: data.access?.can_view_full_report },
+          status: "success",
+          metadata: {
+            source: attribution.source,
+            campaign_key: attribution.campaign_key,
+            article_type: attribution.article_type,
+            entry: attribution.entry,
+          },
         }).catch(() => undefined);
-      })
-      .catch((nextError) => setError(nextError instanceof Error ? nextError.message : "研报详情加载失败"))
-      .finally(() => setLoading(false));
-    getReportNoteState(reportId).then(setNoteState).catch(() => setNoteState(null));
-    getReportBriefingStatus(reportId).then(setBriefing).catch(() => setBriefing(null));
+      }
+      const pendingInvite = savePendingInviteFromParams(query, "report_share", reportId);
+      if (pendingInvite) {
+        trackClientEvent({
+          event_name: "web_pending_invite_captured",
+          page_path: `/research/reports/${reportId}`,
+          report_id: reportId,
+          digest_id: digestId ? Number(digestId) : undefined,
+          status: "success",
+          metadata: {
+            inviter_user_id: pendingInvite.inviter_user_id || null,
+            invite_code: pendingInvite.invite_code || "",
+            source_type: pendingInvite.source_type,
+            source_id: pendingInvite.source_id,
+          },
+        }).catch(() => undefined);
+      }
+      getReportDetail(reportId, digestId)
+        .then((data) => {
+          setReport(data);
+          trackClientEvent({
+            event_name: "web_report_detail_opened",
+            page_path: `/research/reports/${reportId}`,
+            report_id: reportId,
+            digest_id: digestId ? Number(digestId) : undefined,
+            metadata: { can_view_pdf: data.access?.can_view_pdf, can_view_full_report: data.access?.can_view_full_report },
+          }).catch(() => undefined);
+        })
+        .catch((nextError) => setError(nextError instanceof Error ? nextError.message : "研报详情加载失败"))
+        .finally(() => setLoading(false));
+      getReportNoteState(reportId).then(setNoteState).catch(() => setNoteState(null));
+      getReportBriefingStatus(reportId).then(setBriefing).catch(() => setBriefing(null));
+    });
   }, [reportId, digestId]);
 
   async function generateNote() {

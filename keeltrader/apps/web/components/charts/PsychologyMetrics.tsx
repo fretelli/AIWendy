@@ -33,6 +33,24 @@ interface PsychologyTimeSeriesData {
   emotion: number
 }
 
+function PsychologyMetricsTooltip(props: ChartTooltipProps<PsychologyTimeSeriesData>) {
+  const entries = activeTooltipEntries(props)
+  if (entries.length > 0) {
+    return (
+      <div className="bg-background border rounded-lg shadow-lg p-3">
+        <p className="font-semibold text-sm">{props.label}</p>
+        {entries.map((entry) => (
+          <p key={String(entry.name)} className="text-sm">
+            {entry.name}:
+            <span className="font-mono ml-1">{tooltipNumber(entry.value).toFixed(1)}</span>
+          </p>
+        ))}
+      </div>
+    )
+  }
+  return null
+}
+
 export function PsychologyMetrics({ journals }: PsychologyMetricsProps) {
   // Calculate average psychology metrics
   const validJournals = journals.filter(j =>
@@ -104,24 +122,6 @@ export function PsychologyMetrics({ journals }: PsychologyMetricsProps) {
   const ruleViolationsWithLowConfidence = journals.filter(j =>
     !j.followed_rules && j.confidence_level && j.confidence_level <= 2
   ).length
-
-  const CustomTooltip = (props: ChartTooltipProps<PsychologyTimeSeriesData>) => {
-    const entries = activeTooltipEntries(props)
-    if (entries.length > 0) {
-      return (
-        <div className="bg-background border rounded-lg shadow-lg p-3">
-          <p className="font-semibold text-sm">{props.label}</p>
-          {entries.map((entry) => (
-            <p key={String(entry.name)} className="text-sm">
-              {entry.name}:
-              <span className="font-mono ml-1">{tooltipNumber(entry.value).toFixed(1)}</span>
-            </p>
-          ))}
-        </div>
-      )
-    }
-    return null
-  }
 
   return (
     <div className="space-y-6">
@@ -226,7 +226,7 @@ export function PsychologyMetrics({ journals }: PsychologyMetricsProps) {
                   className="text-xs"
                   tick={{ fill: 'currentColor' }}
                 />
-                <Tooltip content={<CustomTooltip />} />
+                <Tooltip content={<PsychologyMetricsTooltip />} />
                 <Legend />
                 <Line
                   type="monotone"

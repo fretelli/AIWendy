@@ -24,12 +24,24 @@ export function AgentDetailDialog({ agent, open, onClose, onChat }: AgentDetailD
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (agent && open) {
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled || !agent || !open) return
       setLoading(true)
       agentsAPI.getAgentStatus(agent.agent_id)
-        .then(setDetail)
-        .catch(() => setDetail(null))
-        .finally(() => setLoading(false))
+        .then((nextDetail) => {
+          if (!cancelled) setDetail(nextDetail)
+        })
+        .catch(() => {
+          if (!cancelled) setDetail(null)
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false)
+        })
+    })
+
+    return () => {
+      cancelled = true
     }
   }, [agent, open])
 

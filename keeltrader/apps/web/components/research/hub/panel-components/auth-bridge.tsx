@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,13 +8,10 @@ import { Input } from "@/components/ui/input";
 import { getPendingInvite, setResearchToken, trackClientEvent } from "@/lib/research-api";
 
 export function AuthBridge({ onSaved }: { onSaved: () => void }) {
-  const [token, setToken] = useState("");
-  const [pendingInvite, setPendingInvite] = useState<ReturnType<typeof getPendingInvite>>(null);
-
-  useEffect(() => {
-    setToken(localStorage.getItem("research_access_token") || "");
-    setPendingInvite(getPendingInvite());
-  }, []);
+  const [token, setToken] = useState(() => (
+    typeof window === "undefined" ? "" : localStorage.getItem("research_access_token") || ""
+  ));
+  const [pendingInvite, setPendingInvite] = useState<ReturnType<typeof getPendingInvite>>(() => getPendingInvite());
 
   return (
     <Card>

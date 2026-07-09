@@ -45,17 +45,21 @@ function getErrorMessage(error: unknown): string {
 }
 
 export function AgentChat({ agents, initialAgentId }: AgentChatProps) {
-  const [selectedAgent, setSelectedAgent] = useState(initialAgentId || agents[0]?.agent_id || '')
+  const [agentSelection, setAgentSelection] = useState(() => ({
+    initialAgentId,
+    value: initialAgentId || agents[0]?.agent_id || '',
+  }))
+  const selectedAgent = agentSelection.initialAgentId === initialAgentId
+    ? agentSelection.value
+    : initialAgentId || agents[0]?.agent_id || ''
   const [input, setInput] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [sending, setSending] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (initialAgentId) {
-      setSelectedAgent(initialAgentId)
-    }
-  }, [initialAgentId])
+  const setSelectedAgent = (value: string) => {
+    setAgentSelection({ initialAgentId, value })
+  }
 
   useEffect(() => {
     if (scrollRef.current) {

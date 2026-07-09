@@ -38,26 +38,29 @@ export function useAsyncData<T>(
   React.useEffect(() => {
     let cancelled = false
 
-    setLoading(true)
-    setError(null)
+    queueMicrotask(() => {
+      if (cancelled) return
+      setLoading(true)
+      setError(null)
 
-    load()
-      .then((next) => {
-        if (!cancelled) {
-          setData(next)
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          logClientError(options.logScope, err)
-          setError(clientErrorMessage(err, options.errorMessage || 'Failed to load data.'))
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      })
+      load()
+        .then((next) => {
+          if (!cancelled) {
+            setData(next)
+          }
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            logClientError(options.logScope, err)
+            setError(clientErrorMessage(err, options.errorMessage || 'Failed to load data.'))
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLoading(false)
+          }
+        })
+    })
 
     return () => {
       cancelled = true

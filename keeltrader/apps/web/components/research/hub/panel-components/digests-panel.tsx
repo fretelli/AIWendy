@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { CheckCircle2, RefreshCw, Settings2 } from "lucide-react";
 
@@ -35,8 +35,10 @@ export function DigestsPanel({
   onMarkAllRead: () => void;
   onGoPreferences: () => void;
 }) {
-  const [visibleCount, setVisibleCount] = useState(3);
   const digestItems = useMemo(() => (notifications?.items || []).filter((item) => item.type === "report_digest"), [notifications]);
+  const historyKey = digestItems.map((item) => item.id).join(",");
+  const [visibleState, setVisibleState] = useState({ historyKey, count: 3 });
+  const visibleCount = visibleState.historyKey === historyKey ? visibleState.count : 3;
   const currentMode = profile?.profile_completed && profile.preferences.update_frequency !== "每周" ? "daily" : "weekly";
   const currentPeriodKey = digestPeriodKeyFromDate(currentMode, new Date());
   const currentItems = digestItems.filter((item) => digestPeriodKey(item) === currentPeriodKey);
@@ -47,9 +49,9 @@ export function DigestsPanel({
   const visibleHistoryItems = historyItems.slice(0, visibleCount);
   const historyUnreadCount = historyItems.filter((item) => !item.is_read).length;
 
-  useEffect(() => {
-    setVisibleCount(3);
-  }, [notifications]);
+  const showMoreHistory = () => {
+    setVisibleState({ historyKey, count: visibleCount + 3 });
+  };
 
   return (
     <section className="space-y-5">
@@ -143,7 +145,7 @@ export function DigestsPanel({
       </div>
 
       {historyItems.length > visibleHistoryItems.length ? (
-        <Button className="w-full" variant="outline" onClick={() => setVisibleCount((count) => count + 3)}>
+        <Button className="w-full" variant="outline" onClick={showMoreHistory}>
           查看更多往期期刊
         </Button>
       ) : null}

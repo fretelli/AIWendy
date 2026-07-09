@@ -56,17 +56,19 @@ export function PreferencesPanel({ profile, preferenceOptions, error, onReload }
   };
 
   useEffect(() => {
-    if (!profile) return;
-    setNickname(profile.nickname || "");
-    setIndustries((profile.onboarding_profile?.industries?.length ? profile.onboarding_profile.industries : profile.preferences.industries).join("、"));
-    setOccupation(profile.onboarding_profile?.occupation || "");
-    setThemes(profile.preferences.themes.join("、"));
-    setUpdateFrequency(profile.preferences.update_frequency || "每周");
-    setLanguagePreference(profile.preferences.language_preference || "");
-    setKeywords(profile.preferences.custom_keywords.join("、"));
-    setCustomPrompt(profile.preferences.custom_prompt || "");
-    setDeliveryEnabled(profile.delivery.enabled);
-    setSubscriptionStatus(profile.delivery.subscription_status || "unknown");
+    queueMicrotask(() => {
+      if (!profile) return;
+      setNickname(profile.nickname || "");
+      setIndustries((profile.onboarding_profile?.industries?.length ? profile.onboarding_profile.industries : profile.preferences.industries).join("、"));
+      setOccupation(profile.onboarding_profile?.occupation || "");
+      setThemes(profile.preferences.themes.join("、"));
+      setUpdateFrequency(profile.preferences.update_frequency || "每周");
+      setLanguagePreference(profile.preferences.language_preference || "");
+      setKeywords(profile.preferences.custom_keywords.join("、"));
+      setCustomPrompt(profile.preferences.custom_prompt || "");
+      setDeliveryEnabled(profile.delivery.enabled);
+      setSubscriptionStatus(profile.delivery.subscription_status || "unknown");
+    });
   }, [profile]);
 
   function patchTagField(type: PreferenceTagType, value: string, action: "add" | "remove") {

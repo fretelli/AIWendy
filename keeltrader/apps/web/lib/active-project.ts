@@ -23,8 +23,10 @@ export function useActiveProjectId() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    setProjectIdState(getActiveProjectId())
-    setReady(true)
+    queueMicrotask(() => {
+      setProjectIdState(getActiveProjectId())
+      setReady(true)
+    })
   }, [])
 
   const setProjectId = useCallback((next: string | null) => {
@@ -34,4 +36,3 @@ export function useActiveProjectId() {
 
   return { projectId, setProjectId, ready }
 }
-

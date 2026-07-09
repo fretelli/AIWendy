@@ -43,7 +43,9 @@ export default function LoginPage() {
     const pendingInvite = savePendingInviteFromParams(params, 'auth_login', 'auth_login')
     if (pendingInvite) {
       const latestInvite = getPendingInvite()
-      setInviteNotice(`已捕获邀请来源：${latestInvite?.invite_code || latestInvite?.inviter_user_id || '-'} · ${latestInvite?.source_type || 'auth_login'}`)
+      queueMicrotask(() => {
+        setInviteNotice(`已捕获邀请来源：${latestInvite?.invite_code || latestInvite?.inviter_user_id || '-'} · ${latestInvite?.source_type || 'auth_login'}`)
+      })
     }
   }, [searchParams])
 
