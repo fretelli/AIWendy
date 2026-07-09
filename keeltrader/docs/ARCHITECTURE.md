@@ -29,11 +29,11 @@ FastAPI (apps/api)                │
 
 ## 核心业务模块
 
-- Projects：项目分组与数据隔离（前后端均支持按 `project_id` 过滤）
+- AgentOS：每日投研简报、深度研究 memo、决策日志、周度复盘、经验 lessons、策略假设与回测记录
+- Report KB：通过 report-kb 接入研报语义搜索，返回结构化研报命中结果供 AgentOS 使用
+- Tushare Read：读取外部 Tushare 数据库表，应用内不要求配置 Tushare token
 - Chat：SSE 流式对话，会话/消息持久化
-- Knowledge Base：文档导入、向量化、检索；聊天可选择注入检索结果（RAG）
-- Trading Log：交易日志 CRUD + 统计 + AI 分析
-- Reports：日报/周报/月报生成、列表/详情、定时设置（可走异步任务）
+- Settings/Auth：用户认证、登录保护、模型和连接配置
 
 ## 数据与异步任务
 
@@ -51,10 +51,11 @@ FastAPI (apps/api)                │
 2. API 生成/续写消息并以 SSE 分块返回
 3. 同步写入会话与消息记录，便于历史回溯
 
-### 知识库检索（RAG）
+### 研报知识库检索
 
-1. 文档导入：分段 → 生成向量 → 写入 pgvector
-2. 对话时：对用户输入向量化 → 相似检索 → 将命中文本拼入 prompt → 生成回答
+1. Web/API 提交查询、公司筛选和 top_k
+2. API 通过 report-kb 服务执行语义检索
+3. 结构化命中返回给 AgentOS，用于投研 memo、简报或人工判断
 
 ---
 
@@ -87,11 +88,11 @@ FastAPI (apps/api)                │
 
 ### Core business modules
 
-- Projects: project grouping and data isolation (`project_id` filtering supported end-to-end)
+- AgentOS: daily research briefs, deep research memos, decision journals, weekly reviews, lessons, strategy hypotheses, and backtest records
+- Report KB: integrates with report-kb for semantic research-report search and structured hits
+- Tushare Read: reads from an external Tushare database; no in-app Tushare token is required
 - Chat: SSE streaming chat, persisted sessions/messages
-- Knowledge Base: document import, embedding, retrieval; chat can inject retrieval results into prompts (RAG)
-- Trading Log: CRUD + stats + AI analysis
-- Reports: daily/weekly/monthly generation, list/detail, scheduling (can run via async tasks)
+- Settings/Auth: user authentication, login protection, model settings, and connection configuration
 
 ### Data & async jobs
 
@@ -109,8 +110,8 @@ FastAPI (apps/api)                │
 2. API generates/continues content and streams chunks via SSE
 3. Sessions and messages are stored for history
 
-#### Knowledge retrieval (RAG)
+#### Report knowledge-base search
 
-1. Import: chunk → embed → write to pgvector
-2. During chat: embed user input → similarity search → inject matched text into prompt → generate response
-
+1. Web/API submits query, company filters, and top_k
+2. API calls report-kb for semantic search
+3. Structured hits are returned to AgentOS for research memos, briefs, or human review
