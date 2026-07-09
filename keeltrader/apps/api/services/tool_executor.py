@@ -94,48 +94,6 @@ async def _call_replay_my_trades(session: AsyncSession, user_id: UUID, args: dic
     return await replay_my_trades(session, user_id, **args)
 
 
-async def _call_get_character(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
-    from tools.rpg_tools import get_character
-
-    return await get_character(session, user_id, **args)
-
-
-async def _call_get_achievements(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
-    from tools.rpg_tools import get_achievements_tool
-
-    return await get_achievements_tool(session, user_id, **args)
-
-
-async def _call_start_quest(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
-    from tools.rpg_tools import start_quest_tool
-
-    return await start_quest_tool(session, user_id, **args)
-
-
-async def _call_check_quest_progress(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
-    from tools.rpg_tools import check_quest_progress_tool
-
-    return await check_quest_progress_tool(session, user_id, **args)
-
-
-async def _call_get_leaderboard(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
-    from tools.rpg_tools import get_leaderboard_tool
-
-    return await get_leaderboard_tool(session, user_id, **args)
-
-
-async def _call_generate_trading_card(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
-    from tools.rpg_tools import generate_trading_card
-
-    return await generate_trading_card(session, user_id, **args)
-
-
-async def _call_sync_trades(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
-    from tools.rpg_tools import sync_trades_tool
-
-    return await sync_trades_tool(session, user_id, **args)
-
-
 async def _call_run_daily_brief(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
     from services.agentos.service import AgentOSService
 
@@ -237,13 +195,6 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "generate_chart": _call_generate_chart,
     "backtest_strategy": _call_backtest_strategy,
     "replay_my_trades": _call_replay_my_trades,
-    "get_character": _call_get_character,
-    "get_achievements": _call_get_achievements,
-    "start_quest": _call_start_quest,
-    "check_quest_progress": _call_check_quest_progress,
-    "get_leaderboard": _call_get_leaderboard,
-    "generate_trading_card": _call_generate_trading_card,
-    "sync_trades": _call_sync_trades,
     "run_daily_brief": _call_run_daily_brief,
     "deep_research": _call_deep_research,
     "record_investment_decision": _call_record_investment_decision,

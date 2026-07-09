@@ -169,63 +169,6 @@ TOOL_DEFINITIONS = [
             },
         },
     },
-    # RPG tools
-    {
-        "name": "get_character",
-        "description": "Get your RPG trading character (level, rank, attributes)",
-        "parameters": {"type": "object", "properties": {}},
-    },
-    {
-        "name": "get_achievements",
-        "description": "Get achievements list (unlocked and locked)",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "category": {"type": "string", "description": "Filter by category: trading/discipline/milestones/streaks"},
-            },
-        },
-    },
-    {
-        "name": "start_quest",
-        "description": "Start a quest by ID",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "quest_id": {"type": "string", "description": "Quest ID to start"},
-            },
-            "required": ["quest_id"],
-        },
-    },
-    {
-        "name": "check_quest_progress",
-        "description": "Check progress on active quests",
-        "parameters": {"type": "object", "properties": {}},
-    },
-    {
-        "name": "get_leaderboard",
-        "description": "Get the trading leaderboard",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "period": {"type": "string", "description": "Period: weekly/monthly", "default": "weekly"},
-            },
-        },
-    },
-    {
-        "name": "generate_trading_card",
-        "description": "Generate a shareable trading card (character or weekly stats)",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "card_type": {"type": "string", "description": "Card type: character/weekly", "default": "character"},
-            },
-        },
-    },
-    {
-        "name": "sync_trades",
-        "description": "Sync trades and recalculate RPG character attributes",
-        "parameters": {"type": "object", "properties": {}},
-    },
     # AgentOS tools
     {
         "name": "run_daily_brief",

@@ -7,18 +7,14 @@ Tasks:
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 from typing import Optional
 
 from config import get_settings
-from core.database import get_db_context
 from core.logging import get_logger
 
 logger = get_logger(__name__)
 settings = get_settings()
-
-# Beijing timezone offset
-CST = timezone(timedelta(hours=8))
 
 _scheduler_task: Optional[asyncio.Task] = None
 _trade_sync_task: Optional[asyncio.Task] = None
@@ -48,7 +44,6 @@ async def stop_scheduler():
 async def _scheduler_loop():
     """Main scheduler loop."""
     last_trade_sync_at: datetime | None = None
-    last_rpg_refresh = None
     trade_sync_enabled = settings.trade_sync_enabled
     trade_sync_interval = max(10, settings.trade_sync_interval_seconds)
 
@@ -57,9 +52,6 @@ async def _scheduler_loop():
 
     while True:
         try:
-            now_cst = datetime.now(CST)
-            today = now_cst.date()
-
             if trade_sync_enabled:
                 now_utc = datetime.utcnow()
                 due = _trade_sync_due(last_trade_sync_at, now_utc, trade_sync_interval)
@@ -67,16 +59,6 @@ async def _scheduler_loop():
                     scheduled = _schedule_trade_sync()
                     if scheduled:
                         last_trade_sync_at = now_utc
-
-            # Daily 00:05 RPG refresh (recalculate attributes, refresh quests, update leaderboard)
-            if (
-                now_cst.hour == 0
-                and now_cst.minute >= 5
-                and now_cst.minute < 10
-                and last_rpg_refresh != today
-            ):
-                last_rpg_refresh = today
-                asyncio.create_task(_run_rpg_daily_refresh())
 
             await asyncio.sleep(10)
 
@@ -122,32 +104,3 @@ def _trade_sync_due(last_run_at: datetime | None, now: datetime, interval_second
     if last_run_at is None:
         return True
     return (now - last_run_at).total_seconds() >= interval_seconds
-
-
-async def _run_rpg_daily_refresh():
-    """Daily RPG refresh: recalculate character attributes, refresh quests, update leaderboard."""
-    logger.info("rpg_daily_refresh_start")
-    try:
-        from sqlalchemy import select
-        from domain.user.models import User
-
-        async with get_db_context() as session:
-            result = await session.execute(
-                select(User).where(User.is_active == True)
-            )
-            users = result.scalars().all()
-
-            for user in users:
-                try:
-                    from domain.rpg.engine import recalculate_character, refresh_daily_quests, update_leaderboard
-                    await recalculate_character(session, user.id)
-                    await refresh_daily_quests(session, user.id)
-                    await update_leaderboard(session, user.id)
-                except Exception as e:
-                    logger.error("rpg_refresh_user_failed", user_id=str(user.id), error=str(e))
-
-            await session.commit()
-            logger.info("rpg_daily_refresh_done", users=len(users))
-
-    except Exception as e:
-        logger.error("rpg_daily_refresh_failed", error=str(e))

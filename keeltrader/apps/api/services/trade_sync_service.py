@@ -354,5 +354,5 @@ class TradeSyncService:
         self.db.commit()
 
     def _detect_and_store_patterns(self, user_id) -> int:
-        # ML pattern detection removed in RPG overhaul (Phase 0)
+        # ML pattern detection is currently disabled.
         return 0
