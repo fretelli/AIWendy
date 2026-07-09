@@ -49,18 +49,25 @@ if _MINIFLUX_ENV.exists():
             _k, _, _v = _line.partition("=")
             os.environ.setdefault(_k.strip(), _v.strip())
 
-MINIFLUX_API_URL = os.environ["MINIFLUX_API_URL"]
-MINIFLUX_API_KEY = os.environ["MINIFLUX_API_KEY"]
+def _required_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
 
-LLM_API_BASE = os.environ.get("LLM_API_BASE", "https://llm-gateway.example.com/v1")
-LLM_API_KEY  = os.environ.get("LLM_API_KEY",  "REMOVED_LLM_API_KEY")
+
+MINIFLUX_API_URL = _required_env("MINIFLUX_API_URL")
+MINIFLUX_API_KEY = _required_env("MINIFLUX_API_KEY")
+
+LLM_API_BASE = _required_env("LLM_API_BASE")
+LLM_API_KEY  = _required_env("LLM_API_KEY")
 LLM_MODEL    = os.environ.get("LLM_MODEL",    "deepseek-v3.2")
 
-FEISHU_WEBHOOK_URL    = os.environ["FEISHU_WEBHOOK_URL"]
-FEISHU_WEBHOOK_SECRET = os.environ["FEISHU_WEBHOOK_SECRET"]
+FEISHU_WEBHOOK_URL    = _required_env("FEISHU_WEBHOOK_URL")
+FEISHU_WEBHOOK_SECRET = _required_env("FEISHU_WEBHOOK_SECRET")
 
-FLUX_API_URL            = "https://flux-api.example.com/v1/images/generations"
-FLUX_HEALTH_URL         = "https://flux-api.example.com/health"
+FLUX_API_URL            = _required_env("FLUX_API_URL")
+FLUX_HEALTH_URL         = _required_env("FLUX_HEALTH_URL")
 FEISHU_IMAGE_UPLOAD_URL = "http://127.0.0.1:18081/image/upload"
 
 LOG_FILE = "/var/log/keeltrader-digest.log"
