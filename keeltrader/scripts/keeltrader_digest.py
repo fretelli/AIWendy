@@ -66,8 +66,8 @@ LLM_MODEL    = os.environ.get("LLM_MODEL",    "deepseek-v3.2")
 FEISHU_WEBHOOK_URL    = _required_env("FEISHU_WEBHOOK_URL")
 FEISHU_WEBHOOK_SECRET = _required_env("FEISHU_WEBHOOK_SECRET")
 
-FLUX_API_URL            = _required_env("FLUX_API_URL")
-FLUX_HEALTH_URL         = _required_env("FLUX_HEALTH_URL")
+FLUX_API_URL            = os.environ.get("FLUX_API_URL", "").strip()
+FLUX_HEALTH_URL         = os.environ.get("FLUX_HEALTH_URL", "").strip()
 FEISHU_IMAGE_UPLOAD_URL = "http://127.0.0.1:18081/image/upload"
 
 LOG_FILE = "/var/log/keeltrader-digest.log"
@@ -662,6 +662,9 @@ def _switch_gpu(mode: str) -> bool:
 
 
 def _wait_flux(max_wait: int = 90) -> bool:
+    if not FLUX_HEALTH_URL:
+        logger.info("FLUX_HEALTH_URL 未配置，跳过封面生成")
+        return False
     for _ in range(max_wait // 5):
         try:
             if requests.get(FLUX_HEALTH_URL, timeout=5).status_code == 200:
@@ -673,6 +676,9 @@ def _wait_flux(max_wait: int = 90) -> bool:
 
 
 def _generate_cover(title: str, body: str, style_mode: str) -> str | None:
+    if not FLUX_API_URL or not FLUX_HEALTH_URL:
+        logger.info("FLUX_API_URL/FLUX_HEALTH_URL 未配置，跳过封面生成")
+        return None
     try:
         img_prompt = _generate_image_prompt(title, body, style_mode)
         if not _switch_gpu("creative"):
