@@ -27,6 +27,7 @@ jobs:
       - run: npm ci
         working-directory: keeltrader/apps/web
       - run: make check-security-defaults
+      - run: make audit-root
       - run: make check-web
       - run: make audit-web
       - run: npm run build
