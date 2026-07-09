@@ -70,7 +70,7 @@ FLUX_API_URL            = os.environ.get("FLUX_API_URL", "").strip()
 FLUX_HEALTH_URL         = os.environ.get("FLUX_HEALTH_URL", "").strip()
 FEISHU_IMAGE_UPLOAD_URL = "http://127.0.0.1:18081/image/upload"
 
-LOG_FILE = "/var/log/keeltrader-digest.log"
+LOG_FILE = os.environ.get("KEELTRADER_DIGEST_LOG_FILE", "/var/log/keeltrader-digest.log")
 SEEN_STATE_FILE = Path(os.environ.get(
     "KEELTRADER_DIGEST_SEEN_FILE",
     "/root/.cache/keeltrader-digest-seen.json",
@@ -90,13 +90,16 @@ MINIFLUX_RETRIES = max(1, int(os.environ.get("KEELTRADER_DIGEST_MINIFLUX_RETRIES
 MINIFLUX_RETRY_BACKOFF_SECONDS = float(os.environ.get("KEELTRADER_DIGEST_MINIFLUX_RETRY_BACKOFF_SECONDS", "2"))
 
 
+_log_handlers: list[logging.Handler] = [logging.StreamHandler(sys.stdout)]
+try:
+    _log_handlers.append(logging.FileHandler(LOG_FILE, encoding="utf-8"))
+except OSError as exc:
+    print(f"WARNING: failed to open log file {LOG_FILE}: {exc}", file=sys.stderr)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler(LOG_FILE, encoding="utf-8"),
-    ],
+    handlers=_log_handlers,
 )
 logger = logging.getLogger(__name__)
 
