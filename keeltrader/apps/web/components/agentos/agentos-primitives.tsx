@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import type { AgentOSHealth, ResearchReportHit } from '@/lib/api/agentos'
 import { formatDate } from '@/lib/agentos/format'
+import { useI18n } from '@/lib/i18n/provider'
 
 export function Stat({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
@@ -38,18 +39,19 @@ export function Section({ title, value }: { title: string; value?: string | null
 }
 
 export function StatusBadges({ health }: { health: AgentOSHealth | null }) {
+  const { t } = useI18n()
   const ok = health?.status === 'ok'
   const engineStatus = typeof health?.engine?.status === 'string' ? health.engine.status : 'unknown'
   const reportKbReachable = health?.report_kb?.reachable === true
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Badge variant={ok ? 'default' : 'destructive'}>{ok ? 'API OK' : 'API Down'}</Badge>
-      <Badge variant={engineStatus === 'running' ? 'secondary' : 'outline'}>Engine {engineStatus}</Badge>
+      <Badge variant={ok ? 'default' : 'destructive'}>{ok ? t('agentos.status.apiOk') : t('agentos.status.apiDown')}</Badge>
+      <Badge variant={engineStatus === 'running' ? 'secondary' : 'outline'}>{t('agentos.status.engine')} {engineStatus}</Badge>
       <Badge variant={reportKbReachable ? 'secondary' : 'outline'}>
-        Report KB {reportKbReachable ? 'OK' : 'off'}
+        {t('agentos.status.reportKb')} {reportKbReachable ? t('agentos.status.ok') : t('agentos.status.off')}
       </Badge>
-      <Badge variant="outline">No Tushare token</Badge>
+      <Badge variant="outline">{t('agentos.status.noTushareToken')}</Badge>
     </div>
   )
 }
@@ -64,8 +66,10 @@ export function RiskNotice({ risks }: { risks: string[] }) {
 }
 
 export function ReportList({ reports, compact = false }: { reports: ResearchReportHit[]; compact?: boolean }) {
+  const { t } = useI18n()
+
   if (!reports?.length) {
-    return compact ? null : <EmptyState title="No related reports." />
+    return compact ? null : <EmptyState title={t('agentos.empty.relatedReports')} />
   }
 
   return (
@@ -73,12 +77,12 @@ export function ReportList({ reports, compact = false }: { reports: ResearchRepo
       {reports.slice(0, compact ? 3 : 8).map((item, index) => (
         <div key={`${item.report_id || index}-${item.section_id || index}`} className="rounded-md border p-3 text-sm">
           <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-            <div className="font-medium">{item.title || 'Untitled report'}</div>
+            <div className="font-medium">{item.title || t('agentos.reports.untitled')}</div>
             <div className="text-xs text-muted-foreground">{formatDate(item.report_date)}</div>
           </div>
           <div className="mt-1 flex flex-wrap gap-2 text-xs text-muted-foreground">
             {item.broker ? <span>{item.broker}</span> : null}
-            {typeof item.score === 'number' ? <span>score {item.score.toFixed(3)}</span> : null}
+            {typeof item.score === 'number' ? <span>{t('agentos.reports.score')} {item.score.toFixed(3)}</span> : null}
             {item.report_id ? <span>{item.report_id.slice(0, 8)}</span> : null}
           </div>
           {!compact && item.excerpt ? (

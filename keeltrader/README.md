@@ -40,6 +40,14 @@ docker compose exec -T api alembic upgrade head
 - [部署与发布](docs/DEPLOYMENT.md)
 - [自定义 LLM / OpenAI 兼容 API](docs/CUSTOM_API_SETUP.md)
 
+## GitHub 展示同步
+
+`README.md` 会随默认分支 push 自动更新。GitHub 右侧 About 栏是仓库元数据，不会自动读取 README；如需同步 description/topics，请在已登录 GitHub CLI 的环境运行：
+
+```bash
+scripts/sync-github-about.sh
+```
+
 ## 风险提示
 
 KeelTrader 不构成投资建议，也不保证跑赢市场。LLM 可能产生幻觉、遗漏上下文或误读数据；回测也可能存在过拟合、幸存者偏差和数据泄漏。请把它作为投研效率、决策一致性和复盘纪律工具，而不是自动交易或收益承诺系统。
@@ -85,6 +93,14 @@ Further reading:
 - [Architecture](docs/ARCHITECTURE.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [Custom LLM / OpenAI-compatible APIs](docs/CUSTOM_API_SETUP.md)
+
+## GitHub Display Sync
+
+`README.md` updates automatically when the default branch is pushed. The GitHub About sidebar is repository metadata and does not read from the README automatically. To sync description/topics, run this from an authenticated GitHub CLI environment:
+
+```bash
+scripts/sync-github-about.sh
+```
 
 ## Disclaimer
 

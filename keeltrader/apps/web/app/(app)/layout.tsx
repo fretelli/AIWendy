@@ -14,13 +14,14 @@ import {
   Menu,
   X,
 } from 'lucide-react';
+import { LanguageSwitcher, useI18n } from '@/lib/i18n/provider';
 
 const NAV_ITEMS = [
-  { href: '/agentos', icon: BrainCircuit, label: 'AgentOS' },
-  { href: '/research', icon: Newspaper, label: '研报' },
-  { href: '/chat', icon: MessageSquare, label: 'Chat' },
-  { href: '/settings', icon: Settings, label: 'Settings' },
-];
+  { href: '/agentos', icon: BrainCircuit, labelKey: 'nav.agentos' },
+  { href: '/research', icon: Newspaper, labelKey: 'nav.research' },
+  { href: '/chat', icon: MessageSquare, labelKey: 'nav.chat' },
+  { href: '/settings', icon: Settings, labelKey: 'nav.settings' },
+] as const;
 
 export default function AppLayout({
   children,
@@ -30,6 +31,7 @@ export default function AppLayout({
   const router = useRouter();
   const pathname = usePathname();
   const { user, isLoading, logout } = useAuth();
+  const { t } = useI18n();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -81,17 +83,20 @@ export default function AppLayout({
                   className="gap-2"
                 >
                   <Icon className="h-4 w-4" />
-                  {item.label}
+                  {t(item.labelKey)}
                 </Button>
               </Link>
             );
           })}
         </nav>
 
-        <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
-          <LogOut className="h-4 w-4" />
-          <span className="hidden md:inline">Logout</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher className="hidden md:block" />
+          <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2">
+            <LogOut className="h-4 w-4" />
+            <span className="hidden md:inline">{t('common.logout')}</span>
+          </Button>
+        </div>
       </header>
 
       {/* Mobile menu */}
@@ -107,11 +112,14 @@ export default function AppLayout({
                   className="w-full justify-start gap-2"
                 >
                   <Icon className="h-4 w-4" />
-                  {item.label}
+                  {t(item.labelKey)}
                 </Button>
               </Link>
             );
           })}
+          <div className="px-2 pt-2">
+            <LanguageSwitcher className="w-full" />
+          </div>
         </div>
       )}
 

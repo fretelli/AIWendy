@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "KeelTrader",
-    "tagline": "您的AI交易心理教练",
+    "tagline": "投资研究 AgentOS",
     "loading": "加载中...",
     "error": "错误",
     "success": "成功",
@@ -50,6 +50,8 @@
     "journal": "交易日志",
     "analysis": "分析",
     "reports": "报告",
+    "agentos": "AgentOS",
+    "research": "研报",
     "coaches": "AI教练",
     "chat": "聊天",
     "roundtable": "圆桌讨论",
@@ -1004,8 +1006,8 @@
       "zhShort": "中文"
     },
     "hero": {
-      "title": "AI 交易心理教练",
-      "subtitle": "像《Billions》里的 Wendy Rhodes 一样，帮助你保持冷静、提升一致性与交易表现。",
+      "title": "投资研究 AgentOS",
+      "subtitle": "研究辅助、决策纪律、研报知识库搜索和带护栏的策略实验。",
       "cta": {
         "startFree": "免费开始",
         "signIn": "登录",
@@ -1075,7 +1077,12 @@
         "submit": "登录",
         "forgot": "忘记密码？",
         "noAccount": "没有账号？注册",
-        "error": "登录失败，请重试。"
+        "error": "登录失败，请重试。",
+        "checking": "正在检查账号状态...",
+        "alreadySignedIn": "已登录。提交后会进入 AgentOS，或回到刚才请求的页面。",
+        "inviteCaptured": "已捕获邀请来源：{source} · {type}",
+        "protectedNotice": "登录后才能访问 AgentOS、研报中心、Chat、设置和其它业务页面。",
+        "researchNotice": "研报反馈和请求会写入 research 后台，管理员能在同一处看到并处理。"
       },
       "register": {
         "title": "创建账号",
@@ -1175,11 +1182,107 @@
       "chat": "代理对话"
     }
   },
+  "agentos": {
+    "subtitle": "研究辅助、决策纪律和带护栏的策略实验。",
+    "stats": {
+      "briefs": "简报",
+      "researchMemos": "研究备忘录",
+      "decisions": "决策",
+      "approvedLessons": "已批准经验"
+    },
+    "tabs": {
+      "briefs": "简报",
+      "research": "研究实验室",
+      "decisions": "决策",
+      "reviews": "复盘",
+      "strategy": "策略实验室",
+      "memory": "记忆"
+    },
+    "status": {
+      "apiOk": "API 正常",
+      "apiDown": "API 异常",
+      "engine": "引擎",
+      "reportKb": "研报库",
+      "ok": "正常",
+      "off": "离线",
+      "noTushareToken": "无需 Tushare token"
+    },
+    "briefs": {
+      "runTitle": "生成每日简报",
+      "generate": "生成",
+      "close": "收盘",
+      "change": "涨跌幅",
+      "reports": "研报",
+      "latest": "最新"
+    },
+    "research": {
+      "deepTitle": "深度研究",
+      "run": "运行",
+      "reportSearchTitle": "研报知识库搜索",
+      "searchReports": "搜索研报",
+      "thesis": "投资论点",
+      "bullCase": "看多观点",
+      "bearCase": "看空观点",
+      "redTeam": "红队质疑",
+      "riskView": "风险视角",
+      "analystViews": "分析师视角",
+      "relatedReports": "相关研报"
+    },
+    "decisions": {
+      "recordTitle": "记录决策",
+      "symbol": "标的代码",
+      "actionPlaceholder": "watch/buy/sell/hold",
+      "confidence": "置信度",
+      "humanDecisionPlaceholder": "pending/accepted/rejected",
+      "thesisPlaceholder": "决策理由",
+      "humanReason": "人工判断理由",
+      "save": "保存决策"
+    },
+    "reviews": {
+      "run": "运行周度复盘",
+      "approve": "批准"
+    },
+    "strategy": {
+      "hypothesisTitle": "策略假设",
+      "hypothesisName": "假设名称",
+      "testableHypothesis": "可检验假设",
+      "rationale": "经济学理由",
+      "assetUniverse": "资产范围",
+      "createHypothesis": "创建假设",
+      "backtestTitle": "带护栏回测",
+      "noHypothesis": "不关联假设",
+      "runMa": "运行 MA 20/60",
+      "passedGate": "通过门槛",
+      "notPassed": "未通过",
+      "trades": "交易数",
+      "returnPct": "收益率 %",
+      "maxDdPct": "最大回撤 %",
+      "sharpe": "夏普",
+      "dsrProxy": "DSR 代理",
+      "dsrNotice": "DSR Proxy 使用 conservative_proxy_v1，只是研究护栏，不是部署或交易信号。"
+    },
+    "memory": {
+      "approved": "已批准"
+    },
+    "reports": {
+      "untitled": "未命名研报",
+      "score": "得分"
+    },
+    "empty": {
+      "briefs": "暂无简报。",
+      "research": "暂无研究备忘录。",
+      "decisions": "暂无决策。",
+      "pendingLessons": "暂无待批准经验。",
+      "backtests": "暂无回测。",
+      "approvedLessons": "暂无已批准经验。",
+      "relatedReports": "暂无相关研报。"
+    }
+  },
   "meta": {
-    "title": "KeelTrader - 您的AI交易心理教练",
-    "description": "KeelTrader 是一个AI驱动的交易心理辅导平台，帮助交易者克服情绪障碍，提升交易表现。",
-    "keywords": "交易心理,AI教练,交易日志,风险管理,量化交易,交易分析",
-    "ogTitle": "KeelTrader - AI交易心理教练",
-    "ogDescription": "使用AI技术提升您的交易心理和表现"
+    "title": "KeelTrader - 投资研究 AgentOS",
+    "description": "KeelTrader 是一个自进化投资研究 AgentOS，支持人类参与的投研简报、研报知识库搜索、决策日志、复盘和回测工作流。",
+    "keywords": "投资研究,AgentOS,金融AI,决策日志,研报搜索,多智能体,回测,人机协作",
+    "ogTitle": "KeelTrader - 投资研究 AgentOS",
+    "ogDescription": "研究辅助、决策纪律、研报知识库搜索和带护栏的策略实验。"
   }
 }
