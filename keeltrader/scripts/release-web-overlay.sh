@@ -10,7 +10,7 @@ init_release_metadata "$ROOT_DIR"
 WEB_DIR="$ROOT_DIR/apps/web"
 BASE_URL="${KEELTRADER_SMOKE_BASE_URL:-https://keeltrader.joyeeassets.com}"
 OVERLAY_BASE_IMAGE="${KEELTRADER_WEB_OVERLAY_BASE_IMAGE:-}"
-NPM_REGISTRY="${KEELTRADER_NPM_REGISTRY:-https://registry.npmjs.org/}"
+NPM_REGISTRY="${KEELTRADER_NPM_REGISTRY:-https://registry.npmmirror.com/}"
 REQUIRE_AUTH_SMOKE="${KEELTRADER_REQUIRE_AUTH_SMOKE:-0}"
 DEFAULT_BASE_IMAGE="keeltrader-web:base"
 FALLBACK_BASE_IMAGE="keeltrader-web:latest"
@@ -44,7 +44,7 @@ Environment:
   KEELTRADER_RELEASE_ENV_FILE     Optional env file for release-only secrets. Default: .env.release.local when present.
   KEELTRADER_SMOKE_ATTEMPTS       Smoke attempts per check. Default: 12
   KEELTRADER_SMOKE_DELAY_SECONDS  Delay between smoke attempts. Default: 2
-  KEELTRADER_NPM_REGISTRY         npm registry used for full/base Docker builds. Default: https://registry.npmjs.org/
+  KEELTRADER_NPM_REGISTRY         npm registry used for full/base Docker builds. Default: https://registry.npmmirror.com/
   KEELTRADER_WEB_OVERLAY_BASE_IMAGE  Explicit base image for overlay builds. Default: use keeltrader-web:base, fall back to keeltrader-web:latest.
 USAGE
 }
