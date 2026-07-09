@@ -418,7 +418,6 @@
     "specialties": {
       "emotional-support": "Emotional Support",
       "risk-management": "Risk Management",
-      "technical-analysis": "Technical Analysis",
       "motivation": "Motivation",
       "self-discovery": "Self-Discovery",
       "psychology": "Trading Psychology",
@@ -1243,23 +1242,32 @@
       "approve": "Approve"
     },
     "strategy": {
-      "hypothesisTitle": "Strategy Hypothesis",
+      "hypothesisTitle": "Fundamental Hypothesis",
       "hypothesisName": "Hypothesis name",
       "testableHypothesis": "Testable hypothesis",
       "rationale": "Economic rationale",
       "assetUniverse": "Asset universe",
       "createHypothesis": "Create Hypothesis",
-      "backtestTitle": "Guarded Backtest",
+      "validationTitle": "Fundamental Validation",
       "noHypothesis": "No hypothesis",
-      "runMa": "Run MA 20/60",
+      "observe": "Observe",
+      "supported": "Supported",
+      "rejected": "Rejected",
+      "revise": "Revise",
+      "evidencePlaceholder": "One fundamental evidence item per line, for example: revenue growth improved, gross margin stable, consensus estimates revised upward",
+      "risksPlaceholder": "One fundamental risk per line, for example: valuation stretched, industry demand slowing, cash-flow quality weakening",
+      "validationNotes": "Validation notes",
+      "recordValidation": "Record Validation",
+      "fundamentalValidation": "Fundamental validation",
+      "hypothesisList": "Hypothesis Library",
       "passedGate": "Passed Gate",
       "notPassed": "Not Passed",
-      "trades": "Trades",
-      "returnPct": "Return %",
-      "maxDdPct": "Max DD %",
-      "sharpe": "Sharpe",
-      "dsrProxy": "DSR Proxy",
-      "dsrNotice": "DSR Proxy uses conservative_proxy_v1 and is a research-only guardrail, not a deployment or trading signal."
+      "conclusion": "Conclusion",
+      "evidenceCount": "Evidence",
+      "riskCount": "Risks",
+      "hasFinancials": "Financials",
+      "priceContext": "Price Context",
+      "validationNotice": "This is a fundamental research record only. It does not generate chart simulations, trading signals, or automatic orders."
     },
     "memory": {
       "approved": "Approved"
@@ -1273,15 +1281,15 @@
       "research": "No research memos yet.",
       "decisions": "No decisions yet.",
       "pendingLessons": "No pending lessons.",
-      "backtests": "No backtests yet.",
+      "validations": "No fundamental validations yet.",
       "approvedLessons": "No approved lessons yet.",
       "relatedReports": "No related reports."
     }
   },
   "meta": {
     "title": "KeelTrader - Investment Research AgentOS",
-    "description": "KeelTrader is a self-evolving investment research AgentOS for human-in-the-loop research briefs, report-KB search, decision journals, reviews, and backtesting workflows.",
-    "keywords": "investment research,AgentOS,financial AI,decision journal,report search,multi-agent,backtesting,human in the loop",
+    "description": "KeelTrader is a self-evolving investment research AgentOS for human-in-the-loop fundamental briefs, report-KB search, decision journals, reviews, and thesis validation workflows.",
+    "keywords": "investment research,AgentOS,financial AI,fundamental analysis,decision journal,report search,multi-agent,human in the loop",
     "ogTitle": "KeelTrader - Investment Research AgentOS",
     "ogDescription": "Research support, decision discipline, report-KB search, and guarded strategy experiments."
   }

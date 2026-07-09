@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import {
   agentosApi,
   type AgentOSHealth,
-  type BacktestRun,
+  type FundamentalValidation,
   type InvestmentBrief,
   type InvestmentDecision,
   type InvestmentMemo,
@@ -32,6 +32,14 @@ export type HypothesisFormState = {
   asset_universe: string
 }
 
+export type ValidationFormState = {
+  symbol: string
+  conclusion: string
+  evidence: string
+  risks: string
+  notes: string
+}
+
 export function useAgentOSDashboard() {
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
@@ -42,7 +50,7 @@ export function useAgentOSDashboard() {
   const [lessons, setLessons] = useState<ReviewLesson[]>([])
   const [memory, setMemory] = useState<ReviewLesson[]>([])
   const [hypotheses, setHypotheses] = useState<StrategyHypothesis[]>([])
-  const [backtests, setBacktests] = useState<BacktestRun[]>([])
+  const [validations, setValidations] = useState<FundamentalValidation[]>([])
   const [reportHits, setReportHits] = useState<ResearchReportHit[]>([])
 
   const [watchlist, setWatchlist] = useState('000001.SZ 600519.SH')
@@ -62,13 +70,19 @@ export function useAgentOSDashboard() {
     rationale: '',
     asset_universe: '000001.SZ',
   })
-  const [backtestSymbol, setBacktestSymbol] = useState('000001.SZ')
+  const [validationForm, setValidationForm] = useState<ValidationFormState>({
+    symbol: '000001.SZ',
+    conclusion: 'observe',
+    evidence: '',
+    risks: '',
+    notes: '',
+  })
   const [selectedHypothesisId, setSelectedHypothesisId] = useState('')
 
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const [h, b, r, d, l, m, hyp, bt] = await Promise.all([
+      const [h, b, r, d, l, m, hyp, validationResult] = await Promise.all([
         agentosApi.health(),
         agentosApi.listBriefs(),
         agentosApi.listResearch(),
@@ -76,7 +90,7 @@ export function useAgentOSDashboard() {
         agentosApi.listLessons(false),
         agentosApi.listLessons(true),
         agentosApi.listHypotheses(),
-        agentosApi.listBacktests(),
+        agentosApi.listValidations(),
       ])
       setHealth(h)
       setBriefs(b.briefs || [])
@@ -85,7 +99,7 @@ export function useAgentOSDashboard() {
       setLessons(l.lessons || [])
       setMemory(m.lessons || [])
       setHypotheses(hyp.hypotheses || [])
-      setBacktests(bt.backtests || [])
+      setValidations(validationResult.validations || [])
     } catch (error) {
       toast.error(errorMessage(error, 'Failed to load AgentOS'))
     } finally {
@@ -213,23 +227,32 @@ export function useAgentOSDashboard() {
     }
   }, [hypothesisForm, refresh])
 
-  const runBacktest = useCallback(async () => {
-    setBusy('backtest')
+  const recordValidation = useCallback(async () => {
+    if (!validationForm.symbol.trim()) {
+      toast.error('Symbol is required')
+      return
+    }
+    setBusy('validation')
     try {
-      await agentosApi.runBacktest({
-        symbol: backtestSymbol,
-        strategy: 'ma_crossover',
-        params: { fast_period: 20, slow_period: 60 },
+      await agentosApi.runValidation({
+        symbol: validationForm.symbol,
+        strategy: 'fundamental_validation',
+        params: {
+          conclusion: validationForm.conclusion || 'observe',
+          evidence: splitLines(validationForm.evidence),
+          risks: splitLines(validationForm.risks),
+          notes: validationForm.notes,
+        },
         hypothesis_id: selectedHypothesisId || null,
       })
-      toast.success('Backtest recorded')
+      toast.success('Fundamental validation recorded')
       await refresh()
     } catch (error) {
       toast.error(errorMessage(error))
     } finally {
       setBusy(null)
     }
-  }, [backtestSymbol, refresh, selectedHypothesisId])
+  }, [refresh, selectedHypothesisId, validationForm])
 
   return {
     state: {
@@ -242,14 +265,14 @@ export function useAgentOSDashboard() {
       lessons,
       memory,
       hypotheses,
-      backtests,
+      validations,
       reportHits,
       watchlist,
       researchSymbol,
       reportQuery,
       decisionForm,
       hypothesisForm,
-      backtestSymbol,
+      validationForm,
       selectedHypothesisId,
     },
     actions: {
@@ -261,14 +284,21 @@ export function useAgentOSDashboard() {
       runReview,
       approveLesson,
       createHypothesis,
-      runBacktest,
+      recordValidation,
       setWatchlist,
       setResearchSymbol,
       setReportQuery,
       setDecisionForm,
       setHypothesisForm,
-      setBacktestSymbol,
+      setValidationForm,
       setSelectedHypothesisId,
     },
   }
+}
+
+function splitLines(value: string): string[] {
+  return value
+    .split('\n')
+    .map((item) => item.trim())
+    .filter(Boolean)
 }

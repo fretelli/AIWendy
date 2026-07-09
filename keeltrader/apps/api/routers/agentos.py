@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.auth import get_current_user
 from core.database import get_session
 from domain.agentos.models import (
-    BacktestRun,
+    FundamentalValidationRun,
     InvestmentBrief,
     InvestmentDecision,
     InvestmentMemo,
@@ -19,10 +19,10 @@ from domain.agentos.models import (
     StrategyHypothesis,
 )
 from domain.agentos.schemas import (
-    BacktestRunRequest,
     BriefRunRequest,
     DecisionCreateRequest,
     DecisionOutcomeRequest,
+    FundamentalValidationRequest,
     HypothesisCreateRequest,
     ReportSearchRequest,
     ResearchRunRequest,
@@ -280,37 +280,47 @@ async def list_hypotheses(
     return {"hypotheses": [model_dict(item) for item in result.scalars().all()]}
 
 
-@router.post("/strategy/backtests/run")
-async def run_backtest(
-    req: BacktestRunRequest,
-    user: User = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session),
+async def _record_fundamental_validation(
+    req: FundamentalValidationRequest,
+    user: User,
+    session: AsyncSession,
 ):
     svc = AgentOSService(session)
-    run = await svc.record_backtest(
+    run = await svc.record_validation(
         user.id,
         symbol=req.symbol,
-        strategy=req.strategy,
+        strategy=req.strategy or "fundamental_validation",
         params=req.params,
         hypothesis_id=req.hypothesis_id,
     )
-    return {"backtest": model_dict(run)}
+    return run
 
 
-@router.get("/strategy/backtests")
-async def list_backtests(
+@router.post("/strategy/validations/run")
+async def run_fundamental_validation(
+    req: FundamentalValidationRequest,
+    user: User = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    run = await _record_fundamental_validation(req, user, session)
+    return {"validation": model_dict(run)}
+
+
+@router.get("/strategy/validations")
+async def list_validations(
     limit: int = 50,
     user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
     limit = max(1, min(limit, 200))
     result = await session.execute(
-        select(BacktestRun)
-        .where(BacktestRun.user_id == user.id)
-        .order_by(desc(BacktestRun.created_at))
+        select(FundamentalValidationRun)
+        .where(FundamentalValidationRun.user_id == user.id)
+        .order_by(desc(FundamentalValidationRun.created_at))
         .limit(limit)
     )
-    return {"backtests": [model_dict(item) for item in result.scalars().all()]}
+    items = [model_dict(item) for item in result.scalars().all()]
+    return {"validations": items}
 
 
 @router.post("/tushare/query")

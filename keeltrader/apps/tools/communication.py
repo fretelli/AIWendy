@@ -166,7 +166,7 @@ async def delegate_to_agent(
     Used by Orchestrator to route tasks to specialized agents.
 
     Args:
-        agent_type: Target agent type (technical, sentiment, fundamental, guardian, executor)
+        agent_type: Target agent type (sentiment, fundamental, guardian, executor)
         context: Context/payload for the delegated task
         user_id: User ID for the task
         correlation_id: Correlation ID for event chain tracking

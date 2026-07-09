@@ -29,7 +29,7 @@ FastAPI (apps/api)                │
 
 ## 核心业务模块
 
-- AgentOS：每日投研简报、深度研究 memo、决策日志、周度复盘、经验 lessons、策略假设与回测记录
+- AgentOS：每日基本面投研简报、深度研究 memo、决策日志、周度复盘、经验 lessons、基本面假设与验证记录
 - Report KB：通过 report-kb 接入研报语义搜索，返回结构化研报命中结果供 AgentOS 使用
 - Tushare Read：读取外部 Tushare 数据库表，应用内不要求配置 Tushare token
 - Chat：SSE 流式对话，会话/消息持久化
@@ -88,7 +88,7 @@ FastAPI (apps/api)                │
 
 ### Core business modules
 
-- AgentOS: daily research briefs, deep research memos, decision journals, weekly reviews, lessons, strategy hypotheses, and backtest records
+- AgentOS: daily fundamental briefs, deep research memos, decision journals, weekly reviews, lessons, fundamental hypotheses, and thesis validation records
 - Report KB: integrates with report-kb for semantic research-report search and structured hits
 - Tushare Read: reads from an external Tushare database; no in-app Tushare token is required
 - Chat: SSE streaming chat, persisted sessions/messages

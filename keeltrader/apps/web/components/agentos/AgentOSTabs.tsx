@@ -40,7 +40,7 @@ export function AgentOSTabs({ state, actions }: { state: DashboardState; actions
   const { t } = useI18n()
   const latestBrief = state.briefs[0] || null
   const latestMemo = state.memos[0] || null
-  const latestBacktest = state.backtests[0] || null
+  const latestValidation = state.validations[0] || null
 
   return (
     <Tabs defaultValue="briefs" className="space-y-4">
@@ -223,40 +223,60 @@ export function AgentOSTabs({ state, actions }: { state: DashboardState; actions
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle className="text-base">{t('agentos.strategy.backtestTitle')}</CardTitle></CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-3">
-            <Input value={state.backtestSymbol} onChange={(e) => actions.setBacktestSymbol(e.target.value)} placeholder="000001.SZ" />
+          <CardHeader><CardTitle className="text-base">{t('agentos.strategy.validationTitle')}</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid gap-3 md:grid-cols-3">
+              <Input value={state.validationForm.symbol} onChange={(e) => actions.setValidationForm((p) => ({ ...p, symbol: e.target.value }))} placeholder="000001.SZ" />
+              <select className="rounded-md border bg-background px-3 py-2 text-sm" value={state.validationForm.conclusion} onChange={(e) => actions.setValidationForm((p) => ({ ...p, conclusion: e.target.value }))}>
+                <option value="observe">{t('agentos.strategy.observe')}</option>
+                <option value="supported">{t('agentos.strategy.supported')}</option>
+                <option value="rejected">{t('agentos.strategy.rejected')}</option>
+                <option value="revise">{t('agentos.strategy.revise')}</option>
+              </select>
+              <select className="rounded-md border bg-background px-3 py-2 text-sm" value={state.selectedHypothesisId} onChange={(e) => actions.setSelectedHypothesisId(e.target.value)}>
+                <option value="">{t('agentos.strategy.noHypothesis')}</option>
+                {state.hypotheses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </div>
+            <Textarea value={state.validationForm.evidence} onChange={(e) => actions.setValidationForm((p) => ({ ...p, evidence: e.target.value }))} placeholder={t('agentos.strategy.evidencePlaceholder')} />
+            <Textarea value={state.validationForm.risks} onChange={(e) => actions.setValidationForm((p) => ({ ...p, risks: e.target.value }))} placeholder={t('agentos.strategy.risksPlaceholder')} />
+            <Input value={state.validationForm.notes} onChange={(e) => actions.setValidationForm((p) => ({ ...p, notes: e.target.value }))} placeholder={t('agentos.strategy.validationNotes')} />
+            <Button onClick={actions.recordValidation} disabled={state.busy === 'validation'}>
+              {state.busy === 'validation' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FlaskConical className="mr-2 h-4 w-4" />}
+              {t('agentos.strategy.recordValidation')}
+            </Button>
+          </CardContent>
+        </Card>
+        {latestValidation ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{latestValidation.symbol} · {t('agentos.strategy.fundamentalValidation')}</CardTitle>
+              <Badge variant={latestValidation.passed_gate ? 'default' : 'outline'}>{latestValidation.passed_gate ? t('agentos.strategy.passedGate') : t('agentos.strategy.notPassed')}</Badge>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-5">
+                <Stat label={t('agentos.strategy.conclusion')} value={displayValue(latestValidation.metrics.conclusion)} />
+                <Stat label={t('agentos.strategy.evidenceCount')} value={displayValue(latestValidation.metrics.evidence_count)} />
+                <Stat label={t('agentos.strategy.riskCount')} value={displayValue(latestValidation.metrics.risk_count)} />
+                <Stat label={t('agentos.strategy.hasFinancials')} value={displayValue(latestValidation.metrics.has_recent_financials)} />
+                <Stat label={t('agentos.strategy.priceContext')} value={displayValue(latestValidation.metrics.has_latest_price_context)} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t('agentos.strategy.validationNotice')}
+              </p>
+              <JsonBlock data={latestValidation.params} />
+            </CardContent>
+          </Card>
+        ) : <EmptyState title={t('agentos.empty.validations')} />}
+        <Card>
+          <CardHeader><CardTitle className="text-base">{t('agentos.strategy.hypothesisList')}</CardTitle></CardHeader>
+          <CardContent>
             <select className="rounded-md border bg-background px-3 py-2 text-sm" value={state.selectedHypothesisId} onChange={(e) => actions.setSelectedHypothesisId(e.target.value)}>
               <option value="">{t('agentos.strategy.noHypothesis')}</option>
               {state.hypotheses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
-            <Button onClick={actions.runBacktest} disabled={state.busy === 'backtest'}>
-              {state.busy === 'backtest' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FlaskConical className="mr-2 h-4 w-4" />}
-              {t('agentos.strategy.runMa')}
-            </Button>
           </CardContent>
         </Card>
-        {latestBacktest ? (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">{latestBacktest.symbol} · {latestBacktest.strategy}</CardTitle>
-              <Badge variant={latestBacktest.passed_gate ? 'default' : 'outline'}>{latestBacktest.passed_gate ? t('agentos.strategy.passedGate') : t('agentos.strategy.notPassed')}</Badge>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="grid gap-3 md:grid-cols-5">
-                <Stat label={t('agentos.strategy.trades')} value={displayValue(latestBacktest.metrics.total_trades)} />
-                <Stat label={t('agentos.strategy.returnPct')} value={displayValue(latestBacktest.metrics.total_return_pct)} />
-                <Stat label={t('agentos.strategy.maxDdPct')} value={displayValue(latestBacktest.metrics.max_drawdown_pct)} />
-                <Stat label={t('agentos.strategy.sharpe')} value={displayValue(latestBacktest.metrics.sharpe_ratio)} />
-                <Stat label={t('agentos.strategy.dsrProxy')} value={displayValue(latestBacktest.metrics.deflated_sharpe_proxy)} />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {t('agentos.strategy.dsrNotice')}
-              </p>
-              <JsonBlock data={latestBacktest.trades?.slice(0, 20) || []} />
-            </CardContent>
-          </Card>
-        ) : <EmptyState title={t('agentos.empty.backtests')} />}
       </TabsContent>
 
       <TabsContent value="memory" className="space-y-3">

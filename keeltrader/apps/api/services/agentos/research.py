@@ -53,6 +53,7 @@ class AgentOSResearchService:
             pct = None
             if close is not None and prev_close:
                 pct = round((float(close) - float(prev_close)) / float(prev_close) * 100, 2)
+            financials = await self.tushare.financial_indicators(symbol, limit=2)
             report_query = " ".join(
                 item
                 for item in [
@@ -74,15 +75,13 @@ class AgentOSResearchService:
                 "latest_trade_date": _as_iso(latest.get("trade_date")) if latest else None,
                 "close": close,
                 "change_pct": pct,
-                "signal": (
-                    "watch"
-                    if pct is None
-                    else "momentum_up"
-                    if pct > 3
-                    else "momentum_down"
-                    if pct < -3
-                    else "neutral"
-                ),
+                "research_priority": "fundamental_review",
+                "data_quality": {
+                    "has_profile": profile is not None,
+                    "has_recent_price": bool(latest),
+                    "has_financials": bool(financials),
+                    "report_count": len(report_hits),
+                },
                 "report_count": len(report_hits),
                 "latest_report_date": report_hits[0].get("report_date") if report_hits else None,
                 "top_report_titles": [hit.get("title") for hit in report_hits[:3] if hit.get("title")],
@@ -90,7 +89,7 @@ class AgentOSResearchService:
             })
             falsifiers.append({
                 "symbol": symbol,
-                "condition": "If price action or fundamentals contradict the thesis, require a fresh memo before acting.",
+                "condition": "If fundamentals, disclosures, or source timestamps contradict the thesis, require a fresh memo before acting.",
             })
 
         risks.append("This brief is research support only; it is not an instruction to trade.")
@@ -107,7 +106,7 @@ class AgentOSResearchService:
             title=f"AgentOS Daily Brief {datetime.utcnow().date().isoformat()}",
             watchlist=watchlist,
             summary=(
-                f"Generated {len(signals)} watchlist signal(s). "
+                f"Generated {len(signals)} fundamental research item(s). "
                 "Use this brief to prioritize research and record decisions before trading."
             ),
             signals=signals,
@@ -138,24 +137,17 @@ class AgentOSResearchService:
     ) -> InvestmentMemo:
         """Create a structured memo skeleton from Tushare data."""
         profile = await self.tushare.stock_profile(symbol)
-        bars = await self.tushare.daily_bars(symbol, limit=120, adjusted=False)
-        indicators = await self.tushare.financial_indicators(symbol, limit=4)
+        bars = await self.tushare.daily_bars(symbol, limit=30, adjusted=False)
+        financials = await self.tushare.financial_indicators(symbol, limit=4)
         data_gaps = []
         if profile is None:
             data_gaps.append("stock_basic")
         if not bars:
             data_gaps.append("stock_daily")
-        if not indicators:
+        if not financials:
             data_gaps.append("fina_indicator")
 
         latest = bars[0] if bars else {}
-        closes = [float(row["close"]) for row in bars if row.get("close") is not None]
-        ma20 = round(sum(closes[:20]) / 20, 4) if len(closes) >= 20 else None
-        current = float(latest["close"]) if latest.get("close") is not None else None
-        trend = "unknown"
-        if current is not None and ma20 is not None:
-            trend = "above_20d_average" if current > ma20 else "below_20d_average"
-
         name = profile.get("name") if profile else symbol
         report_query = " ".join(
             item
@@ -173,19 +165,19 @@ class AgentOSResearchService:
             companies=[name] if name and name != symbol else None,
         )
         analyst_views = {
-            "fundamental": {
+            "company_profile": profile or {},
+            "financials": {
                 "profile": profile,
-                "recent_financial_indicators": indicators[:2],
+                "recent_financial_indicators": financials[:4],
                 "view": "Review recent profitability, growth, leverage, and cash flow before any decision.",
             },
-            "technical": {
-                "latest_bar": latest,
-                "ma20": ma20,
-                "trend": trend,
+            "valuation_context": {
+                "latest_price_record": latest,
+                "view": "Price is retained only as valuation context; no chart signal is generated.",
             },
-            "quant": {
-                "sample_size": len(bars),
-                "note": "v1 memo uses deterministic descriptive stats only; no alpha claim is made.",
+            "data_quality": {
+                "data_gaps": data_gaps,
+                "view": "Require source-date checks and fresh filings/reports before any investment decision.",
             },
             "research_reports": {
                 "query": report_query,
@@ -201,11 +193,11 @@ class AgentOSResearchService:
             symbol=symbol,
             market=market or "cn_equity",
             title=f"{name} ({symbol}) AgentOS Research Memo",
-            thesis="No trade should be placed from this memo alone; use it to structure bull/bear/risk review.",
+            thesis="No trade should be placed from this memo alone; use it to structure fundamental bull/bear/risk review.",
             analyst_views=analyst_views,
-            bull_case="Bull case requires improving fundamentals, confirmed liquidity, and price confirmation.",
-            bear_case="Bear case includes data lag, weak trend, valuation risk, and macro/sector pressure.",
-            red_team="Invalidate the thesis if key facts are stale, source timestamps are after the decision point, or the setup depends on one fragile indicator.",
+            bull_case="Bull case requires improving fundamentals, durable cash generation, credible management execution, and reasonable valuation.",
+            bear_case="Bear case includes data lag, deteriorating fundamentals, valuation risk, weak governance, and macro/sector pressure.",
+            red_team="Invalidate the thesis if key facts are stale, source timestamps are after the decision point, or the setup depends on one fragile assumption.",
             risk_view=(
                 "Keep sizing conservative, predefine stop/invalidation, and log the final human decision."
                 + (f" Data gaps: {', '.join(data_gaps)}." if data_gaps else "")
@@ -214,7 +206,7 @@ class AgentOSResearchService:
             confidence=0.0,
             falsifiers=[
                 "New information contradicts the core thesis.",
-                "Price breaks the predefined invalidation level.",
+                "Valuation no longer offers an adequate margin of safety.",
                 "Financial data is stale or restated.",
             ],
             data_sources=[

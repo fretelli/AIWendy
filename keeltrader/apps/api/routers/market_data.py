@@ -56,13 +56,6 @@ class RealTimePrice(BaseModel):
     volume: int
 
 
-class IndicatorData(BaseModel):
-    """Technical indicator response model"""
-
-    time: str
-    value: float
-
-
 @router.get("/historical/{symbol}", response_model=List[PriceData])
 async def get_historical_data(
     symbol: str,
@@ -157,64 +150,6 @@ async def get_real_time_price(
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=t("errors.market_data_fetch_failed", locale)
-        )
-
-
-@router.get("/indicators/{symbol}/{indicator}", response_model=List[IndicatorData])
-async def get_technical_indicators(
-    symbol: str,
-    indicator: str,
-    http_request: Request,
-    interval: str = Query("1day", description="Time interval"),
-    period: int = Query(20, description="Period for the indicator", ge=5, le=200),
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Get technical indicators for a symbol
-
-    Args:
-        symbol: Stock symbol
-        indicator: Indicator type (sma, ema, rsi, macd, bbands)
-        interval: Time interval
-        period: Period for the indicator
-
-    Returns:
-        List of indicator values
-    """
-    del current_user
-    locale = get_request_locale(http_request)
-    try:
-        valid_indicators = ["sma", "ema", "rsi", "macd", "bbands"]
-        if indicator not in valid_indicators:
-            raise HTTPException(
-                status_code=400,
-                detail=t(
-                    "errors.invalid_indicator",
-                    locale,
-                    valid=", ".join(valid_indicators),
-                ),
-            )
-
-        data = await market_data_service.get_technical_indicators(
-            symbol=symbol.upper(), interval=interval, indicator=indicator, period=period
-        )
-
-        if not data:
-            raise HTTPException(
-                status_code=404,
-                detail=t(
-                    "errors.market_indicator_data_not_found",
-                    locale,
-                    symbol=symbol.upper(),
-                ),
-            )
-
-        return data
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=t("errors.market_indicators_failed", locale)
         )
 
 

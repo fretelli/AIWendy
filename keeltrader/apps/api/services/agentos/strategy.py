@@ -1,4 +1,4 @@
-"""AgentOS guarded strategy experiment workflows."""
+"""AgentOS fundamental thesis experiment workflows."""
 
 from __future__ import annotations
 
@@ -8,14 +8,12 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from domain.agentos.models import BacktestRun, StrategyHypothesis
-from services.agentos.metrics import summarize_trade_returns
-from services.agentos.research import _as_iso
+from domain.agentos.models import FundamentalValidationRun, StrategyHypothesis
 from services.agentos.tushare_read import TushareReadService
 
 
 class AgentOSStrategyService:
-    """Strategy hypotheses and deterministic v1 backtests."""
+    """Fundamental hypotheses and validation records."""
 
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -36,15 +34,19 @@ class AgentOSStrategyService:
         await self.session.flush()
         return hypothesis
 
-    async def record_backtest(
+    async def record_validation(
         self,
         user_id: UUID,
         symbol: str,
         strategy: str,
         params: dict[str, Any] | None = None,
         hypothesis_id: UUID | None = None,
-    ) -> BacktestRun:
-        """Run a simple MA crossover backtest and persist metrics."""
+    ) -> FundamentalValidationRun:
+        """Persist a fundamental validation record.
+
+        The historical table is reused for compatibility, but this workflow
+        performs no chart, momentum, or indicator calculations.
+        """
         params = params or {}
         hypothesis = None
         if hypothesis_id:
@@ -53,59 +55,40 @@ class AgentOSStrategyService:
             )
             hypothesis = result.scalar_one_or_none()
 
-        bars = list(reversed(await self.tushare.daily_bars(symbol, limit=500, adjusted=False)))
-        fast = int(params.get("fast_period", 20))
-        slow = int(params.get("slow_period", 60))
-        trades: list[dict[str, Any]] = []
-        returns: list[float] = []
-        position = None
-
-        closes = [float(b["close"]) for b in bars if b.get("close") is not None]
-        dates = [b.get("trade_date") for b in bars if b.get("close") is not None]
-        if strategy != "ma_crossover":
-            notes = "v1 persisted unsupported strategy as metadata only; no trades generated."
-        elif len(closes) < slow + 2:
-            notes = "Insufficient bars for MA crossover."
-        else:
-            notes = "MA crossover backtest completed with deterministic vectorized v1 engine."
-            for i in range(slow, len(closes)):
-                fast_ma = sum(closes[i - fast + 1:i + 1]) / fast
-                slow_ma = sum(closes[i - slow + 1:i + 1]) / slow
-                prev_fast = sum(closes[i - fast:i]) / fast
-                prev_slow = sum(closes[i - slow:i]) / slow
-                if prev_fast <= prev_slow and fast_ma > slow_ma and position is None:
-                    position = {"entry_price": closes[i], "entry_time": dates[i]}
-                elif prev_fast >= prev_slow and fast_ma < slow_ma and position is not None:
-                    ret = (closes[i] - position["entry_price"]) / position["entry_price"] * 100
-                    returns.append(ret)
-                    trades.append({
-                        "entry_time": _as_iso(position["entry_time"]),
-                        "exit_time": _as_iso(dates[i]),
-                        "entry_price": position["entry_price"],
-                        "exit_price": closes[i],
-                        "pnl_pct": round(ret, 4),
-                    })
-                    position = None
-
         attempt_number = (hypothesis.attempt_count + 1) if hypothesis else 1
-        metrics = summarize_trade_returns(returns, trials=attempt_number)
-        passed_gate = (
-            metrics.get("total_trades", 0) >= 10
-            and metrics.get("max_drawdown_pct", 100) <= 25
-            and metrics.get("deflated_sharpe_proxy", 0) > 0.5
+        latest_price = (await self.tushare.daily_bars(symbol, limit=1, adjusted=False))[:1]
+        financials = await self.tushare.financial_indicators(symbol, limit=4)
+        required_sources = ["stock_basic", "fina_indicator", "report-kb"]
+        evidence = params.get("evidence") if isinstance(params.get("evidence"), list) else []
+        risks = params.get("risks") if isinstance(params.get("risks"), list) else []
+        conclusion = str(params.get("conclusion") or "observe")
+        passed_gate = conclusion in {"observe", "supported"} and bool(financials) and len(evidence) >= 1
+        metrics = {
+            "validation_type": "fundamental",
+            "conclusion": conclusion,
+            "evidence_count": len(evidence),
+            "risk_count": len(risks),
+            "has_recent_financials": bool(financials),
+            "has_latest_price_context": bool(latest_price),
+            "required_sources": required_sources,
+            "research_only": True,
+        }
+        notes = str(
+            params.get("notes")
+            or "Fundamental validation record persisted; no chart signal or trading signal was generated."
         )
         if hypothesis:
             hypothesis.attempt_count = attempt_number
             hypothesis.status = "observing" if passed_gate else "tested"
 
-        run = BacktestRun(
+        run = FundamentalValidationRun(
             user_id=user_id,
             hypothesis_id=hypothesis_id,
             symbol=symbol,
-            strategy=strategy,
+            strategy=strategy or "fundamental_validation",
             params=params,
             metrics=metrics,
-            trades=trades[-100:],
+            trades=[],
             attempt_number=attempt_number,
             passed_gate=passed_gate,
             notes=notes,

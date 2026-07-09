@@ -140,7 +140,7 @@ class ReviewLesson(Base):
 
 
 class StrategyHypothesis(Base):
-    """Research hypothesis that can be implemented and backtested."""
+    """Fundamental research hypothesis that can be validated over time."""
 
     __tablename__ = "strategy_hypotheses"
 
@@ -165,8 +165,11 @@ class StrategyHypothesis(Base):
     )
 
 
-class BacktestRun(Base):
-    """Backtest result for a strategy hypothesis."""
+class FundamentalValidationRun(Base):
+    """Fundamental validation record for a research hypothesis.
+
+    The table name is retained for database compatibility.
+    """
 
     __tablename__ = "backtest_runs"
 

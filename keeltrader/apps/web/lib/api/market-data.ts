@@ -24,11 +24,6 @@ export interface RealTimePrice {
   volume: number
 }
 
-export interface IndicatorData {
-  time: string
-  value: number
-}
-
 export interface SymbolSearchResult {
   symbol: string
   name: string
@@ -62,23 +57,6 @@ export const marketDataApi = {
    */
   async getRealTimePrice(symbol: string): Promise<RealTimePrice> {
     return apiJson<RealTimePrice>(`${API_BASE_URL}/real-time/${symbol}`)
-  },
-
-  /**
-   * Get technical indicators
-   */
-  async getTechnicalIndicators(
-    symbol: string,
-    indicator: 'sma' | 'ema' | 'rsi' | 'macd' | 'bbands',
-    interval: string = '1day',
-    period: number = 20
-  ): Promise<IndicatorData[]> {
-    const params = new URLSearchParams({
-      interval,
-      period: period.toString()
-    })
-
-    return apiJson<IndicatorData[]>(`${API_BASE_URL}/indicators/${symbol}/${indicator}?${params}`)
   },
 
   /**
