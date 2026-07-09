@@ -13,10 +13,11 @@ This will create a test user with:
 import asyncio
 import os
 import sys
-from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from _path_setup import ensure_api_import_path
+from _script_guard import require_non_production_script
+
+ensure_api_import_path()
 
 import logging
 from datetime import datetime
@@ -142,6 +143,8 @@ async def create_test_users(test_users):
 
 async def main():
     """Main function."""
+    require_non_production_script("init_user.py")
+
     print("=" * 50)
     print("KeelTrader - Initialize Test Users")
     print("=" * 50)

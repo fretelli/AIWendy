@@ -8,7 +8,9 @@ import asyncio
 import os
 import sys
 
-sys.path.insert(0, "/app")
+from _path_setup import ensure_api_import_path
+
+ensure_api_import_path()
 
 from sqlalchemy import text, create_engine
 from sqlalchemy.ext.asyncio import create_async_engine

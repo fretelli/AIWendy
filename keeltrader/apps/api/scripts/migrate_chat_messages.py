@@ -6,6 +6,11 @@ Run this script once to add the missing columns.
 
 import asyncio
 
+from _path_setup import ensure_api_import_path
+from _script_guard import require_non_production_script
+
+ensure_api_import_path()
+
 from sqlalchemy import text
 
 from core.database import engine
@@ -51,6 +56,8 @@ async def migrate_chat_messages():
 
 async def main():
     """Main entry point."""
+    require_non_production_script("migrate_chat_messages.py")
+
     try:
         logger.info("Starting chat_messages table migration...")
         await migrate_chat_messages()

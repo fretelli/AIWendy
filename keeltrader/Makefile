@@ -75,7 +75,7 @@ audit-api-strict:
 
 audit-api-static-candidates:
 	@docker image inspect "$(PIP_AUDIT_IMAGE)" >/dev/null 2>&1 || { echo "Missing $(PIP_AUDIT_IMAGE). Run make check-api first, or set PIP_AUDIT_IMAGE to an existing Python image." >&2; exit 0; }
-	@docker run --rm -u root -v "$(CURDIR)/apps/api:/src:ro" "$(PIP_AUDIT_IMAGE)" sh -lc 'cd /src && echo "[candidate] black --check ." && black --check . || true; echo "[candidate] isort --check-only ." && isort --check-only . || true; echo "[candidate] mypy ." && mypy . || true'
+	@docker run --rm -u root -v "$(CURDIR)/apps/api:/src:ro" "$(PIP_AUDIT_IMAGE)" sh -lc 'python -m pip install --quiet --disable-pip-version-check --index-url "$(PIP_AUDIT_INDEX_URL)" -r /src/requirements-static.txt && printf "%s\n" "[isort]" "profile=black" "line_length=88" "known_first_party=app" > /tmp/isort-candidate.cfg && cd /src && echo "[candidate] black --check ." && black --check . || true; echo "[candidate] isort --check-only ." && isort --settings-path /tmp/isort-candidate.cfg --check-only . || true; echo "[candidate] mypy ." && mypy . || true'
 
 # Run tests
 test: check

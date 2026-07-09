@@ -1,11 +1,9 @@
 """Initialize default coaches in the database."""
 
-import os
-import sys
-from pathlib import Path
+from _path_setup import ensure_api_import_path
+from _script_guard import require_non_production_script
 
-# Add parent directory to path
-sys.path.append(str(Path(__file__).parent.parent))
+ensure_api_import_path()
 
 import logging
 
@@ -306,4 +304,5 @@ def init_coaches():
 
 
 if __name__ == "__main__":
+    require_non_production_script("init_coaches.py")
     init_coaches()

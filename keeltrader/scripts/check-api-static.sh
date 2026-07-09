@@ -37,15 +37,39 @@ if grep -R --line-number -E 'user_id:[[:space:]]*str[[:space:]]*=[[:space:]]*"de
   exit 1
 fi
 
+legacy_router_pattern='(agents|analysis|dashboard|exchanges|journals|projects|tasks)'
+if grep --line-number -E "from routers(\.${legacy_router_pattern}| import .*\b${legacy_router_pattern}\b)" "${api_root}/main.py"; then
+  echo "Legacy router import found in main.py. Keep legacy routers unmounted unless route contracts are intentionally updated." >&2
+  exit 1
+fi
+
+if grep --line-number -E "include_router\((agents|analysis|dashboard|exchanges|journals|projects|tasks)(_router|\.router)" "${api_root}/main.py"; then
+  echo "Legacy router mount found in main.py. Keep legacy routers unmounted unless route contracts are intentionally updated." >&2
+  exit 1
+fi
+
+echo "[api-static] checking script import path boundaries"
+if grep -R --line-number "sys\.path" "${api_root}/scripts" --include '*.py' | grep -v '/_path_setup.py:'; then
+  echo "Direct sys.path mutation found in scripts. Use scripts/_path_setup.py instead." >&2
+  exit 1
+fi
+
 echo "[api-static] checking legacy script production guards"
 guarded_scripts=(
-  "bootstrap_projects.py"
-  "init_database.py"
-  "init_db_simple.py"
-  "migrate_to_multi_tenant.py"
-  "create_user_sessions_table.py"
   "add_api_keys_columns.py"
   "add_journal_tables.py"
+  "bootstrap_projects.py"
+  "configure_oneapi.py"
+  "create_user_sessions_table.py"
+  "init_coaches.py"
+  "init_database.py"
+  "init_db_simple.py"
+  "init_user.py"
+  "init_user_simple.py"
+  "migrate_chat_messages.py"
+  "migrate_to_multi_tenant.py"
+  "save_api_key.py"
+  "setup_custom_api.py"
 )
 
 for script in "${guarded_scripts[@]}"; do
