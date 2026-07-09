@@ -162,3 +162,23 @@ export interface JournalImportResponse {
   skipped: number;
   errors: string[];
 }
+
+export interface JournalEntryAnalysisResponse {
+  analysis: string;
+  detected_patterns?: string[];
+  recommendations?: string[];
+  [key: string]: unknown;
+}
+
+export interface JournalPatternAnalysisResponse {
+  message?: string;
+  patterns: string[];
+  recommendations: string[];
+  [key: string]: unknown;
+}
+
+export interface JournalImprovementPlanResponse {
+  message?: string;
+  plan: string;
+  [key: string]: unknown;
+}

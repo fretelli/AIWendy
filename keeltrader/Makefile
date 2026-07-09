@@ -7,6 +7,10 @@ PIP_AUDIT_INDEX_URL ?= https://mirrors.aliyun.com/pypi/simple/
 PIP_AUDIT_VULN_SERVICE ?= osv
 PIP_AUDIT_IGNORE_VULNS ?=
 PIP_AUDIT_IGNORE_ARGS = $(foreach vuln,$(PIP_AUDIT_IGNORE_VULNS),--ignore-vuln $(vuln))
+NPM_AUDIT_REGISTRY ?= https://registry.npmjs.org/
+NPM_AUDIT_LEVEL ?= high
+NPM_AUDIT_FETCH_RETRIES ?= 3
+NPM_AUDIT_FETCH_TIMEOUT ?= 120000
 
 .PHONY: help setup dev check check-web check-api check-security-defaults audit audit-web audit-api audit-api-strict test build deploy clean db-migrate db-rollback
 
@@ -51,7 +55,7 @@ check-security-defaults:
 audit: audit-web audit-api
 
 audit-web:
-	@cd apps/web && npm audit --audit-level=high
+	@scripts/audit-web.sh
 
 audit-api:
 	@docker image inspect "$(PIP_AUDIT_IMAGE)" >/dev/null 2>&1 || { echo "Missing $(PIP_AUDIT_IMAGE). Run make check-api first, or set PIP_AUDIT_IMAGE to an existing Python image." >&2; exit 1; }
