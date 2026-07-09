@@ -1,7 +1,5 @@
 """Task management and monitoring API endpoints."""
 
-import asyncio
-import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -17,7 +15,8 @@ from core.auth import get_authenticated_user, get_current_user
 from core.database import get_session
 from core.i18n import get_request_locale, t
 from core.logging import get_logger
-from core.task_events import record_task_owner, task_event_channel
+from core.cache_service import get_cache_service
+from core.task_events import record_task_owner
 from domain.knowledge.models import KnowledgeDocument
 from domain.user.models import User
 from workers.celery_app import celery_app
@@ -30,7 +29,7 @@ from workers.report_tasks import (
 from services.task_monitor import (
     ensure_task_owner as _ensure_task_owner,
     queued_task_response as _queued_task_response,
-    task_result_snapshot,
+    task_status_event_stream,
     task_status_response,
 )
 from services.task_inspector import (
@@ -96,67 +95,12 @@ async def stream_task_status(
     cache = get_cache_service()
     redis_client = await cache.async_client
 
-    channel = task_event_channel(task_id)
     result = AsyncResult(task_id, app=celery_app)
 
-    async def _iter():
-        pubsub = redis_client.pubsub()
-        last_state: Optional[str] = None
-        last_sent_at = 0.0
-        try:
-            await pubsub.subscribe(channel)
-
-            # Send an initial snapshot immediately.
-            snapshot = task_result_snapshot(task_id, result)
-            yield f"data: {json.dumps(snapshot, ensure_ascii=False)}\n\n"
-            if snapshot["ready"]:
-                return
-
-            while True:
-                # Push events if workers publish.
-                message = await pubsub.get_message(
-                    ignore_subscribe_messages=True, timeout=1.0
-                )
-                if message and message.get("data"):
-                    data = message["data"]
-                    if isinstance(data, (bytes, bytearray)):
-                        data = data.decode("utf-8", errors="ignore")
-                    yield f"data: {data}\n\n"
-                    try:
-                        parsed = json.loads(data)
-                        if parsed.get("ready") is True:
-                            return
-                    except Exception:
-                        pass
-
-                # Heartbeat / best-effort snapshot on state change.
-                if result.state != last_state:
-                    last_state = result.state
-                    snapshot = task_result_snapshot(task_id, result)
-                    yield f"data: {json.dumps(snapshot, ensure_ascii=False)}\n\n"
-                    if snapshot["ready"]:
-                        return
-
-                # Send a ping every ~15s to keep the connection alive.
-                now = asyncio.get_running_loop().time()
-                if now - last_sent_at > 15:
-                    last_sent_at = now
-                    yield "event: ping\ndata: {}\n\n"
-
-                await asyncio.sleep(0.1)
-        except asyncio.CancelledError:
-            return
-        finally:
-            try:
-                await pubsub.unsubscribe(channel)
-            except Exception:
-                pass
-            try:
-                await pubsub.close()
-            except Exception:
-                pass
-
-    return StreamingResponse(_iter(), media_type="text/event-stream")
+    return StreamingResponse(
+        task_status_event_stream(task_id, result, redis_client),
+        media_type="text/event-stream",
+    )
 
 
 @router.post("/reports/generate-daily")
