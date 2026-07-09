@@ -18,6 +18,7 @@ import logging
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from _script_guard import require_non_production_script
 from config import get_settings
 
 logging.basicConfig(level=logging.INFO)
@@ -187,6 +188,8 @@ async def create_users_table():
 
 async def main():
     """Main function."""
+    require_non_production_script("init_db_simple.py")
+
     print("=" * 50)
     print("KeelTrader - Initialize Database (Simple)")
     print("=" * 50)

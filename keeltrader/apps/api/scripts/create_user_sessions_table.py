@@ -18,6 +18,7 @@ import logging
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from _script_guard import require_non_production_script
 from config import get_settings
 
 logging.basicConfig(level=logging.INFO)
@@ -83,6 +84,8 @@ async def create_user_sessions_table():
 
 async def main():
     """Main function."""
+    require_non_production_script("create_user_sessions_table.py")
+
     print("=" * 50)
     print("KeelTrader - Create User Sessions Table")
     print("=" * 50)

@@ -17,6 +17,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from _script_guard import require_non_production_script
 from config import get_settings
 from core.database import Base
 from domain.analysis.models import AnalysisReport
@@ -49,6 +50,8 @@ async def init_database():
 
 async def main():
     """Main function."""
+    require_non_production_script("init_database.py")
+
     print("=" * 50)
     print("KeelTrader - Initialize Database")
     print("=" * 50)

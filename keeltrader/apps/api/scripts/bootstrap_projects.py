@@ -13,6 +13,8 @@ sys.path.insert(0, "/app")
 from sqlalchemy import text, create_engine
 from sqlalchemy.ext.asyncio import create_async_engine
 
+from _script_guard import require_non_production_script
+
 
 def bootstrap_sync(db_url):
     """Use sync engine for DDL operations."""
@@ -113,6 +115,8 @@ def bootstrap_sync(db_url):
 
 
 if __name__ == "__main__":
+    require_non_production_script("bootstrap_projects.py")
+
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
         print("[bootstrap] No DATABASE_URL, skipping")

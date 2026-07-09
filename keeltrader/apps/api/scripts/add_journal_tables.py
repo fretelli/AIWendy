@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import text
 
+from _script_guard import require_non_production_script
 from core.database import engine
 from core.logging import get_logger
 
@@ -148,6 +149,8 @@ async def add_journal_tables():
 
 async def main():
     """Run migration."""
+    require_non_production_script("add_journal_tables.py")
+
     try:
         await add_journal_tables()
         logger.info("Journal tables migration completed successfully")

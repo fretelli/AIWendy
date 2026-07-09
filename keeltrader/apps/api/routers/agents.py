@@ -276,7 +276,7 @@ async def agent_matrix_health():
 
 
 @router.get("/agents/ghost-trades")
-async def list_ghost_trades(user_id: str = "default", status: str = "all"):
+async def list_ghost_trades(user_id: str, status: str = "all"):
     """List ghost trades for a user."""
     import os
 
@@ -295,7 +295,7 @@ async def list_ghost_trades(user_id: str = "default", status: str = "all"):
 
 
 @router.get("/agents/ghost-trades/portfolio")
-async def ghost_portfolio(user_id: str = "default"):
+async def ghost_portfolio(user_id: str):
     """Get ghost trading portfolio summary."""
     import os
 
