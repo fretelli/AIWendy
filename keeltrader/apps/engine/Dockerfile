@@ -12,11 +12,18 @@ ENV PIP_DEFAULT_TIMEOUT=120 \
 COPY engine/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir --prefer-binary -r /tmp/requirements.txt
 
-# Legacy standalone image. Current Compose runs agent-engine from keeltrader-api.
-# Copy all apps modules (engine needs agents, tools, memory, execution).
-COPY . /app/apps/
+RUN useradd -m -u 1000 appuser && mkdir -p /app/apps
 
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+# Legacy standalone image. Current Compose runs agent-engine from keeltrader-api.
+# Copy only the Python modules needed by the legacy event engine.
+COPY --chown=appuser:appuser __init__.py /app/apps/__init__.py
+COPY --chown=appuser:appuser agents/ /app/apps/agents/
+COPY --chown=appuser:appuser engine/ /app/apps/engine/
+COPY --chown=appuser:appuser exchange/ /app/apps/exchange/
+COPY --chown=appuser:appuser execution/ /app/apps/execution/
+COPY --chown=appuser:appuser memory/ /app/apps/memory/
+COPY --chown=appuser:appuser tools/ /app/apps/tools/
+
 USER appuser
 
 CMD ["python", "-m", "apps.engine.runner"]
