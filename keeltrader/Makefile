@@ -12,7 +12,7 @@ NPM_AUDIT_LEVEL ?= high
 NPM_AUDIT_FETCH_RETRIES ?= 3
 NPM_AUDIT_FETCH_TIMEOUT ?= 120000
 
-.PHONY: help setup dev check check-web check-api check-security-defaults audit audit-web audit-api audit-api-strict test build deploy clean db-migrate db-rollback
+.PHONY: help setup dev check check-web check-api check-security-defaults audit audit-root audit-web audit-api audit-api-strict test build deploy clean db-migrate db-rollback
 
 # Default target
 help:
@@ -21,7 +21,8 @@ help:
 	@echo "  make check-web - Run web lint, type-check, and Jest"
 	@echo "  make check-api - Build API test runner and run pytest"
 	@echo "  make check-security-defaults - Reject hardcoded development default passwords"
-	@echo "  make audit     - Run web and API dependency audits"
+	@echo "  make audit     - Run root, web, and API dependency audits"
+	@echo "  make audit-root - Run npm audit for root release tooling dependency issues"
 	@echo "  make audit-web - Run npm audit for high/critical web dependency issues"
 	@echo "  make audit-api - Run strict pip-audit checks for API dependency issues"
 	@echo "  make audit-api-strict - Alias for API dependency audit with no vulnerability exceptions"
@@ -52,7 +53,10 @@ check-api:
 check-security-defaults:
 	@repo_root="$$(git rev-parse --show-toplevel)" && ! git -C "$$repo_root" grep -nE 'Admin[@]123|Test[@]1234' -- . || { echo "Hardcoded development default password found. Use explicit environment variables instead." >&2; exit 1; }
 
-audit: audit-web audit-api
+audit: audit-root audit-web audit-api
+
+audit-root:
+	@scripts/audit-root.sh
 
 audit-web:
 	@scripts/audit-web.sh

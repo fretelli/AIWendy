@@ -1,6 +1,18 @@
 version: 2
 updates:
   - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "08:45"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - tooling
+
+  - package-ecosystem: npm
     directory: /keeltrader/apps/web
     schedule:
       interval: weekly
