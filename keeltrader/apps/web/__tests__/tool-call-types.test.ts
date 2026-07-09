@@ -1,7 +1,6 @@
 import {
   getNumber,
   getString,
-  isBacktestData,
   isOrderData,
   isPendingConfirmationResult,
   isPnLData,
@@ -53,38 +52,6 @@ describe('tool-call type guards', () => {
         losses: 1,
         trade_count: 3,
         daily_pnl: [{ date: '2026-01-01', pnl: '12.5' }],
-      })
-    ).toBe(false)
-  })
-
-  it('validates backtest payloads', () => {
-    expect(
-      isBacktestData({
-        symbol: 'SPY',
-        strategy: 'sma_cross',
-        period_days: 90,
-        stats: {
-          total_trades: 10,
-          wins: 6,
-          losses: 4,
-          win_rate: 60,
-          total_return_pct: 3.2,
-          avg_win_pct: 1.1,
-          avg_loss_pct: -0.6,
-          max_drawdown_pct: 2.4,
-          profit_factor: 1.8,
-          sharpe_ratio: 1.2,
-        },
-        equity_curve: [0, 1, 2],
-      })
-    ).toBe(true)
-
-    expect(
-      isBacktestData({
-        symbol: 'SPY',
-        strategy: 'sma_cross',
-        period_days: 90,
-        stats: { total_trades: 10 },
       })
     ).toBe(false)
   })

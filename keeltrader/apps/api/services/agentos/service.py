@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.agentos.models import (
-    BacktestRun,
+    FundamentalValidationRun,
     InvestmentBrief,
     InvestmentDecision,
     InvestmentMemo,
@@ -80,12 +80,12 @@ class AgentOSService:
     async def create_hypothesis(self, user_id: UUID, payload: dict[str, Any]) -> StrategyHypothesis:
         return await self.strategy.create_hypothesis(user_id, payload)
 
-    async def record_backtest(
+    async def record_validation(
         self,
         user_id: UUID,
         symbol: str,
         strategy: str,
         params: dict[str, Any] | None = None,
         hypothesis_id: UUID | None = None,
-    ) -> BacktestRun:
-        return await self.strategy.record_backtest(user_id, symbol, strategy, params, hypothesis_id)
+    ) -> FundamentalValidationRun:
+        return await self.strategy.record_validation(user_id, symbol, strategy, params, hypothesis_id)

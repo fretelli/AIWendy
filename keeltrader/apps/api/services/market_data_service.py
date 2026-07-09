@@ -14,8 +14,7 @@ from services.market_data_adapters import (
     TwelveDataAdapter,
     YahooFinanceAdapter,
 )
-from services.market_data_indicators import calculate_ema, calculate_rsi, calculate_sma
-from services.market_data_types import IndicatorPoint, PricePoint, RealTimeQuote
+from services.market_data_types import PricePoint, RealTimeQuote
 
 logger = logging.getLogger(__name__)
 
@@ -141,43 +140,6 @@ class MarketDataService:
         # If all adapters fail, return None
         logger.error(f"All data sources failed for real-time price of {symbol}")
         return None
-
-    async def get_technical_indicators(
-        self,
-        symbol: str,
-        interval: str = "1day",
-        indicator: str = "sma",
-        period: int = 20,
-    ) -> list[IndicatorPoint]:
-        """
-        Calculate technical indicators for a symbol
-
-        Args:
-            symbol: Stock symbol
-            interval: Time interval
-            indicator: Indicator type (sma, ema, rsi, macd, bbands)
-            period: Period for the indicator
-
-        Returns:
-            List of indicator values
-        """
-        try:
-            # Get historical data
-            data = await self.get_historical_data(symbol, interval, period * 2)
-
-            if not data:
-                return []
-
-            if indicator == "sma":
-                return calculate_sma(data, period)
-            if indicator == "ema":
-                return calculate_ema(data, period)
-            if indicator == "rsi":
-                return calculate_rsi(data, period)
-            return []
-        except Exception as e:
-            logger.error(f"Error calculating indicators: {e}")
-            return []
 
     async def close(self):
         """Close all HTTP clients in adapters."""

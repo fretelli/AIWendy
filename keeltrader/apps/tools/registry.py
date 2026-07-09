@@ -20,15 +20,6 @@ logger = logging.getLogger(__name__)
 TOOL_CATEGORIES: dict[str, list[str]] = {
     "market": [
         "get_price",
-        "get_klines",
-        "get_orderbook",
-        "get_funding_rate",
-        "calc_indicators",
-    ],
-    "analysis": [
-        "full_technical_analysis",
-        "multi_timeframe_analysis",
-        "score_trade_setup",
     ],
     "portfolio": [
         "get_balance",
@@ -62,8 +53,7 @@ TOOL_CATEGORIES: dict[str, list[str]] = {
 
 # Agent type → allowed tool categories
 AGENT_TOOL_MAP: dict[str, list[str]] = {
-    "orchestrator": ["market", "analysis", "portfolio", "memory", "communication"],
-    "technical": ["market", "analysis", "memory"],
+    "orchestrator": ["market", "memory", "communication"],
     "sentiment": ["market", "memory"],
     "fundamental": ["market", "memory"],
     "psychology": ["memory", "communication"],
@@ -74,22 +64,12 @@ AGENT_TOOL_MAP: dict[str, list[str]] = {
 
 def _get_tool_functions() -> dict[str, Callable]:
     """Lazy-load all tool functions."""
-    from . import analysis, communication, execution, market, portfolio
+    from . import communication, execution, market, portfolio
     from . import ibkr_tools
     from ..memory import tools as memory_tools
 
     return {
-        # Market tools
         "get_price": market.get_price,
-        "get_klines": market.get_klines,
-        "get_orderbook": market.get_orderbook,
-        "get_funding_rate": market.get_funding_rate,
-        "calc_indicators": market.calc_indicators,
-        # Analysis tools
-        "full_technical_analysis": analysis.full_technical_analysis,
-        "multi_timeframe_analysis": analysis.multi_timeframe_analysis,
-        "score_trade_setup": analysis.score_trade_setup,
-        # Portfolio tools
         "get_balance": portfolio.get_balance,
         "get_positions": portfolio.get_positions,
         "get_open_orders": portfolio.get_open_orders,
@@ -124,8 +104,8 @@ def register_tools_for_agent(
 
     Args:
         agent: PydanticAI Agent instance
-        agent_type: One of: orchestrator, technical, sentiment, fundamental,
-                    psychology, guardian, executor
+        agent_type: One of: orchestrator, sentiment, fundamental, psychology,
+                    guardian, executor
         extra_tools: Additional tool names to register beyond the default set
 
     Returns:

@@ -116,7 +116,7 @@ def create_default_coaches():
             她的方法论基于统计学和行为金融学，让改进可量化、可追踪。""",
             "style": CoachStyle.ANALYTICAL,
             "personality_traits": ["理性", "精确", "客观", "系统化", "数据导向"],
-            "specialty": ["绩效分析", "模式识别", "统计优化", "回测分析", "量化改进"],
+            "specialty": ["绩效分析", "模式识别", "统计优化", "假设验证", "研究复盘"],
             "language": "zh",
             "llm_provider": LLMProvider.OPENAI,
             "llm_model": "gpt-4o-mini",
@@ -140,7 +140,7 @@ def create_default_coaches():
 - 交易绩效指标分析
 - 胜率和盈亏比优化
 - 最优仓位计算
-- 交易系统回测
+- 基本面假设验证
 - 行为模式量化分析
 
 输出格式：

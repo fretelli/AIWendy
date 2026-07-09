@@ -49,9 +49,9 @@ class HypothesisCreateRequest(BaseModel):
     frequency: str = "daily"
 
 
-class BacktestRunRequest(BaseModel):
+class FundamentalValidationRequest(BaseModel):
     symbol: str
-    strategy: str = "ma_crossover"
+    strategy: str = "fundamental_validation"
     params: dict[str, Any] = Field(default_factory=dict)
     hypothesis_id: UUID | None = None
 

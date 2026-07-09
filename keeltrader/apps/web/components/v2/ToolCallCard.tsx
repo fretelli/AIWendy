@@ -1,15 +1,13 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PositionCard } from './PositionCard';
 import { PnLChart } from './PnLChart';
-import { BacktestResult } from './BacktestResult';
 import { Loader2 } from 'lucide-react';
 import {
   getNumber,
   getString,
-  isBacktestData,
   isPnLData,
   isPositionData,
   type JsonObject,
@@ -27,16 +25,16 @@ const TOOL_LABELS: Record<string, string> = {
   query_trades: 'Trade History',
   analyze_performance: 'Performance',
   detect_patterns: 'Patterns',
-  get_market_data: 'Market Data',
-  analyze_market: 'Market Analysis',
+  run_daily_brief: 'Daily Brief',
+  deep_research: 'Fundamental Research',
   place_order: 'Order',
   cancel_order: 'Cancel Order',
   search_knowledge: 'Knowledge',
   manage_journal: 'Journal',
   update_settings: 'Settings',
-  generate_chart: 'Chart',
-  backtest_strategy: 'Backtest',
-  replay_my_trades: 'Replay',
+  query_research_reports: 'Research Reports',
+  query_tushare_data: 'Tushare Data',
+  record_fundamental_validation: 'Fundamental Validation',
 };
 
 export function ToolCallCard({ name, args, result }: ToolCallCardProps) {
@@ -74,10 +72,6 @@ export function ToolCallCard({ name, args, result }: ToolCallCardProps) {
 
   if (name === 'get_pnl' && isPnLData(result)) {
     return <PnLChart data={result} />;
-  }
-
-  if (name === 'backtest_strategy' && isBacktestData(result)) {
-    return <BacktestResult data={result} />;
   }
 
   // Generic result display

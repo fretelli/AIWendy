@@ -36,29 +36,6 @@ export interface PnLData extends JsonObject {
   daily_pnl: PnLDailyData[]
 }
 
-export interface BacktestStats extends JsonObject {
-  total_trades: number
-  wins: number
-  losses: number
-  win_rate: number
-  total_return_pct: number
-  avg_win_pct: number
-  avg_loss_pct: number
-  max_drawdown_pct: number
-  profit_factor: number
-  sharpe_ratio: number
-}
-
-export interface BacktestData extends JsonObject {
-  symbol: string
-  strategy: string
-  params?: JsonObject
-  period_days: number
-  stats: BacktestStats
-  equity_curve?: number[]
-  trades?: JsonObject[]
-}
-
 export interface OrderData extends JsonObject {
   symbol: string
   side: string
@@ -86,14 +63,6 @@ function isNumber(value: unknown): value is number {
 
 function isString(value: unknown): value is string {
   return typeof value === 'string'
-}
-
-function isNumberArray(value: unknown): value is number[] {
-  return Array.isArray(value) && value.every(isNumber)
-}
-
-function isObjectArray(value: unknown): value is JsonObject[] {
-  return Array.isArray(value) && value.every(isJsonObject)
 }
 
 export function getString(value: unknown, fallback = ''): string {
@@ -131,28 +100,6 @@ export function isPnLData(value: JsonObject): value is PnLData {
       if (!isJsonObject(item)) return false
       return isString(item.date) && isNumber(item.pnl)
     })
-  )
-}
-
-export function isBacktestData(value: JsonObject): value is BacktestData {
-  if (!isJsonObject(value.stats)) return false
-  return (
-    isString(value.symbol) &&
-    isString(value.strategy) &&
-    isNumber(value.period_days) &&
-    isNumber(value.stats.total_trades) &&
-    isNumber(value.stats.wins) &&
-    isNumber(value.stats.losses) &&
-    isNumber(value.stats.win_rate) &&
-    isNumber(value.stats.total_return_pct) &&
-    isNumber(value.stats.avg_win_pct) &&
-    isNumber(value.stats.avg_loss_pct) &&
-    isNumber(value.stats.max_drawdown_pct) &&
-    isNumber(value.stats.profit_factor) &&
-    isNumber(value.stats.sharpe_ratio) &&
-    (value.equity_curve === undefined || isNumberArray(value.equity_curve)) &&
-    (value.trades === undefined || isObjectArray(value.trades)) &&
-    (value.params === undefined || isJsonObject(value.params))
   )
 }
 

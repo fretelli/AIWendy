@@ -6,9 +6,9 @@ from uuid import uuid4
 import pytest
 
 from services.agentos.decisions import AgentOSDecisionService
-from services.agentos.metrics import deflated_sharpe_ratio_proxy, summarize_trade_returns
 from services.agentos.report_kb import ReportKBService
 from services.agentos.serializers import serialize
+from services.agentos.strategy import AgentOSStrategyService
 from services.agentos.tushare_read import TushareReadService
 
 
@@ -18,20 +18,6 @@ def test_agentos_health(client):
     data = response.json()
     assert data["status"] == "ok"
     assert data["tushare_token_required"] is False
-
-
-def test_backtest_metrics_penalize_trials():
-    returns = [2, -1, 3, -0.5, 1.5, 2.2]
-    one_trial = summarize_trade_returns(returns, trials=1)
-    many_trials = summarize_trade_returns(returns, trials=100)
-    assert one_trial["total_trades"] == 6
-    assert many_trials["deflated_sharpe_proxy"] < one_trial["deflated_sharpe_proxy"]
-    assert one_trial["dsr_method"] == "conservative_proxy_v1"
-    assert one_trial["research_only"] is True
-
-
-def test_dsr_proxy_handles_small_samples():
-    assert deflated_sharpe_ratio_proxy(1.2, observations=1, trials=10) == 0.0
 
 
 @pytest.mark.asyncio
@@ -73,6 +59,36 @@ async def test_decision_service_records_research_only_decision():
     assert decision.position_plan == {}
     assert session.added == [decision]
     assert session.flushed is True
+
+
+@pytest.mark.asyncio
+async def test_strategy_service_records_fundamental_validation():
+    session = _FakeSession()
+    svc = AgentOSStrategyService(session)  # type: ignore[arg-type]
+    svc.tushare = _FakeTushare()  # type: ignore[assignment]
+    user_id = uuid4()
+
+    run = await svc.record_validation(
+        user_id,
+        symbol="000001.SZ",
+        strategy="fundamental_validation",
+        params={
+            "conclusion": "supported",
+            "evidence": ["Revenue quality improved"],
+            "risks": ["Valuation is not cheap"],
+            "notes": "Human-reviewed thesis note",
+        },
+    )
+
+    assert run.user_id == user_id
+    assert run.strategy == "fundamental_validation"
+    assert run.trades == []
+    assert run.metrics["validation_type"] == "fundamental"
+    assert run.metrics["evidence_count"] == 1
+    assert run.metrics["risk_count"] == 1
+    assert run.metrics["has_recent_financials"] is True
+    assert run.passed_gate is True
+    assert session.added == [run]
 
 
 @pytest.mark.asyncio
@@ -118,3 +134,11 @@ class _FakeSession:
 
     async def flush(self):
         self.flushed = True
+
+
+class _FakeTushare:
+    async def daily_bars(self, symbol, limit=1, adjusted=False):
+        return [{"ts_code": symbol, "close": 10.0}]
+
+    async def financial_indicators(self, symbol, limit=4):
+        return [{"ts_code": symbol, "roe": 12.3}]

@@ -17,8 +17,8 @@ def test_market_data_routes_are_mounted(client):
 
     assert "/api/v1/market-data/historical/{symbol}" in paths
     assert "/api/v1/market-data/real-time/{symbol}" in paths
-    assert "/api/v1/market-data/indicators/{symbol}/{indicator}" in paths
     assert "/api/v1/market-data/symbols/search" in paths
+    assert "/api/v1/market-data/indicators/{symbol}/{indicator}" not in paths
 
 
 def test_market_data_adapter_compatibility_exports_are_preserved():

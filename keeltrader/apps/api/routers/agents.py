@@ -59,14 +59,12 @@ async def list_agents():
     """List all registered agents and their status."""
     try:
         from apps.agents.orchestrator import create_orchestrator
-        from apps.agents.technical import create_technical_analyst
         from apps.agents.executor import create_executor
         from apps.agents.psychology import create_psychology_coach
         from apps.agents.guardian import create_guardian
 
         agents = [
             create_orchestrator(),
-            create_technical_analyst(),
             create_executor(),
             create_psychology_coach(),
             create_guardian(),
@@ -152,9 +150,6 @@ async def chat_with_agent(req: AgentChatRequest):
         if req.agent_id == "orchestrator":
             from apps.agents.orchestrator import create_orchestrator
             agent = create_orchestrator()
-        elif req.agent_id in ("technical", "technical-analyst"):
-            from apps.agents.technical import create_technical_analyst
-            agent = create_technical_analyst()
         elif req.agent_id == "executor":
             from apps.agents.executor import create_executor
             agent = create_executor()

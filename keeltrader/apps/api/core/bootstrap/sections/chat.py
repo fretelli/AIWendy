@@ -136,7 +136,7 @@ async def ensure_chat_schema(conn: AsyncConnection) -> None:
                 'Dr. Sophia Chen 拥有金融工程博士学位，专注于量化分析和数据驱动的交易改进。',
                 'analytical',
                 '["理性","精确","客观","系统化","数据导向"]'::json,
-                '["绩效分析","模式识别","统计优化","回测分析","量化改进"]'::json,
+                '["绩效分析","模式识别","统计优化","假设验证","研究复盘"]'::json,
                 'zh',
                 'openai',
                 'gpt-4o-mini',

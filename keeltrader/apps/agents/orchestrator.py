@@ -68,12 +68,12 @@ class OrchestratorAgent(BaseAgent):
             query: str,
             symbol: str | None = None,
         ) -> str:
-            """Route an analysis request to a specialized agent.
+            """Route a research request to a specialized agent.
 
             Args:
-                agent_type: Target agent (technical, sentiment, fundamental)
+                agent_type: Target agent (sentiment, fundamental, psychology, guardian)
                 query: The analysis question
-                symbol: Optional trading pair
+                symbol: Optional symbol
             """
             from ..tools.communication import delegate_to_agent
 
@@ -120,15 +120,6 @@ class OrchestratorAgent(BaseAgent):
                     f"{s}/USDT" for s in symbol_match
                 ]
 
-            # Technical analysis keywords
-            tech_keywords = [
-                "价格", "k线", "指标", "rsi", "macd", "趋势", "支撑", "阻力",
-                "price", "chart", "indicator", "trend", "support", "resistance",
-                "技术分析", "technical", "ema", "sma", "布林",
-            ]
-            if any(kw in message_lower for kw in tech_keywords):
-                intent["targets"].append("technical")
-
             # Sentiment keywords
             sent_keywords = [
                 "情绪", "舆情", "消息", "新闻", "恐惧", "贪婪",
@@ -139,8 +130,9 @@ class OrchestratorAgent(BaseAgent):
 
             # Fundamental keywords
             fund_keywords = [
-                "基本面", "链上", "tvl", "持仓", "市值", "fundamental",
-                "on-chain", "mcap", "supply", "etf",
+                "基本面", "财报", "估值", "利润", "收入", "现金流", "资产负债",
+                "竞争", "行业", "护城河", "fundamental", "valuation",
+                "earnings", "revenue", "cash flow", "balance sheet", "moat",
             ]
             if any(kw in message_lower for kw in fund_keywords):
                 intent["targets"].append("fundamental")
@@ -170,17 +162,16 @@ class OrchestratorAgent(BaseAgent):
                 intent["targets"].append("guardian")  # Always route through guardian first
                 intent["is_execution"] = True
 
-            # Generic analysis request (e.g., "ETH怎么看", "分析BTC")
+            # Generic analysis request defaults to fundamental research.
             general_keywords = [
                 "怎么看", "分析", "analyze", "analysis", "看法", "观点",
                 "怎么样", "适合", "建议", "recommend", "should",
             ]
             if any(kw in message_lower for kw in general_keywords):
-                if "technical" not in intent["targets"]:
-                    intent["targets"].append("technical")
-                # Multi-agent analysis for broad questions
-                if not intent["targets"] or len(intent["targets"]) == 1:
-                    intent["targets"].extend(["sentiment", "fundamental"])
+                if "fundamental" not in intent["targets"]:
+                    intent["targets"].append("fundamental")
+                if "sentiment" not in intent["targets"]:
+                    intent["targets"].append("sentiment")
 
             # Deduplicate
             intent["targets"] = list(dict.fromkeys(intent["targets"]))
@@ -222,8 +213,8 @@ class OrchestratorAgent(BaseAgent):
         prompt = (
             f"User message: {message}\n\n"
             "1. Use classify_intent to understand what the user wants.\n"
-            "2. If symbols are detected, use get_price to get current prices.\n"
-            "3. For analysis requests, use route_to_analyst to dispatch to appropriate agents.\n"
+            "2. Treat price only as valuation context, never as a chart signal.\n"
+            "3. For research requests, use route_to_analyst to dispatch to fundamental or sentiment agents.\n"
             "4. Provide a helpful initial response while agents work on detailed analysis.\n"
             "5. Respond in the same language as the user."
         )
@@ -273,14 +264,13 @@ class OrchestratorAgent(BaseAgent):
             )
 
     async def _trigger_daily_review(self, deps: AgentDependencies) -> AgentResult:
-        """Trigger daily review — dispatch analysis tasks to all analysts."""
+        """Trigger daily review for fundamental research context."""
         from ..tools.communication import delegate_to_agent
 
-        # Dispatch to technical analyst for major pairs
-        for symbol in ["BTC/USDT", "ETH/USDT"]:
+        for symbol in ["SPY", "QQQ"]:
             await delegate_to_agent(
-                agent_type="technical",
-                context={"query": "daily_review", "symbol": symbol},
+                agent_type="fundamental",
+                context={"query": "daily_fundamental_review", "symbol": symbol},
                 user_id=deps.user_id,
                 correlation_id=deps.correlation_id,
             )

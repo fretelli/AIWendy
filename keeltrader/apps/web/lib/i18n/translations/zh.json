@@ -414,8 +414,7 @@
       "performance": "绩效分析",
       "psychology": "交易心理",
       "risk-management": "风险管理",
-      "self-discovery": "自我发现",
-      "technical-analysis": "技术分析"
+      "self-discovery": "自我发现"
     },
     "features": {
       "voice": "语音交互",
@@ -1243,23 +1242,32 @@
       "approve": "批准"
     },
     "strategy": {
-      "hypothesisTitle": "策略假设",
+      "hypothesisTitle": "基本面假设",
       "hypothesisName": "假设名称",
       "testableHypothesis": "可检验假设",
       "rationale": "经济学理由",
       "assetUniverse": "资产范围",
       "createHypothesis": "创建假设",
-      "backtestTitle": "带护栏回测",
+      "validationTitle": "基本面验证",
       "noHypothesis": "不关联假设",
-      "runMa": "运行 MA 20/60",
+      "observe": "观察",
+      "supported": "支持",
+      "rejected": "否定",
+      "revise": "修订",
+      "evidencePlaceholder": "每行一条基本面证据，例如：收入增速改善、毛利率稳定、研报一致预期上修",
+      "risksPlaceholder": "每行一条基本面风险，例如：估值过高、行业需求放缓、现金流质量转弱",
+      "validationNotes": "验证备注",
+      "recordValidation": "记录验证",
+      "fundamentalValidation": "基本面验证",
+      "hypothesisList": "假设库",
       "passedGate": "通过门槛",
       "notPassed": "未通过",
-      "trades": "交易数",
-      "returnPct": "收益率 %",
-      "maxDdPct": "最大回撤 %",
-      "sharpe": "夏普",
-      "dsrProxy": "DSR 代理",
-      "dsrNotice": "DSR Proxy 使用 conservative_proxy_v1，只是研究护栏，不是部署或交易信号。"
+      "conclusion": "结论",
+      "evidenceCount": "证据数",
+      "riskCount": "风险数",
+      "hasFinancials": "有财务数据",
+      "priceContext": "有价格上下文",
+      "validationNotice": "这只是基本面研究记录，不生成图表模拟、交易信号或自动下单。"
     },
     "memory": {
       "approved": "已批准"
@@ -1273,15 +1281,15 @@
       "research": "暂无研究备忘录。",
       "decisions": "暂无决策。",
       "pendingLessons": "暂无待批准经验。",
-      "backtests": "暂无回测。",
+      "validations": "暂无基本面验证。",
       "approvedLessons": "暂无已批准经验。",
       "relatedReports": "暂无相关研报。"
     }
   },
   "meta": {
     "title": "KeelTrader - 投资研究 AgentOS",
-    "description": "KeelTrader 是一个自进化投资研究 AgentOS，支持人类参与的投研简报、研报知识库搜索、决策日志、复盘和回测工作流。",
-    "keywords": "投资研究,AgentOS,金融AI,决策日志,研报搜索,多智能体,回测,人机协作",
+    "description": "KeelTrader 是一个自进化投资研究 AgentOS，支持人类参与的基本面投研简报、研报知识库搜索、决策日志、复盘和假设验证工作流。",
+    "keywords": "投资研究,AgentOS,金融AI,基本面分析,决策日志,研报搜索,多智能体,人机协作",
     "ogTitle": "KeelTrader - 投资研究 AgentOS",
     "ogDescription": "研究辅助、决策纪律、研报知识库搜索和带护栏的策略实验。"
   }

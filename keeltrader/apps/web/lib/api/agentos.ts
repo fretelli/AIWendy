@@ -108,7 +108,7 @@ export type StrategyHypothesis = {
   created_at: string;
 };
 
-export type BacktestRun = {
+export type FundamentalValidation = {
   id: string;
   hypothesis_id?: string | null;
   symbol: string;
@@ -166,9 +166,9 @@ export const agentosApi = {
       method: "POST",
       body: payload,
     }),
-  listBacktests: () => request<{ backtests: BacktestRun[] }>("/strategy/backtests"),
-  runBacktest: (payload: { symbol: string; strategy?: string; params?: JsonMap; hypothesis_id?: string | null }) =>
-    request<{ backtest: BacktestRun }>("/strategy/backtests/run", {
+  listValidations: () => request<{ validations: FundamentalValidation[] }>("/strategy/validations"),
+  runValidation: (payload: { symbol: string; strategy?: string; params?: JsonMap; hypothesis_id?: string | null }) =>
+    request<{ validation: FundamentalValidation }>("/strategy/validations/run", {
       method: "POST",
       body: payload,
     }),

@@ -29,7 +29,6 @@ interface EventSubmitDialogProps {
 
 const EVENT_TYPES = [
   'price.alert',
-  'kline.pattern',
   'trade.opened',
   'trade.closed',
   'order.requested',

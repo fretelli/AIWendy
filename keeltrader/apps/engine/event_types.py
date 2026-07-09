@@ -15,7 +15,6 @@ class EventType(str, Enum):
 
     # Market events
     PRICE_ALERT = "price.alert"
-    KLINE_PATTERN = "kline.pattern"
     FUNDING_RATE_CHANGE = "funding_rate.change"
 
     # Trade events
