@@ -39,6 +39,7 @@ if grep -nEi "Wendy Rhodes|trading psychology|AI-powered performance coach" \
 fi
 
 git diff --check
+python3 "$REPO_ROOT/keeltrader/scripts/check-public-docs.py"
 python3 "$REPO_ROOT/keeltrader/scripts/check-doc-links.py"
 "$REPO_ROOT/keeltrader/scripts/check-public-safety.sh"
 
