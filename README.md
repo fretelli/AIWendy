@@ -33,7 +33,7 @@ KeelTrader 当前不提供技术分析、自动交易、交易所连接、交易
 
 ## 快速开始
 
-自托管部署使用隔离编排 `docker-compose.selfhost.yml`，自带 PostgreSQL/pgvector 与 Redis。KeelTrader 不包含独立研报中心或 Research Cloud 连接器；管理员可按需配置只读 report-kb 数据源供 Agent 使用。
+自托管部署使用隔离编排 `docker-compose.selfhost.yml`，自带 PostgreSQL/pgvector 与 Redis。默认仅使用管理员配置的只读 report-kb；可选 Research Cloud 连接器必须由管理员显式启用，并由每位用户独立授权，且不会上传本地文档、持仓、交易、模型密钥或决策日志。
 
 自托管 Agent 平台不内置平台所有者的模型 Token。每位用户通过 `/agent` 保存自己的 BYOK；密钥加密存储且不进入日志、任务事件、记忆或 MCP 参数。用户 MCP 默认只允许公网 HTTPS，首次按工具授权，定时任务只能使用永久授权工具。Agent 平台仅提供研究与决策日志能力，不注册下单、撤单、Ghost Trade 或任意代码执行工具。
 
@@ -98,7 +98,7 @@ KeelTrader currently does not provide technical analysis, automated trading, exc
 
 ## Quick Start
 
-Self-hosting uses the isolated `docker-compose.selfhost.yml` stack with PostgreSQL/pgvector and Redis included. KeelTrader does not include a standalone report hub or Research Cloud connector; administrators may configure a read-only report-kb source for Agent tools.
+Self-hosting uses the isolated `docker-compose.selfhost.yml` stack with PostgreSQL/pgvector and Redis included. It uses an administrator-configured read-only report-kb by default. The optional Research Cloud connector must be explicitly enabled by an administrator and authorized separately by each user; it never uploads local documents, positions, trades, model credentials, or decision journals.
 
 The self-hosted Agent Platform never bundles an operator model token. Users add encrypted BYOK profiles in `/agent`. Secrets are excluded from logs, task events, memory, and MCP parameters. User MCP is public-HTTPS-only by default and requires per-tool approval; scheduled runs can use only permanently approved tools. The platform exposes research and decision-journal capabilities only—no order placement, cancellation, ghost trading, or arbitrary code execution.
 
