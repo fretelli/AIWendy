@@ -2,7 +2,7 @@
 
 ## Description
 
-KeelTrader is a self-evolving investment research AgentOS. It supports human-in-the-loop research briefs, report-KB search, structured decision journals, weekly reviews, strategy hypotheses, and backtest records.
+KeelTrader is a self-evolving fundamental investment research AgentOS. It supports human-in-the-loop research briefs, report-KB search, structured decision journals, weekly reviews, and fundamental thesis validation records.
 
 KeelTrader is a research assistant and decision-discipline engine. It is not an automatic trading system, and generated analysis is not investment advice.
 
@@ -18,7 +18,7 @@ KeelTrader is a research assistant and decision-discipline engine. It is not an 
 - Report-KB semantic search over connected research reports
 - Decision journal creation and outcome tracking
 - Weekly review lessons with explicit approval before reuse
-- Strategy hypothesis and backtest record management
+- Fundamental thesis, evidence, invalidation condition, and validation record management
 - Tushare database reads without requiring an in-app Tushare token
 
 ## Example Prompts
@@ -28,8 +28,8 @@ KeelTrader is a research assistant and decision-discipline engine. It is not an 
 - "Create a research memo for 300750.SZ"
 - "Record this investment decision and the assumptions behind it"
 - "Run a weekly review of my recent decisions"
-- "Create a testable strategy hypothesis for low-volatility leaders"
-- "Record a backtest result for this hypothesis"
+- "Create a testable fundamental thesis for 300750.SZ"
+- "Record new evidence and evaluate whether this thesis remains valid"
 
 ## Authentication
 
