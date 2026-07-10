@@ -18,8 +18,8 @@ jobs:
       run:
         working-directory: keeltrader
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: npm
@@ -34,7 +34,7 @@ jobs:
         working-directory: keeltrader/apps/web
       - name: Upload coverage
         if: always()
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v7
         with:
           files: ./keeltrader/apps/web/coverage/lcov.info
           flags: frontend
@@ -47,7 +47,7 @@ jobs:
       run:
         working-directory: keeltrader
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: make check-security-defaults
       - run: make check-api-static
       - run: make check-api
