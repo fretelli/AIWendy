@@ -23,7 +23,7 @@ help:
 	@echo "  make check-api-static - Run lightweight API static contract checks"
 	@echo "  make check-security-defaults - Reject hardcoded development default passwords"
 	@echo "  make audit     - Run root, web, and API dependency audits"
-	@echo "  make audit-root - Run npm audit for root release tooling dependency issues"
+	@echo "  make audit-root - Check repository content, README governance, and public safety"
 	@echo "  make audit-web - Run npm audit for high/critical web dependency issues"
 	@echo "  make audit-api - Run strict pip-audit checks for API dependency issues"
 	@echo "  make audit-api-strict - Alias for API dependency audit with no vulnerability exceptions"

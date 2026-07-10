@@ -10,7 +10,7 @@ check_pattern() {
   local label="$1"
   local pattern="$2"
   local matches
-  matches="$(git grep -nIE "$pattern" -- . ':!keeltrader/docs/DEPLOYMENT_MODES.md' ':!keeltrader/scripts/check-public-safety.sh' || true)"
+  matches="$(git grep -nIE "$pattern" -- . ':!keeltrader/scripts/check-public-safety.sh' || true)"
   if [ -n "$matches" ]; then
     echo "[public-safety] ${label} found:" >&2
     printf '%s\n' "$matches" | awk -F: '{print "  - " $1 ":" $2}' >&2
@@ -39,7 +39,7 @@ files = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
 pattern = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 matches: list[str] = []
 for name in files:
-    if name in {"keeltrader/docs/DEPLOYMENT_MODES.md", "keeltrader/scripts/check-public-safety.sh"}:
+    if name == "keeltrader/scripts/check-public-safety.sh":
         continue
     path = pathlib.Path(name)
     try:

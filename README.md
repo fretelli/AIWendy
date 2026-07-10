@@ -1,253 +1,125 @@
 # KeelTrader
 
-<div align="center">
+<a id="zh-cn"></a>
+[中文](#zh-cn) | [English](#en)
 
-### *An AI-powered performance coach for trading psychology*
+KeelTrader 是一个自进化基本面投资研究 AgentOS。它面向个人或小团队的投研流程，提供多 Agent 研究辅助、研报知识库搜索、结构化决策日志、周度复盘和基本面假设验证记录。
 
-**Keel**: Like a ship's keel that provides stability in turbulent waters, KeelTrader helps you maintain psychological balance in volatile markets.
+它的定位是研究辅助与纪律引擎，而不是自动赚钱机器。系统默认要求登录，强调 human-in-the-loop：AI 可以帮助检索、分析、辩论、记录和复盘，但最终交易决策应由人完成。
 
-</div>
+## 核心能力
+
+- AgentOS 工作台：每日基本面投研简报、深度研究 memo、决策日志、复盘 lessons、基本面假设和验证记录。
+- 研报知识库：接入 report-kb，支持研报语义搜索和结构化命中结果。
+- 结构化数据读取：接入 Tushare 数据库读服务，不要求在应用内配置 Tushare token。
+- 多 Agent 分析：支持基本面、宏观、情绪、红队质疑和复盘等研究工作流。
+- 安全边界：公网部署默认登录保护，不自动下单，不把 AI 输出当作投资建议。
+
+KeelTrader 当前不提供技术分析、自动交易、交易所连接、交易心理教练、积分商城或会员 SaaS。历史数据库迁移仍保留，以兼容已有部署。
+
+## 仓库结构
+
+- `keeltrader/`：应用源码、Docker Compose、迁移、测试和运行文档。
+- `.github/`：CI、发布工作流和 Issue 模板。
+- 根目录：项目介绍、许可证、安全政策和贡献指南。
+
+## 架构
+
+- `keeltrader/apps/web/`：Next.js App Router 前端。
+- `keeltrader/apps/api/`：FastAPI 后端，提供认证、AgentOS、研报搜索、设置等 API。
+- `agent-engine`：复用 API 镜像运行 AgentOS 心跳与后台任务。
+- PostgreSQL / pgvector：结构化数据、日志、记忆与向量检索存储。
+- Redis：缓存、限流、任务队列和 AgentOS 心跳。
+
+## 快速开始
+
+自托管部署使用 Docker Compose。当前 compose 编排 `api`、`web` 和 `agent-engine`，PostgreSQL 与 Redis 作为外部服务接入。
+
+```bash
+cd keeltrader
+cp .env.example .env
+docker compose up -d api web agent-engine
+docker compose exec -T api alembic upgrade head
+```
+
+更多说明：
+
+- [自托管](keeltrader/docs/SELF_HOSTING.md)
+- [系统架构](keeltrader/docs/ARCHITECTURE.md)
+- [部署与发布](keeltrader/docs/DEPLOYMENT.md)
+- [自定义 LLM / OpenAI 兼容 API](keeltrader/docs/CUSTOM_API_SETUP.md)
+
+## GitHub 展示同步
+
+`README.md` 会随默认分支 push 自动更新。GitHub 右侧 About 栏是仓库元数据，不会自动读取 README；如需同步 description/topics，请在已登录 GitHub CLI 的环境运行：
+
+```bash
+keeltrader/scripts/sync-github-about.sh
+```
+
+## 风险提示
+
+KeelTrader 不构成投资建议，也不保证跑赢市场。LLM 可能产生幻觉、遗漏上下文或误读数据；假设验证也可能存在过拟合、幸存者偏差和数据泄漏。请把它作为投研效率、决策一致性和复盘纪律工具，而不是自动交易或收益承诺系统。
 
 ---
-
-[English](#en) | [简体中文](README.zh-CN.md)
 
 <a id="en"></a>
+## English
 
-[![CI](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml/badge.svg)](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml)
-[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
-[![GitHub Stars](https://img.shields.io/github/stars/fretelli/KeelTrader?style=social)](https://github.com/fretelli/KeelTrader/stargazers)
-[![Last Commit](https://img.shields.io/github/last-commit/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader/commits/v2)
-[![GitHub Issues](https://img.shields.io/github/issues/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader/issues)
-[![Top Language](https://img.shields.io/github/languages/top/fretelli/KeelTrader)](https://github.com/fretelli/KeelTrader)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/fretelli/KeelTrader/pulls)
+KeelTrader is a self-evolving fundamental investment research AgentOS for individual investors and small teams. It provides multi-agent research assistance, report-KB search, structured decision journals, weekly reviews, and fundamental thesis validation records.
 
-KeelTrader is an AI-powered performance coach for trading psychology (Web: Next.js, API: FastAPI). It's built around chat, knowledge base (RAG), and a "roundtable" multi-coach discussion mode.
+Its role is a research assistant and discipline engine, not an automatic money-making system. Production deployments require authentication by default and keep humans in the loop: AI can retrieve, analyze, debate, record, and review, while final trading decisions remain human decisions.
 
-Disclaimer: for educational/research purposes only. This project is **not** investment advice.
+## Core Capabilities
 
-## Inspiration: Who is Wendy Rhodes?
+- AgentOS workspace: daily fundamental briefs, deep research memos, decision journals, review lessons, fundamental hypotheses, and thesis validation records.
+- Report knowledge base: integrates with report-kb for semantic research-report search and structured hits.
+- Structured data reads: reads from a Tushare database service without requiring an in-app Tushare token.
+- Multi-agent analysis: supports composable fundamental, macro, sentiment, red-team, and review workflows.
+- Safety boundary: login-protected by default, no automatic order execution, and AI output is not investment advice.
 
-In the TV series *Billions*, **Wendy Rhodes** is the in-house performance coach at hedge fund Axe Capital. Her role isn't investment analysis—it's psychological performance optimization:
+KeelTrader currently does not provide technical analysis, automated trading, exchange connections, trading-psychology coaching, a points mall, or membership SaaS. Historical database migrations remain for compatibility with existing deployments.
 
-| What She Does | Real Scenarios |
-|---------------|----------------|
-| **Emotional First Aid** | When a trader melts down mid-session, she intervenes immediately to restore composure |
-| **Behavioral Pattern Recognition** | Identifies that a trader's losing streak stems from divorce affecting judgment |
-| **Cognitive Reframing** | Helps overconfident star traders recognize their blind spots |
-| **Psychological Resilience Training** | Teaches traders to bounce back quickly after massive losses |
-| **Performance Enhancement** | Improves team-wide trading stability through psychological coaching |
+## Repository Layout
 
-**The Real-World Problem**:
-- Only elite hedge funds can afford full-time performance coaches (salaries $300K+)
-- Retail traders and small institutions have zero access to this service
-- 80% of trading losses stem from psychological factors, not technical analysis
+- `keeltrader/`: application source, Docker Compose, migrations, tests, and operational documentation.
+- `.github/`: CI, release workflows, and issue templates.
+- Repository root: product overview, license, security policy, and contribution guide.
 
-**KeelTrader's Vision**:
-> Democratize Wendy Rhodes' capabilities through AI, giving every trader their own performance coach.
+## Architecture
 
-## Behavioral Finance 3.0 Positioning
+- `keeltrader/apps/web/`: Next.js App Router frontend.
+- `keeltrader/apps/api/`: FastAPI backend for auth, AgentOS, report search, settings, and related APIs.
+- `agent-engine`: reuses the API image for AgentOS heartbeat and background tasks.
+- PostgreSQL / pgvector: structured records, journals, memory, and vector search storage.
+- Redis: cache, rate limiting, task queues, and AgentOS heartbeat.
 
-KeelTrader represents the evolution of behavioral finance from theory to practice:
+## Quick Start
 
-| Generation | Focus | Limitation |
-|------------|-------|------------|
-| **1.0 Academic Research** | Kahneman & Tversky's cognitive biases | Theory stays in textbooks, traders can't apply it |
-| **2.0 Robo-Advisors** | Automated portfolio allocation | One-size-fits-all, ignores individual psychology |
-| **3.0 AI Performance Coach** | Real-time psychological intervention | Personalized, actionable, adaptive |
-
-### What Makes KeelTrader Different
-
-**Traditional Approach** (Behavioral Finance 1.0 & 2.0):
-- Read about loss aversion → Still panic sell during crashes
-- Know about confirmation bias → Still cherry-pick bullish news
-- Understand overconfidence → Still overtrade after wins
-
-**KeelTrader's Approach** (Behavioral Finance 3.0):
-- **Conversational Intervention**: AI coaches discuss your trades and help you reflect on emotional patterns in your journal
-- **Personalized Coaching**: Build a library of coaches tailored to different aspects of your trading psychology
-- **Actionable Guidance**: Not just "you have loss aversion" but "here's how to handle this specific trade decision right now"
-- **Knowledge Base (RAG)**: Import your own trading books, notes, and strategies for contextual advice
-- *(Planned)* Real-time pattern detection and proactive alerts
-
-### The Gap We Fill
-
-```
-Academic Knowledge → [MISSING LINK] → Trading Performance
-     (BF 1.0)                              (Your P&L)
-                    ↓
-              KeelTrader
-            (BF 3.0 Bridge)
-```
-
-Most traders know the theory but fail in execution. KeelTrader bridges this gap by providing:
-1. **Reflective coaching**: Review your trades with AI coaches to identify emotional patterns
-2. **Journal analysis**: Track your trading decisions and discuss them with specialized coaches
-3. **Accountability partner**: Multi-coach roundtable discussions help you examine decisions from different perspectives
-4. *(Planned)* Moment-of-truth alerts and proactive pattern recognition
-
-## Screenshots
-
-![Overview](docs/assets/overview.svg)
-
-![Roundtable](docs/assets/roundtable.svg)
-
-![Architecture](docs/assets/architecture.svg)
-
-## What you can do
-
-- **Chat + projects**: organize conversations per project, keep history, stream responses (SSE)
-- **Roundtable discussion**: multiple AI coaches discuss one question with configurable session/message settings
-- **Knowledge base (RAG)**: import docs, semantic search (pgvector), inject context by timing
-- **Attachments**: upload images/docs/audio (extract/transcribe where supported)
-- **Journaling + reports**: trading journal, analytics, scheduled reports (Celery)
-- **Journal import (CSV/XLSX)**: upload a file and map columns in the UI (works with different broker/export formats)
-- **Notifications**: in-app notifications and alert delivery hooks for pattern alerts, risk warnings, and daily summaries
-- **Trading intervention system**: pre-trade checklists, real-time trade blocking based on risk limits, and proactive alerts
-- **Behavior pattern tracking**: detect and review revenge trading, FOMO, overtrading, and other behavioral patterns
-- **Exchange integration**: connect to crypto exchanges (OKX, Bybit, Coinbase, Kraken) and brokers (IBKR) with trading mode awareness (spot / perpetual futures / stocks / options per connection)
-- **Agent Matrix** (optional profile): multi-agent trading system — Orchestrator, Technical Analyst, Executor, Psychology Coach, Guardian — with 8-layer safety barrier, ghost trading, and Telegram bot interface
-- **Self-hosted by default**: Docker Compose; optional cloud/SaaS mode via env flags
-
-## Quick start (self-host)
+Self-hosting uses Docker Compose. The current compose file orchestrates `api`, `web`, and `agent-engine`; PostgreSQL and Redis are external services.
 
 ```bash
 cd keeltrader
-Copy-Item .env.example .env   # PowerShell (or: cp .env.example .env)
-docker compose up -d --build
+cp .env.example .env
+docker compose up -d api web agent-engine
+docker compose exec -T api alembic upgrade head
 ```
 
-- Web: `http://localhost:3000`
-- API health: `http://localhost:8000/api/health`
-- API docs: `http://localhost:8000/docs`
+Further reading:
 
-Full guide: `keeltrader/docs/SELF_HOSTING.md`
+- [Self-hosting](keeltrader/docs/SELF_HOSTING.md)
+- [Architecture](keeltrader/docs/ARCHITECTURE.md)
+- [Deployment](keeltrader/docs/DEPLOYMENT.md)
+- [Custom LLM / OpenAI-compatible APIs](keeltrader/docs/CUSTOM_API_SETUP.md)
 
-## Authentication
+## GitHub Display Sync
 
-The default Docker Compose setup builds the web with login enabled (`NEXT_PUBLIC_AUTH_REQUIRED=1`). Public or production deployments must keep `KEELTRADER_AUTH_REQUIRED=1` and `NEXT_PUBLIC_AUTH_REQUIRED=1`. Set `KEELTRADER_AUTO_INIT_TEST_USERS=1` to create test accounts on first startup.
-
-For local or private-network development only, you can disable login and use guest mode by setting `KEELTRADER_AUTH_REQUIRED=0` in `.env` and rebuilding the web image with `NEXT_PUBLIC_AUTH_REQUIRED=0`.
-
-## Roadmap (community)
-
-- Add more “1-click demo” options (cloud deploy templates)
-- Improve preset library and import/export
-- More evaluators/benchmarks for coaching quality
-
-## Docs
-
-- Start here: `keeltrader/docs/INDEX.md`
-- Architecture: `keeltrader/docs/ARCHITECTURE.md`
-- Deployment: `keeltrader/docs/DEPLOYMENT.md`
-- Self-hosting: `keeltrader/docs/SELF_HOSTING.md`
-- Deployment modes: `keeltrader/docs/DEPLOYMENT_MODES.md`
-- Custom API setup: `keeltrader/docs/CUSTOM_API_SETUP.md`
-- Internationalization: `keeltrader/docs/I18N_GUIDE.md`
-- **Version Management**: `docs/VERSION_MANAGEMENT.md` ⭐ NEW
-- **Changelog**: `CHANGELOG.md`
-
-## Contributing & security
-
-- **Branch strategy**: We use Git Flow. Create feature branches from `develop` and submit PRs to `develop` (not `main`). See `CONTRIBUTING.md` for details.
-- Contributing: `CONTRIBUTING.md`
-- Code of Conduct: `CODE_OF_CONDUCT.md`
-- Security policy: `SECURITY.md`
-
-## Deployment modes (open core)
-
-KeelTrader supports two modes:
-
-- **Self-hosted (default)**: open-source community edition
-- **Cloud/SaaS**: multi-tenancy, billing, enterprise SSO, analytics (activated only when `DEPLOYMENT_MODE=cloud`)
-
-See `keeltrader/docs/DEPLOYMENT_MODES.md` for details.
-
----
-
-<a id="zh-cn"></a>
-## 简体中文
-
-KeelTrader 是一套面向交易心理与行为表现的 AI 教练系统（Web: Next.js，API: FastAPI）。核心能力围绕：对话、知识库（RAG）、以及"圆桌讨论"（多教练协作）。
-
-免责声明：仅用于教育/研究目的，本项目 **不构成** 投资建议。
-
-### 截图 / 演示
-
-![概览](docs/assets/overview.svg)
-
-![圆桌讨论](docs/assets/roundtable.svg)
-
-![架构](docs/assets/architecture.svg)
-
-### 你可以用它做什么
-
-- **对话 + 项目**：按项目组织会话，历史记录，SSE 流式输出
-- **圆桌讨论**：多位 AI 教练围绕同一问题讨论；支持会话级/消息级设置
-- **知识库（RAG）**：文档导入、pgvector 语义检索，按时机注入上下文
-- **附件**：图片/文档/音频上传（按能力抽取/转写）
-- **交易日志 + 报告**：交易日志、统计、定时报表（Celery）
-- **交易日志导入（CSV/XLSX）**：支持上传文件并在页面中手动映射列（适配不同券商/平台格式）
-- **通知能力**：站内通知与告警分发钩子，覆盖模式提醒、风险警告和每日总结
-- **交易干预系统**：交易前检查清单、基于风险限制的实时交易阻止和主动警报
-- **行为模式跟踪**：识别并复盘报复性交易、FOMO、过度交易等行为模式
-- **交易所集成**：连接加密交易所（OKX、Bybit、Coinbase、Kraken）和券商（IBKR），支持按连接配置交易模式（现货 / 永续合约 / 股票 / 期权）
-- **Agent Matrix（可选 profile）**：多 Agent 交易系统 — 协调器、技术分析师、执行器、心理教练、风控守卫 — 含 8 层安全屏障、模拟交易、Telegram 机器人
-- **默认可自托管**：Docker Compose 一键启动；也支持通过环境变量启用云端模式
-
-### 快速开始（自托管）
+`README.md` updates automatically when the default branch is pushed. The GitHub About sidebar is repository metadata and does not read from the README automatically. To sync description/topics, run this from an authenticated GitHub CLI environment:
 
 ```bash
-cd keeltrader
-Copy-Item .env.example .env   # PowerShell（或：cp .env.example .env）
-docker compose up -d --build
+keeltrader/scripts/sync-github-about.sh
 ```
 
-- Web：`http://localhost:3000`
-- API 健康检查：`http://localhost:8000/api/health`
-- API 文档：`http://localhost:8000/docs`
+## Disclaimer
 
-完整说明：`keeltrader/docs/SELF_HOSTING.md`
-
-### 认证
-
-默认需要登录（`KEELTRADER_AUTH_REQUIRED=1`）。公网或生产部署必须保持 `KEELTRADER_AUTH_REQUIRED=1` 和 `NEXT_PUBLIC_AUTH_REQUIRED=1`。设置 `KEELTRADER_AUTO_INIT_TEST_USERS=1` 可在首次启动时创建测试账号。
-
-仅本地或私有网络开发可以启用免登录访客模式：将 `.env` 中 `KEELTRADER_AUTH_REQUIRED=0`，并以 `NEXT_PUBLIC_AUTH_REQUIRED=0` 重新构建 web 镜像。
-
-### Roadmap（社区版）
-
-- 增加更多“一键 Demo”部署模板
-- 预设教练库的导入/导出与共享
-- 教练效果的评测与对比工具
-
-### 文档
-
-- 从这里开始：`keeltrader/docs/INDEX.md`
-- 架构：`keeltrader/docs/ARCHITECTURE.md`
-- 部署：`keeltrader/docs/DEPLOYMENT.md`
-- 自托管：`keeltrader/docs/SELF_HOSTING.md`
-- 部署模式：`keeltrader/docs/DEPLOYMENT_MODES.md`
-- 自定义 API：`keeltrader/docs/CUSTOM_API_SETUP.md`
-- 国际化：`keeltrader/docs/I18N_GUIDE.md`
-- **版本管理**：`docs/VERSION_MANAGEMENT.md`
-- **更新日志**：`CHANGELOG.md`
-
-### 贡献与安全
-
-- 贡献指南：`CONTRIBUTING.md`
-- 行为准则：`CODE_OF_CONDUCT.md`
-- 安全策略：`SECURITY.md`
-
-### 部署模式（Open Core）
-
-KeelTrader 支持两种模式：
-
-- **Self-Hosted（默认）**：开源社区版
-- **Cloud/SaaS**：多租户、计费、企业 SSO、分析（仅在 `DEPLOYMENT_MODE=cloud` 时启用）
-
-详见：`keeltrader/docs/DEPLOYMENT_MODES.md`
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=fretelli/KeelTrader&type=Date)](https://star-history.com/#fretelli/KeelTrader&Date)
+KeelTrader is not investment advice and does not guarantee outperformance. LLMs can hallucinate, miss context, or misread data; hypothesis validation can still suffer from overfitting, survivorship bias, and data leakage. Treat it as a tool for research efficiency, decision consistency, and review discipline, not as an automated trading or return-guarantee system.
