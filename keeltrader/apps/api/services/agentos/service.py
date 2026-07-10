@@ -51,11 +51,12 @@ class AgentOSService:
 
     async def search_reports(
         self,
+        user_id: UUID,
         query: str,
         top_k: int = 5,
         companies: list[str] | None = None,
     ) -> list[dict[str, Any]]:
-        return await self.research.search_reports(query, top_k, companies)
+        return await self.research.search_reports(user_id, query, top_k, companies)
 
     async def get_memo(self, user_id: UUID, memo_id: UUID) -> InvestmentMemo | None:
         return await self.research.get_memo(user_id, memo_id)

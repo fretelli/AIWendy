@@ -47,7 +47,15 @@ class Settings(BaseSettings):
     api_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:3000"
     report_kb_url: Optional[str] = None
+    report_kb_service_key: Optional[str] = None
     report_kb_timeout_seconds: float = 6.0
+
+    # Optional Research Cloud connection. Self-hosted deployments are offline
+    # unless this is explicitly enabled by the administrator and then linked
+    # by an individual user.
+    research_cloud_enabled: bool = False
+    research_cloud_base_url: Optional[str] = None
+    research_cloud_timeout_seconds: float = 12.0
 
     # ========== Auth ==========
     jwt_secret: str = Field(

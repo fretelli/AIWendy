@@ -169,7 +169,7 @@ async def search_reports(
 ):
     _ = user
     svc = AgentOSService(session)
-    reports = await svc.search_reports(req.query, req.top_k, req.companies or None)
+    reports = await svc.search_reports(user.id, req.query, req.top_k, req.companies or None)
     return {"reports": serialize(reports)}
 
 

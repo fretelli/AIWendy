@@ -6,9 +6,9 @@
 ## 前置条件
 
 - Docker Desktop 或 Docker Engine（含 Docker Compose v2）
-- 可访问的 PostgreSQL（推荐 pgvector）和 Redis
+- 约 1 GB 可用内存和持久化磁盘空间
 
-当前 `docker-compose.yml` 只编排 `api`、`web`、`agent-engine`，不内置 PostgreSQL/Redis。生产环境使用外部数据库与共享 Redis。
+私有部署使用 `docker-compose.selfhost.yml`，默认自带独立 PostgreSQL/pgvector 和 Redis，且不连接 KeelTrader 官方服务器。仓库根目录的 `docker-compose.yml` 是官方托管环境编排，不用于第三方私有部署。
 
 ## 快速开始
 
@@ -20,8 +20,7 @@
 
 2. 编辑 `.env`，至少设置：
 
-   - `DATABASE_URL`
-   - `REDIS_URL`
+   - `POSTGRES_PASSWORD`
    - `JWT_SECRET`（建议 >= 32 位）
    - `NEXTAUTH_SECRET`
    - `OPENAI_API_KEY` 或 `ANTHROPIC_API_KEY`（需要 AI 能力时）
@@ -29,14 +28,16 @@
 3. 启动服务：
 
    ```bash
-   docker compose up -d api web agent-engine
+   docker compose -f docker-compose.selfhost.yml up -d --build
    ```
 
 4. 首次部署或升级后运行迁移：
 
    ```bash
-   docker compose exec -T api alembic upgrade head
+   docker compose -f docker-compose.selfhost.yml exec -T api alembic upgrade head
    ```
+
+默认 `RESEARCH_CLOUD_ENABLED=0`，Web/API 不会请求任何 `joyeeassets.com` 域名。只有管理员显式开启、且具体用户完成设备授权后，才会发送研报查询词和公司筛选到 Research Cloud；本地文档、持仓、交易与决策日志不会上传。
 
 ## 登录与测试账号
 
@@ -53,17 +54,17 @@ KEELTRADER_AUTH_REQUIRED=0
 ```bash
 export KEELTRADER_DEV_USER_PASSWORD='choose-a-local-dev-password'
 export KEELTRADER_DEV_ADMIN_PASSWORD='choose-a-local-admin-password'
-docker compose exec -T api python scripts/init_user_simple.py
+docker compose -f docker-compose.selfhost.yml exec -T api python scripts/init_user_simple.py
 ```
 
 生产环境不要启用 `KEELTRADER_AUTO_INIT_TEST_USERS`。
 
 ## 常用命令
 
-- 查看状态：`docker compose ps`
-- 跟踪日志：`docker compose logs -f web api agent-engine`
-- 停止：`docker compose down`
-- 进入 API 容器：`docker compose exec api sh`
+- 查看状态：`docker compose -f docker-compose.selfhost.yml ps`
+- 跟踪日志：`docker compose -f docker-compose.selfhost.yml logs -f web api`
+- 停止：`docker compose -f docker-compose.selfhost.yml down`
+- 进入 API 容器：`docker compose -f docker-compose.selfhost.yml exec api sh`
 - 验证构建但不部署：`./build.sh`
 - 发布 Web：`scripts/deploy.sh web`
 - 发布 API + agent-engine：`scripts/deploy.sh api`
@@ -82,9 +83,9 @@ docker compose exec -T api python scripts/init_user_simple.py
 ## Prerequisites
 
 - Docker Desktop or Docker Engine with Docker Compose v2
-- Reachable PostgreSQL (pgvector recommended) and Redis
+- About 1 GB of available memory and persistent disk space
 
-The current `docker-compose.yml` only orchestrates `api`, `web`, and `agent-engine`. PostgreSQL and Redis are external services.
+Use `docker-compose.selfhost.yml` for private deployments. It includes isolated PostgreSQL/pgvector and Redis services and does not connect to KeelTrader-operated services by default. The root `docker-compose.yml` is the managed production deployment definition.
 
 ## Quick Start
 
@@ -96,8 +97,7 @@ The current `docker-compose.yml` only orchestrates `api`, `web`, and `agent-engi
 
 2. Edit `.env` and set at least:
 
-   - `DATABASE_URL`
-   - `REDIS_URL`
+   - `POSTGRES_PASSWORD`
    - `JWT_SECRET` (recommended: >= 32 chars)
    - `NEXTAUTH_SECRET`
    - `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` when AI features are needed
@@ -105,14 +105,16 @@ The current `docker-compose.yml` only orchestrates `api`, `web`, and `agent-engi
 3. Start services:
 
    ```bash
-   docker compose up -d api web agent-engine
+   docker compose -f docker-compose.selfhost.yml up -d --build
    ```
 
 4. Run migrations after first deploy or upgrades:
 
    ```bash
-   docker compose exec -T api alembic upgrade head
+   docker compose -f docker-compose.selfhost.yml exec -T api alembic upgrade head
    ```
+
+`RESEARCH_CLOUD_ENABLED=0` is the default. No request is sent to a `joyeeassets.com` domain unless an administrator explicitly enables Research Cloud and an individual user completes device authorization. Local documents, positions, trades, and decision journals are never uploaded.
 
 ## Authentication and Test Users
 
@@ -136,10 +138,10 @@ Do not enable `KEELTRADER_AUTO_INIT_TEST_USERS` in production.
 
 ## Common Commands
 
-- Status: `docker compose ps`
-- Tail logs: `docker compose logs -f web api agent-engine`
-- Stop: `docker compose down`
-- Shell into API: `docker compose exec api sh`
+- Status: `docker compose -f docker-compose.selfhost.yml ps`
+- Tail logs: `docker compose -f docker-compose.selfhost.yml logs -f web api`
+- Stop: `docker compose -f docker-compose.selfhost.yml down`
+- Shell into API: `docker compose -f docker-compose.selfhost.yml exec api sh`
 - Validate builds without deploy: `./build.sh`
 - Release Web: `scripts/deploy.sh web`
 - Release API + agent-engine: `scripts/deploy.sh api`
