@@ -57,8 +57,13 @@ describe("server runtime helpers", () => {
   it("normalizes the research base URL", () => {
     expect(
       getResearchBaseUrl({
-        RESEARCH_API_URL: "https://research.joyeeassets.com/api/",
+        RESEARCH_CLOUD_ENABLED: "1",
+        RESEARCH_API_URL: "https://research.example.com/api/",
       })
-    ).toBe("https://research.joyeeassets.com");
+    ).toBe("https://research.example.com");
+  });
+
+  it("keeps Research Cloud disabled by default", () => {
+    expect(getResearchBaseUrl({})).toBe("");
   });
 });

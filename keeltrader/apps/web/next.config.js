@@ -12,14 +12,6 @@ const nextConfig = {
         protocol: 'http',
         hostname: 'localhost',
       },
-      {
-        protocol: 'https',
-        hostname: 'keeltrader.joyeeassets.com',
-      },
-      {
-        protocol: 'https',
-        hostname: 'research.joyeeassets.com',
-      },
     ],
     formats: ['image/avif', 'image/webp'],
   },

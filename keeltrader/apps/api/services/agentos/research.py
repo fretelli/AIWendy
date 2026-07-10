@@ -8,6 +8,8 @@ from uuid import UUID
 
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
+import httpx
+from fastapi import HTTPException
 
 from domain.agentos.models import InvestmentBrief, InvestmentMemo
 from services.agentos.report_kb import ReportKBService
@@ -27,6 +29,72 @@ class AgentOSResearchService:
         self.session = session
         self.tushare = TushareReadService(session)
         self.reports = ReportKBService()
+
+    async def _search_reports(
+        self,
+        user_id: UUID,
+        query: str,
+        *,
+        top_k: int,
+        companies: list[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        local_hits = await self.reports.search_reports(
+            query,
+            top_k=top_k,
+            companies=companies,
+        )
+        cloud_hits: list[dict[str, Any]] = []
+        try:
+            from routers.research_cloud import _get_connection, _mcp_call
+
+            connection = await _get_connection(self.session, user_id)
+            if connection and connection.status == "active" and connection.cloud_auto_context:
+                payload = await _mcp_call(
+                    self.session,
+                    user_id,
+                    "search_reports",
+                    {
+                        "query": query[:500],
+                        "top_k": top_k,
+                        "companies": [str(item)[:100] for item in (companies or [])[:10]],
+                    },
+                )
+                for item in payload.get("results", []) if isinstance(payload, dict) else []:
+                    if not isinstance(item, dict):
+                        continue
+                    cloud_hits.append({
+                        "report_id": str(item.get("report_id") or ""),
+                        "section_id": "",
+                        "title": item.get("title"),
+                        "broker": item.get("broker"),
+                        "report_date": item.get("report_date"),
+                        "created_at": None,
+                        "doc_type": "research_report",
+                        "section_type": None,
+                        "granularity": "cloud_summary",
+                        "page_number": None,
+                        "score": 0,
+                        "excerpt": str(item.get("summary") or "")[:1000],
+                        "metadata": {
+                            "source": "research_cloud",
+                            "summary_points": item.get("summary_points") or [],
+                            "tags": item.get("tags") or [],
+                        },
+                    })
+        except (HTTPException, httpx.HTTPError):
+            cloud_hits = []
+
+        merged: list[dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
+        for item in [*local_hits, *cloud_hits]:
+            key = (str(item.get("report_id") or ""), str(item.get("title") or ""))
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(item)
+            if len(merged) >= top_k:
+                break
+        return merged
 
     async def run_daily_brief(
         self,
@@ -63,7 +131,8 @@ class AgentOSResearchService:
                 ]
                 if item
             )
-            report_hits = await self.reports.search_reports(
+            report_hits = await self._search_reports(
+                user_id,
                 report_query or symbol,
                 top_k=3,
                 companies=[profile.get("name")] if profile and profile.get("name") else None,
@@ -159,7 +228,8 @@ class AgentOSResearchService:
             ]
             if item
         )
-        report_hits = await self.reports.search_reports(
+        report_hits = await self._search_reports(
+            user_id,
             report_query,
             top_k=8,
             companies=[name] if name and name != symbol else None,
@@ -223,11 +293,17 @@ class AgentOSResearchService:
 
     async def search_reports(
         self,
+        user_id: UUID,
         query: str,
         top_k: int = 5,
         companies: list[str] | None = None,
     ) -> list[dict[str, Any]]:
-        return await self.reports.search_reports(query, top_k=top_k, companies=companies)
+        return await self._search_reports(
+            user_id,
+            query,
+            top_k=top_k,
+            companies=companies,
+        )
 
     async def get_memo(self, user_id: UUID, memo_id: UUID) -> InvestmentMemo | None:
         result = await self.session.execute(

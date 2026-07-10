@@ -33,13 +33,13 @@ KeelTrader 当前不提供技术分析、自动交易、交易所连接、交易
 
 ## 快速开始
 
-自托管部署使用 Docker Compose。当前 compose 编排 `api`、`web` 和 `agent-engine`，PostgreSQL 与 Redis 作为外部服务接入。
+自托管部署使用隔离编排 `docker-compose.selfhost.yml`，自带 PostgreSQL/pgvector 与 Redis，默认不连接 KeelTrader 官方服务。Research Cloud 只有管理员开启且用户完成设备授权后才可使用。
 
 ```bash
 cd keeltrader
 cp .env.example .env
-docker compose up -d api web agent-engine
-docker compose exec -T api alembic upgrade head
+docker compose -f docker-compose.selfhost.yml up -d --build
+docker compose -f docker-compose.selfhost.yml exec -T api alembic upgrade head
 ```
 
 更多说明：
@@ -96,13 +96,13 @@ KeelTrader currently does not provide technical analysis, automated trading, exc
 
 ## Quick Start
 
-Self-hosting uses Docker Compose. The current compose file orchestrates `api`, `web`, and `agent-engine`; PostgreSQL and Redis are external services.
+Self-hosting uses the isolated `docker-compose.selfhost.yml` stack with PostgreSQL/pgvector and Redis included. It does not contact KeelTrader-operated services by default; Research Cloud requires explicit administrator enablement and per-user device authorization.
 
 ```bash
 cd keeltrader
 cp .env.example .env
-docker compose up -d api web agent-engine
-docker compose exec -T api alembic upgrade head
+docker compose -f docker-compose.selfhost.yml up -d --build
+docker compose -f docker-compose.selfhost.yml exec -T api alembic upgrade head
 ```
 
 Further reading:

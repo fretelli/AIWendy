@@ -3,20 +3,24 @@ import {
   proxyRequest,
 } from "@/lib/server/proxy";
 import { getResearchBaseUrl } from "@/lib/server/upstreams";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ACCESS_TOKEN_COOKIE = "keeltrader_access_token";
-
 function proxy(request: Request, context: RouteContext): Promise<Response> {
   const baseUrl = getResearchBaseUrl();
+  if (!baseUrl) {
+    return Promise.resolve(
+      NextResponse.json(
+        { detail: "Research Cloud is not configured for this deployment" },
+        { status: 503 }
+      )
+    );
+  }
 
   return proxyRequest(request, context, {
     baseUrls: () => [baseUrl],
-    auth: {
-      accessTokenCookie: ACCESS_TOKEN_COOKIE,
-    },
     errorPayload: ({ errors }) => ({
       detail: "Research API proxy failed",
       upstream: baseUrl,
