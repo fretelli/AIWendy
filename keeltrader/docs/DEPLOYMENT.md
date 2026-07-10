@@ -1,18 +1,17 @@
-# 部署与发布
+# 部署与运行
 
 <a id="zh-cn"></a>
 [中文](#zh-cn) | [English](#en)
 
-## 当前生产形态
+## 支持的拓扑
 
-KeelTrader 当前按本机 Docker Compose 部署：
+KeelTrader 通过 Docker Compose 运行以下应用组件：
 
 - `web`：Next.js 前端
 - `api`：FastAPI 后端
-- `agent-engine`：复用 API 镜像运行 AgentOS 心跳/任务
-- PostgreSQL 与 Redis：外部服务，通过 `.env` 中的 `DATABASE_URL` / `REDIS_URL` 接入
+- `agent-engine`：AgentOS 心跳和后台任务
 
-旧的 Vercel/Railway/Fly.io 路径已停用。发布使用 overlay 镜像，默认复用已有 base image，避免不必要的完整依赖层 rebuild。
+PostgreSQL 和 Redis 通过环境变量作为外部服务接入。完整首次启动流程见 [SELF_HOSTING.md](SELF_HOSTING.md)。
 
 ## 必要环境变量
 
@@ -21,43 +20,25 @@ KeelTrader 当前按本机 Docker Compose 部署：
 - `JWT_SECRET`
 - `NEXTAUTH_SECRET`
 - `NEXTAUTH_URL`
-- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`（至少一个，按需）
-- `KEELTRADER_AUTH_REQUIRED=1`（公网/生产必须保持开启）
+- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`（按需）
+- `KEELTRADER_AUTH_REQUIRED=1`（公网/生产必须开启）
 
-## 发布命令
+## 验证与启动
 
-验证构建但不部署：
+验证构建：
 
 ```bash
 ./build.sh
 ```
 
-发布 Web：
+启动应用：
 
 ```bash
-scripts/deploy.sh web
-```
-
-发布 API + agent-engine：
-
-```bash
-scripts/deploy.sh api
-```
-
-只跑 smoke：
-
-```bash
-scripts/deploy.sh web --smoke-only
-scripts/deploy.sh api --smoke-only
-```
-
-## 迁移
-
-首次部署或升级后运行：
-
-```bash
+docker compose up -d api web agent-engine
 docker compose exec -T api alembic upgrade head
 ```
+
+公开文档不承诺特定主机、反向代理或镜像发布流程；运维者应在私有基础设施配置中管理这些细节。
 
 ## 健康检查
 
@@ -71,16 +52,15 @@ docker compose exec -T api alembic upgrade head
 <a id="en"></a>
 ## English
 
-## Current Production Shape
+## Supported Topology
 
-KeelTrader currently deploys on a local Docker Compose host:
+KeelTrader runs these application components through Docker Compose:
 
 - `web`: Next.js frontend
 - `api`: FastAPI backend
-- `agent-engine`: reuses the API image for AgentOS heartbeat/tasks
-- PostgreSQL and Redis: external services configured through `DATABASE_URL` / `REDIS_URL`
+- `agent-engine`: AgentOS heartbeat and background tasks
 
-The old Vercel/Railway/Fly.io path is disabled. Releases use overlay images and reuse existing base images by default to avoid unnecessary dependency-layer rebuilds.
+PostgreSQL and Redis are external services configured through environment variables. See [SELF_HOSTING.md](SELF_HOSTING.md) for the complete first-run workflow.
 
 ## Required Environment Variables
 
@@ -92,40 +72,22 @@ The old Vercel/Railway/Fly.io path is disabled. Releases use overlay images and 
 - `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` as needed
 - `KEELTRADER_AUTH_REQUIRED=1` for public/production deployments
 
-## Release Commands
+## Validate And Start
 
-Validate builds without deploy:
+Validate builds:
 
 ```bash
 ./build.sh
 ```
 
-Release Web:
+Start the application:
 
 ```bash
-scripts/deploy.sh web
-```
-
-Release API + agent-engine:
-
-```bash
-scripts/deploy.sh api
-```
-
-Smoke only:
-
-```bash
-scripts/deploy.sh web --smoke-only
-scripts/deploy.sh api --smoke-only
-```
-
-## Migrations
-
-After first deploy or upgrades:
-
-```bash
+docker compose up -d api web agent-engine
 docker compose exec -T api alembic upgrade head
 ```
+
+Public documentation does not define a specific host, reverse proxy, or image-release pipeline. Operators should manage those details in private infrastructure configuration.
 
 ## Health Checks
 

@@ -13,6 +13,7 @@ for path in \
   FRONTEND_SETUP_COMPLETE.md \
   MARKET_DATA_INTEGRATION.md \
   QUICK_START_EXCHANGES.md \
+  keeltrader/apps/api/requirements.cloud.txt \
   package.json \
   package-lock.json; do
   if [ -e "$path" ]; then
@@ -38,6 +39,7 @@ if grep -nEi "Wendy Rhodes|trading psychology|AI-powered performance coach" \
 fi
 
 git diff --check
+python3 "$REPO_ROOT/keeltrader/scripts/check-doc-links.py"
 "$REPO_ROOT/keeltrader/scripts/check-public-safety.sh"
 
 echo "[root-audit] ok"

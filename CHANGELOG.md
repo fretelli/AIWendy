@@ -1,87 +1,49 @@
 # Changelog
 
-<a id="en"></a>
-[English](#en) | [中文](#zh-cn)
+<a id="zh-cn"></a>
+[中文](#zh-cn) | [English](#en)
 
-All notable changes to this project will be documented in this file.
+本文件只记录可由当前仓库和 Git tag 验证的重要变更。
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project aims to follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+## 未发布
 
-## [Unreleased]
+### 变更
 
-### Added
-- Poetry dependency management for Python backend
-- Dependabot configuration for automated dependency updates
-- `.npmrc` configuration for exact version locking
-- Automated CHANGELOG generation support
+- 将项目定位统一为纯基本面投资研究 AgentOS。
+- 以 `v2` 作为唯一开发与发布分支。
+- 补充研报知识库检索、决策日志、周度复盘和基本面投资假设验证记录。
+- 清理旧的交易心理教练、交易所、商城和 Cloud/SaaS 公开文档。
 
-### Changed
-- Unified Node.js dependency versions (removed caret ranges)
-- Updated `pyproject.toml` with complete Poetry configuration
-- Improved dependency management workflow
+### 安全
 
-### Security
-- Fixed SQL injection vulnerability in journal symbol search
-- Enhanced file upload validation with magic bytes verification
-- Implemented authentication bypass prevention for sensitive endpoints
-- Fixed guest email constant inconsistency
+- 公网部署默认要求登录，保留 human-in-the-loop 最终决策边界。
+- 公开仓库安全检查会拒绝运行时凭证、私钥和旧产品定位。
 
-## [1.0.0] - 2026-01-11
+## 0.1.0 - 2026-01-13
 
-### Added
-- Git Flow branch strategy for better collaboration
-- Automated release workflow via GitHub Actions
-- Branch protection guidelines in CONTRIBUTING.md
-
-### Changed
-- Updated documentation to reflect new branching model
-- Version bumped to 1.0.0 for official release
-
-## [0.1.0] - 2026-01-09
-
-Initial open-source release (Community edition).
+- 首个公开版本。
 
 ---
 
-<a id="zh-cn"></a>
-## 中文
+<a id="en"></a>
+## English
 
-本文件记录本项目的所有重要变更。
+This file records only notable changes that can be verified from the current repository and Git tags.
 
-格式基于 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，
-并遵循 [语义化版本](https://semver.org/spec/v2.0.0.html)。
+## Unreleased
 
-## [未发布]
+### Changed
 
-### 新增
-- Python 后端 Poetry 依赖管理
-- Dependabot 自动化依赖更新配置
-- `.npmrc` 配置文件，锁定精确版本
-- 自动化 CHANGELOG 生成支持
+- Repositioned the project as a fundamental investment research AgentOS.
+- Made `v2` the only development and release branch.
+- Added report-KB search, decision journals, weekly reviews, and fundamental thesis validation records.
+- Removed public documentation for the former trading-psychology, exchange, commerce, and Cloud/SaaS positioning.
 
-### 变更
-- 统一 Node.js 依赖版本（移除 caret 范围）
-- 更新 `pyproject.toml`，完整的 Poetry 配置
-- 改进依赖管理工作流
+### Security
 
-### 安全
-- 修复交易日志符号搜索中的 SQL 注入漏洞
-- 增强文件上传验证（magic bytes 验证）
-- 实施敏感端点的认证绕过防护
-- 修复 guest 邮箱常量不一致问题
+- Public deployments require authentication by default and retain a human-in-the-loop final decision boundary.
+- Public repository checks reject runtime credentials, private keys, and obsolete product positioning.
 
-## [1.0.0] - 2026-01-11
+## 0.1.0 - 2026-01-13
 
-### 新增
-- Git Flow 分支策略，更好地支持协作开发
-- 通过 GitHub Actions 实现自动化发布流程
-- 在 CONTRIBUTING.md 中添加分支保护指南
-
-### 变更
-- 更新文档以反映新的分支管理模型
-- 版本号升级至 1.0.0，正式发布
-
-## [0.1.0] - 2026-01-09
-
-首次开源发布（Community 社区版）。
+- Initial public release.
