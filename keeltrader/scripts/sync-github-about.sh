@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO="${GITHUB_REPOSITORY:-fretelli/KeelTrader}"
-DESCRIPTION="Self-evolving investment research AgentOS with human-in-the-loop decision journals, report-KB search, multi-agent analysis, and backtesting workflows."
+DESCRIPTION="Self-evolving fundamental investment research AgentOS with human-in-the-loop decision journals, report-KB search, multi-agent analysis, and thesis validation."
 
 ADD_TOPICS=(
   agentos
@@ -11,7 +11,7 @@ ADD_TOPICS=(
   llm
   rag
   pgvector
-  backtesting
+  fundamental-analysis
   decision-journal
   human-in-the-loop
   financial-ai
@@ -21,9 +21,13 @@ ADD_TOPICS=(
 
 REMOVE_TOPICS=(
   billions
+  behavioral-finance
   coaching
   psychology
+  stock-market
+  trading
   trading-psychology
+  backtesting
 )
 
 if ! command -v gh >/dev/null 2>&1; then
