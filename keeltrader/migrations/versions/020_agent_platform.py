@@ -22,7 +22,7 @@ TABLES = [
 
 
 def upgrade():
-    op.execute("""
+    ddl = """
     CREATE TABLE agent_platform_model_profiles (
       id UUID PRIMARY KEY, user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       name VARCHAR(120) NOT NULL, provider VARCHAR(30) NOT NULL, base_url VARCHAR(500),
@@ -157,7 +157,14 @@ def upgrade():
       cost_usd DOUBLE PRECISION NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
     CREATE INDEX ix_agent_platform_usage_user ON agent_platform_usage_ledger(user_id, created_at);
-    """)
+    """
+    # asyncpg rejects multiple SQL commands in one prepared statement.
+    # Execute each DDL command independently while Alembic keeps the whole
+    # migration inside its surrounding transaction.
+    for statement in ddl.split(";"):
+        statement = statement.strip()
+        if statement:
+            op.execute(statement)
 
 
 def downgrade():
