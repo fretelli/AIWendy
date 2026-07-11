@@ -140,19 +140,18 @@ describe("server proxy helper", () => {
     const response = await proxyRequest(
       request("/api/research/reports/search", {
         method: "POST",
-        cookie: "keeltrader_access_token=cookie-token",
+        headers: { authorization: "Bearer research-token" },
         body: JSON.stringify({ query: "retail" }),
       }),
       context(["reports", "search"]),
       {
-        baseUrls: () => ["https://research.joyeeassets.com"],
-        auth: { accessTokenCookie: "keeltrader_access_token" },
+        baseUrls: () => ["https://research.example.com"],
       }
     );
 
     expect(response.status).toBe(200);
     expect(String(fetchMock.mock.calls[0][0])).toBe(
-      "https://research.joyeeassets.com/api/reports/search"
+      "https://research.example.com/api/reports/search"
     );
   });
 
