@@ -136,16 +136,16 @@ export default function AgentWorkspacePage() {
         source.close(); if (currentId) void loadTimeline(currentId); void refreshWorkspace()
       }
     }
-    for (const type of ['run.queued', 'run.planned', 'step.started', 'step.completed', 'step.retry', 'approval.required', 'run.completed', 'run.failed', 'run.cancel', 'run.paused_budget']) source.addEventListener(type, onEvent)
+    for (const type of ['run.queued', 'run.planned', 'run.retry', 'message.delta', 'step.started', 'step.completed', 'step.retry', 'approval.required', 'run.completed', 'run.failed', 'run.cancel', 'run.paused_budget']) source.addEventListener(type, onEvent)
     source.onerror = () => { source.close(); if (currentId) void loadTimeline(currentId) }
     return () => source.close()
   }, [activeRun, currentId, loadTimeline, refreshWorkspace])
 
   useEffect(() => {
     if (!activeRun || !currentId) return
-    const timer = window.setInterval(() => { void loadTimeline(currentId); void refreshWorkspace() }, 2500)
+    const timer = window.setInterval(() => { void loadTimeline(currentId) }, 15000)
     return () => window.clearInterval(timer)
-  }, [activeRun, currentId, loadTimeline, refreshWorkspace])
+  }, [activeRun, currentId, loadTimeline])
 
   const createSession = async (companyCode?: string) => {
     if (!selectedAgent) { setSettingsOpen(true); toast.error('请先配置模型并创建 Agent'); return null }
@@ -198,7 +198,7 @@ export default function AgentWorkspacePage() {
       let sessionId = currentId
       if (!sessionId) sessionId = (await createSession())?.id || null
       if (!sessionId) return
-      const result = await agentPlatformApi.sendMessage(sessionId, { content, agent_definition_id: selectedAgent || undefined, attachment_ids: attachments.map(item => item.id) })
+      const result = await agentPlatformApi.sendMessage(sessionId, { content, client_request_id: crypto.randomUUID(), agent_definition_id: selectedAgent || undefined, attachment_ids: attachments.map(item => item.id) })
       setRuns(previous => [...previous, result.run]); setEvents([]); await loadTimeline(sessionId); await refreshWorkspace()
       setAttachments([])
     } catch (error) { toast.error(error instanceof Error ? error.message : '发送失败'); setInput(rawContent) }

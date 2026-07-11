@@ -33,7 +33,13 @@ else:
         echo=settings.database_echo,
         pool_size=settings.database_pool_size,
         max_overflow=settings.database_max_overflow,
+        pool_timeout=settings.database_pool_timeout_seconds,
+        pool_recycle=1800,
         pool_pre_ping=True,  # Check connection health
+        connect_args={"server_settings": {
+            "application_name": settings.database_application_name,
+            "idle_in_transaction_session_timeout": "60000",
+        }} if "+asyncpg" in settings.database_url else {},
     )
 
 # Create session factory
