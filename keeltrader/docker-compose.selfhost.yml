@@ -37,6 +37,9 @@ services:
       - "${KEELTRADER_API_BIND:-127.0.0.1}:8000:8000"
     environment:
       DATABASE_URL: postgresql+asyncpg://keeltrader:${POSTGRES_PASSWORD}@postgres:5432/keeltrader
+      DATABASE_POOL_SIZE: 8
+      DATABASE_MAX_OVERFLOW: 2
+      DATABASE_APPLICATION_NAME: keeltrader-api
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env}
@@ -76,6 +79,9 @@ services:
       - /tmp:noexec,size=50M
     environment:
       DATABASE_URL: postgresql+asyncpg://keeltrader:${POSTGRES_PASSWORD}@postgres:5432/keeltrader
+      DATABASE_POOL_SIZE: 4
+      DATABASE_MAX_OVERFLOW: 1
+      DATABASE_APPLICATION_NAME: keeltrader-agent-worker
       REDIS_URL: redis://redis:6379/0
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env}
       AGENT_MANAGED_PROVIDER: ${AGENT_MANAGED_PROVIDER:-openai}

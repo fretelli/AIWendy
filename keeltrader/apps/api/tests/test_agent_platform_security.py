@@ -109,3 +109,20 @@ def test_company_memory_attachments_and_self_host_privacy_contracts():
     assert "_company_memory_context" in runtime
     assert 'key = f"company:{chat.company_code}:thesis"' in runtime
     assert "attachment_ids" in router and "UploadedFile.user_id == user.id" in router
+
+
+def test_worker_registers_all_models_and_runtime_reliability_migration_exists():
+    worker = (Path(__file__).resolve().parents[1] / "tasks/agent_platform_worker.py").read_text(encoding="utf-8")
+    assert "register_domain_models()" in worker
+    assert "asyncio.TaskGroup()" in worker
+    migration = Path(__file__).resolve().parents[3] / "migrations/versions/027_agent_runtime_reliability.py"
+    source = migration.read_text(encoding="utf-8")
+    assert 'revision = "027"' in source
+    assert "agent_background_jobs" in source
+    assert "uq_agent_platform_run_idempotency" in source
+
+
+def test_model_registry_configures_all_mappers():
+    from core.model_registry import register_domain_models
+
+    register_domain_models()

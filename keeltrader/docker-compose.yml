@@ -42,6 +42,9 @@ services:
       - CORS_ORIGINS=${CORS_ORIGINS}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ENVIRONMENT=production
+      - DATABASE_POOL_SIZE=8
+      - DATABASE_MAX_OVERFLOW=2
+      - DATABASE_APPLICATION_NAME=keeltrader-api
     volumes:
       - uploads_data:/app/uploads
     labels:
@@ -114,6 +117,9 @@ services:
       - AGENT_MANAGED_API_KEY=${AGENT_MANAGED_API_KEY:-}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ENVIRONMENT=production
+      - DATABASE_POOL_SIZE=4
+      - DATABASE_MAX_OVERFLOW=1
+      - DATABASE_APPLICATION_NAME=keeltrader-agent-worker
     depends_on:
       api:
         condition: service_started

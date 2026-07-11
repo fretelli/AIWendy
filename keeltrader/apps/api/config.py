@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     database_echo: bool = False
     database_pool_size: int = 20
     database_max_overflow: int = 10
+    database_pool_timeout_seconds: int = 15
+    database_application_name: str = "keeltrader-api"
 
     # ========== Redis ==========
     redis_url: str = "redis://localhost:6379"
@@ -96,6 +98,7 @@ class Settings(BaseSettings):
     agent_managed_api_key: Optional[str] = None
     agent_managed_context_window: int = 128000
     agent_managed_max_output_tokens: int = 4096
+    agent_model_timeout_seconds: float = 300.0
 
     # ========== Market Data API Keys ==========
     twelve_data_api_key: Optional[str] = None

@@ -28,7 +28,7 @@ export const agentPlatformApi = {
   createSession: (body: { agent_definition_id: string; title?: string; interaction_mode?: InteractionMode; company_code?: string | null }) => apiJson<AgentSession>(`${base}/sessions`, { method: 'POST', body }),
   updateSession: (id: string, body: { title?: string; is_pinned?: boolean; archived?: boolean; interaction_mode?: InteractionMode; company_code?: string | null }) => apiJson<AgentSession>(`${base}/sessions/${id}`, { method: 'PATCH', body }),
   timeline: (id: string) => apiJson<{ session: AgentSession; messages: AgentMessage[]; runs: AgentRun[] }>(`${base}/sessions/${id}/timeline`),
-  sendMessage: (id: string, body: { content: string; agent_definition_id?: string; attachment_ids?: string[] }) => apiJson<{ run: AgentRun; session: AgentSession }>(`${base}/sessions/${id}/messages`, { method: 'POST', body }),
+  sendMessage: (id: string, body: { content: string; client_request_id: string; agent_definition_id?: string; attachment_ids?: string[] }) => apiJson<{ run: AgentRun; session: AgentSession }>(`${base}/sessions/${id}/messages`, { method: 'POST', body }),
   uploadAttachment: (file: File) => { const form = new FormData(); form.append('file', file); return apiForm<{ id: string; fileName: string }>('/files/upload', form, { method: 'POST' }) },
   compactSession: (id: string) => apiJson<AgentSession>(`${base}/sessions/${id}/compact`, { method: 'POST' }),
   stopSession: (id: string) => apiJson<AgentRun>(`${base}/sessions/${id}/stop`, { method: 'POST' }),

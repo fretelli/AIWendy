@@ -59,7 +59,14 @@ def _get_tushare_session_factory() -> async_sessionmaker[AsyncSession] | None:
     if _tushare_session_factory is not None and _tushare_session_url == url:
         return _tushare_session_factory
 
-    engine = create_async_engine(url, pool_pre_ping=True, pool_size=5, max_overflow=2)
+    engine = create_async_engine(
+        url, pool_pre_ping=True, pool_size=3, max_overflow=1, pool_timeout=15, pool_recycle=1800,
+        connect_args={"server_settings": {
+            "application_name": "keeltrader-tushare-reader",
+            "idle_in_transaction_session_timeout": "60000",
+            "statement_timeout": "30000",
+        }} if "+asyncpg" in url else {},
+    )
     _tushare_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     _tushare_session_url = url
     return _tushare_session_factory

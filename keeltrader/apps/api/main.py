@@ -14,6 +14,7 @@ from core.exceptions import AppException
 from core.i18n import get_request_locale, t
 from core.logging import setup_logging
 from core.middleware import AuthMiddleware, LoggingMiddleware
+from core.model_registry import register_domain_models
 
 # Get settings
 settings = get_settings()
@@ -25,14 +26,7 @@ logger = structlog.get_logger()
 
 def _import_domain_models():
     """Register SQLAlchemy models before routes can trigger mapper configuration."""
-    import domain.coach.models  # noqa
-    import domain.exchange.models  # noqa
-    import domain.agent_platform.models  # noqa
-    import domain.file.models  # noqa
-    import domain.journal.models  # noqa
-    import domain.project.models  # noqa
-    import domain.rpg.models  # noqa
-    import domain.user.models  # noqa
+    register_domain_models()
 
 
 @asynccontextmanager

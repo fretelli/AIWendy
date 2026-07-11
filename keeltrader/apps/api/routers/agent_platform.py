@@ -6,8 +6,9 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, AsyncIterator, Literal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+import redis.asyncio as aioredis
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +19,7 @@ from config import get_settings
 from core.database import get_session
 from core.encryption import get_encryption_service
 from domain.agent_platform.models import (
-    AgentApproval, AgentArtifact, AgentCompanyDossier, AgentCompanyDossierVersion, AgentCompanyEvidence,
+    AgentApproval, AgentArtifact, AgentBackgroundJob, AgentCompanyDossier, AgentCompanyDossierVersion, AgentCompanyEvidence,
     AgentCompanyWatchlist, AgentDefinition, AgentMCPServer, AgentMemory, AgentMemoryVersion,
     AgentMessage, AgentModelProfile, AgentRun, AgentRunEvent, AgentRunStep, AgentSchedule, AgentSession,
     AgentToolGrant, AgentUsageLedger,
@@ -85,17 +86,19 @@ async def _ensure_default_agent(session: AsyncSession, user: User) -> AgentDefin
     profile = await _ensure_managed_profile(session)
     if profile is None:
         return None
-    item = AgentDefinition(
-        user_id=user.id, name="基本面研究员", description="A股公司基本面、证据与风险研究",
+    await session.execute(pg_insert(AgentDefinition).values(
+        id=uuid4(), user_id=user.id, name="基本面研究员", description="A股公司基本面、证据与风险研究",
         system_prompt=("你是只读基本面研究员。所有结论必须区分事实、推断和不确定性，"
                        "引用可核验证据，主动寻找反例与证伪条件，禁止执行交易。"),
         role="fundamental_researcher", model_profile_id=profile.id, tool_names=DEFAULT_AGENT_TOOLS,
         memory_enabled=True, max_steps=12, max_parallel=3, task_token_budget=50000,
         task_cost_budget_usd=5, is_default=True, is_active=True,
-    )
-    session.add(item)
+    ).on_conflict_do_nothing())
     await session.flush()
-    return item
+    return (await session.execute(select(AgentDefinition).where(
+        AgentDefinition.user_id == user.id, AgentDefinition.is_default.is_(True),
+        AgentDefinition.is_active.is_(True),
+    ))).scalar_one()
 
 
 def dump(model, *, secret_fields: set[str] | None = None) -> dict[str, Any]:
@@ -160,6 +163,7 @@ class SessionMessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=20000)
     agent_definition_id: UUID | None = None
     attachment_ids: list[UUID] = Field(default_factory=list, max_length=10)
+    client_request_id: UUID
 
 
 class WatchlistAdd(BaseModel):
@@ -198,10 +202,28 @@ class ScheduleCreate(BaseModel):
 
 
 @router.get("/health")
-async def health():
+async def health(session: AsyncSession = Depends(get_session)):
     settings = get_settings()
-    return {"status": "ok", "service": "agent-platform", "mode": "research-only",
-            "managed_model_available": bool(settings.agent_managed_api_key and settings.agent_managed_model)}
+    now = datetime.now(UTC)
+    queued = (await session.execute(select(
+        func.count(), func.min(func.coalesce(AgentRun.heartbeat_at, AgentRun.created_at)),
+    ).where(
+        AgentRun.status.in_({"queued", "planning", "running"})
+    ))).one()
+    jobs = (await session.execute(select(func.count()).select_from(AgentBackgroundJob).where(
+        AgentBackgroundJob.status.in_({"queued", "running", "retry"})
+    ))).scalar_one()
+    redis = aioredis.from_url(settings.redis_url)
+    try:
+        heartbeat = await redis.get("keeltrader:agent-platform:heartbeat")
+    finally:
+        await redis.aclose()
+    oldest_age = (now - queued[1]).total_seconds() if queued[1] else 0
+    healthy = bool(heartbeat) and oldest_age < 90
+    return {"status": "ok" if healthy else "degraded", "service": "agent-platform", "mode": "research-only",
+            "managed_model_available": bool(settings.agent_managed_api_key and settings.agent_managed_model),
+            "worker_heartbeat": bool(heartbeat), "active_runs": int(queued[0]),
+            "oldest_active_age_seconds": round(oldest_age, 1), "background_jobs": int(jobs)}
 
 
 @router.post("/model-credentials")
@@ -347,6 +369,8 @@ async def _event_stream(run_id: UUID, user_id: UUID, cursor: int) -> AsyncIterat
     from core.database import async_session
     last = cursor
     while True:
+        frames: list[str] = []
+        terminal = False
         async with async_session() as db:
             run = await db.get(AgentRun, run_id)
             if not run or run.user_id != user_id:
@@ -357,15 +381,22 @@ async def _event_stream(run_id: UUID, user_id: UUID, cursor: int) -> AsyncIterat
                                        .order_by(AgentRunEvent.id).limit(100))).scalars().all()
             for item in events:
                 last = item.id
-                yield f"id: {item.id}\nevent: {item.event_type}\ndata: {json.dumps(item.payload, default=str)}\n\n"
-            if run.status in TERMINAL and not events:
-                return
+                frames.append(f"id: {item.id}\nevent: {item.event_type}\ndata: {json.dumps(item.payload, default=str)}\n\n")
+            terminal = run.status in TERMINAL and not events
+            await db.rollback()
+        for frame in frames:
+            yield frame
+        if terminal:
+            return
         yield ": keepalive\n\n"
         await asyncio.sleep(1)
 
 
 @router.get("/runs/{run_id}/events")
-async def run_events(run_id: UUID, cursor: int = Query(0, ge=0), user: User = Depends(get_current_user)):
+async def run_events(run_id: UUID, request: Request, cursor: int = Query(0, ge=0), user: User = Depends(get_current_user)):
+    last_event_id = request.headers.get("last-event-id")
+    if last_event_id and last_event_id.isdigit():
+        cursor = max(cursor, int(last_event_id))
     return StreamingResponse(_event_stream(run_id, user.id, cursor), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
@@ -414,7 +445,7 @@ async def add_watchlist(req: WatchlistAdd, session: AsyncSession = Depends(get_s
         await session.flush()
     else:
         item.refresh_enabled = True
-    await enqueue_dossier_refresh(user.id, code)
+    await enqueue_dossier_refresh(session, user.id, code)
     return dump(item)
 
 
@@ -462,7 +493,7 @@ async def request_dossier_refresh(company_code: str, session: AsyncSession = Dep
     ))).scalar_one_or_none()
     if not watch:
         raise HTTPException(400, "Only companies in 我的自选 can be refreshed")
-    await enqueue_dossier_refresh(user.id, company_code, force=True)
+    await enqueue_dossier_refresh(session, user.id, company_code, force=True)
     return {"ok": True, "status": "queued"}
 
 
@@ -520,6 +551,11 @@ async def create_session_message(session_id: UUID, req: SessionMessageCreate, se
     if not agent or agent.user_id != user.id or not agent.is_active:
         raise HTTPException(404, "Agent not found")
     item.agent_definition_id = agent.id
+    existing = (await session.execute(select(AgentRun).where(
+        AgentRun.user_id == user.id, AgentRun.idempotency_key == str(req.client_request_id),
+    ))).scalar_one_or_none()
+    if existing:
+        return {"run": dump(existing), "session": dump(item)}
     prompt = req.content
     attachment_meta = []
     if req.attachment_ids:
@@ -536,20 +572,21 @@ async def create_session_message(session_id: UUID, req: SessionMessageCreate, se
                                     "company_code": item.company_code})
             path = await storage.get_file_path(uploaded.storage_path)
             if path and can_extract_text(uploaded.file_name):
-                result = extract_text(path)
+                result = await extract_text(path, uploaded.file_name)
                 if result.success and result.text:
                     sections.append(f"Attachment {uploaded.file_name}:\n{result.text[:30000]}")
             else:
                 sections.append(f"Attachment {uploaded.file_name}: binary/image supplied by the user; do not invent its contents.")
         if sections:
             prompt = f"{req.content}\n\nUser attachments bound to {item.company_code or 'this session'}:\n" + "\n\n".join(sections)
-    run = await enqueue_run(session, user.id, agent, prompt, item.id, item.interaction_mode)
+    run = await enqueue_run(session, user.id, agent, prompt, item.id, item.interaction_mode,
+                            idempotency_key=str(req.client_request_id))
     if attachment_meta:
         message = (await session.execute(select(AgentMessage).where(
             AgentMessage.run_id == run.id, AgentMessage.role == "user"
         ))).scalar_one_or_none()
         if message:
-            message.metadata_json = {"attachments": attachment_meta}
+            message.metadata_json = {**(message.metadata_json or {}), "attachments": attachment_meta}
     return {"run": dump(run), "session": dump(item)}
 
 
