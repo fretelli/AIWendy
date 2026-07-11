@@ -14,7 +14,6 @@ const EXCLUDED_PATHS = [
 const AUTH_COOKIE = 'keeltrader_access_token';
 const PROTECTED_PATHS = [
   '/agent',
-  '/research',
   '/settings',
 ];
 

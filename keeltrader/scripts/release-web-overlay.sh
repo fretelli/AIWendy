@@ -195,7 +195,7 @@ smoke() {
   expect_code "login page" "200" "GET" "/auth/login"
   expect_code "agent requires login" "302,303,307,308" "GET" "/agent"
   expect_code "agent API requires login" "401" "GET" "/api/proxy/v1/agent/health"
-  expect_code "research API requires login" "401" "GET" "/api/research/health"
+  expect_code "research hub removed" "404" "GET" "/research"
   if [ "$DEPLOY" -eq 1 ] && [ "$SMOKE_ONLY" -eq 0 ]; then
     expect_code "web health" "200" "GET" "/api/health"
     expect_service_revision web "$GIT_SHA"

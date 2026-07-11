@@ -4,10 +4,10 @@ import path from 'node:path'
 const root = path.resolve(__dirname, '..')
 
 describe('Agent Platform contract', () => {
-  it('uses the unified agent route and keeps research separate', () => {
+  it('uses the unified agent route without a standalone research hub', () => {
     const layout = fs.readFileSync(path.join(root, 'app/(app)/layout.tsx'), 'utf8')
     expect(layout).toContain("href: '/agent'")
-    expect(layout).toContain("href: '/research'")
+    expect(layout).not.toContain("href: '/research'")
     expect(layout).not.toContain("href: '/chat'")
   })
 

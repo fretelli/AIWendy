@@ -3,10 +3,7 @@
  */
 
 import { getWebBuildInfo } from "../lib/server/build-info";
-import {
-  getApiBaseUrlCandidates,
-  getResearchBaseUrl,
-} from "../lib/server/upstreams";
+import { getApiBaseUrlCandidates } from "../lib/server/upstreams";
 
 describe("server runtime helpers", () => {
   it("returns build metadata from the environment", () => {
@@ -54,16 +51,4 @@ describe("server runtime helpers", () => {
     ]);
   });
 
-  it("normalizes the research base URL", () => {
-    expect(
-      getResearchBaseUrl({
-        RESEARCH_CLOUD_ENABLED: "1",
-        RESEARCH_API_URL: "https://research.example.com/api/",
-      })
-    ).toBe("https://research.example.com");
-  });
-
-  it("keeps Research Cloud disabled by default", () => {
-    expect(getResearchBaseUrl({})).toBe("");
-  });
 });
