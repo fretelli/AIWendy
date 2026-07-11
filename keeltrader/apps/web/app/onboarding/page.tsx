@@ -5,25 +5,27 @@ import Link from "next/link"
 import { useI18n } from "@/lib/i18n/provider"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { AuthShell } from "@/components/auth-shell"
 
 export default function OnboardingPage() {
   const { t } = useI18n()
 
   return (
-    <div className="container mx-auto max-w-3xl px-4 py-10 space-y-6">
-      <Card>
+    <AuthShell eyebrow="Open the research desk">
+      <Card className="border-border/70 bg-card/90 shadow-[0_18px_60px_hsl(var(--deep-sounding)/.10)]">
         <CardHeader>
-          <CardTitle>{t("landing.app.onboarding.title")}</CardTitle>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[hsl(var(--copper-foreground))]">KeelTrader onboarding</div>
+          <CardTitle className="font-display text-3xl">{t("landing.app.onboarding.title")}</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3 sm:flex-row">
+        <CardContent className="grid gap-3">
           <Link href="/agent">
-            <Button>{t("landing.app.onboarding.toDashboard")}</Button>
+            <Button className="w-full">{t("landing.app.onboarding.toDashboard")}</Button>
           </Link>
           <Link href="/auth/login">
-            <Button variant="outline">{t("landing.app.onboarding.toLogin")}</Button>
+            <Button className="w-full" variant="outline">{t("landing.app.onboarding.toLogin")}</Button>
           </Link>
         </CardContent>
       </Card>
-    </div>
+    </AuthShell>
   )
 }

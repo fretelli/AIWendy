@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Icons } from '@/components/icons'
 import { useAuth } from '@/lib/auth-context'
 import { LanguageSwitcher, useI18n } from '@/lib/i18n/provider'
+import { AuthShell } from '@/components/auth-shell'
 
 function getErrorMessage(error: unknown): string | null {
   if (error instanceof Error) {
@@ -57,9 +58,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen w-full bg-background">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-6 md:px-8">
-        <div className="flex items-center justify-between">
+    <AuthShell>
+        <div className="mb-5 flex items-center justify-between">
           <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
             <Icons.chevronLeft className="mr-2 inline h-4 w-4" />
             {t('landing.auth.back')}
@@ -67,11 +67,11 @@ export default function LoginPage() {
           <LanguageSwitcher />
         </div>
 
-        <div className="mx-auto grid w-full max-w-md gap-6">
+        <div className="grid w-full gap-6">
           <div className="space-y-6">
-            <Card>
+            <Card className="border-border/70 bg-card/90 shadow-[0_18px_60px_hsl(var(--deep-sounding)/.10)]">
               <CardHeader className="space-y-1">
-                <CardTitle className="text-2xl text-center">{t('landing.auth.login.title')}</CardTitle>
+                <CardTitle className="font-display text-center text-3xl">{t('landing.auth.login.title')}</CardTitle>
                 <CardDescription className="text-center">
                   {t('landing.auth.login.subtitle')}
                 </CardDescription>
@@ -146,14 +146,13 @@ export default function LoginPage() {
             </Card>
 
             <div className="grid gap-3 text-sm text-muted-foreground">
-              <div className="rounded-md border p-4">
+              <div className="rounded-xl border bg-card/55 p-4">
                 {t('landing.auth.login.protectedNotice')}
               </div>
             </div>
           </div>
 
         </div>
-      </div>
-    </div>
+    </AuthShell>
   )
 }

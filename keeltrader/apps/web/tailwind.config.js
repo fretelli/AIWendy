@@ -128,13 +128,15 @@ module.exports = {
   			'slide-in-from-top': 'slide-in-from-top 0.3s ease-out',
   			'slide-in-from-bottom': 'slide-in-from-bottom 0.3s ease-out'
   		},
-  		fontFamily: {
-  			sans: [
-  				'Inter',
-  				'system-ui',
-  				'sans-serif'
-  			]
-  		}
+		fontFamily: {
+			sans: [
+				'var(--font-body)',
+				'system-ui',
+				'sans-serif'
+			],
+			display: ['var(--font-display)', 'serif'],
+			data: ['var(--font-data)', 'monospace']
+		}
   	}
   },
   plugins: [
