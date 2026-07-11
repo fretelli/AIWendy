@@ -8,7 +8,7 @@ import { I18nProvider } from "@/lib/i18n/provider";
 import { getLocale, generateMetadata as generateI18nMetadata } from "@/lib/i18n/server";
 
 const inter = Inter({ subsets: ["latin"] });
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://keeltrader.joyeeassets.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export const viewport = {
   width: "device-width",

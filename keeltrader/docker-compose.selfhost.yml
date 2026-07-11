@@ -1,0 +1,93 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg15
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: keeltrader
+      POSTGRES_USER: keeltrader
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - selfhost_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keeltrader -d keeltrader"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - selfhost_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}
+    restart: unless-stopped
+    ports:
+      - "${KEELTRADER_API_BIND:-127.0.0.1}:8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://keeltrader:${POSTGRES_PASSWORD}@postgres:5432/keeltrader
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env}
+      DEPLOYMENT_MODE: self-hosted
+      ENVIRONMENT: production
+      KEELTRADER_AUTH_REQUIRED: ${KEELTRADER_AUTH_REQUIRED:-1}
+      KEELTRADER_AUTO_INIT_DB: ${KEELTRADER_AUTO_INIT_DB:-1}
+      REPORT_KB_URL: ${REPORT_KB_URL:-}
+      REPORT_KB_SERVICE_KEY: ${REPORT_KB_SERVICE_KEY:-}
+      TUSHARE_DATABASE_URL: ${TUSHARE_DATABASE_URL:-}
+      RESEARCH_CLOUD_ENABLED: ${RESEARCH_CLOUD_ENABLED:-0}
+      RESEARCH_CLOUD_BASE_URL: ${RESEARCH_CLOUD_BASE_URL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:3000"]}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - selfhost_uploads:/app/uploads
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com/}
+        NEXT_PUBLIC_API_URL: http://api:8000
+        NEXT_PUBLIC_AUTH_REQUIRED: "1"
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+    restart: unless-stopped
+    ports:
+      - "${KEELTRADER_WEB_BIND:-0.0.0.0}:3000:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://api:8000
+      NEXT_PUBLIC_AUTH_REQUIRED: "1"
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?set NEXTAUTH_SECRET in .env}
+      RESEARCH_CLOUD_ENABLED: ${RESEARCH_CLOUD_ENABLED:-0}
+      RESEARCH_API_URL: ${RESEARCH_CLOUD_BASE_URL:-}
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  selfhost_postgres:
+  selfhost_redis:
+  selfhost_uploads:

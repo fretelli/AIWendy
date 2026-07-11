@@ -33,6 +33,18 @@ interface PushSettings {
   push_risk_alerts: boolean;
 }
 
+interface ResearchCloudConnection {
+  status: string;
+  connected: boolean;
+  key_prefix?: string | null;
+  plan_code?: string | null;
+  user_code?: string | null;
+  verification_uri?: string | null;
+  device_expires_at?: string | null;
+  last_error?: string | null;
+  cloud_auto_context?: boolean;
+}
+
 interface NewExchangeForm {
   exchange: string;
   api_key: string;
@@ -74,6 +86,11 @@ export default function SettingsPage() {
   const [exchanges, setExchanges] = useState<Exchange[]>([]);
   const [riskSettings, setRiskSettings] = useState<RiskSettings>(DEFAULT_RISK_SETTINGS);
   const [pushSettings, setPushSettings] = useState<PushSettings>(DEFAULT_PUSH_SETTINGS);
+  const [researchCloud, setResearchCloud] = useState<ResearchCloudConnection>({
+    status: 'disconnected',
+    connected: false,
+  });
+  const [researchCloudAvailable, setResearchCloudAvailable] = useState(true);
 
   // New exchange form
   const [newExchange, setNewExchange] = useState<NewExchangeForm>(DEFAULT_NEW_EXCHANGE);
@@ -102,6 +119,35 @@ export default function SettingsPage() {
       void fetchData();
     });
   }, [fetchData]);
+
+  const loadResearchCloud = useCallback(async (poll = false) => {
+    try {
+      const path = poll ? '/research-cloud/connection/status' : '/research-cloud/connection';
+      const response = await apiFetch(path);
+      if (response.status === 503) {
+        setResearchCloudAvailable(false);
+        return;
+      }
+      if (response.ok) {
+        setResearchCloudAvailable(true);
+        setResearchCloud(await response.json());
+      }
+    } catch (error) {
+      logClientError('settings.research-cloud.load', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      void loadResearchCloud();
+    });
+  }, [loadResearchCloud]);
+
+  useEffect(() => {
+    if (researchCloud.status !== 'pending') return;
+    const timer = window.setInterval(() => void loadResearchCloud(true), 5000);
+    return () => window.clearInterval(timer);
+  }, [loadResearchCloud, researchCloud.status]);
 
   const addExchange = async () => {
     try {
@@ -148,10 +194,92 @@ export default function SettingsPage() {
     if (resp.ok) toast.success('Push settings saved');
   };
 
+  const connectResearchCloud = async () => {
+    const response = await apiFetch('/research-cloud/connection/start', { method: 'POST' });
+    if (!response.ok) {
+      toast.error(response.status === 503 ? 'Research Cloud is disabled by the administrator' : 'Unable to start authorization');
+      return;
+    }
+    setResearchCloud(await response.json());
+    toast.success('Authorization code created');
+  };
+
+  const disconnectResearchCloud = async () => {
+    const response = await apiFetch('/research-cloud/connection', { method: 'DELETE' });
+    if (response.ok) {
+      setResearchCloud(await response.json());
+      toast.success('Research Cloud disconnected');
+    }
+  };
+
+  const setResearchCloudAutoContext = async (enabled: boolean) => {
+    const response = await apiFetch('/research-cloud/connection/preferences', {
+      method: 'PUT',
+      body: { cloud_auto_context: enabled },
+    });
+    if (response.ok) setResearchCloud(await response.json());
+  };
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-3xl space-y-6 p-4 md:p-6">
       <h1 className="text-2xl font-bold">Settings</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Research Cloud</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {!researchCloudAvailable ? (
+            <p className="text-sm text-muted-foreground">
+              Disabled for this deployment. KeelTrader will keep all research activity local.
+            </p>
+          ) : researchCloud.connected ? (
+            <>
+              <div className="flex items-center gap-2">
+                <Badge>Connected</Badge>
+                <span className="text-sm text-muted-foreground">
+                  {researchCloud.plan_code || 'Research plan'} · {researchCloud.key_prefix || 'secured key'}
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Only search terms, company filters and report IDs are sent. Local documents, positions,
+                trades and decision journals stay on this server.
+              </p>
+              <div className="flex items-center justify-between rounded border p-3">
+                <div>
+                  <Label>Use cloud summaries in AgentOS</Label>
+                  <p className="text-xs text-muted-foreground">Off by default; enable only if automatic cloud queries are acceptable.</p>
+                </div>
+                <Switch
+                  checked={Boolean(researchCloud.cloud_auto_context)}
+                  onCheckedChange={setResearchCloudAutoContext}
+                />
+              </div>
+              <Button variant="outline" onClick={disconnectResearchCloud}>Disconnect</Button>
+            </>
+          ) : researchCloud.status === 'pending' ? (
+            <>
+              <p className="text-sm">Open Research and approve this device code:</p>
+              <div className="font-mono text-2xl tracking-widest">{researchCloud.user_code}</div>
+              {researchCloud.verification_uri && (
+                <a className="text-sm text-primary underline" href={researchCloud.verification_uri} target="_blank" rel="noreferrer">
+                  Open authorization page
+                </a>
+              )}
+              <p className="text-xs text-muted-foreground">Waiting for approval; this page checks every 5 seconds.</p>
+            </>
+          ) : (
+            <>
+              {researchCloud.last_error && <p className="text-sm text-destructive">{researchCloud.last_error}</p>}
+              <p className="text-sm text-muted-foreground">
+                Optional. Connecting does not share your local knowledge base or model API keys.
+              </p>
+              <Button onClick={connectResearchCloud}>Connect Research Cloud</Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Exchange connections */}
       <Card>

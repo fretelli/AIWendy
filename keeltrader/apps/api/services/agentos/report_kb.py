@@ -36,6 +36,9 @@ def _http_json(method: str, path: str, payload: dict[str, Any] | None = None) ->
 
     data = None
     headers = {"accept": "application/json"}
+    service_key = (get_settings().report_kb_service_key or "").strip()
+    if service_key:
+        headers["X-Report-KB-Service-Key"] = service_key
     if payload is not None:
         data = json.dumps(_json_safe(payload)).encode("utf-8")
         headers["content-type"] = "application/json"

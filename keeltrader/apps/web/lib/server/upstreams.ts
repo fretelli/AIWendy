@@ -39,10 +39,13 @@ export function getApiBaseUrlCandidates(
 export function getResearchBaseUrl(
   env: Partial<NodeJS.ProcessEnv> = process.env
 ): string {
+  const enabled = (env.RESEARCH_CLOUD_ENABLED || "").trim().toLowerCase();
+  if (!["1", "true", "yes", "on"].includes(enabled)) return "";
+
   return normalizeBaseUrl(
     env.RESEARCH_API_URL ||
       env.NEXT_PUBLIC_RESEARCH_API_URL ||
-      "https://research.joyeeassets.com",
+      "",
     "https"
   );
 }

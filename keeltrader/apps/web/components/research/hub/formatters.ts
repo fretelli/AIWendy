@@ -71,5 +71,6 @@ export function reportTitle(item: ReportCardItem) {
 export function imageUrl(path?: string) {
   if (!path) return "";
   if (/^https?:\/\//i.test(path)) return path;
-  return `https://research.joyeeassets.com${path}`;
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `/api/research${normalized}`;
 }
