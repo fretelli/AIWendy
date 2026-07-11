@@ -31,6 +31,7 @@ def _import_domain_models():
     import domain.coach.models  # noqa
     import domain.exchange.models  # noqa
     import domain.agentos.models  # noqa
+    import domain.agent_platform.models  # noqa
     import domain.file.models  # noqa
     import domain.journal.models  # noqa
     import domain.project.models  # noqa
@@ -166,6 +167,7 @@ _import_domain_models()
 
 from routers import auth, health
 from routers.agentos import router as agentos_router
+from routers.agent_platform import router as agent_platform_router
 from routers.users import router as users_router
 from routers.chat_v2 import router as chat_v2_router
 from routers.files import router as files_router
@@ -191,6 +193,7 @@ app.include_router(
 )
 app.include_router(webhook_router, prefix="/api/v1/webhook", tags=["Webhook"])
 app.include_router(agentos_router, prefix="/api/v1/agentos", tags=["AgentOS"])
+app.include_router(agent_platform_router, prefix="/api/v1/agent", tags=["Agent Platform"])
 app.include_router(market_data_router, prefix="/api/v1/market-data", tags=["Market Data"])
 
 

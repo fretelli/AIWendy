@@ -17,6 +17,11 @@ def test_active_route_prefixes_are_mounted(client):
         "/api/v1/settings/risk",
         "/api/v1/webhook/confirm",
         "/api/v1/agentos/health",
+        "/api/v1/agent/health",
+        "/api/v1/agent/runs",
+        "/api/v1/agent/definitions",
+        "/api/v1/agent/mcp-servers",
+        "/api/v1/agent/model-credentials",
         "/api/v1/market-data/historical/{symbol}",
     }
 
