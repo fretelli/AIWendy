@@ -78,6 +78,22 @@ class RunCreate(BaseModel):
     session_id: UUID | None = None
 
 
+class SessionCreate(BaseModel):
+    agent_definition_id: UUID
+    title: str = Field(default="新会话", min_length=1, max_length=200)
+
+
+class SessionUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    is_pinned: bool | None = None
+    archived: bool | None = None
+
+
+class SessionMessageCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=20000)
+    agent_definition_id: UUID | None = None
+
+
 class ApprovalResolve(BaseModel):
     decision: Literal["approved", "rejected"]
     scope: Literal["once", "always"] = "once"
@@ -261,7 +277,7 @@ async def _event_stream(run_id: UUID, user_id: UUID, cursor: int) -> AsyncIterat
                                        .order_by(AgentRunEvent.id).limit(100))).scalars().all()
             for item in events:
                 last = item.id
-                yield f"id: {item.id}\nevent: {item.event_type}\ndata: {json.dumps(item.payload)}\n\n"
+                yield f"id: {item.id}\nevent: {item.event_type}\ndata: {json.dumps(item.payload, default=str)}\n\n"
             if run.status in TERMINAL and not events:
                 return
         yield ": keepalive\n\n"
@@ -275,10 +291,54 @@ async def run_events(run_id: UUID, cursor: int = Query(0, ge=0), user: User = De
 
 
 @router.get("/sessions")
-async def list_sessions(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
-    items = (await session.execute(select(AgentSession).where(AgentSession.user_id == user.id)
-                                   .order_by(desc(AgentSession.updated_at)).limit(100))).scalars().all()
+async def list_sessions(include_archived: bool = False, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    stmt = select(AgentSession).where(AgentSession.user_id == user.id)
+    if not include_archived:
+        stmt = stmt.where(AgentSession.archived_at.is_(None))
+    items = (await session.execute(stmt.order_by(desc(AgentSession.is_pinned),
+                                                  desc(AgentSession.last_message_at)).limit(100))).scalars().all()
     return {"items": [dump(item) for item in items]}
+
+
+@router.post("/sessions")
+async def create_session(req: SessionCreate, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    agent = await session.get(AgentDefinition, req.agent_definition_id)
+    if not agent or agent.user_id != user.id or not agent.is_active:
+        raise HTTPException(404, "Agent not found")
+    item = AgentSession(user_id=user.id, agent_definition_id=agent.id, title=req.title)
+    session.add(item)
+    await session.flush()
+    return dump(item)
+
+
+@router.patch("/sessions/{session_id}")
+async def update_session(session_id: UUID, req: SessionUpdate, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    item = await session.get(AgentSession, session_id)
+    if not item or item.user_id != user.id:
+        raise HTTPException(404, "Session not found")
+    if req.title is not None:
+        item.title = req.title
+    if req.is_pinned is not None:
+        item.is_pinned = req.is_pinned
+    if req.archived is not None:
+        item.archived_at = datetime.now(UTC) if req.archived else None
+        item.status = "archived" if req.archived else "active"
+    item.updated_at = datetime.now(UTC)
+    return dump(item)
+
+
+@router.post("/sessions/{session_id}/messages")
+async def create_session_message(session_id: UUID, req: SessionMessageCreate, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    item = await session.get(AgentSession, session_id)
+    if not item or item.user_id != user.id or item.archived_at is not None:
+        raise HTTPException(404, "Session not found")
+    agent_id = req.agent_definition_id or item.agent_definition_id
+    agent = await session.get(AgentDefinition, agent_id) if agent_id else None
+    if not agent or agent.user_id != user.id or not agent.is_active:
+        raise HTTPException(404, "Agent not found")
+    item.agent_definition_id = agent.id
+    run = await enqueue_run(session, user.id, agent, req.content, item.id)
+    return {"run": dump(run), "session": dump(item)}
 
 
 @router.get("/sessions/{session_id}/messages")
@@ -291,6 +351,41 @@ async def session_messages(session_id: UUID, before: datetime | None = None, ses
         stmt = stmt.where(AgentMessage.created_at < before)
     messages = (await session.execute(stmt.order_by(desc(AgentMessage.created_at)).limit(100))).scalars().all()
     return {"items": [dump(m) for m in reversed(messages)]}
+
+
+@router.get("/sessions/{session_id}/timeline")
+async def session_timeline(session_id: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    item = await session.get(AgentSession, session_id)
+    if not item or item.user_id != user.id:
+        raise HTTPException(404, "Session not found")
+    messages = (await session.execute(select(AgentMessage).where(AgentMessage.session_id == session_id)
+                                      .order_by(AgentMessage.created_at).limit(300))).scalars().all()
+    runs = (await session.execute(select(AgentRun).where(AgentRun.session_id == session_id)
+                                  .order_by(AgentRun.created_at).limit(100))).scalars().all()
+    return {"session": dump(item), "messages": [dump(m) for m in messages], "runs": [dump(r) for r in runs]}
+
+
+@router.post("/sessions/{session_id}/compact")
+async def compact_session(session_id: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    item = await session.get(AgentSession, session_id)
+    if not item or item.user_id != user.id:
+        raise HTTPException(404, "Session not found")
+    messages = (await session.execute(select(AgentMessage).where(AgentMessage.session_id == session_id)
+                                      .order_by(desc(AgentMessage.created_at)).limit(12))).scalars().all()
+    item.summary = "\n".join(f"{m.role}: {m.content}" for m in reversed(messages))[-12000:]
+    item.context_tokens = min(item.context_tokens, 8000)
+    return dump(item)
+
+
+@router.post("/sessions/{session_id}/stop")
+async def stop_session_run(session_id: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    run = (await session.execute(select(AgentRun).where(
+        AgentRun.session_id == session_id, AgentRun.user_id == user.id,
+        AgentRun.status.not_in(TERMINAL),
+    ).order_by(desc(AgentRun.created_at)).limit(1))).scalar_one_or_none()
+    if not run:
+        raise HTTPException(404, "Active run not found")
+    return await _control_run(run.id, "cancel", session, user)
 
 
 @router.get("/approvals")

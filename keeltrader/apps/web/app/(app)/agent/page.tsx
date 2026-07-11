@@ -1,80 +1,239 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { BrainCircuit, Check, Database, KeyRound, Loader2, Play, RefreshCw, Server, Timer, X } from 'lucide-react'
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import {
+  Archive, Bot, Check, CircleStop, Command, Loader2, Menu, MessageSquarePlus,
+  PanelRight, Pin, Search, Send, Settings2, Sparkles, X,
+} from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Textarea } from '@/components/ui/textarea'
-import { agentPlatformApi, type AgentApproval, type AgentDefinition, type AgentMemory, type AgentModelProfile, type AgentRun, type AgentSchedule, type MCPServer, type Usage } from '@/lib/api/agent-platform'
+import {
+  agentPlatformApi, type AgentApproval, type AgentDefinition, type AgentMemory,
+  type AgentMessage, type AgentModelProfile, type AgentRun, type AgentSchedule,
+  type AgentSession, type MCPServer, type Usage,
+} from '@/lib/api/agent-platform'
 
-const builtinTools = ['query_research_reports', 'query_tushare_data', 'run_daily_brief', 'deep_research', 'run_weekly_review', 'record_fundamental_validation', 'record_investment_decision']
+type LiveEvent = { id: string; type: string; payload: Record<string, unknown> }
+type Mode = 'ask' | 'research' | 'plan'
 
-export default function AgentPlatformPage() {
+const BUILTIN_TOOLS = ['query_research_reports', 'query_tushare_data', 'run_daily_brief', 'deep_research', 'run_weekly_review', 'record_fundamental_validation', 'record_investment_decision']
+const TERMINAL = new Set(['completed', 'failed', 'cancelled'])
+const COMMANDS = [
+  ['/new', '新建会话'], ['/clear', '开始空白会话'], ['/compact', '压缩当前上下文'], ['/stop', '停止当前任务'],
+  ['/settings', '打开安全设置'], ['/agents', '管理 Agent'], ['/model', '配置 BYOK'], ['/mcp', '配置 MCP'],
+  ['/schedule', '管理定时任务'], ['/memory', '查看长期记忆'], ['/usage', '查看 Token 和费用'], ['/help', '显示命令帮助'],
+]
+
+export default function AgentWorkspacePage() {
   const [loading, setLoading] = useState(true)
-  const [models, setModels] = useState<AgentModelProfile[]>([])
-  const [agents, setAgents] = useState<AgentDefinition[]>([])
+  const [sessions, setSessions] = useState<AgentSession[]>([])
+  const [currentId, setCurrentId] = useState<string | null>(null)
+  const [messages, setMessages] = useState<AgentMessage[]>([])
   const [runs, setRuns] = useState<AgentRun[]>([])
+  const [events, setEvents] = useState<LiveEvent[]>([])
+  const [agents, setAgents] = useState<AgentDefinition[]>([])
+  const [models, setModels] = useState<AgentModelProfile[]>([])
   const [approvals, setApprovals] = useState<AgentApproval[]>([])
   const [memories, setMemories] = useState<AgentMemory[]>([])
   const [mcp, setMcp] = useState<MCPServer[]>([])
   const [schedules, setSchedules] = useState<AgentSchedule[]>([])
   const [usage, setUsage] = useState<Usage | null>(null)
-  const [availableTools, setAvailableTools] = useState<Array<{ name: string; label: string }>>(
-    builtinTools.map(name => ({ name, label: name })),
-  )
-  const [prompt, setPrompt] = useState('分析我的关注标的近期基本面变化、主要分歧、风险和可证伪条件。')
+  const [input, setInput] = useState('')
+  const [search, setSearch] = useState('')
+  const [sending, setSending] = useState(false)
+  const [mode, setMode] = useState<Mode>('research')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [contextOpen, setContextOpen] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
   const [selectedAgent, setSelectedAgent] = useState('')
   const [modelForm, setModelForm] = useState({ name: '', provider: 'openai', base_url: '', model: '', api_key: '', context_window: 128000, max_output_tokens: 4096, input_cost_per_million: 0, output_cost_per_million: 0 })
-  const [agentForm, setAgentForm] = useState({ name: '', role: 'custom', description: '', system_prompt: 'You are a fundamental investment research agent. Never place trades. Cite evidence and state uncertainty.', model_profile_id: '', tool_names: builtinTools.slice(0, 6), memory_enabled: true, max_steps: 12, max_parallel: 3, task_token_budget: 50000, task_cost_budget_usd: 5 })
+  const [agentForm, setAgentForm] = useState({ name: '', role: 'custom', description: '', system_prompt: 'You are a fundamental investment research agent. Never place trades. Cite evidence and state uncertainty.', model_profile_id: '', tool_names: BUILTIN_TOOLS, memory_enabled: true, max_steps: 12, max_parallel: 3, task_token_budget: 50000, task_cost_budget_usd: 5 })
   const [mcpForm, setMcpForm] = useState({ name: '', url: '', auth_token: '' })
   const [scheduleForm, setScheduleForm] = useState({ name: '', prompt: '', cron: '0 9 * * *', timezone: 'Asia/Shanghai' })
+  const bottomRef = useRef<HTMLDivElement>(null)
+  const eventSourceRef = useRef<EventSource | null>(null)
 
-  const refresh = useCallback(async () => {
-    setLoading(true)
+  const refreshWorkspace = useCallback(async () => {
     try {
-      const [modelData, agentData, runData, approvalData, memoryData, mcpData, scheduleData, usageData] = await Promise.all([
-        agentPlatformApi.models(), agentPlatformApi.agents(), agentPlatformApi.runs(), agentPlatformApi.approvals(),
+      const [sessionData, agentData, modelData, approvalData, memoryData, mcpData, scheduleData, usageData] = await Promise.all([
+        agentPlatformApi.sessions(), agentPlatformApi.agents(), agentPlatformApi.models(), agentPlatformApi.approvals(),
         agentPlatformApi.memories(true), agentPlatformApi.mcpServers(), agentPlatformApi.schedules(), agentPlatformApi.usage(),
       ])
-      setModels(modelData.items); setAgents(agentData.items); setRuns(runData.items); setApprovals(approvalData.items)
+      setSessions(sessionData.items); setAgents(agentData.items); setModels(modelData.items); setApprovals(approvalData.items)
       setMemories(memoryData.items); setMcp(mcpData.items); setSchedules(scheduleData.items); setUsage(usageData)
-      setAvailableTools([
-        ...agentData.builtin_tools.map(name => ({ name, label: name })),
-        ...agentData.mcp_tools.map(tool => ({ name: tool.name, label: `${tool.server} · ${tool.name.split(':').slice(2).join(':')}` })),
-      ])
-      if (!selectedAgent && agentData.items[0]) setSelectedAgent(agentData.items[0].id)
-    } catch (error) { toast.error(error instanceof Error ? error.message : 'Failed to load Agent Platform') }
+      if (agentData.items[0]) setSelectedAgent(previous => previous || agentData.items[0].id)
+      setCurrentId(previous => previous || sessionData.items[0]?.id || null)
+      if (!agentData.items.length || !modelData.items.length) setSettingsOpen(true)
+    } catch (error) { toast.error(error instanceof Error ? error.message : '工作台加载失败') }
     finally { setLoading(false) }
-  }, [selectedAgent])
+  }, [])
 
-  useEffect(() => { queueMicrotask(() => void refresh()) }, [refresh])
+  const loadTimeline = useCallback(async (sessionId: string) => {
+    try {
+      const data = await agentPlatformApi.timeline(sessionId)
+      setMessages(data.messages); setRuns(data.runs)
+    } catch (error) { toast.error(error instanceof Error ? error.message : '会话加载失败') }
+  }, [])
 
-  const submit = async (fn: () => Promise<unknown>, success: string) => {
-    try { await fn(); toast.success(success); await refresh() }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Request failed') }
+  useEffect(() => { queueMicrotask(() => { void refreshWorkspace() }) }, [refreshWorkspace])
+  useEffect(() => { if (currentId) queueMicrotask(() => { void loadTimeline(currentId) }) }, [currentId, loadTimeline])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, events, runs])
+
+  const activeRun = useMemo(() => [...runs].reverse().find(run => !TERMINAL.has(run.status)), [runs])
+  useEffect(() => {
+    eventSourceRef.current?.close()
+    if (!activeRun) return
+    const source = new EventSource(`/api/proxy/v1/agent/runs/${activeRun.id}/events`)
+    eventSourceRef.current = source
+    const onEvent = (event: MessageEvent) => {
+      let payload: Record<string, unknown> = {}
+      try { payload = JSON.parse(event.data) } catch { payload = { text: event.data } }
+      setEvents(previous => [...previous, { id: event.lastEventId || crypto.randomUUID(), type: event.type, payload }].slice(-100))
+      if (event.type === 'run.completed' || event.type === 'run.failed' || event.type === 'run.cancel') {
+        source.close(); if (currentId) void loadTimeline(currentId); void refreshWorkspace()
+      }
+    }
+    for (const type of ['run.queued', 'run.planned', 'step.started', 'step.completed', 'step.retry', 'approval.required', 'run.completed', 'run.failed', 'run.cancel', 'run.paused_budget']) source.addEventListener(type, onEvent)
+    source.onerror = () => { source.close(); if (currentId) void loadTimeline(currentId) }
+    return () => source.close()
+  }, [activeRun, currentId, loadTimeline, refreshWorkspace])
+
+  useEffect(() => {
+    if (!activeRun || !currentId) return
+    const timer = window.setInterval(() => { void loadTimeline(currentId); void refreshWorkspace() }, 2500)
+    return () => window.clearInterval(timer)
+  }, [activeRun, currentId, loadTimeline, refreshWorkspace])
+
+  const createSession = async () => {
+    if (!selectedAgent) { setSettingsOpen(true); toast.error('请先配置模型并创建 Agent'); return null }
+    const item = await agentPlatformApi.createSession({ agent_definition_id: selectedAgent, title: '新会话' })
+    setSessions(previous => [item, ...previous]); setCurrentId(item.id); setMessages([]); setRuns([]); setEvents([]); setNotice(null)
+    return item
   }
 
-  if (loading && !models.length && !agents.length) return <div className="flex h-full items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>
+  const runCommand = async (raw: string): Promise<boolean> => {
+    const command = raw.trim().split(/\s+/, 1)[0].toLowerCase()
+    if (!command.startsWith('/')) return false
+    if (command === '/new' || command === '/clear') await createSession()
+    else if (command === '/compact' && currentId) { await agentPlatformApi.compactSession(currentId); setNotice('上下文已压缩，最近消息和会话摘要会继续参与后续研究。') }
+    else if (command === '/stop' && currentId) { await agentPlatformApi.stopSession(currentId); setNotice('已请求停止当前任务。') }
+    else if (['/settings', '/agents', '/model', '/mcp', '/schedule', '/memory'].includes(command)) setSettingsOpen(true)
+    else if (command === '/usage') setNotice(`今日 Tokens：${(usage?.today.input_tokens || 0) + (usage?.today.output_tokens || 0)} · 成本 $${(usage?.today.cost_usd || 0).toFixed(4)}`)
+    else if (command === '/help') setNotice(COMMANDS.map(([name, label]) => `${name}  ${label}`).join('\n'))
+    else { setNotice(`未知命令：${command}\n输入 /help 查看可用命令。`) }
+    return true
+  }
 
-  return <div className="h-full overflow-y-auto p-4 md:p-6"><div className="mx-auto max-w-7xl space-y-5">
-    <div className="flex items-center justify-between"><div><h1 className="flex items-center gap-2 text-2xl font-bold"><BrainCircuit />Agent 工作台</h1><p className="text-sm text-muted-foreground">持久任务、工具审批、BYOK、MCP、记忆与预算。研究模式，不执行交易。</p></div><Button variant="outline" onClick={refresh}><RefreshCw className="mr-2 h-4 w-4" />刷新</Button></div>
-    <div className="grid gap-3 md:grid-cols-4"><Metric title="运行中" value={runs.filter(r => !['completed','failed','cancelled'].includes(r.status)).length} /><Metric title="待审批" value={approvals.length} /><Metric title="今日 Tokens" value={(usage?.today.input_tokens || 0) + (usage?.today.output_tokens || 0)} /><Metric title="今日成本" value={`$${(usage?.today.cost_usd || 0).toFixed(4)}`} /></div>
-    <Tabs defaultValue="run"><TabsList className="flex h-auto flex-wrap justify-start"><TabsTrigger value="run">任务</TabsTrigger><TabsTrigger value="agents">Agents</TabsTrigger><TabsTrigger value="approvals">审批</TabsTrigger><TabsTrigger value="memory">记忆</TabsTrigger><TabsTrigger value="models">BYOK</TabsTrigger><TabsTrigger value="mcp">MCP</TabsTrigger><TabsTrigger value="schedules">定时</TabsTrigger></TabsList>
-      <TabsContent value="run" className="space-y-4"><Card><CardHeader><CardTitle>启动研究任务</CardTitle></CardHeader><CardContent className="space-y-3"><select className="w-full rounded-md border bg-background p-2" value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}><option value="">选择 Agent</option>{agents.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select><Textarea value={prompt} onChange={e => setPrompt(e.target.value)} /><Button disabled={!selectedAgent || !prompt.trim()} onClick={() => submit(() => agentPlatformApi.createRun({ agent_definition_id: selectedAgent, prompt }), '任务已进入队列')}><Play className="mr-2 h-4 w-4" />运行</Button></CardContent></Card><div className="space-y-2">{runs.map(run => <Card key={run.id}><CardContent className="flex items-start justify-between p-4"><div><div className="font-medium">{run.prompt}</div><div className="mt-2 flex gap-2"><Badge>{run.status}</Badge><Badge variant="outline">步骤 {run.current_step}</Badge><Badge variant="outline">{run.tokens_used} tokens</Badge></div></div>{!['completed','failed','cancelled'].includes(run.status) && <Button size="sm" variant="outline" onClick={() => submit(() => agentPlatformApi.controlRun(run.id, 'cancel'), '任务已取消')}><X className="h-4 w-4" /></Button>}</CardContent></Card>)}</div></TabsContent>
-      <TabsContent value="agents" className="space-y-4"><Card><CardHeader><CardTitle>声明式自定义 Agent</CardTitle></CardHeader><CardContent className="grid gap-3"><Input placeholder="名称" value={agentForm.name} onChange={e => setAgentForm({...agentForm,name:e.target.value})} /><Input placeholder="描述" value={agentForm.description} onChange={e => setAgentForm({...agentForm,description:e.target.value})} /><select className="rounded-md border bg-background p-2" value={agentForm.model_profile_id} onChange={e => setAgentForm({...agentForm,model_profile_id:e.target.value})}><option value="">选择 BYOK 模型</option>{models.map(m => <option key={m.id} value={m.id}>{m.name} · {m.model}</option>)}</select><Textarea value={agentForm.system_prompt} onChange={e => setAgentForm({...agentForm,system_prompt:e.target.value})} /><div className="flex flex-wrap gap-2">{availableTools.map(tool => <label key={tool.name} className="flex items-center gap-1 rounded border px-2 py-1 text-xs"><input type="checkbox" checked={agentForm.tool_names.includes(tool.name)} onChange={e => setAgentForm({...agentForm,tool_names:e.target.checked?[...agentForm.tool_names,tool.name]:agentForm.tool_names.filter(x=>x!==tool.name)})}/>{tool.label}</label>)}</div><Button onClick={() => submit(() => agentPlatformApi.createAgent(agentForm), 'Agent 已创建')}>创建 Agent</Button></CardContent></Card><div className="grid gap-3 md:grid-cols-2">{agents.map(a => <Card key={a.id}><CardContent className="p-4"><div className="font-medium">{a.name}</div><div className="text-sm text-muted-foreground">{a.role} · {a.tool_names.length} tools</div></CardContent></Card>)}</div></TabsContent>
-      <TabsContent value="approvals" className="space-y-3">{approvals.length ? approvals.map(item => <Card key={item.id}><CardContent className="space-y-3 p-4"><Badge>{item.kind}</Badge><pre className="overflow-auto rounded bg-muted p-3 text-xs">{JSON.stringify(item.preview,null,2)}</pre><div className="flex flex-wrap gap-2"><Button onClick={() => submit(() => agentPlatformApi.resolveApproval(item.id,'approved','once'),'本次调用已批准')}><Check className="mr-2 h-4 w-4" />仅本次</Button>{item.kind === 'mcp_tool' && <Button variant="secondary" onClick={() => submit(() => agentPlatformApi.resolveApproval(item.id,'approved','always'),'该 Agent 已永久获准使用此工具')}>永久允许</Button>}<Button variant="destructive" onClick={() => submit(() => agentPlatformApi.resolveApproval(item.id,'rejected'),'已拒绝')}><X className="mr-2 h-4 w-4" />拒绝</Button></div></CardContent></Card>) : <Empty text="没有待审批操作" />}</TabsContent>
-      <TabsContent value="memory" className="space-y-3">{memories.length ? memories.map(item => <Card key={item.id}><CardContent className="flex items-start justify-between p-4"><div><div className="font-medium">{item.key}</div><pre className="mt-2 max-w-3xl whitespace-pre-wrap text-xs">{JSON.stringify(item.value,null,2)}</pre><div className="text-xs text-muted-foreground">v{item.version} · confidence {item.confidence}</div></div><Button variant="outline" size="sm" onClick={() => submit(() => item.is_deleted ? agentPlatformApi.restoreMemory(item.id) : agentPlatformApi.deleteMemory(item.id), item.is_deleted?'记忆已恢复':'记忆已撤销')}>{item.is_deleted?'恢复':'撤销'}</Button></CardContent></Card>) : <Empty text="尚无长期记忆" />}</TabsContent>
-      <TabsContent value="models"><Card><CardHeader><CardTitle><KeyRound className="mr-2 inline h-5 w-5" />用户 BYOK</CardTitle></CardHeader><CardContent className="grid gap-3 md:grid-cols-2"><Input placeholder="配置名称" value={modelForm.name} onChange={e => setModelForm({...modelForm,name:e.target.value})}/><select className="rounded-md border bg-background p-2" value={modelForm.provider} onChange={e => setModelForm({...modelForm,provider:e.target.value})}><option value="openai">OpenAI-compatible</option><option value="anthropic">Anthropic</option></select><Input placeholder="Base URL（官方可留空）" value={modelForm.base_url} onChange={e => setModelForm({...modelForm,base_url:e.target.value})}/><Input placeholder="Model" value={modelForm.model} onChange={e => setModelForm({...modelForm,model:e.target.value})}/><Input type="password" placeholder="API Key" value={modelForm.api_key} onChange={e => setModelForm({...modelForm,api_key:e.target.value})}/><Input type="number" placeholder="Context window" value={modelForm.context_window} onChange={e => setModelForm({...modelForm,context_window:Number(e.target.value)})}/><Input type="number" placeholder="输入 $/1M" value={modelForm.input_cost_per_million} onChange={e => setModelForm({...modelForm,input_cost_per_million:Number(e.target.value)})}/><Input type="number" placeholder="输出 $/1M" value={modelForm.output_cost_per_million} onChange={e => setModelForm({...modelForm,output_cost_per_million:Number(e.target.value)})}/><Button className="md:col-span-2" onClick={() => submit(() => agentPlatformApi.createModel({...modelForm,base_url:modelForm.base_url||null}),'模型凭证已加密保存')}>保存 BYOK</Button></CardContent></Card></TabsContent>
-      <TabsContent value="mcp" className="space-y-4"><Card><CardHeader><CardTitle><Server className="mr-2 inline h-5 w-5" />添加公网 HTTPS MCP</CardTitle></CardHeader><CardContent className="grid gap-3"><Input placeholder="名称" value={mcpForm.name} onChange={e => setMcpForm({...mcpForm,name:e.target.value})}/><Input placeholder="https://..." value={mcpForm.url} onChange={e => setMcpForm({...mcpForm,url:e.target.value})}/><Input type="password" placeholder="Bearer Token（可选）" value={mcpForm.auth_token} onChange={e => setMcpForm({...mcpForm,auth_token:e.target.value})}/><Button onClick={() => submit(() => agentPlatformApi.createMcp({...mcpForm,auth_token:mcpForm.auth_token||null}),'MCP 已连接')}>发现工具</Button></CardContent></Card>{mcp.map(server => <Card key={server.id}><CardContent className="p-4"><div className="font-medium">{server.name} <Badge>{server.status}</Badge></div><div className="text-xs text-muted-foreground">{server.url}</div><p className="mt-2 text-xs text-muted-foreground">在 Agent 配置中启用工具；首次携带真实参数调用时会进入审批中心。</p><div className="mt-3 flex flex-wrap gap-2">{server.tools_snapshot.map(tool => <Badge key={tool.name} variant="outline">{tool.name}</Badge>)}</div></CardContent></Card>)}</TabsContent>
-      <TabsContent value="schedules" className="space-y-4"><Card><CardHeader><CardTitle><Timer className="mr-2 inline h-5 w-5" />每日研究计划</CardTitle></CardHeader><CardContent className="grid gap-3"><select className="rounded-md border bg-background p-2" value={selectedAgent} onChange={e=>setSelectedAgent(e.target.value)}><option value="">选择 Agent</option>{agents.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select><Input placeholder="计划名称" value={scheduleForm.name} onChange={e=>setScheduleForm({...scheduleForm,name:e.target.value})}/><Textarea placeholder="研究任务" value={scheduleForm.prompt} onChange={e=>setScheduleForm({...scheduleForm,prompt:e.target.value})}/><Input placeholder="0 9 * * *" value={scheduleForm.cron} onChange={e=>setScheduleForm({...scheduleForm,cron:e.target.value})}/><Button onClick={() => submit(() => agentPlatformApi.createSchedule({...scheduleForm,agent_definition_id:selectedAgent}),'定时研究已创建')}>创建计划</Button></CardContent></Card>{schedules.map(item=><Card key={item.id}><CardContent className="p-4"><div className="font-medium">{item.name}</div><div className="text-sm text-muted-foreground">{item.cron} · next {item.next_run_at||'-'}</div></CardContent></Card>)}</TabsContent>
-    </Tabs>
-  </div></div>
+  const send = async (event?: FormEvent) => {
+    event?.preventDefault()
+    const content = input.trim()
+    if (!content || sending) return
+    setInput(''); setNotice(null)
+    if (await runCommand(content)) return
+    setSending(true)
+    try {
+      let sessionId = currentId
+      if (!sessionId) sessionId = (await createSession())?.id || null
+      if (!sessionId) return
+      const prefix = mode === 'ask' ? '[Ask mode: answer without tools] ' : mode === 'plan' ? '[Plan mode: propose and explain the research plan before conclusions] ' : ''
+      const result = await agentPlatformApi.sendMessage(sessionId, { content: prefix + content, agent_definition_id: selectedAgent || undefined })
+      setRuns(previous => [...previous, result.run]); setEvents([]); await loadTimeline(sessionId); await refreshWorkspace()
+    } catch (error) { toast.error(error instanceof Error ? error.message : '发送失败'); setInput(content) }
+    finally { setSending(false) }
+  }
+
+  const resolveApproval = async (item: AgentApproval, decision: 'approved' | 'rejected', scope: 'once' | 'always' = 'once') => {
+    await agentPlatformApi.resolveApproval(item.id, decision, scope); toast.success(decision === 'approved' ? '已批准，任务将继续' : '已拒绝')
+    await refreshWorkspace(); if (currentId) await loadTimeline(currentId)
+  }
+
+  const submitSetting = async (fn: () => Promise<unknown>, message: string) => {
+    try { await fn(); toast.success(message); await refreshWorkspace() } catch (error) { toast.error(error instanceof Error ? error.message : '保存失败') }
+  }
+
+  const filteredSessions = sessions.filter(item => item.title.toLowerCase().includes(search.toLowerCase()))
+  if (loading) return <div className="flex h-full items-center justify-center"><Loader2 className="h-7 w-7 animate-spin" /></div>
+
+  const sidebar = <div className="flex h-full flex-col bg-muted/20">
+    <div className="flex items-center gap-2 border-b p-3"><Button className="flex-1 justify-start" onClick={() => void createSession()}><MessageSquarePlus className="mr-2 h-4 w-4" />新会话</Button><Button size="icon" variant="outline" onClick={() => setSettingsOpen(true)}><Settings2 className="h-4 w-4" /></Button></div>
+    <div className="p-3"><div className="relative"><Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="pl-8" placeholder="搜索会话" value={search} onChange={e => setSearch(e.target.value)} /></div></div>
+    <ScrollArea className="flex-1 px-2"><div className="space-y-1 pb-4">{filteredSessions.map(item => <button key={item.id} onClick={() => { setCurrentId(item.id); setSidebarOpen(false); setEvents([]) }} className={`group flex w-full items-start gap-2 rounded-md px-3 py-2 text-left text-sm ${currentId === item.id ? 'bg-accent' : 'hover:bg-accent/60'}`}><MessageSquarePlus className="mt-0.5 h-4 w-4 shrink-0" /><span className="min-w-0 flex-1"><span className="block truncate font-medium">{item.title}</span><span className="block text-xs text-muted-foreground">{new Date(item.last_message_at || item.created_at).toLocaleString()}</span></span>{item.is_pinned && <Pin className="h-3 w-3" />}</button>)}</div></ScrollArea>
+    <div className="border-t p-3 text-xs text-muted-foreground"><div className="flex justify-between"><span>上下文</span><span>{sessions.find(s => s.id === currentId)?.context_tokens || 0} tokens</span></div><div className="mt-1 flex justify-between"><span>今日成本</span><span>${(usage?.today.cost_usd || 0).toFixed(4)}</span></div></div>
+  </div>
+
+  return <div className="flex h-full min-h-0 overflow-hidden bg-background">
+    <aside className="hidden w-72 shrink-0 border-r lg:block">{sidebar}</aside>
+    <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}><SheetContent side="left" className="w-80 p-0"><SheetHeader className="sr-only"><SheetTitle>会话</SheetTitle></SheetHeader>{sidebar}</SheetContent></Sheet>
+
+    <main className="flex min-w-0 flex-1 flex-col">
+      <header className="flex h-14 items-center gap-2 border-b px-3"><Button className="lg:hidden" size="icon" variant="ghost" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></Button><div className="min-w-0 flex-1"><div className="truncate font-medium">{sessions.find(s => s.id === currentId)?.title || 'KeelTrader Agent'}</div><div className="text-xs text-muted-foreground">只读投研 · 不执行交易</div></div><select className="max-w-48 rounded-md border bg-background px-2 py-1 text-xs" value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}><option value="">选择 Agent</option>{agents.map(agent => <option value={agent.id} key={agent.id}>{agent.name}</option>)}</select><Button size="icon" variant="ghost" onClick={() => setContextOpen(true)}><PanelRight className="h-5 w-5" /></Button></header>
+
+      <ScrollArea className="flex-1"><div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
+        {!messages.length && !activeRun && <div className="flex min-h-[45vh] flex-col items-center justify-center text-center"><div className="mb-4 rounded-2xl bg-primary/10 p-4"><Sparkles className="h-8 w-8 text-primary" /></div><h1 className="text-2xl font-semibold">今天想研究什么？</h1><p className="mt-2 max-w-lg text-sm text-muted-foreground">连续追问、调用 report-kb 和 Tushare、查看证据、审批敏感工具，并把结论沉淀为可恢复记忆。</p><div className="mt-5 grid gap-2 sm:grid-cols-2">{['分析近期基本面变化和主要分歧', '搜索相关研报并列出可证伪条件', '比较多个标的的风险收益逻辑', '回顾我最近的研究结论'].map(text => <Button key={text} variant="outline" onClick={() => setInput(text)}>{text}</Button>)}</div></div>}
+        {messages.map(message => <MessageBubble key={message.id} message={message} />)}
+        {events.map(event => <EventCard key={`${event.id}-${event.type}`} event={event} />)}
+        {activeRun && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /><span>{statusLabel(activeRun.status)} · 步骤 {activeRun.current_step} · {activeRun.tokens_used} tokens</span></div>}
+        {approvals.filter(item => !currentId || runs.some(run => run.id === (item as AgentApproval & { run_id?: string }).run_id)).map(item => <ApprovalCard key={item.id} item={item} onResolve={resolveApproval} />)}
+        {notice && <Card className="border-primary/30"><CardContent className="whitespace-pre-wrap p-4 font-mono text-sm">{notice}</CardContent></Card>}
+        <div ref={bottomRef} />
+      </div></ScrollArea>
+
+      <div className="border-t bg-background p-3"><div className="relative mx-auto max-w-3xl">{input.startsWith('/') && <div className="absolute bottom-full z-20 mb-2 max-h-64 w-full overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">{COMMANDS.filter(([name]) => name.startsWith(input.split(/\s/, 1)[0])).map(([name, label]) => <button type="button" key={name} onClick={() => setInput(`${name} `)} className="flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm hover:bg-accent"><span className="font-mono">{name}</span><span className="text-xs text-muted-foreground">{label}</span></button>)}</div>}<form onSubmit={send} className="rounded-xl border bg-muted/20 shadow-sm focus-within:ring-1 focus-within:ring-ring"><Textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send() } if (e.key === 'Escape' && activeRun && currentId) void agentPlatformApi.stopSession(currentId) }} placeholder="输入问题，或输入 / 查看命令…" className="min-h-20 resize-none border-0 bg-transparent focus-visible:ring-0" /><div className="flex items-center gap-2 border-t px-2 py-2"><select value={mode} onChange={e => setMode(e.target.value as Mode)} className="rounded border bg-background px-2 py-1 text-xs"><option value="ask">Ask</option><option value="research">Research</option><option value="plan">Plan</option></select>{input.startsWith('/') && <div className="text-xs text-muted-foreground"><Command className="mr-1 inline h-3 w-3" />命令模式</div>}<div className="flex-1" />{activeRun && <Button type="button" size="sm" variant="outline" onClick={() => currentId && void agentPlatformApi.stopSession(currentId)}><CircleStop className="mr-1 h-4 w-4" />停止</Button>}<Button size="icon" disabled={!input.trim() || sending || !selectedAgent}>{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</Button></div></form></div><div className="mx-auto mt-1 flex max-w-3xl justify-between px-1 text-[11px] text-muted-foreground"><span>Enter 发送 · Shift+Enter 换行 · Esc 停止 · /help 命令</span><span>{mode}</span></div></div>
+    </main>
+
+    <ContextSheet open={contextOpen} onOpenChange={setContextOpen} session={sessions.find(s => s.id === currentId)} runs={runs} events={events} usage={usage} onPin={async () => { const current = sessions.find(s => s.id === currentId); if (current) { await agentPlatformApi.updateSession(current.id, { is_pinned: !current.is_pinned }); await refreshWorkspace() } }} onArchive={async () => { if (currentId) { await agentPlatformApi.updateSession(currentId, { archived: true }); setCurrentId(null); await refreshWorkspace() } }} />
+    <SettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} models={models} agents={agents} memories={memories} mcp={mcp} schedules={schedules} usage={usage} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} modelForm={modelForm} setModelForm={setModelForm} agentForm={agentForm} setAgentForm={setAgentForm} mcpForm={mcpForm} setMcpForm={setMcpForm} scheduleForm={scheduleForm} setScheduleForm={setScheduleForm} submit={submitSetting} />
+  </div>
 }
 
-function Metric({title,value}:{title:string;value:string|number}) { return <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">{title}</div><div className="text-2xl font-semibold">{value}</div></CardContent></Card> }
-function Empty({text}:{text:string}) { return <Card><CardContent className="p-8 text-center text-sm text-muted-foreground"><Database className="mx-auto mb-2 h-5 w-5" />{text}</CardContent></Card> }
+function MessageBubble({ message }: { message: AgentMessage }) {
+  const user = message.role === 'user'
+  return <div className={`flex gap-3 ${user ? 'justify-end' : 'justify-start'}`}>{!user && <div className="mt-1 rounded-full bg-primary/10 p-2"><Bot className="h-4 w-4 text-primary" /></div>}<div className={`max-w-[88%] rounded-2xl px-4 py-3 ${user ? 'bg-primary text-primary-foreground' : 'bg-muted/60'}`}>{user ? <p className="whitespace-pre-wrap text-sm">{message.content.replace(/^\[(Ask|Plan) mode:[^\]]+\]\s*/, '')}</p> : <div className="prose prose-sm max-w-none dark:prose-invert"><ReactMarkdown>{message.content}</ReactMarkdown></div>}<div className={`mt-2 text-[10px] ${user ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>{new Date(message.created_at).toLocaleTimeString()}</div></div></div>
+}
+
+function EventCard({ event }: { event: LiveEvent }) {
+  if (event.type === 'step.started') return <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{String(event.payload.role || 'Agent')} {event.payload.tool ? `正在调用 ${event.payload.tool}` : '正在分析'}</div>
+  if (event.type === 'step.completed') return <details className="rounded-lg border bg-muted/20 px-3 py-2 text-sm"><summary className="cursor-pointer font-medium"><Check className="mr-2 inline h-4 w-4 text-emerald-500" />{String(event.payload.role || '步骤')}完成{event.payload.tool ? ` · ${event.payload.tool}` : ''}</summary><pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">{JSON.stringify(event.payload.output, null, 2)}</pre></details>
+  if (event.type === 'step.retry') return <div className="text-sm text-amber-600">步骤失败，正在自动重试…</div>
+  if (event.type === 'run.failed') return <Card className="border-destructive/50"><CardContent className="p-3 text-sm text-destructive">任务失败：{String(event.payload.reason || 'unknown error')}</CardContent></Card>
+  return null
+}
+
+function ApprovalCard({ item, onResolve }: { item: AgentApproval; onResolve: (item: AgentApproval, decision: 'approved' | 'rejected', scope?: 'once' | 'always') => Promise<void> }) {
+  return <Card className="border-amber-500/50"><CardHeader className="pb-2"><CardTitle className="text-base">需要你的批准</CardTitle></CardHeader><CardContent className="space-y-3"><pre className="max-h-60 overflow-auto rounded bg-muted p-3 text-xs">{JSON.stringify(item.preview, null, 2)}</pre><div className="flex gap-2"><Button size="sm" onClick={() => void onResolve(item, 'approved', 'once')}><Check className="mr-1 h-4 w-4" />仅本次</Button>{item.kind === 'mcp_tool' && <Button size="sm" variant="secondary" onClick={() => void onResolve(item, 'approved', 'always')}>永久允许</Button>}<Button size="sm" variant="destructive" onClick={() => void onResolve(item, 'rejected')}><X className="mr-1 h-4 w-4" />拒绝</Button></div></CardContent></Card>
+}
+
+function ContextSheet({ open, onOpenChange, session, runs, events, usage, onPin, onArchive }: { open: boolean; onOpenChange: (v: boolean) => void; session?: AgentSession; runs: AgentRun[]; events: LiveEvent[]; usage: Usage | null; onPin: () => Promise<void>; onArchive: () => Promise<void> }) {
+  const latest = runs.at(-1)
+  return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent className="w-[380px] overflow-y-auto"><SheetHeader><SheetTitle>会话上下文</SheetTitle></SheetHeader><div className="mt-5 space-y-5"><div><div className="text-xs text-muted-foreground">当前会话</div><div className="font-medium">{session?.title || '-'}</div></div><div className="grid grid-cols-2 gap-2"><Metric label="上下文" value={`${session?.context_tokens || 0}`} /><Metric label="今日费用" value={`$${(usage?.today.cost_usd || 0).toFixed(4)}`} /><Metric label="任务状态" value={latest?.status || '-'} /><Metric label="实时事件" value={events.length} /></div>{session?.summary && <div><div className="mb-1 text-sm font-medium">压缩摘要</div><p className="whitespace-pre-wrap text-xs text-muted-foreground">{session.summary}</p></div>}<div className="flex gap-2"><Button variant="outline" onClick={() => void onPin()}><Pin className="mr-1 h-4 w-4" />{session?.is_pinned ? '取消置顶' : '置顶'}</Button><Button variant="outline" onClick={() => void onArchive()}><Archive className="mr-1 h-4 w-4" />归档</Button></div></div></SheetContent></Sheet>
+}
+
+type SettingsProps = {
+  open: boolean; onOpenChange: (v: boolean) => void; models: AgentModelProfile[]; agents: AgentDefinition[]; memories: AgentMemory[]; mcp: MCPServer[]; schedules: AgentSchedule[]; usage: Usage | null; selectedAgent: string; setSelectedAgent: (v: string) => void
+  modelForm: Record<string, string | number>; setModelForm: (v: never) => void; agentForm: Record<string, unknown>; setAgentForm: (v: never) => void; mcpForm: Record<string, string>; setMcpForm: (v: never) => void; scheduleForm: Record<string, string>; setScheduleForm: (v: never) => void; submit: (fn: () => Promise<unknown>, message: string) => Promise<void>
+}
+
+function SettingsSheet(props: SettingsProps) {
+  const { open, onOpenChange, models, agents, memories, mcp, schedules, usage, selectedAgent, setSelectedAgent, modelForm, setModelForm, agentForm, setAgentForm, mcpForm, setMcpForm, scheduleForm, setScheduleForm, submit } = props
+  const [section, setSection] = useState('setup')
+  return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent className="w-full overflow-y-auto sm:max-w-xl"><SheetHeader><SheetTitle>Agent 设置</SheetTitle></SheetHeader><div className="mt-4 flex flex-wrap gap-2">{['setup', 'agents', 'mcp', 'memory', 'schedule', 'usage'].map(item => <Button key={item} size="sm" variant={section === item ? 'default' : 'outline'} onClick={() => setSection(item)}>{item}</Button>)}</div><div className="mt-5 space-y-4">
+    {section === 'setup' && <Card><CardHeader><CardTitle className="text-base">安全配置 BYOK</CardTitle></CardHeader><CardContent className="grid gap-3"><Input placeholder="配置名称" value={String(modelForm.name)} onChange={e => setModelForm({ ...modelForm, name: e.target.value } as never)} /><select className="rounded border bg-background p-2" value={String(modelForm.provider)} onChange={e => setModelForm({ ...modelForm, provider: e.target.value } as never)}><option value="openai">OpenAI-compatible</option><option value="anthropic">Anthropic</option></select><Input placeholder="Base URL（官方可留空）" value={String(modelForm.base_url)} onChange={e => setModelForm({ ...modelForm, base_url: e.target.value } as never)} /><Input placeholder="Model" value={String(modelForm.model)} onChange={e => setModelForm({ ...modelForm, model: e.target.value } as never)} /><Input type="password" autoComplete="off" placeholder="API Key（不会进入聊天记录）" value={String(modelForm.api_key)} onChange={e => setModelForm({ ...modelForm, api_key: e.target.value } as never)} /><Button onClick={() => void submit(() => agentPlatformApi.createModel({ ...modelForm, base_url: modelForm.base_url || null }), '模型凭证已加密保存')}>保存模型</Button><div className="space-y-1">{models.map(item => <div className="rounded border p-2 text-sm" key={item.id}>{item.name} · {item.model}</div>)}</div></CardContent></Card>}
+    {section === 'agents' && <Card><CardHeader><CardTitle className="text-base">Agent</CardTitle></CardHeader><CardContent className="grid gap-3"><Input placeholder="名称" value={String(agentForm.name || '')} onChange={e => setAgentForm({ ...agentForm, name: e.target.value } as never)} /><Input placeholder="描述" value={String(agentForm.description || '')} onChange={e => setAgentForm({ ...agentForm, description: e.target.value } as never)} /><select className="rounded border bg-background p-2" value={String(agentForm.model_profile_id || '')} onChange={e => setAgentForm({ ...agentForm, model_profile_id: e.target.value } as never)}><option value="">选择模型</option>{models.map(item => <option key={item.id} value={item.id}>{item.name} · {item.model}</option>)}</select><Textarea value={String(agentForm.system_prompt || '')} onChange={e => setAgentForm({ ...agentForm, system_prompt: e.target.value } as never)} /><Button onClick={() => void submit(() => agentPlatformApi.createAgent(agentForm), 'Agent 已创建')}>创建 Agent</Button>{agents.map(item => <button className={`rounded border p-3 text-left ${selectedAgent === item.id ? 'border-primary' : ''}`} key={item.id} onClick={() => setSelectedAgent(item.id)}><div className="font-medium">{item.name}</div><div className="text-xs text-muted-foreground">{item.role} · {item.tool_names.length} tools</div></button>)}</CardContent></Card>}
+    {section === 'mcp' && <Card><CardHeader><CardTitle className="text-base">公网 HTTPS MCP</CardTitle></CardHeader><CardContent className="grid gap-3"><Input placeholder="名称" value={mcpForm.name} onChange={e => setMcpForm({ ...mcpForm, name: e.target.value } as never)} /><Input placeholder="https://..." value={mcpForm.url} onChange={e => setMcpForm({ ...mcpForm, url: e.target.value } as never)} /><Input type="password" autoComplete="off" placeholder="Bearer Token（不会进入聊天记录）" value={mcpForm.auth_token} onChange={e => setMcpForm({ ...mcpForm, auth_token: e.target.value } as never)} /><Button onClick={() => void submit(() => agentPlatformApi.createMcp({ ...mcpForm, auth_token: mcpForm.auth_token || null }), 'MCP 已连接')}>发现工具</Button>{mcp.map(item => <div className="rounded border p-3 text-sm" key={item.id}>{item.name} <Badge>{item.status}</Badge><div className="text-xs text-muted-foreground">{item.url}</div></div>)}</CardContent></Card>}
+    {section === 'memory' && <div className="space-y-2">{memories.map(item => <Card key={item.id}><CardContent className="p-3"><div className="font-medium">{item.key}</div><pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap text-xs">{JSON.stringify(item.value, null, 2)}</pre></CardContent></Card>)}</div>}
+    {section === 'schedule' && <Card><CardHeader><CardTitle className="text-base">定时研究</CardTitle></CardHeader><CardContent className="grid gap-3"><Input placeholder="计划名称" value={scheduleForm.name} onChange={e => setScheduleForm({ ...scheduleForm, name: e.target.value } as never)} /><Textarea placeholder="研究任务" value={scheduleForm.prompt} onChange={e => setScheduleForm({ ...scheduleForm, prompt: e.target.value } as never)} /><Input value={scheduleForm.cron} onChange={e => setScheduleForm({ ...scheduleForm, cron: e.target.value } as never)} /><Button disabled={!selectedAgent} onClick={() => void submit(() => agentPlatformApi.createSchedule({ ...scheduleForm, agent_definition_id: selectedAgent }), '定时研究已创建')}>创建计划</Button>{schedules.map(item => <div className="rounded border p-3 text-sm" key={item.id}>{item.name} · {item.cron}</div>)}</CardContent></Card>}
+    {section === 'usage' && <div className="grid grid-cols-2 gap-3"><Metric label="今日输入" value={usage?.today.input_tokens || 0} /><Metric label="今日输出" value={usage?.today.output_tokens || 0} /><Metric label="今日成本" value={`$${(usage?.today.cost_usd || 0).toFixed(4)}`} /><Metric label="Agent 数" value={agents.length} /></div>}
+  </div></SheetContent></Sheet>
+}
+
+function Metric({ label, value }: { label: string; value: string | number }) { return <div className="rounded-lg border p-3"><div className="text-xs text-muted-foreground">{label}</div><div className="mt-1 font-semibold">{value}</div></div> }
+function statusLabel(status: string) { return ({ queued: '等待 Worker', planning: '规划研究步骤', running: '执行研究', waiting_approval: '等待审批', paused_budget: '预算暂停', paused: '已暂停' } as Record<string, string>)[status] || status }
