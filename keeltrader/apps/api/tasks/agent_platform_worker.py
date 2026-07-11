@@ -23,8 +23,11 @@ async def main() -> None:
     r = aioredis.from_url(redis_url)
     try:
         from services.agent_platform.runtime import worker_loop
+        from services.agent_platform.dossier import dossier_scheduler_loop, dossier_worker_loop
 
         worker = asyncio.create_task(worker_loop())
+        dossier_worker = asyncio.create_task(dossier_worker_loop())
+        dossier_scheduler = asyncio.create_task(dossier_scheduler_loop())
         while True:
             payload = {
                 "status": "running",
@@ -39,6 +42,12 @@ async def main() -> None:
         if "worker" in locals():
             worker.cancel()
             await asyncio.gather(worker, return_exceptions=True)
+        if "dossier_worker" in locals():
+            dossier_worker.cancel()
+            await asyncio.gather(dossier_worker, return_exceptions=True)
+        if "dossier_scheduler" in locals():
+            dossier_scheduler.cancel()
+            await asyncio.gather(dossier_scheduler, return_exceptions=True)
         await r.aclose()
 
 

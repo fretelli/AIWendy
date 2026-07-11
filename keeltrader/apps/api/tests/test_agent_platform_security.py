@@ -91,3 +91,13 @@ def test_managed_model_and_watchlist_migration_is_private_by_default():
     config = (Path(__file__).resolve().parents[1] / "config.py").read_text(encoding="utf-8")
     assert 'agent_managed_api_key: Optional[str] = None' in config
     assert "joyeeassets.com" not in config
+
+
+def test_dossier_engine_is_watchlist_only_and_does_not_use_unrelated_reports():
+    migration = Path(__file__).resolve().parents[3] / "migrations/versions/026_fundamental_dossiers.py"
+    assert 'revision = "026"' in migration.read_text(encoding="utf-8")
+    dossier = (Path(__file__).resolve().parents[1] / "services/agent_platform/dossier.py").read_text(encoding="utf-8")
+    assert "Only companies in 我的自选 can be refreshed" in dossier
+    assert "refresh_enabled.is_(True)" in dossier
+    report_kb = (Path(__file__).resolve().parents[1] / "services/agent_platform/report_kb.py").read_text(encoding="utf-8")
+    assert "return await self.recent_reports(limit=limit)" not in report_kb

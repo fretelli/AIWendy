@@ -19,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   agentPlatformApi, type AgentApproval, type AgentDefinition, type AgentMemory,
   type AgentMessage, type AgentModelProfile, type AgentRun, type AgentSchedule,
-  type AgentSession, type CompanySearchItem, type InteractionMode, type MCPServer, type Usage, type WatchlistItem,
+  type AgentSession, type CompanyDossier, type CompanySearchItem, type InteractionMode, type MCPServer, type Usage, type WatchlistItem,
 } from '@/lib/api/agent-platform'
 
 type LiveEvent = { id: string; type: string; payload: Record<string, unknown> }
@@ -47,6 +47,7 @@ export default function AgentWorkspacePage() {
   const [schedules, setSchedules] = useState<AgentSchedule[]>([])
   const [usage, setUsage] = useState<Usage | null>(null)
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([])
+  const [dossier, setDossier] = useState<CompanyDossier | null>(null)
   const [companyQuery, setCompanyQuery] = useState('')
   const [companyResults, setCompanyResults] = useState<CompanySearchItem[]>([])
   const [input, setInput] = useState('')
@@ -111,7 +112,15 @@ export default function AgentWorkspacePage() {
   useEffect(() => { if (currentId) queueMicrotask(() => { void loadTimeline(currentId) }) }, [currentId, loadTimeline])
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, events, runs])
 
+  const currentSession = sessions.find(item => item.id === currentId)
   const activeRun = useMemo(() => [...runs].reverse().find(run => !TERMINAL.has(run.status)), [runs])
+  useEffect(() => {
+    const code = currentSession?.company_code
+    if (!code) { queueMicrotask(() => setDossier(null)); return }
+    let cancelled = false
+    void agentPlatformApi.dossier(code).then(data => { if (!cancelled) setDossier(data) }).catch(() => { if (!cancelled) setDossier(null) })
+    return () => { cancelled = true }
+  }, [currentSession?.company_code])
   useEffect(() => {
     eventSourceRef.current?.close()
     if (!activeRun) return
@@ -227,7 +236,6 @@ export default function AgentWorkspacePage() {
 
   const filteredSessions = sessions.filter(item => item.title.toLowerCase().includes(search.toLowerCase()))
   if (loading) return <div className="flex h-full items-center justify-center"><Loader2 className="h-7 w-7 animate-spin" /></div>
-  const currentSession = sessions.find(item => item.id === currentId)
   const pinCurrent = async () => { if (currentSession) { await agentPlatformApi.updateSession(currentSession.id, { is_pinned: !currentSession.is_pinned }); await refreshWorkspace() } }
   const archiveCurrent = async () => { if (currentId) { await agentPlatformApi.updateSession(currentId, { archived: true }); setCurrentId(null); await refreshWorkspace() } }
 
@@ -262,9 +270,9 @@ export default function AgentWorkspacePage() {
       <PanelResizeHandle className="group relative w-1 bg-border/40 outline-none hover:bg-primary/40 focus-visible:bg-primary"><span className="absolute inset-y-0 -left-1 -right-1" /></PanelResizeHandle>
       <Panel minSize={40}>{mainPanel}</Panel>
       <PanelResizeHandle className="group relative w-1 bg-border/40 outline-none hover:bg-primary/40 focus-visible:bg-primary"><span className="absolute inset-y-0 -left-1 -right-1" /></PanelResizeHandle>
-      <Panel ref={rightPanelRef} defaultSize={24} minSize={18} maxSize={35} collapsible collapsedSize={0} onCollapse={() => setRightCollapsed(true)} onExpand={() => setRightCollapsed(false)}><aside className="h-full border-l bg-muted/10"><ContextContent session={currentSession} runs={runs} events={events} usage={usage} onPin={pinCurrent} onArchive={archiveCurrent} /></aside></Panel>
+      <Panel ref={rightPanelRef} defaultSize={24} minSize={18} maxSize={35} collapsible collapsedSize={0} onCollapse={() => setRightCollapsed(true)} onExpand={() => setRightCollapsed(false)}><aside className="h-full overflow-y-auto border-l bg-muted/10"><ContextContent session={currentSession} dossier={dossier} runs={runs} events={events} usage={usage} onPin={pinCurrent} onArchive={archiveCurrent} /></aside></Panel>
     </PanelGroup> : mainPanel}
-    <ContextSheet open={contextOpen} onOpenChange={setContextOpen} session={currentSession} runs={runs} events={events} usage={usage} onPin={pinCurrent} onArchive={archiveCurrent} />
+    <ContextSheet open={contextOpen} onOpenChange={setContextOpen} session={currentSession} dossier={dossier} runs={runs} events={events} usage={usage} onPin={pinCurrent} onArchive={archiveCurrent} />
     <SettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} models={models} agents={agents} memories={memories} mcp={mcp} schedules={schedules} usage={usage} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} modelForm={modelForm} setModelForm={setModelForm} agentForm={agentForm} setAgentForm={setAgentForm} mcpForm={mcpForm} setMcpForm={setMcpForm} scheduleForm={scheduleForm} setScheduleForm={setScheduleForm} submit={submitSetting} />
   </div>
 }
@@ -286,14 +294,17 @@ function ApprovalCard({ item, onResolve }: { item: AgentApproval; onResolve: (it
   return <Card className="border-amber-500/50"><CardHeader className="pb-2"><CardTitle className="text-base">需要你的批准</CardTitle></CardHeader><CardContent className="space-y-3"><pre className="max-h-60 overflow-auto rounded bg-muted p-3 text-xs">{JSON.stringify(item.preview, null, 2)}</pre><div className="flex gap-2"><Button size="sm" onClick={() => void onResolve(item, 'approved', 'once')}><Check className="mr-1 h-4 w-4" />仅本次</Button>{item.kind === 'mcp_tool' && <Button size="sm" variant="secondary" onClick={() => void onResolve(item, 'approved', 'always')}>永久允许</Button>}<Button size="sm" variant="destructive" onClick={() => void onResolve(item, 'rejected')}><X className="mr-1 h-4 w-4" />拒绝</Button></div></CardContent></Card>
 }
 
-function ContextSheet({ open, onOpenChange, session, runs, events, usage, onPin, onArchive }: { open: boolean; onOpenChange: (v: boolean) => void; session?: AgentSession; runs: AgentRun[]; events: LiveEvent[]; usage: Usage | null; onPin: () => Promise<void>; onArchive: () => Promise<void> }) {
-  return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent className="w-[380px] overflow-y-auto"><SheetHeader><SheetTitle>会话上下文</SheetTitle></SheetHeader><ContextContent session={session} runs={runs} events={events} usage={usage} onPin={onPin} onArchive={onArchive} /></SheetContent></Sheet>
+function ContextSheet({ open, onOpenChange, session, dossier, runs, events, usage, onPin, onArchive }: { open: boolean; onOpenChange: (v: boolean) => void; session?: AgentSession; dossier: CompanyDossier | null; runs: AgentRun[]; events: LiveEvent[]; usage: Usage | null; onPin: () => Promise<void>; onArchive: () => Promise<void> }) {
+  return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent className="w-[380px] overflow-y-auto"><SheetHeader><SheetTitle>公司档案</SheetTitle></SheetHeader><ContextContent session={session} dossier={dossier} runs={runs} events={events} usage={usage} onPin={onPin} onArchive={onArchive} /></SheetContent></Sheet>
 }
 
-function ContextContent({ session, runs, events, usage, onPin, onArchive }: { session?: AgentSession; runs: AgentRun[]; events: LiveEvent[]; usage: Usage | null; onPin: () => Promise<void>; onArchive: () => Promise<void> }) {
+function ContextContent({ session, dossier, runs, events, usage, onPin, onArchive }: { session?: AgentSession; dossier: CompanyDossier | null; runs: AgentRun[]; events: LiveEvent[]; usage: Usage | null; onPin: () => Promise<void>; onArchive: () => Promise<void> }) {
   const latest = runs.at(-1)
-  return <div className="space-y-5 p-5"><div><div className="text-xs text-muted-foreground">当前会话</div><div className="truncate font-medium">{session?.title || '-'}</div><Badge variant="outline" className="mt-2 font-mono">/{session?.interaction_mode || 'ask'}</Badge></div><div className="grid grid-cols-2 gap-2"><Metric label="上下文" value={`${session?.context_tokens || 0}`} /><Metric label="今日费用" value={`$${(usage?.today.cost_usd || 0).toFixed(4)}`} /><Metric label="任务状态" value={latest?.status || '-'} /><Metric label="实时事件" value={events.length} /></div>{session?.summary && <div><div className="mb-1 text-sm font-medium">压缩摘要</div><p className="whitespace-pre-wrap text-xs text-muted-foreground">{session.summary}</p></div>}<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => void onPin()}><Pin className="mr-1 h-4 w-4" />{session?.is_pinned ? '取消置顶' : '置顶'}</Button><Button variant="outline" onClick={() => void onArchive()}><Archive className="mr-1 h-4 w-4" />归档</Button></div></div>
+  const metrics = dossier?.snapshot?.metrics || {}
+  return <div className="space-y-5 p-5"><div><div className="text-xs text-muted-foreground">当前公司</div><div className="truncate font-medium">{String(dossier?.snapshot?.company?.name || session?.title || '-')}</div><div className="mt-2 flex gap-2"><Badge variant="outline" className="font-mono">{session?.company_code || '未绑定'}</Badge>{dossier?.dossier && <Badge variant={dossier.dossier.stale ? 'destructive' : 'secondary'}>v{dossier.dossier.current_version} · {dossier.dossier.stale ? '待刷新' : '最新'}</Badge>}</div></div>{session?.company_code && <Button className="w-full" variant="outline" onClick={() => void agentPlatformApi.refreshDossier(session.company_code!).then(() => toast.success('档案刷新已入队'))}>刷新基本面档案</Button>}<div className="grid grid-cols-2 gap-2"><Metric label="营收增速" value={formatMetric(metrics.revenue_growth_pct, '%')} /><Metric label="净利增速" value={formatMetric(metrics.net_profit_growth_pct, '%')} /><Metric label="ROE" value={formatMetric(metrics.roe_pct, '%')} /><Metric label="现金含量" value={formatMetric(metrics.cfo_to_profit)} /></div>{dossier?.snapshot?.evidence_shortage && <p className="rounded border border-amber-500/40 p-2 text-xs text-amber-700">{dossier.snapshot.evidence_shortage}</p>}{Boolean(dossier?.snapshot?.anomaly_flags?.length) && <div><div className="mb-2 text-sm font-medium">异常信号</div>{dossier!.snapshot!.anomaly_flags.map(flag => <div key={flag} className="mb-1 rounded bg-destructive/10 p-2 text-xs">{flag}</div>)}</div>}<div><div className="mb-2 text-sm font-medium">证据与版本</div><div className="text-xs text-muted-foreground">{dossier?.evidence.length || 0} 条证据 · {dossier?.versions.length || 0} 个不可变版本</div></div><div className="grid grid-cols-2 gap-2"><Metric label="今日费用" value={`$${(usage?.today.cost_usd || 0).toFixed(4)}`} /><Metric label="任务状态" value={latest?.status || '-'} /></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => void onPin()}><Pin className="mr-1 h-4 w-4" />{session?.is_pinned ? '取消置顶' : '置顶'}</Button><Button variant="outline" onClick={() => void onArchive()}><Archive className="mr-1 h-4 w-4" />归档</Button></div></div>
 }
+
+function formatMetric(value: unknown, suffix = '') { return typeof value === 'number' ? `${value.toFixed(2)}${suffix}` : '-' }
 
 type SettingsProps = {
   open: boolean; onOpenChange: (v: boolean) => void; models: AgentModelProfile[]; agents: AgentDefinition[]; memories: AgentMemory[]; mcp: MCPServer[]; schedules: AgentSchedule[]; usage: Usage | null; selectedAgent: string; setSelectedAgent: (v: string) => void
