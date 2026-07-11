@@ -27,8 +27,6 @@ services:
       - TUSHARE_DATABASE_URL=${TUSHARE_DATABASE_URL}
       - REPORT_KB_URL=${REPORT_KB_URL}
       - REPORT_KB_SERVICE_KEY=${REPORT_KB_SERVICE_KEY}
-      - RESEARCH_CLOUD_ENABLED=${RESEARCH_CLOUD_ENABLED:-1}
-      - RESEARCH_CLOUD_BASE_URL=${RESEARCH_CLOUD_BASE_URL:-https://research.joyeeassets.com}
       - REDIS_URL=${REDIS_URL}
       - JWT_SECRET=${JWT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
@@ -72,8 +70,6 @@ services:
       - NEXT_PUBLIC_SITE_URL=https://keeltrader.joyeeassets.com
       - NEXTAUTH_URL=${NEXTAUTH_URL}
       - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
-      - RESEARCH_CLOUD_ENABLED=${RESEARCH_CLOUD_ENABLED:-1}
-      - RESEARCH_API_URL=${RESEARCH_CLOUD_BASE_URL:-https://research.joyeeassets.com}
     depends_on:
       api:
         condition: service_started
@@ -88,11 +84,6 @@ services:
       - "traefik.http.routers.keeltrader-proxy.entrypoints=websecure"
       - "traefik.http.routers.keeltrader-proxy.tls.certresolver=letsencrypt"
       - "traefik.http.routers.keeltrader-proxy.service=keeltrader-web"
-      # Research API proxy route must go to web, not API
-      - "traefik.http.routers.keeltrader-research-proxy.rule=Host(`keeltrader.joyeeassets.com`) && PathPrefix(`/api/research`)"
-      - "traefik.http.routers.keeltrader-research-proxy.entrypoints=websecure"
-      - "traefik.http.routers.keeltrader-research-proxy.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.keeltrader-research-proxy.service=keeltrader-web"
 
   agent-platform-worker:
     image: keeltrader-api:latest

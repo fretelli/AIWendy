@@ -37,7 +37,7 @@
    docker compose -f docker-compose.selfhost.yml exec -T api alembic upgrade head
    ```
 
-默认 `RESEARCH_CLOUD_ENABLED=0`，Web/API 不会请求任何 `joyeeassets.com` 域名。只有管理员显式开启、且具体用户完成设备授权后，才会发送研报查询词和公司筛选到 Research Cloud；本地文档、持仓、交易与决策日志不会上传。
+KeelTrader 不包含独立 Research Cloud 连接器。Agent 只通过管理员配置的只读 `report-kb` 服务检索研报，本地文档、模型密钥和决策日志不会发送到外部 Research 服务。
 
 ## Agent 平台、BYOK 与 MCP
 
@@ -125,7 +125,7 @@ Use `docker-compose.selfhost.yml` for private deployments. It includes isolated 
    docker compose -f docker-compose.selfhost.yml exec -T api alembic upgrade head
    ```
 
-`RESEARCH_CLOUD_ENABLED=0` is the default. No request is sent to a `joyeeassets.com` domain unless an administrator explicitly enables Research Cloud and an individual user completes device authorization. Local documents, positions, trades, and decision journals are never uploaded.
+KeelTrader does not include a standalone Research Cloud connector. Agents retrieve reports only through the administrator-configured, read-only `report-kb` service; local documents, model credentials, and decision journals are not sent to the external Research service.
 
 ## Agent Platform, BYOK, and MCP
 
