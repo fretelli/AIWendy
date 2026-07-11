@@ -25,6 +25,7 @@ class AgentDefinition(Base):
     task_token_budget = Column(Integer, nullable=False, default=50000)
     task_cost_budget_usd = Column(Float, nullable=False, default=5.0)
     is_template = Column(Boolean, nullable=False, default=False)
+    is_default = Column(Boolean, nullable=False, default=False)
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -39,6 +40,7 @@ class AgentSession(Base):
     title = Column(String(200), nullable=False)
     status = Column(String(30), nullable=False, default="active")
     interaction_mode = Column(String(20), nullable=False, default="ask")
+    company_code = Column(String(20), nullable=True)
     summary = Column(Text, nullable=True)
     context_tokens = Column(Integer, nullable=False, default=0)
     is_pinned = Column(Boolean, nullable=False, default=False)
@@ -180,12 +182,14 @@ class AgentMemoryVersion(Base):
 class AgentModelProfile(Base):
     __tablename__ = "agent_platform_model_profiles"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
     name = Column(String(120), nullable=False)
     provider = Column(String(30), nullable=False)
     base_url = Column(String(500), nullable=True)
     model = Column(String(160), nullable=False)
-    api_key_encrypted = Column(Text, nullable=False)
+    api_key_encrypted = Column(Text, nullable=True)
+    credential_source = Column(String(20), nullable=False, default="byok")
+    managed_slug = Column(String(80), nullable=True, unique=True)
     key_prefix = Column(String(32), nullable=True)
     context_window = Column(Integer, nullable=False)
     max_output_tokens = Column(Integer, nullable=False)
@@ -194,6 +198,22 @@ class AgentModelProfile(Base):
     is_active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     __table_args__ = (Index("ix_agent_platform_models_user", "user_id", "created_at"),)
+
+
+class AgentCompanyWatchlist(Base):
+    __tablename__ = "agent_company_watchlist"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    company_code = Column(String(20), nullable=False)
+    company_name = Column(String(120), nullable=False)
+    industry = Column(String(120), nullable=True)
+    refresh_enabled = Column(Boolean, nullable=False, default=True)
+    added_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        Index("ix_agent_company_watchlist_user", "user_id", "added_at"),
+        Index("uq_agent_company_watchlist_user_code", "user_id", "company_code", unique=True),
+    )
 
 
 class AgentMCPServer(Base):

@@ -139,6 +139,23 @@ class TushareReadService:
         rows = await self._execute_mappings(q, {"symbol": symbol, "name": f"%{symbol}%"})
         return rows[0] if rows else None
 
+    async def search_companies(self, query: str, limit: int = 20) -> list[dict[str, Any]]:
+        """Search the complete A-share company catalog without model usage."""
+        if not await self.table_exists("stock_basic"):
+            return []
+        value = query.strip()
+        limit = max(1, min(limit, 50))
+        q = text(
+            f"""
+            SELECT ts_code, symbol, name, area, industry, market, list_date
+            FROM {self.schema}.stock_basic
+            WHERE :query = '' OR ts_code ILIKE :pattern OR symbol ILIKE :pattern OR name ILIKE :pattern
+            ORDER BY CASE WHEN ts_code = :query OR symbol = :query OR name = :query THEN 0 ELSE 1 END, ts_code
+            LIMIT :limit
+            """
+        )
+        return await self._execute_mappings(q, {"query": value, "pattern": f"%{value}%", "limit": limit})
+
     async def daily_bars(self, symbol: str, limit: int = 120, adjusted: bool = True) -> list[dict[str, Any]]:
         """Return recent daily bars for a stock."""
         table = "stock_daily_adj" if adjusted else "stock_daily"

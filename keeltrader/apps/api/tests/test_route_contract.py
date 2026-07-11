@@ -23,6 +23,9 @@ def test_active_route_prefixes_are_mounted(client):
         "/api/v1/agent/sessions/{session_id}/timeline",
         "/api/v1/agent/sessions/{session_id}/compact",
         "/api/v1/agent/sessions/{session_id}/stop",
+        "/api/v1/agent/companies",
+        "/api/v1/agent/watchlist",
+        "/api/v1/agent/watchlist/{company_code}",
         "/api/v1/market-data/historical/{symbol}",
     }
 

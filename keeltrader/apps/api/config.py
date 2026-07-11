@@ -88,6 +88,15 @@ class Settings(BaseSettings):
     anthropic_api_key: Optional[str] = None
     anthropic_base_url: Optional[str] = None
 
+    # Deployment-owned Agent model. Self-hosted installs must provide their own
+    # values; there is deliberately no hosted fallback.
+    agent_managed_provider: str = "openai"
+    agent_managed_model: Optional[str] = None
+    agent_managed_base_url: Optional[str] = None
+    agent_managed_api_key: Optional[str] = None
+    agent_managed_context_window: int = 128000
+    agent_managed_max_output_tokens: int = 4096
+
     # ========== Market Data API Keys ==========
     twelve_data_api_key: Optional[str] = None
     enable_mock_market_data: bool = Field(
