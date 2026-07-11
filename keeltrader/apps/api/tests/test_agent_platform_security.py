@@ -55,7 +55,7 @@ def test_agent_platform_migration_splits_asyncpg_ddl_commands():
 def test_agent_worker_bootstrap_adds_api_root_to_sys_path():
     from pathlib import Path
 
-    worker = Path(__file__).resolve().parents[1] / "tasks/agentos_engine.py"
+    worker = Path(__file__).resolve().parents[1] / "tasks/agent_platform_worker.py"
     source = worker.read_text(encoding="utf-8")
     assert "Path(__file__).resolve().parents[1]" in source
     assert "sys.path.insert(0, API_ROOT)" in source

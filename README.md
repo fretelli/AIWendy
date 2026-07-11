@@ -3,7 +3,7 @@
 <a id="zh-cn"></a>
 [中文](#zh-cn) | [English](#en)
 
-KeelTrader 是一个自进化基本面投资研究 AgentOS。它面向个人或小团队的投研流程，提供多 Agent 研究辅助、研报知识库搜索、结构化决策日志、周度复盘和基本面假设验证记录。
+KeelTrader 是一个自进化基本面投资研究 Agent Platform。它面向个人或小团队的投研流程，提供多 Agent 研究辅助、研报知识库搜索、结构化决策日志、周度复盘和基本面假设验证记录。
 
 它的定位是研究辅助与纪律引擎，而不是自动赚钱机器。系统默认要求登录，强调 human-in-the-loop：AI 可以帮助检索、分析、辩论、记录和复盘，但最终交易决策应由人完成。
 
@@ -26,10 +26,10 @@ KeelTrader 当前不提供技术分析、自动交易、交易所连接、交易
 ## 架构
 
 - `keeltrader/apps/web/`：Next.js App Router 前端。
-- `keeltrader/apps/api/`：FastAPI 后端，提供认证、AgentOS、研报搜索、设置等 API。
-- `agent-engine`：复用 API 镜像运行可恢复 Agent 任务 Worker、定时研究调度和兼容心跳。
+- `keeltrader/apps/api/`：FastAPI 后端，提供认证、Agent Platform、研报搜索、设置等 API。
+- `agent-platform-worker`：复用 API 镜像运行可恢复 Agent 任务 Worker 和定时研究调度。
 - PostgreSQL / pgvector：结构化数据、日志、记忆与向量检索存储。
-- Redis：缓存、限流、任务队列和 AgentOS 心跳。
+- Redis：缓存、限流、任务队列和 Agent Platform 心跳。
 
 ## 快速开始
 
@@ -68,7 +68,7 @@ KeelTrader 不构成投资建议，也不保证跑赢市场。LLM 可能产生�
 <a id="en"></a>
 ## English
 
-KeelTrader is a self-evolving fundamental investment research AgentOS for individual investors and small teams. It provides multi-agent research assistance, report-KB search, structured decision journals, weekly reviews, and fundamental thesis validation records.
+KeelTrader is a self-evolving fundamental investment research Agent Platform for individual investors and small teams. It provides multi-agent research assistance, report-KB search, structured decision journals, weekly reviews, and fundamental thesis validation records.
 
 Its role is a research assistant and discipline engine, not an automatic money-making system. Production deployments require authentication by default and keep humans in the loop: AI can retrieve, analyze, debate, record, and review, while final trading decisions remain human decisions.
 
@@ -91,10 +91,10 @@ KeelTrader currently does not provide technical analysis, automated trading, exc
 ## Architecture
 
 - `keeltrader/apps/web/`: Next.js App Router frontend.
-- `keeltrader/apps/api/`: FastAPI backend for auth, AgentOS, report search, settings, and related APIs.
-- `agent-engine`: reuses the API image for resumable Agent work, scheduled research, and the compatibility heartbeat.
+- `keeltrader/apps/api/`: FastAPI backend for auth, Agent Platform, report search, settings, and related APIs.
+- `agent-platform-worker`: reuses the API image for resumable Agent work and scheduled research.
 - PostgreSQL / pgvector: structured records, journals, memory, and vector search storage.
-- Redis: cache, rate limiting, task queues, and AgentOS heartbeat.
+- Redis: cache, rate limiting, task queues, and Agent Platform heartbeat.
 
 ## Quick Start
 

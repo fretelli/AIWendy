@@ -16,7 +16,7 @@ import {
 import { LanguageSwitcher, useI18n } from '@/lib/i18n/provider';
 
 const NAV_ITEMS = [
-  { href: '/agent', icon: BrainCircuit, labelKey: 'nav.agentos' },
+  { href: '/agent', icon: BrainCircuit, labelKey: 'nav.agent' },
   { href: '/research', icon: Newspaper, labelKey: 'nav.research' },
   { href: '/settings', icon: Settings, labelKey: 'nav.settings' },
 ] as const;
