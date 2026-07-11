@@ -205,12 +205,16 @@ class TushareReadService:
                 result[table] = []
                 continue
             order = "end_date" if table != "dividend" else "end_date"
-            q = text(f"SELECT * FROM {self.schema}.{table} WHERE ts_code = :symbol ORDER BY {order} DESC LIMIT :limit")
+            q = text(
+                f"SELECT * FROM {self.schema}.{table} WHERE ts_code = :symbol "
+                f"ORDER BY {order} DESC, ann_date DESC NULLS LAST, updated_at DESC NULLS LAST LIMIT :limit"
+            )
             result[table] = await self._execute_mappings(q, {"symbol": symbol, "limit": max(1, min(limit, 40))})
         result["stock_daily"] = await self.daily_bars(symbol, limit=260, adjusted=False)
         return result
 
-    async def industry_peers(self, industry: str, exclude_symbol: str, limit: int = 20) -> list[dict[str, Any]]:
+    async def industry_peers(self, industry: str, exclude_symbol: str, period: str | None = None,
+                             limit: int = 20) -> list[dict[str, Any]]:
         if not industry or not await self.table_exists("stock_basic") or not await self.table_exists("fina_indicator"):
             return []
         q = text(f"""
@@ -219,10 +223,13 @@ class TushareReadService:
             FROM {self.schema}.fina_indicator f
             JOIN {self.schema}.stock_basic b ON b.ts_code = f.ts_code
             WHERE b.industry = :industry AND f.ts_code <> :symbol
-            ORDER BY f.ts_code, f.end_date DESC
+              AND (:period IS NULL OR f.end_date = :period)
+            ORDER BY f.ts_code, f.end_date DESC, f.ann_date DESC NULLS LAST, f.updated_at DESC NULLS LAST
             LIMIT :limit
         """)
-        return await self._execute_mappings(q, {"industry": industry, "symbol": exclude_symbol, "limit": limit})
+        return await self._execute_mappings(q, {
+            "industry": industry, "symbol": exclude_symbol, "period": period, "limit": limit,
+        })
 
     async def query_table(
         self,
