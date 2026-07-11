@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 from statistics import median
 from typing import Any
@@ -13,7 +13,6 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 import os
-from datetime import timedelta
 from uuid import uuid4
 
 from core.database import async_session
@@ -28,6 +27,8 @@ from services.agent_platform.report_kb import ReportKBService
 from services.agent_platform.tushare import TushareReadService
 
 logger = get_logger(__name__)
+CALCULATION_VERSION = "fundamental-v2"
+IMPLEMENTED_DIVIDEND_MARKERS = ("实施", "已实施", "完成")
 
 
 async def enqueue_dossier_refresh(session: AsyncSession, user_id, company_code: str, *, force: bool = False) -> None:
@@ -135,6 +136,88 @@ def _ratio(a: float | None, b: float | None) -> float | None:
     return None if a is None or b in (None, 0) else a / b
 
 
+def _period(row: dict[str, Any]) -> str:
+    return str(row.get("end_date") or "").replace("-", "")
+
+
+def _canonical_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """One latest disclosed row per reporting period, preferring consolidated reports."""
+    ranked = sorted(rows, key=lambda row: (
+        _period(row), str(row.get("ann_date") or ""), str(row.get("f_ann_date") or ""),
+        str(row.get("updated_at") or ""), str(row.get("update_flag") or ""),
+        1 if str(row.get("report_type") or "1") == "1" else 0,
+    ), reverse=True)
+    result: dict[str, dict[str, Any]] = {}
+    for row in ranked:
+        period = _period(row)
+        if period and period not in result:
+            result[period] = row
+    return sorted(result.values(), key=_period, reverse=True)
+
+
+def _same_period_prior_year(period: str) -> str | None:
+    return f"{int(period[:4]) - 1}{period[4:]}" if len(period) == 8 and period[:4].isdigit() else None
+
+
+def _ttm(rows: list[dict[str, Any]], *fields: str) -> tuple[float | None, dict[str, Any]]:
+    canonical = {_period(row): row for row in _canonical_rows(rows)}
+    if not canonical:
+        return None, {"quality": "missing"}
+    latest_period = max(canonical)
+    latest = canonical[latest_period]
+    latest_value = _num(latest, *fields)
+    if latest_period.endswith("1231"):
+        return latest_value, {"formula": "latest_fy", "periods": [latest_period]}
+    latest_fy_periods = [period for period in canonical if period < latest_period and period.endswith("1231")]
+    prior_ytd_period = _same_period_prior_year(latest_period)
+    if not latest_fy_periods or prior_ytd_period not in canonical:
+        return None, {"quality": "insufficient_periods", "periods": [latest_period, prior_ytd_period]}
+    fy_period = max(latest_fy_periods)
+    fy_value = _num(canonical[fy_period], *fields)
+    prior_ytd_value = _num(canonical[prior_ytd_period], *fields)
+    if None in (latest_value, fy_value, prior_ytd_value):
+        return None, {"quality": "missing_fields", "periods": [fy_period, latest_period, prior_ytd_period]}
+    return fy_value + latest_value - prior_ytd_value, {
+        "formula": "latest_fy + latest_ytd - prior_year_same_ytd",
+        "periods": [fy_period, latest_period, prior_ytd_period],
+    }
+
+
+def _metric(value: float | None, *, formula: str, table: str, fields: list[str], period: str | None,
+            announcement: str | None = None, quality: str = "reported") -> dict[str, Any]:
+    return {"value": value, "formula": formula, "table": table, "fields": fields,
+            "period": period, "announcement": announcement, "quality": quality if value is not None else "missing"}
+
+
+def _report_has_content(report: dict[str, Any]) -> bool:
+    return bool(str(report.get("excerpt") or "").strip() and
+                (report.get("section_id") or report.get("page_number") is not None))
+
+
+def _implemented_dividend_yield(rows: list[dict[str, Any]], close: float | None,
+                                as_of: str | None) -> tuple[float | None, list[str]]:
+    if close in (None, 0) or not as_of:
+        return None, []
+    end = datetime.strptime(as_of.replace("-", ""), "%Y%m%d").date()
+    start = end - timedelta(days=365)
+    total = 0.0
+    used: list[str] = []
+    seen: set[tuple[Any, ...]] = set()
+    for row in rows:
+        status = str(row.get("div_proc") or "")
+        date_text = str(row.get("pay_date") or row.get("ex_date") or row.get("imp_ann_date") or "").replace("-", "")
+        if not any(marker in status for marker in IMPLEMENTED_DIVIDEND_MARKERS) or len(date_text) != 8:
+            continue
+        paid = datetime.strptime(date_text, "%Y%m%d").date()
+        cash = _num(row, "cash_div_tax", "cash_div")
+        key = (row.get("end_date"), date_text, cash)
+        if start < paid <= end and cash is not None and key not in seen:
+            seen.add(key)
+            total += cash
+            used.append(str(row.get("end_date") or date_text))
+    return (total / close * 100 if used else None), used
+
+
 def _diff(old: Any, new: Any, path: str = "") -> dict[str, Any]:
     changes: dict[str, Any] = {}
     if isinstance(old, dict) and isinstance(new, dict):
@@ -156,18 +239,27 @@ async def refresh_dossier(session: AsyncSession, user_id, company_code: str, *, 
     tushare = TushareReadService(session)
     raw = await tushare.company_financials(company_code)
     profile = await tushare.stock_profile(company_code) or {}
-    peers = await tushare.industry_peers(str(profile.get("industry") or watch.industry or ""), company_code)
+    income = _canonical_rows(raw.get("income", []))
+    indicators = _canonical_rows(raw.get("fina_indicator", []))
+    cashflow = _canonical_rows(raw.get("cashflow", []))
+    balance = _canonical_rows(raw.get("balancesheet", []))
+    latest_income = income[0] if income else {}
+    latest_period = _period(latest_income) or (_period(indicators[0]) if indicators else "")
+    peers = await tushare.industry_peers(
+        str(profile.get("industry") or watch.industry or ""), company_code, latest_period or None,
+    )
     reports = await ReportKBService().search_reports(
         f"{profile.get('name') or watch.company_name} {company_code} 基本面 盈利 风险", top_k=8,
         companies=[company_code, str(profile.get("name") or watch.company_name)], granularity="section",
     )
-    fingerprint_payload = {"financials": raw, "reports": reports, "profile": profile, "peers": peers}
+    fingerprint_payload = {"calculation_version": CALCULATION_VERSION, "financials": raw,
+                           "reports": reports, "profile": profile, "peers": peers}
     fingerprint = hashlib.sha256(json.dumps(fingerprint_payload, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
     dossier = (await session.execute(select(AgentCompanyDossier).where(
         AgentCompanyDossier.user_id == user_id, AgentCompanyDossier.company_code == company_code,
     ))).scalar_one_or_none()
-    if dossier and dossier.source_fingerprint == fingerprint and not force:
+    if dossier and dossier.source_fingerprint == fingerprint:
         dossier.stale = False
         dossier.status = "current"
         dossier.last_refreshed_at = datetime.now(UTC)
@@ -178,11 +270,9 @@ async def refresh_dossier(session: AsyncSession, user_id, company_code: str, *, 
         session.add(dossier)
         await session.flush()
 
-    income = raw.get("income", [])
-    indicators = raw.get("fina_indicator", [])
-    cashflow = raw.get("cashflow", [])
-    balance = raw.get("balancesheet", [])
-    latest_income, prior_income = (income + [{}, {}])[:2]
+    income_by_period = {_period(row): row for row in income}
+    prior_period = _same_period_prior_year(latest_period)
+    prior_income = income_by_period.get(prior_period or "", {})
     latest_i = (indicators + [{}])[0]
     latest_cf = (cashflow + [{}])[0]
     latest_bs = (balance + [{}])[0]
@@ -192,28 +282,68 @@ async def refresh_dossier(session: AsyncSession, user_id, company_code: str, *, 
     prior_profit = _num(prior_income, "n_income_attr_p", "n_income")
     cfo = _num(latest_cf, "n_cashflow_act")
     capex = _num(latest_cf, "c_pay_acq_const_fiolta", "c_pay_acq_const_fiolta")
+    announcement = str(latest_income.get("ann_date") or latest_income.get("f_ann_date") or "") or None
+    revenue_ttm, revenue_ttm_lineage = _ttm(income, "revenue", "total_revenue")
+    profit_ttm, profit_ttm_lineage = _ttm(income, "n_income_attr_p", "n_income")
+    cfo_ttm, cfo_ttm_lineage = _ttm(cashflow, "n_cashflow_act")
+    fcf_ttm, fcf_ttm_lineage = _ttm(cashflow, "free_cashflow")
+    if fcf_ttm is None:
+        capex_ttm, _ = _ttm(cashflow, "c_pay_acq_const_fiolta")
+        fcf_ttm = None if cfo_ttm is None else cfo_ttm - (capex_ttm or 0)
+        fcf_ttm_lineage = {"formula": "ttm_cfo - ttm_capex", "quality": "derived"}
+    roe = _num(latest_i, "roe_yearly", "roe_waa", "roe")
+    roic = _num(latest_i, "roic_yearly", "roic")
     metrics = {
-        "period": latest_income.get("end_date") or latest_i.get("end_date"),
+        "period": latest_period,
         "revenue": revenue, "revenue_growth_pct": _growth(revenue, prior_revenue),
         "net_profit": profit, "net_profit_growth_pct": _growth(profit, prior_profit),
+        "revenue_ttm": revenue_ttm, "net_profit_ttm": profit_ttm,
         "gross_margin_pct": _num(latest_i, "grossprofit_margin"),
         "net_margin_pct": _num(latest_i, "netprofit_margin"),
-        "roe_pct": _num(latest_i, "roe", "roe_waa"), "roic_pct": _num(latest_i, "roic"),
-        "cfo": cfo, "cfo_to_profit": _ratio(cfo, profit),
-        "free_cash_flow": None if cfo is None else cfo - (capex or 0),
+        "roe_pct": roe, "roic_pct": roic,
+        "cfo": cfo, "cfo_ttm": cfo_ttm, "cfo_to_profit": _ratio(cfo_ttm, profit_ttm),
+        "free_cash_flow": fcf_ttm,
         "debt_to_assets_pct": _num(latest_i, "debt_to_assets"),
         "accounts_receivable": _num(latest_bs, "accounts_receiv"),
         "inventory": _num(latest_bs, "inventories"),
-        "dividend_yield_pct": _num((raw.get("dividend", []) + [{}])[0], "div_proc", "stk_div"),
     }
     bars = raw.get("stock_daily", [])
     close = _num((bars + [{}])[0], "close")
-    eps = _num(latest_i, "eps", "basic_eps")
-    bps = _num(latest_i, "bps")
+    trade_date = str((bars + [{}])[0].get("trade_date") or "") or None
+    total_shares = _num(latest_bs, "total_share")
+    parent_equity = _num(latest_bs, "total_hldr_eqy_exc_min_int")
+    market_cap = close * total_shares if close is not None and total_shares is not None else None
+    dividend_yield, dividend_periods = _implemented_dividend_yield(raw.get("dividend", []), close, trade_date)
+    metrics["dividend_yield_pct"] = dividend_yield
     metrics["derived_valuation"] = {
-        "as_of": (bars + [{}])[0].get("trade_date"), "close": close,
-        "pe": _ratio(close, eps), "pb": _ratio(close, bps), "ps": None,
-        "method": "price divided by latest synchronized per-share field; unavailable values stay null",
+        "as_of": trade_date, "close": close, "market_cap": market_cap,
+        "pe": _ratio(market_cap, profit_ttm), "pb": _ratio(market_cap, parent_equity),
+        "ps": _ratio(market_cap, revenue_ttm),
+        "method": "market capitalization divided by synchronized TTM profit/revenue or latest parent equity",
+    }
+    metric_lineage = {
+        "revenue_growth_pct": _metric(metrics["revenue_growth_pct"], formula="current_same_period / prior_year_same_period - 1",
+            table="income", fields=["revenue", "total_revenue"], period=latest_period, announcement=announcement),
+        "net_profit_growth_pct": _metric(metrics["net_profit_growth_pct"], formula="current_same_period / prior_year_same_period - 1",
+            table="income", fields=["n_income_attr_p", "n_income"], period=latest_period, announcement=announcement),
+        "revenue_ttm": _metric(revenue_ttm, formula=str(revenue_ttm_lineage.get("formula")), table="income",
+            fields=["revenue", "total_revenue"], period=latest_period, quality=str(revenue_ttm_lineage.get("quality", "derived"))),
+        "net_profit_ttm": _metric(profit_ttm, formula=str(profit_ttm_lineage.get("formula")), table="income",
+            fields=["n_income_attr_p", "n_income"], period=latest_period, quality=str(profit_ttm_lineage.get("quality", "derived"))),
+        "cfo_ttm": _metric(cfo_ttm, formula=str(cfo_ttm_lineage.get("formula")), table="cashflow",
+            fields=["n_cashflow_act"], period=latest_period, quality=str(cfo_ttm_lineage.get("quality", "derived"))),
+        "free_cash_flow": _metric(fcf_ttm, formula=str(fcf_ttm_lineage.get("formula")), table="cashflow",
+            fields=["free_cashflow", "n_cashflow_act", "c_pay_acq_const_fiolta"], period=latest_period,
+            quality=str(fcf_ttm_lineage.get("quality", "reported"))),
+        "pe": _metric(metrics["derived_valuation"]["pe"], formula="market_cap / ttm_parent_net_profit",
+            table="stock_daily+balancesheet+income", fields=["close", "total_share", "n_income_attr_p"], period=latest_period),
+        "pb": _metric(metrics["derived_valuation"]["pb"], formula="market_cap / latest_parent_equity",
+            table="stock_daily+balancesheet", fields=["close", "total_share", "total_hldr_eqy_exc_min_int"], period=latest_period),
+        "ps": _metric(metrics["derived_valuation"]["ps"], formula="market_cap / ttm_revenue",
+            table="stock_daily+balancesheet+income", fields=["close", "total_share", "revenue"], period=latest_period),
+        "dividend_yield_pct": _metric(dividend_yield, formula="implemented_cash_dividend_per_share_t12m / close",
+            table="dividend+stock_daily", fields=["cash_div_tax", "cash_div", "div_proc", "pay_date", "close"],
+            period=",".join(dividend_periods) or latest_period),
     }
     flags = []
     if metrics["cfo_to_profit"] is not None and metrics["cfo_to_profit"] < 0.8:
@@ -222,16 +352,23 @@ async def refresh_dossier(session: AsyncSession, user_id, company_code: str, *, 
         flags.append("资产负债率高于70%")
     if metrics["revenue_growth_pct"] is not None and metrics["net_profit_growth_pct"] is not None and metrics["revenue_growth_pct"] > 0 > metrics["net_profit_growth_pct"]:
         flags.append("增收不增利")
-    peer_metrics = {}
+    peer_metrics = {"period": latest_period}
     for key in ("roe", "grossprofit_margin", "netprofit_margin", "debt_to_assets"):
         values = [_num(row, key) for row in peers]
         values = [value for value in values if value is not None]
         peer_metrics[key] = median(values) if values else None
+    usable_reports = [report for report in reports if _report_has_content(report)]
+    calculation_errors = [name for name in ("revenue_ttm", "net_profit_ttm", "pe", "pb", "ps")
+                          if (metric_lineage.get(name) or {}).get("value") is None]
     snapshot = {
         "company": {"ts_code": company_code, "name": dossier.company_name, "industry": dossier.industry},
         "metrics": metrics, "industry_peer_medians": peer_metrics, "anomaly_flags": flags,
-        "evidence_status": "sufficient" if reports else "shortage",
-        "evidence_shortage": None if reports else "未找到与该公司匹配的研报证据；未使用无关近期研报替代。",
+        "metric_lineage": metric_lineage,
+        "calculation_version": CALCULATION_VERSION,
+        "financial_as_of": latest_period,
+        "calculation_errors": calculation_errors,
+        "evidence_status": "sufficient" if usable_reports else "shortage",
+        "evidence_shortage": None if usable_reports else "未找到含正文定位与摘录的公司研报证据；标题命中不计为充分证据。",
         "generated_at": datetime.now(UTC).isoformat(),
     }
     previous = (await session.execute(select(AgentCompanyDossierVersion).where(
@@ -239,7 +376,11 @@ async def refresh_dossier(session: AsyncSession, user_id, company_code: str, *, 
     )).scalar_one_or_none()
     version_number = dossier.current_version + 1
     version = AgentCompanyDossierVersion(dossier_id=dossier.id, version=version_number,
-        source_fingerprint=fingerprint, snapshot=snapshot, diff=_diff(previous.snapshot if previous else {}, snapshot))
+        source_fingerprint=fingerprint, snapshot=snapshot, diff=_diff(previous.snapshot if previous else {}, snapshot),
+        calculation_version=CALCULATION_VERSION, financial_as_of=latest_period or None,
+        quality={"canonical_rows": True, "same_period_yoy": True, "ttm": True,
+                 "peer_period_aligned": True, "usable_report_count": len(usable_reports)},
+        calculation_errors=calculation_errors)
     session.add(version)
     await session.flush()
     for table, rows in raw.items():
@@ -253,5 +394,10 @@ async def refresh_dossier(session: AsyncSession, user_id, company_code: str, *, 
     dossier.source_fingerprint = fingerprint
     dossier.status = "current"
     dossier.stale = False
+    dossier.calculation_version = CALCULATION_VERSION
+    dossier.financial_as_of = latest_period or None
+    dossier.calculation_errors = calculation_errors
+    dossier.last_error = None
+    dossier.next_retry_at = None
     dossier.last_refreshed_at = datetime.now(UTC)
     return dossier
