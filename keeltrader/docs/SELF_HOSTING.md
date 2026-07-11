@@ -39,6 +39,17 @@
 
 默认 `RESEARCH_CLOUD_ENABLED=0`，Web/API 不会请求任何 `joyeeassets.com` 域名。只有管理员显式开启、且具体用户完成设备授权后，才会发送研报查询词和公司筛选到 Research Cloud；本地文档、持仓、交易与决策日志不会上传。
 
+## Agent 平台、BYOK 与 MCP
+
+- 运行 `alembic upgrade head` 创建 `agent_platform_*` 表。
+- `/agent` 是统一工作台；旧 `/chat` 与 `/agentos` 会跳转到该入口。
+- 每位用户必须添加自己的 OpenAI-compatible 或 Anthropic BYOK；自托管镜像不附带运营方 Token。
+- BYOK 和 MCP Bearer Token 使用 `ENCRYPTION_KEY` 加密，仅在实际请求时解密。
+- MCP 默认只接受公网 HTTPS，阻止 loopback、私网和云元数据地址；工具必须逐项授权。
+- 定时研究由 `agent-engine` Worker 执行，只能使用永久授权工具。
+- 任务级及每日 Token/费用硬上限耗尽时自动暂停。
+- Agent 工具集不包含下单、撤单、交易同步、Ghost Trade 或代码执行。
+
 ## 登录与测试账号
 
 默认配置要求登录：`KEELTRADER_AUTH_REQUIRED=1`。
@@ -115,6 +126,17 @@ Use `docker-compose.selfhost.yml` for private deployments. It includes isolated 
    ```
 
 `RESEARCH_CLOUD_ENABLED=0` is the default. No request is sent to a `joyeeassets.com` domain unless an administrator explicitly enables Research Cloud and an individual user completes device authorization. Local documents, positions, trades, and decision journals are never uploaded.
+
+## Agent Platform, BYOK, and MCP
+
+- Run `alembic upgrade head` to create the `agent_platform_*` tables.
+- `/agent` is the unified workspace; legacy `/chat` and `/agentos` redirect there.
+- Each user adds an OpenAI-compatible or Anthropic BYOK profile. Self-hosted images contain no operator model token.
+- BYOK and MCP bearer tokens are encrypted with `ENCRYPTION_KEY` and decrypted only for the selected request.
+- User MCP accepts public HTTPS by default and blocks loopback, private networks, and cloud metadata destinations. Tools are approved individually.
+- Scheduled research runs in `agent-engine` and may use only permanently approved tools.
+- Per-run and daily token/cost limits pause work when exhausted.
+- No order placement, cancellation, trade sync, ghost-trade, or arbitrary-code tool is registered.
 
 ## Authentication and Test Users
 

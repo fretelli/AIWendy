@@ -9,7 +9,7 @@ KeelTrader 是一个自进化基本面投资研究 AgentOS。它面向个人或�
 
 ## 核心能力
 
-- AgentOS 工作台：每日基本面投研简报、深度研究 memo、决策日志、复盘 lessons、基本面假设和验证记录。
+- 统一 Agent 工作台：持久化研究任务、声明式自定义 Agent、BYOK、用户 MCP、工具审批、预算、可回滚记忆与定时研究。
 - 研报知识库：接入 report-kb，支持研报语义搜索和结构化命中结果。
 - 结构化数据读取：接入 Tushare 数据库读服务，不要求在应用内配置 Tushare token。
 - 多 Agent 分析：支持基本面、宏观、情绪、红队质疑和复盘等研究工作流。
@@ -27,13 +27,15 @@ KeelTrader 当前不提供技术分析、自动交易、交易所连接、交易
 
 - `keeltrader/apps/web/`：Next.js App Router 前端。
 - `keeltrader/apps/api/`：FastAPI 后端，提供认证、AgentOS、研报搜索、设置等 API。
-- `agent-engine`：复用 API 镜像运行 AgentOS 心跳与后台任务。
+- `agent-engine`：复用 API 镜像运行可恢复 Agent 任务 Worker、定时研究调度和兼容心跳。
 - PostgreSQL / pgvector：结构化数据、日志、记忆与向量检索存储。
 - Redis：缓存、限流、任务队列和 AgentOS 心跳。
 
 ## 快速开始
 
 自托管部署使用隔离编排 `docker-compose.selfhost.yml`，自带 PostgreSQL/pgvector 与 Redis，默认不连接 KeelTrader 官方服务。Research Cloud 只有管理员开启且用户完成设备授权后才可使用。
+
+自托管 Agent 平台不内置平台所有者的模型 Token。每位用户通过 `/agent` 保存自己的 BYOK；密钥加密存储且不进入日志、任务事件、记忆或 MCP 参数。用户 MCP 默认只允许公网 HTTPS，首次按工具授权，定时任务只能使用永久授权工具。Agent 平台仅提供研究与决策日志能力，不注册下单、撤单、Ghost Trade 或任意代码执行工具。
 
 ```bash
 cd keeltrader
@@ -72,7 +74,7 @@ Its role is a research assistant and discipline engine, not an automatic money-m
 
 ## Core Capabilities
 
-- AgentOS workspace: daily fundamental briefs, deep research memos, decision journals, review lessons, fundamental hypotheses, and thesis validation records.
+- Unified Agent workspace: durable research runs, declarative custom agents, BYOK, user MCP, approvals, budgets, reversible memory, and scheduled research.
 - Report knowledge base: integrates with report-kb for semantic research-report search and structured hits.
 - Structured data reads: reads from a Tushare database service without requiring an in-app Tushare token.
 - Multi-agent analysis: supports composable fundamental, macro, sentiment, red-team, and review workflows.
@@ -90,13 +92,15 @@ KeelTrader currently does not provide technical analysis, automated trading, exc
 
 - `keeltrader/apps/web/`: Next.js App Router frontend.
 - `keeltrader/apps/api/`: FastAPI backend for auth, AgentOS, report search, settings, and related APIs.
-- `agent-engine`: reuses the API image for AgentOS heartbeat and background tasks.
+- `agent-engine`: reuses the API image for resumable Agent work, scheduled research, and the compatibility heartbeat.
 - PostgreSQL / pgvector: structured records, journals, memory, and vector search storage.
 - Redis: cache, rate limiting, task queues, and AgentOS heartbeat.
 
 ## Quick Start
 
 Self-hosting uses the isolated `docker-compose.selfhost.yml` stack with PostgreSQL/pgvector and Redis included. It does not contact KeelTrader-operated services by default; Research Cloud requires explicit administrator enablement and per-user device authorization.
+
+The self-hosted Agent Platform never bundles an operator model token. Users add encrypted BYOK profiles in `/agent`. Secrets are excluded from logs, task events, memory, and MCP parameters. User MCP is public-HTTPS-only by default and requires per-tool approval; scheduled runs can use only permanently approved tools. The platform exposes research and decision-journal capabilities only—no order placement, cancellation, ghost trading, or arbitrary code execution.
 
 ```bash
 cd keeltrader
