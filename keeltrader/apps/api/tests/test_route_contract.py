@@ -26,6 +26,8 @@ def test_active_route_prefixes_are_mounted(client):
         "/api/v1/agent/companies",
         "/api/v1/agent/watchlist",
         "/api/v1/agent/watchlist/{company_code}",
+        "/api/v1/agent/dossiers/{company_code}",
+        "/api/v1/agent/dossiers/{company_code}/refresh",
         "/api/v1/market-data/historical/{symbol}",
     }
 

@@ -31,6 +31,7 @@ ALLOWED_TABLES = {
     "income",
     "balancesheet",
     "cashflow",
+    "dividend",
     "trade_cal",
     "index_basic",
     "index_global",
@@ -188,6 +189,33 @@ class TushareReadService:
             """
         )
         return await self._execute_mappings(q, {"symbol": symbol, "limit": limit})
+
+    async def company_financials(self, symbol: str, limit: int = 12) -> dict[str, list[dict[str, Any]]]:
+        """Return canonical statement rows used by the deterministic dossier engine."""
+        result: dict[str, list[dict[str, Any]]] = {}
+        for table in ("fina_indicator", "income", "balancesheet", "cashflow", "dividend"):
+            if not await self.table_exists(table):
+                result[table] = []
+                continue
+            order = "end_date" if table != "dividend" else "end_date"
+            q = text(f"SELECT * FROM {self.schema}.{table} WHERE ts_code = :symbol ORDER BY {order} DESC LIMIT :limit")
+            result[table] = await self._execute_mappings(q, {"symbol": symbol, "limit": max(1, min(limit, 40))})
+        result["stock_daily"] = await self.daily_bars(symbol, limit=260, adjusted=False)
+        return result
+
+    async def industry_peers(self, industry: str, exclude_symbol: str, limit: int = 20) -> list[dict[str, Any]]:
+        if not industry or not await self.table_exists("stock_basic") or not await self.table_exists("fina_indicator"):
+            return []
+        q = text(f"""
+            SELECT DISTINCT ON (f.ts_code) f.ts_code, b.name, f.end_date, f.roe, f.grossprofit_margin,
+                   f.netprofit_margin, f.debt_to_assets
+            FROM {self.schema}.fina_indicator f
+            JOIN {self.schema}.stock_basic b ON b.ts_code = f.ts_code
+            WHERE b.industry = :industry AND f.ts_code <> :symbol
+            ORDER BY f.ts_code, f.end_date DESC
+            LIMIT :limit
+        """)
+        return await self._execute_mappings(q, {"industry": industry, "symbol": exclude_symbol, "limit": limit})
 
     async def query_table(
         self,

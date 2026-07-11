@@ -127,10 +127,9 @@ class ReportKBService:
         if isinstance(rows, list) and rows:
             return [_normalize_search_hit(row) for row in rows]
 
-        fallback = await self._search_recent_report_titles(query, limit=limit, companies=companies)
-        if fallback:
-            return fallback
-        return await self.recent_reports(limit=limit)
+        # Never substitute unrelated recent reports for missing company evidence.
+        # An empty result is an explicit, auditable evidence shortage.
+        return await self._search_recent_report_titles(query, limit=limit, companies=companies)
 
     async def recent_reports(self, *, limit: int = 5) -> list[dict[str, Any]]:
         path = "/reports/recent-candidates?" + parse.urlencode({

@@ -7,6 +7,7 @@ export type InteractionMode = 'ask' | 'research' | 'plan'
 export type AgentSession = { id: string; agent_definition_id?: string; title: string; status: string; interaction_mode: InteractionMode; company_code?: string; summary?: string; context_tokens: number; is_pinned: boolean; archived_at?: string; last_message_at: string; created_at: string }
 export type CompanySearchItem = { ts_code: string; symbol: string; name: string; industry?: string; area?: string; market?: string; list_date?: string }
 export type WatchlistItem = { id: string; company_code: string; company_name: string; industry?: string; refresh_enabled: boolean; added_at: string }
+export type CompanyDossier = { dossier?: { status: string; current_version: number; stale: boolean; last_refreshed_at?: string }; snapshot?: { company: Record<string, unknown>; metrics: Record<string, unknown>; industry_peer_medians: Record<string, unknown>; anomaly_flags: string[]; evidence_status: string; evidence_shortage?: string }; diff?: Record<string, unknown>; evidence: Array<{ id: string; source_type: string; citation: Record<string, unknown> }>; versions: Array<{ id: string; version: number; created_at: string }> }
 export type AgentMessage = { id: string; session_id: string; run_id?: string; role: 'user' | 'assistant' | 'system'; kind: string; status: string; content: string; metadata_json?: Record<string, unknown>; created_at: string }
 export type AgentApproval = { id: string; kind: string; preview: Record<string, unknown>; created_at: string }
 export type AgentMemory = { id: string; key: string; value: unknown; confidence: number; version: number; is_deleted: boolean }
@@ -45,4 +46,6 @@ export const agentPlatformApi = {
   watchlist: () => apiJson<{ items: WatchlistItem[] }>(`${base}/watchlist`),
   addWatchlist: (company: string) => apiJson<WatchlistItem>(`${base}/watchlist`, { method: 'POST', body: { company } }),
   removeWatchlist: (companyCode: string) => apiJson(`${base}/watchlist/${encodeURIComponent(companyCode)}`, { method: 'DELETE' }),
+  dossier: (companyCode: string) => apiJson<CompanyDossier>(`${base}/dossiers/${encodeURIComponent(companyCode)}`),
+  refreshDossier: (companyCode: string) => apiJson(`${base}/dossiers/${encodeURIComponent(companyCode)}/refresh`, { method: 'POST' }),
 }
