@@ -6,7 +6,6 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import {
-  Newspaper,
   BrainCircuit,
   Settings,
   LogOut,
@@ -17,7 +16,6 @@ import { LanguageSwitcher, useI18n } from '@/lib/i18n/provider';
 
 const NAV_ITEMS = [
   { href: '/agent', icon: BrainCircuit, labelKey: 'nav.agent' },
-  { href: '/research', icon: Newspaper, labelKey: 'nav.research' },
   { href: '/settings', icon: Settings, labelKey: 'nav.settings' },
 ] as const;
 
