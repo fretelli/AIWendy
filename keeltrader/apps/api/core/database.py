@@ -94,7 +94,6 @@ async def init_database() -> None:
         from sqlalchemy import text
 
         from domain.analysis import models as analysis_models  # noqa
-        from domain.agentos import models as agentos_models  # noqa
         from domain.agent_platform import models as agent_platform_models  # noqa
         from domain.coach import models as coach_models  # noqa
         from domain.exchange import models as exchange_models  # noqa

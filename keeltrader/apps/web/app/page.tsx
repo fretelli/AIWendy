@@ -7,7 +7,7 @@ export default function HomePage() {
   const router = useRouter()
 
   useEffect(() => {
-    router.replace("/agentos")
+    router.replace("/agent")
   }, [router])
 
   return (

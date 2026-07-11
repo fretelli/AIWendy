@@ -9,7 +9,7 @@ KeelTrader 通过 Docker Compose 运行以下应用组件：
 
 - `web`：Next.js 前端
 - `api`：FastAPI 后端
-- `agent-engine`：AgentOS 心跳和后台任务
+- `agent-platform-worker`：Agent Platform 心跳和后台任务
 
 PostgreSQL 和 Redis 通过环境变量作为外部服务接入。完整首次启动流程见 [SELF_HOSTING.md](SELF_HOSTING.md)。
 
@@ -20,7 +20,7 @@ PostgreSQL 和 Redis 通过环境变量作为外部服务接入。完整首次�
 - `JWT_SECRET`
 - `NEXTAUTH_SECRET`
 - `NEXTAUTH_URL`
-- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY`（按需）
+- 用户在 `/agent` 中配置的 BYOK 模型密钥
 - `KEELTRADER_AUTH_REQUIRED=1`（公网/生产必须开启）
 
 ## 验证与启动
@@ -34,7 +34,7 @@ PostgreSQL 和 Redis 通过环境变量作为外部服务接入。完整首次�
 启动应用：
 
 ```bash
-docker compose up -d api web agent-engine
+docker compose up -d api web agent-platform-worker
 docker compose exec -T api alembic upgrade head
 ```
 
@@ -45,7 +45,7 @@ docker compose exec -T api alembic upgrade head
 - Web：`GET /api/health`
 - API：`GET /api/health`
 - API liveness：`GET /api/health/live`
-- AgentOS：`GET /api/v1/agentos/health`
+- Agent Platform：`GET /api/v1/agent/health`
 
 ---
 
@@ -58,7 +58,7 @@ KeelTrader runs these application components through Docker Compose:
 
 - `web`: Next.js frontend
 - `api`: FastAPI backend
-- `agent-engine`: AgentOS heartbeat and background tasks
+- `agent-platform-worker`: Agent Platform heartbeat and background tasks
 
 PostgreSQL and Redis are external services configured through environment variables. See [SELF_HOSTING.md](SELF_HOSTING.md) for the complete first-run workflow.
 
@@ -69,7 +69,7 @@ PostgreSQL and Redis are external services configured through environment variab
 - `JWT_SECRET`
 - `NEXTAUTH_SECRET`
 - `NEXTAUTH_URL`
-- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` as needed
+- User-scoped BYOK model credentials configured in `/agent`
 - `KEELTRADER_AUTH_REQUIRED=1` for public/production deployments
 
 ## Validate And Start
@@ -83,7 +83,7 @@ Validate builds:
 Start the application:
 
 ```bash
-docker compose up -d api web agent-engine
+docker compose up -d api web agent-platform-worker
 docker compose exec -T api alembic upgrade head
 ```
 
@@ -94,4 +94,4 @@ Public documentation does not define a specific host, reverse proxy, or image-re
 - Web: `GET /api/health`
 - API: `GET /api/health`
 - API liveness: `GET /api/health/live`
-- AgentOS: `GET /api/v1/agentos/health`
+- Agent Platform: `GET /api/v1/agent/health`

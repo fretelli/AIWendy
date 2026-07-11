@@ -139,28 +139,6 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_format: str = "json"  # "json" or "console"
 
-    # ========== Trade Sync ==========
-    trade_sync_enabled: bool = Field(
-        default=False,
-        validation_alias=AliasChoices("TRADE_SYNC_ENABLED", "trade_sync_enabled"),
-    )
-    trade_sync_interval_seconds: int = Field(
-        default=60,
-        validation_alias=AliasChoices(
-            "TRADE_SYNC_INTERVAL_SECONDS", "trade_sync_interval_seconds"
-        ),
-    )
-    trade_sync_default_limit: int = Field(
-        default=200,
-        validation_alias=AliasChoices("TRADE_SYNC_DEFAULT_LIMIT", "trade_sync_default_limit"),
-    )
-    trade_sync_import_to_journal: bool = Field(
-        default=True,
-        validation_alias=AliasChoices(
-            "TRADE_SYNC_IMPORT_TO_JOURNAL", "trade_sync_import_to_journal"
-        ),
-    )
-
     def is_self_hosted(self) -> bool:
         return self.deployment_mode == "self-hosted"
 

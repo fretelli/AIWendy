@@ -5,7 +5,7 @@ REPO="${GITHUB_REPOSITORY:-fretelli/KeelTrader}"
 DESCRIPTION="Self-evolving fundamental investment research AgentOS with human-in-the-loop decision journals, report-KB search, multi-agent analysis, and thesis validation."
 
 ADD_TOPICS=(
-  agentos
+  agent-platform
   investment-research
   multi-agent
   llm

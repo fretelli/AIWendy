@@ -24,7 +24,7 @@ from domain.user.models import User
 from services.agent_platform.mcp import call_tool, discover_tools, schema_digest
 from services.agent_platform.network import validate_external_https_url
 from services.agent_platform.runtime import TERMINAL, emit, enqueue_run, parse_mcp_tool, redact_sensitive
-from services.tool_executor import execute_tool
+from services.agent_platform.tools import execute_platform_tool
 
 router = APIRouter()
 encryption = get_encryption_service()
@@ -321,10 +321,14 @@ async def resolve_approval(approval_id: UUID, req: ApprovalResolve, session: Asy
                                            mcp_server_id=server.id, tool_name=mcp_ref[1], scope="always",
                                            schema_digest=server.schema_digest or ""))
         else:
-            result = await execute_tool(step.tool_name or "", step.input_json or {}, session, user.id)
+            result = await execute_platform_tool(step.tool_name or "", step.input_json or {}, session, user.id)
         if result.get("error"):
             raise HTTPException(502, result["error"])
         step.output_json, step.status, step.finished_at = redact_sensitive(result), "completed", datetime.now(UTC)
+        if item.kind == "decision_log":
+            session.add(AgentArtifact(user_id=user.id, run_id=run.id, artifact_type="decision_log",
+                                      title=f"{result.get('symbol', '')} {result.get('action', '')}".strip() or "Decision log",
+                                      content=redact_sensitive(result)))
         run.status, run.lease_expires_at = "running", None
     else:
         run.status, run.finished_at = "cancelled", datetime.now(UTC)

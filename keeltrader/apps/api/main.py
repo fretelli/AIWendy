@@ -1,7 +1,4 @@
-"""KeelTrader v2 — AI Native Trading Assistant.
-
-Simplified FastAPI app with 5 route groups + MCP Server + asyncio scheduler.
-"""
+"""KeelTrader v2 API."""
 
 import logging
 from contextlib import asynccontextmanager
@@ -30,7 +27,6 @@ def _import_domain_models():
     """Register SQLAlchemy models before routes can trigger mapper configuration."""
     import domain.coach.models  # noqa
     import domain.exchange.models  # noqa
-    import domain.agentos.models  # noqa
     import domain.agent_platform.models  # noqa
     import domain.file.models  # noqa
     import domain.journal.models  # noqa
@@ -54,21 +50,9 @@ async def lifespan(app: FastAPI):
     logger.info("Skipping automatic database initialization (Base.metadata.create_all)")
     await maybe_auto_init_db()
 
-    # Start asyncio scheduler (replaces Celery worker/beat)
-    from scheduler import start_scheduler, stop_scheduler
-    await start_scheduler()
-
-    # Mount MCP Server (SSE transport)
-    try:
-        from mcp_server import mount_mcp_sse
-        mount_mcp_sse(app)
-    except Exception as e:
-        logger.warning("MCP Server mount failed (optional)", error=str(e))
-
     yield
 
     # Shutdown
-    await stop_scheduler()
     await market_data_service.close()
     await market_data_ws_service.close()
     logger.info("Shutting down KeelTrader v2 API")
@@ -166,14 +150,11 @@ async def generic_exception_handler(request: Request, exc: Exception):
 _import_domain_models()
 
 from routers import auth, health
-from routers.agentos import router as agentos_router
 from routers.agent_platform import router as agent_platform_router
 from routers.users import router as users_router
-from routers.chat_v2 import router as chat_v2_router
 from routers.files import router as files_router
 from routers.settings_v2 import router as settings_v2_router
 from routers.research_cloud import router as research_cloud_router
-from routers.webhook import router as webhook_router
 from routers.market_data import (
     market_data_service,
     market_data_ws_service,
@@ -183,7 +164,6 @@ from routers.market_data import (
 app.include_router(health.router, prefix="/api", tags=["Health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
-app.include_router(chat_v2_router, prefix="/api/v1/chat", tags=["Chat"])
 app.include_router(files_router, prefix="/api/v1/files", tags=["Files"])
 app.include_router(settings_v2_router, prefix="/api/v1/settings", tags=["Settings"])
 app.include_router(
@@ -191,8 +171,6 @@ app.include_router(
     prefix="/api/v1/research-cloud",
     tags=["Research Cloud"],
 )
-app.include_router(webhook_router, prefix="/api/v1/webhook", tags=["Webhook"])
-app.include_router(agentos_router, prefix="/api/v1/agentos", tags=["AgentOS"])
 app.include_router(agent_platform_router, prefix="/api/v1/agent", tags=["Agent Platform"])
 app.include_router(market_data_router, prefix="/api/v1/market-data", tags=["Market Data"])
 

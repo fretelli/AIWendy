@@ -193,8 +193,8 @@ smoke() {
   log "Running smoke checks against $BASE_URL"
 
   expect_code "login page" "200" "GET" "/auth/login"
-  expect_code "agentos requires login" "302,303,307,308" "GET" "/agentos"
-  expect_code "agentos API requires login" "401" "GET" "/api/proxy/v1/agentos/health"
+  expect_code "agent requires login" "302,303,307,308" "GET" "/agent"
+  expect_code "agent API requires login" "401" "GET" "/api/proxy/v1/agent/health"
   expect_code "research API requires login" "401" "GET" "/api/research/health"
   if [ "$DEPLOY" -eq 1 ] && [ "$SMOKE_ONLY" -eq 0 ]; then
     expect_code "web health" "200" "GET" "/api/health"
@@ -232,20 +232,20 @@ smoke() {
     die "Smoke failed: login API expected 200, got $code"
   fi
 
-  code="$(curl -ksS -b "$cookies" -o "$body" -w '%{http_code}' "$BASE_URL/agentos")"
+  code="$(curl -ksS -b "$cookies" -o "$body" -w '%{http_code}' "$BASE_URL/agent")"
   if [ "$code" != "200" ]; then
     rm -f "$cookies" "$body"
-    die "Smoke failed: logged-in /agentos expected 200, got $code"
+    die "Smoke failed: logged-in /agent expected 200, got $code"
   fi
 
-  code="$(curl -ksS -b "$cookies" -o "$body" -w '%{http_code}' "$BASE_URL/api/proxy/v1/agentos/health")"
+  code="$(curl -ksS -b "$cookies" -o "$body" -w '%{http_code}' "$BASE_URL/api/proxy/v1/agent/health")"
   if [ "$code" != "200" ]; then
     rm -f "$cookies" "$body"
-    die "Smoke failed: logged-in AgentOS health expected 200, got $code"
+    die "Smoke failed: logged-in Agent Platform health expected 200, got $code"
   fi
 
   rm -f "$cookies" "$body"
-  log "smoke ok: logged-in AgentOS"
+  log "smoke ok: logged-in Agent Platform"
 }
 
 main() {
