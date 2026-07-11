@@ -99,6 +99,7 @@ def test_dossier_engine_is_watchlist_only_and_does_not_use_unrelated_reports():
     dossier = (Path(__file__).resolve().parents[1] / "services/agent_platform/dossier.py").read_text(encoding="utf-8")
     assert "Only companies in 我的自选 can be refreshed" in dossier
     assert "refresh_enabled.is_(True)" in dossier
+    assert 'status.in_({"queued", "retry", "running"})' in dossier
     report_kb = (Path(__file__).resolve().parents[1] / "services/agent_platform/report_kb.py").read_text(encoding="utf-8")
     assert "return await self.recent_reports(limit=limit)" not in report_kb
 

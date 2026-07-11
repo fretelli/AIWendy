@@ -43,7 +43,7 @@ async def _claim_dossier_job(session: AsyncSession, worker_id: str) -> AgentBack
     now = datetime.now(UTC)
     item = (await session.execute(select(AgentBackgroundJob).where(
         AgentBackgroundJob.kind == "dossier_refresh",
-        AgentBackgroundJob.status.in_({"queued", "retry"}),
+        AgentBackgroundJob.status.in_({"queued", "retry", "running"}),
         AgentBackgroundJob.available_at <= now,
         (AgentBackgroundJob.lease_expires_at.is_(None) | (AgentBackgroundJob.lease_expires_at < now)),
     ).order_by(AgentBackgroundJob.created_at).with_for_update(skip_locked=True).limit(1))).scalar_one_or_none()
