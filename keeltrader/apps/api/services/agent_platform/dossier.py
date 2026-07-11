@@ -11,44 +11,92 @@ from uuid import UUID
 
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
-import redis.asyncio as aioredis
+import asyncio
+import os
+from datetime import timedelta
+from uuid import uuid4
 
-from config import get_settings
 from core.database import async_session
+from core.logging import get_logger
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from domain.agent_platform.models import (
-    AgentCompanyDossier, AgentCompanyDossierVersion, AgentCompanyEvidence, AgentCompanyWatchlist,
+    AgentBackgroundJob, AgentCompanyDossier, AgentCompanyDossierVersion, AgentCompanyEvidence,
+    AgentCompanyWatchlist,
 )
 from services.agent_platform.report_kb import ReportKBService
 from services.agent_platform.tushare import TushareReadService
 
-DOSSIER_QUEUE = "keeltrader:agent-platform:dossier-refresh"
+logger = get_logger(__name__)
 
 
-async def enqueue_dossier_refresh(user_id, company_code: str, *, force: bool = False) -> None:
-    redis = aioredis.from_url(get_settings().redis_url)
-    try:
-        await redis.lpush(DOSSIER_QUEUE, json.dumps({"user_id": str(user_id), "company_code": company_code, "force": force}))
-    finally:
-        await redis.aclose()
+async def enqueue_dossier_refresh(session: AsyncSession, user_id, company_code: str, *, force: bool = False) -> None:
+    await session.execute(pg_insert(AgentBackgroundJob).values(
+        id=uuid4(), user_id=user_id, kind="dossier_refresh",
+        entity_key=f"{user_id}:{company_code}", payload={"company_code": company_code, "force": force},
+        status="queued", available_at=datetime.now(UTC), attempts=0, max_attempts=3,
+    ).on_conflict_do_nothing())
+
+
+async def _claim_dossier_job(session: AsyncSession, worker_id: str) -> AgentBackgroundJob | None:
+    now = datetime.now(UTC)
+    item = (await session.execute(select(AgentBackgroundJob).where(
+        AgentBackgroundJob.kind == "dossier_refresh",
+        AgentBackgroundJob.status.in_({"queued", "retry"}),
+        AgentBackgroundJob.available_at <= now,
+        (AgentBackgroundJob.lease_expires_at.is_(None) | (AgentBackgroundJob.lease_expires_at < now)),
+    ).order_by(AgentBackgroundJob.created_at).with_for_update(skip_locked=True).limit(1))).scalar_one_or_none()
+    if item:
+        item.status = "running"
+        item.attempts += 1
+        item.lease_owner = worker_id
+        item.lease_expires_at = now + timedelta(minutes=5)
+        await session.flush()
+    return item
 
 
 async def dossier_worker_loop() -> None:
-    redis = aioredis.from_url(get_settings().redis_url)
-    try:
-        while True:
-            item = await redis.brpop(DOSSIER_QUEUE, timeout=20)
+    worker_id = f"dossier:{os.uname().nodename}:{os.getpid()}"
+    while True:
+        async with async_session() as session:
+            async with session.begin():
+                item = await _claim_dossier_job(session, worker_id)
             if not item:
+                await asyncio.sleep(1)
                 continue
-            payload = json.loads(item[1])
-            async with async_session() as session:
-                try:
-                    await refresh_dossier(session, UUID(payload["user_id"]), payload["company_code"], force=bool(payload.get("force")))
-                    await session.commit()
-                except Exception:
-                    await session.rollback()
-    finally:
-        await redis.aclose()
+            try:
+                await refresh_dossier(session, item.user_id, item.payload["company_code"],
+                                      force=bool(item.payload.get("force")))
+                item.status = "completed"
+                item.finished_at = datetime.now(UTC)
+                item.lease_owner = None
+                item.lease_expires_at = None
+                await session.commit()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                await session.rollback()
+                async with session.begin():
+                    failed = await session.get(AgentBackgroundJob, item.id, with_for_update=True)
+                    failed.last_error = str(exc)[:2000]
+                    failed.lease_owner = None
+                    failed.lease_expires_at = None
+                    if failed.attempts < failed.max_attempts:
+                        failed.status = "retry"
+                        failed.available_at = datetime.now(UTC) + timedelta(seconds=2 ** failed.attempts * 15)
+                    else:
+                        failed.status = "failed"
+                        failed.finished_at = datetime.now(UTC)
+                    dossier = (await session.execute(select(AgentCompanyDossier).where(
+                        AgentCompanyDossier.user_id == failed.user_id,
+                        AgentCompanyDossier.company_code == failed.payload["company_code"],
+                    ))).scalar_one_or_none()
+                    if dossier:
+                        dossier.status = "failed"
+                        dossier.stale = True
+                        dossier.last_error = failed.last_error
+                        dossier.next_retry_at = failed.available_at if failed.status == "retry" else None
+                logger.exception("dossier_refresh_failed", job_id=str(item.id), error=str(exc))
 
 
 async def dossier_scheduler_loop() -> None:
@@ -61,10 +109,10 @@ async def dossier_scheduler_loop() -> None:
                 rows = (await session.execute(select(AgentCompanyWatchlist).where(
                     AgentCompanyWatchlist.refresh_enabled.is_(True)
                 ))).scalars().all()
-            for item in rows:
-                await enqueue_dossier_refresh(item.user_id, item.company_code)
+                for item in rows:
+                    await enqueue_dossier_refresh(session, item.user_id, item.company_code)
+                await session.commit()
             last_date = now.date()
-        import asyncio
         await asyncio.sleep(30)
 
 

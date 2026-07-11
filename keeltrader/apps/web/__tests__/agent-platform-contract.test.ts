@@ -33,6 +33,9 @@ describe('Agent Platform contract', () => {
     expect(page).toContain('证据与版本')
     expect(page).toContain('Paperclip')
     expect(page).toContain('可附 PDF/DOCX/XLSX/图片')
+    expect(page).toContain("'message.delta'")
+    expect(page).toContain('15000')
+    expect(page).not.toContain('void refreshWorkspace() }, 2500')
     expect(page).not.toContain('<Tabs')
   })
 

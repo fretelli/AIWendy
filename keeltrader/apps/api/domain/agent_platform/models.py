@@ -84,6 +84,12 @@ class AgentRun(Base):
     cost_used_usd = Column(Float, nullable=False, default=0.0)
     lease_owner = Column(String(100), nullable=True)
     lease_expires_at = Column(DateTime(timezone=True), nullable=True)
+    heartbeat_at = Column(DateTime(timezone=True), nullable=True)
+    next_attempt_at = Column(DateTime(timezone=True), nullable=True)
+    attempt_count = Column(Integer, nullable=False, default=0)
+    max_attempts = Column(Integer, nullable=False, default=3)
+    generation = Column(Integer, nullable=False, default=0)
+    idempotency_key = Column(String(120), nullable=True)
     error = Column(Text, nullable=True)
     started_at = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
@@ -227,10 +233,35 @@ class AgentCompanyDossier(Base):
     source_fingerprint = Column(String(64), nullable=True)
     status = Column(String(30), nullable=False, default="pending")
     stale = Column(Boolean, nullable=False, default=True)
+    last_error = Column(Text, nullable=True)
+    next_retry_at = Column(DateTime(timezone=True), nullable=True)
     last_refreshed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     __table_args__ = (Index("uq_agent_company_dossier_user_code", "user_id", "company_code", unique=True),)
+
+
+class AgentBackgroundJob(Base):
+    __tablename__ = "agent_background_jobs"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    kind = Column(String(40), nullable=False)
+    entity_key = Column(String(240), nullable=False)
+    payload = Column(JSON, nullable=False, default=dict)
+    status = Column(String(30), nullable=False, default="queued")
+    attempts = Column(Integer, nullable=False, default=0)
+    max_attempts = Column(Integer, nullable=False, default=3)
+    available_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    lease_owner = Column(String(120), nullable=True)
+    lease_expires_at = Column(DateTime(timezone=True), nullable=True)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    finished_at = Column(DateTime(timezone=True), nullable=True)
+    __table_args__ = (
+        Index("ix_agent_background_jobs_claim", "status", "available_at", "lease_expires_at"),
+        Index("ix_agent_background_jobs_entity", "kind", "entity_key"),
+    )
 
 
 class AgentCompanyDossierVersion(Base):

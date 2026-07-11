@@ -7,11 +7,12 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import async_session
 from core.encryption import get_encryption_service
+from core.logging import get_logger
 from config import get_settings
 from domain.agent_platform.models import (
     AgentApproval, AgentArtifact, AgentDefinition, AgentMCPServer, AgentMemory, AgentMemoryVersion,
@@ -24,6 +25,7 @@ from services.agent_platform.tools import TOOL_DEFINITIONS, execute_platform_too
 TERMINAL = {"completed", "failed", "cancelled"}
 RUNNABLE = {"queued", "running"}
 SENSITIVE_MARKERS = ("token", "secret", "password", "authorization", "api_key", "apikey")
+logger = get_logger(__name__)
 
 
 def redact_sensitive(value: Any) -> Any:
@@ -64,7 +66,8 @@ def parse_mcp_tool(name: str) -> tuple[UUID, str] | None:
 
 
 async def enqueue_run(session: AsyncSession, user_id: UUID, agent: AgentDefinition, prompt: str,
-                      session_id: UUID | None = None, interaction_mode: str | None = None) -> AgentRun:
+                      session_id: UUID | None = None, interaction_mode: str | None = None,
+                      idempotency_key: str | None = None) -> AgentRun:
     chat = None
     if session_id:
         chat = await session.get(AgentSession, session_id)
@@ -82,6 +85,7 @@ async def enqueue_run(session: AsyncSession, user_id: UUID, agent: AgentDefiniti
     run = AgentRun(
         user_id=user_id, session_id=chat.id, agent_definition_id=agent.id, prompt=prompt,
         interaction_mode=mode,
+        idempotency_key=idempotency_key,
         token_budget=agent.task_token_budget, cost_budget_usd=agent.task_cost_budget_usd,
     )
     session.add(run)
@@ -97,17 +101,26 @@ async def claim_run(session: AsyncSession, worker_id: str) -> AgentRun | None:
     now = datetime.now(UTC)
     stmt = (
         select(AgentRun).where(
-            AgentRun.status.in_(RUNNABLE),
-            or_(AgentRun.lease_expires_at.is_(None), AgentRun.lease_expires_at < now),
+            AgentRun.status.in_({"queued", "planning", "running"}),
+            or_(
+                and_(AgentRun.status == "queued", or_(AgentRun.next_attempt_at.is_(None), AgentRun.next_attempt_at <= now)),
+                and_(AgentRun.status.in_({"planning", "running"}), AgentRun.lease_expires_at < now),
+            ),
         ).order_by(AgentRun.created_at).with_for_update(skip_locked=True).limit(1)
     )
     run = (await session.execute(stmt)).scalar_one_or_none()
     if not run:
         return None
     run.lease_owner = worker_id
-    run.lease_expires_at = now + timedelta(seconds=90)
-    if run.status == "queued":
+    run.lease_expires_at = now + timedelta(seconds=120)
+    run.heartbeat_at = now
+    run.attempt_count += 1
+    run.generation += 1
+    if run.status == "queued" and not run.plan:
         run.status = "planning"
+    elif run.status != "running":
+        run.status = "running"
+    if run.started_at is None:
         run.started_at = now
     await session.flush()
     return run
@@ -165,16 +178,18 @@ async def _model_text(profile: AgentModelProfile, system: str, messages: list[di
     if profile.provider == "anthropic":
         from anthropic import AsyncAnthropic
         client = AsyncAnthropic(api_key=key, base_url=profile.base_url or None)
-        response = await client.messages.create(model=profile.model, system=system, messages=messages,
-                                                max_tokens=profile.max_output_tokens)
+        async with asyncio.timeout(get_settings().agent_model_timeout_seconds):
+            response = await client.messages.create(model=profile.model, system=system, messages=messages,
+                                                    max_tokens=profile.max_output_tokens)
         text = "".join(getattr(block, "text", "") for block in response.content)
         return text, int(response.usage.input_tokens), int(response.usage.output_tokens)
     from openai import AsyncOpenAI
     client = AsyncOpenAI(api_key=key, base_url=profile.base_url or None)
-    response = await client.chat.completions.create(
-        model=profile.model, messages=[{"role": "system", "content": system}, *messages],
-        max_tokens=profile.max_output_tokens,
-    )
+    async with asyncio.timeout(get_settings().agent_model_timeout_seconds):
+        response = await client.chat.completions.create(
+            model=profile.model, messages=[{"role": "system", "content": system}, *messages],
+            max_tokens=profile.max_output_tokens,
+        )
     usage = response.usage
     return response.choices[0].message.content or "", int(usage.prompt_tokens or 0), int(usage.completion_tokens or 0)
 
@@ -248,6 +263,9 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
         run.status, run.error = "failed", "Agent model profile is not configured"
         run.finished_at = datetime.now(UTC)
         await emit(session, run.id, "run.failed", {"reason": run.error})
+        run.lease_owner = None
+        run.lease_expires_at = None
+        await session.commit()
         return
     if run.interaction_mode in {"ask", "plan"}:
         await _execute_direct_mode(session, run, agent, profile)
@@ -269,11 +287,17 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
         if run.tokens_used >= run.token_budget or run.cost_used_usd >= run.cost_budget_usd:
             run.status = "paused_budget"
             await emit(session, run.id, "run.paused_budget", {})
+            run.lease_owner = None
+            run.lease_expires_at = None
+            await session.commit()
             return
         daily_tokens, daily_cost = await _daily_usage(session, run.user_id)
         if daily_tokens >= 200000 or daily_cost >= 20:
             run.status = "paused_budget"
             await emit(session, run.id, "run.paused_budget", {"scope": "daily"})
+            run.lease_owner = None
+            run.lease_expires_at = None
+            await session.commit()
             return
         step.status, step.started_at, step.attempts = "running", datetime.now(UTC), step.attempts + 1
         await emit(session, run.id, "step.started", {"step_id": str(step.id), "role": step.agent_role, "tool": step.tool_name})
@@ -287,6 +311,8 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
                                              kind="decision_log", preview=step.input_json)
                     session.add(approval)
                     step.status, run.status = "waiting_approval", "waiting_approval"
+                    run.lease_owner = None
+                    run.lease_expires_at = None
                     await emit(session, run.id, "approval.required", {"approval_id": str(approval.id)})
                     await session.commit()
                     return
@@ -311,6 +337,8 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
                         )
                         session.add(approval)
                         step.status, run.status = "waiting_approval", "waiting_approval"
+                        run.lease_owner = None
+                        run.lease_expires_at = None
                         await session.flush()
                         await emit(session, run.id, "approval.required", {"approval_id": str(approval.id)})
                         await session.commit()
@@ -338,8 +366,14 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
                     agent.system_prompt + "\nYou are the " + step.agent_role + ". Research only; never place trades.",
                     [{"role": "user", "content": f"Company context: {company_context}\nCompany memory:\n{memory_context}\n\nConversation:\n{conversation}\n\nTask: {run.prompt}\nEvidence: {prompt}"}],
                 )
+                await session.refresh(run)
+                if run.status == "cancelled":
+                    return
                 await _record_usage(session, run, profile, input_tokens, output_tokens)
                 output = {"role": step.agent_role, "text": output_text}
+            await session.refresh(run)
+            if run.status == "cancelled":
+                return
             step.output_json, step.status, step.finished_at = output, "completed", datetime.now(UTC)
             outputs.append(output)
             run.current_step = step.sequence + 1
@@ -353,11 +387,17 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
             step.error = str(exc)[:1000]
             if step.attempts < 2:
                 step.status = "pending"
+                run.status = "queued"
+                run.next_attempt_at = datetime.now(UTC) + timedelta(seconds=10)
+                run.lease_owner = None
+                run.lease_expires_at = None
                 await emit(session, run.id, "step.retry", {"step_id": str(step.id)})
                 await session.commit()
                 return
             step.status, run.status, run.error = "failed", "failed", step.error
             run.finished_at = datetime.now(UTC)
+            run.lease_owner = None
+            run.lease_expires_at = None
             await emit(session, run.id, "run.failed", {"reason": step.error})
             await session.commit()
             return
@@ -396,8 +436,44 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
         session.add(AgentMemoryVersion(memory_id=memory.id, version=memory.version,
                                        value=value, evidence=evidence))
     run.status, run.finished_at, run.lease_expires_at = "completed", datetime.now(UTC), None
+    run.lease_owner = None
     await emit(session, run.id, "run.completed", {"artifact_type": "research", "message": final_content})
     await session.commit()
+
+
+async def _renew_run_lease(run_id: UUID, worker_id: str, generation: int) -> None:
+    while True:
+        await asyncio.sleep(30)
+        now = datetime.now(UTC)
+        async with async_session() as session:
+            result = await session.execute(update(AgentRun).where(
+                AgentRun.id == run_id,
+                AgentRun.lease_owner == worker_id,
+                AgentRun.generation == generation,
+                AgentRun.status.in_({"planning", "running"}),
+            ).values(heartbeat_at=now, lease_expires_at=now + timedelta(seconds=120)))
+            await session.commit()
+            if result.rowcount != 1:
+                return
+
+
+async def _persist_run_failure(run_id: UUID, worker_id: str, generation: int, exc: Exception) -> None:
+    async with async_session() as session:
+        async with session.begin():
+            run = await session.get(AgentRun, run_id, with_for_update=True)
+            if not run or run.lease_owner != worker_id or run.generation != generation or run.status in TERMINAL:
+                return
+            run.error = str(exc)[:2000]
+            run.lease_owner = None
+            run.lease_expires_at = None
+            if run.attempt_count < run.max_attempts:
+                run.status = "queued"
+                run.next_attempt_at = datetime.now(UTC) + timedelta(seconds=2 ** run.attempt_count * 10)
+                await emit(session, run.id, "run.retry", {"attempt": run.attempt_count, "reason": run.error})
+            else:
+                run.status = "failed"
+                run.finished_at = datetime.now(UTC)
+                await emit(session, run.id, "run.failed", {"reason": run.error})
 
 
 async def _execute_direct_mode(session: AsyncSession, run: AgentRun, agent: AgentDefinition,
@@ -431,6 +507,9 @@ async def _execute_direct_mode(session: AsyncSession, run: AgentRun, agent: Agen
     text, input_tokens, output_tokens = await _model_text(
         profile, instruction, [{"role": "user", "content": f"Company context: {company_context}\nCompany memory:\n{memory_context}\n\nConversation:\n{conversation}\n\nCurrent request: {run.prompt}"}],
     )
+    await session.refresh(run)
+    if run.status == "cancelled":
+        return
     for offset in range(0, len(text), 120):
         await emit(session, run.id, "message.delta", {"delta": text[offset:offset + 120]})
     await _record_usage(session, run, profile, input_tokens, output_tokens)
@@ -446,6 +525,7 @@ async def _execute_direct_mode(session: AsyncSession, run: AgentRun, agent: Agen
         chat.last_message_at = datetime.now(UTC)
         chat.updated_at = datetime.now(UTC)
     run.status, run.finished_at, run.lease_expires_at = "completed", datetime.now(UTC), None
+    run.lease_owner = None
     await emit(session, run.id, "run.completed", {"artifact_type": artifact_type, "message": text,
                                                     "mode": run.interaction_mode})
     await session.commit()
@@ -460,11 +540,24 @@ async def worker_loop() -> None:
                     await dispatch_due_schedules(session)
                     run = await claim_run(session, worker_id)
                 if run:
-                    run = await session.get(AgentRun, run.id, with_for_update=True)
-                    await execute_claimed_run(session, run)
+                    run_id, generation = run.id, run.generation
+                    lease_task = asyncio.create_task(_renew_run_lease(run_id, worker_id, generation))
+                    try:
+                        run = await session.get(AgentRun, run_id)
+                        await execute_claimed_run(session, run)
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exc:
+                        await session.rollback()
+                        logger.exception("agent_run_failed", run_id=str(run_id), error=str(exc))
+                        await _persist_run_failure(run_id, worker_id, generation, exc)
+                    finally:
+                        lease_task.cancel()
+                        await asyncio.gather(lease_task, return_exceptions=True)
                     continue
         except asyncio.CancelledError:
             raise
-        except Exception:
+        except Exception as exc:
+            logger.exception("agent_worker_loop_failed", error=str(exc))
             await asyncio.sleep(2)
         await asyncio.sleep(1)
