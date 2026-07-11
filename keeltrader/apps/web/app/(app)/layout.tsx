@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import {
   Newspaper,
   BrainCircuit,
-  MessageSquare,
   Settings,
   LogOut,
   Menu,
@@ -17,9 +16,8 @@ import {
 import { LanguageSwitcher, useI18n } from '@/lib/i18n/provider';
 
 const NAV_ITEMS = [
-  { href: '/agentos', icon: BrainCircuit, labelKey: 'nav.agentos' },
+  { href: '/agent', icon: BrainCircuit, labelKey: 'nav.agentos' },
   { href: '/research', icon: Newspaper, labelKey: 'nav.research' },
-  { href: '/chat', icon: MessageSquare, labelKey: 'nav.chat' },
   { href: '/settings', icon: Settings, labelKey: 'nav.settings' },
 ] as const;
 
@@ -66,7 +64,7 @@ export default function AppLayout({
           >
             {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
-          <Link href="/agentos" className="flex items-center gap-2">
+          <Link href="/agent" className="flex items-center gap-2">
             <span className="text-lg font-bold">KeelTrader</span>
           </Link>
         </div>
