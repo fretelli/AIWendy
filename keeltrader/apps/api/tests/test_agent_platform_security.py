@@ -42,3 +42,11 @@ def test_sensitive_tool_results_are_redacted_before_persistence():
     assert redact_sensitive({"api_key": "secret", "nested": {"Authorization": "Bearer x"}, "ok": 1}) == {
         "api_key": "<redacted>", "nested": {"Authorization": "<redacted>"}, "ok": 1,
     }
+
+
+def test_agent_platform_migration_splits_asyncpg_ddl_commands():
+    from pathlib import Path
+
+    migration = Path(__file__).resolve().parents[3] / "migrations/versions/020_agent_platform.py"
+    source = migration.read_text(encoding="utf-8")
+    assert 'for statement in ddl.split(";")' in source
