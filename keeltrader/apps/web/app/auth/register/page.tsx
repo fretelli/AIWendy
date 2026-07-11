@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Icons } from '@/components/icons'
 import { useAuth } from '@/lib/auth-context'
 import { useI18n } from '@/lib/i18n/provider'
+import { AuthShell } from '@/components/auth-shell'
 
 function getErrorMessage(error: unknown): string | null {
   if (error instanceof Error) {
@@ -73,19 +74,19 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="container flex min-h-dvh w-full flex-col items-center justify-center px-4 py-16">
+    <AuthShell eyebrow="Build your private research desk">
       <Link
         href="/"
-        className="absolute left-4 top-4 md:left-8 md:top-8"
+        className="mb-5 inline-flex text-sm text-muted-foreground hover:text-foreground"
       >
         <Icons.chevronLeft className="mr-2 h-4 w-4 inline" />
         {t('landing.auth.back')}
       </Link>
 
-      <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
-        <Card>
+      <div className="flex w-full flex-col justify-center space-y-6">
+        <Card className="border-border/70 bg-card/90 shadow-[0_18px_60px_hsl(var(--deep-sounding)/.10)]">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">{t('landing.auth.register.title')}</CardTitle>
+            <CardTitle className="font-display text-center text-3xl">{t('landing.auth.register.title')}</CardTitle>
             <CardDescription className="text-center">
               {t('landing.auth.register.subtitle')}
             </CardDescription>
@@ -195,6 +196,6 @@ export default function RegisterPage() {
           </CardFooter>
         </Card>
       </div>
-    </div>
+    </AuthShell>
   )
 }

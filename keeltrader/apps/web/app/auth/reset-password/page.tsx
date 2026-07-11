@@ -6,16 +6,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Icons } from '@/components/icons'
 import { useI18n } from '@/lib/i18n/provider'
+import { AuthShell } from '@/components/auth-shell'
 
 export default function ResetPasswordPage() {
   const { t } = useI18n()
 
   return (
-    <div className="container flex min-h-dvh w-full flex-col items-center justify-center px-4 py-16">
-      <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
-        <Card>
+    <AuthShell>
+      <div className="flex w-full flex-col justify-center space-y-6">
+        <Card className="border-border/70 bg-card/90 shadow-[0_18px_60px_hsl(var(--deep-sounding)/.10)]">
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">{t('landing.auth.reset.title')}</CardTitle>
+            <CardTitle className="font-display text-center text-3xl">{t('landing.auth.reset.title')}</CardTitle>
             <CardDescription className="text-center">
               {t('landing.auth.reset.unavailable.subtitle')}
             </CardDescription>
@@ -35,6 +36,6 @@ export default function ResetPasswordPage() {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </AuthShell>
   )
 }

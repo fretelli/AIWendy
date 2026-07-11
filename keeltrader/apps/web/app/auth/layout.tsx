@@ -1,8 +1,8 @@
 import { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Authentication',
-  description: 'Login or create an account to access AI Wendy',
+  title: '账户',
+  description: '登录或创建 KeelTrader 私人基本面研究账户',
 }
 
 export default function AuthLayout({
@@ -11,8 +11,6 @@ export default function AuthLayout({
   children: React.ReactNode
 }) {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20">
-      {children}
-    </div>
+    <>{children}</>
   )
 }

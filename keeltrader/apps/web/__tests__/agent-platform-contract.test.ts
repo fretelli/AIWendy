@@ -6,7 +6,7 @@ const root = path.resolve(__dirname, '..')
 describe('Agent Platform contract', () => {
   it('uses the unified agent route without a standalone research hub', () => {
     const layout = fs.readFileSync(path.join(root, 'app/(app)/layout.tsx'), 'utf8')
-    expect(layout).toContain("href: '/agent'")
+    expect(fs.existsSync(path.join(root, 'app/(app)/agent/page.tsx'))).toBe(true)
     expect(layout).not.toContain("href: '/research'")
     expect(layout).not.toContain("href: '/chat'")
     expect(layout).not.toContain("href: '/settings'")
@@ -15,7 +15,7 @@ describe('Agent Platform contract', () => {
 
   it('uses a conversation-first workspace instead of the legacy tab console', () => {
     const page = fs.readFileSync(path.join(root, 'app/(app)/agent/page.tsx'), 'utf8')
-    expect(page).toContain('新会话')
+    expect(page).toContain('新建研究')
     expect(page).toContain('EventSource')
     expect(page).toContain("'/compact'")
     expect(page).toContain('需要你的批准')
@@ -30,9 +30,11 @@ describe('Agent Platform contract', () => {
     expect(page).toContain('我的自选')
     expect(page).toContain('agentPlatformApi.addWatchlist')
     expect(page).toContain('刷新基本面档案')
-    expect(page).toContain('证据与版本')
+    expect(page).toContain('证据航迹')
     expect(page).toContain('Paperclip')
-    expect(page).toContain('可附 PDF/DOCX/XLSX/图片')
+    expect(page).toContain('支持研究附件')
+    expect(page).toContain('ResearchBearing')
+    expect(page).toContain('ThemeMenu')
     expect(page).toContain("'message.delta'")
     expect(page).toContain('15000')
     expect(page).not.toContain('void refreshWorkspace() }, 2500')

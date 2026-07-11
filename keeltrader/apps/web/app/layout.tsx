@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { IBM_Plex_Mono, Manrope, Newsreader } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,7 +7,9 @@ import { SonnerToaster } from "@/components/sonner-toaster";
 import { I18nProvider } from "@/lib/i18n/provider";
 import { getLocale, generateMetadata as generateI18nMetadata } from "@/lib/i18n/server";
 
-const inter = Inter({ subsets: ["latin"] });
+const bodyFont = Manrope({ subsets: ["latin"], variable: "--font-body" });
+const displayFont = Newsreader({ subsets: ["latin"], variable: "--font-display" });
+const dataFont = IBM_Plex_Mono({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-data" });
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
 
 export const viewport = {
@@ -75,7 +77,7 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={`${bodyFont.variable} ${displayFont.variable} ${dataFont.variable}`}>
         <I18nProvider initialLocale={locale}>
           <Providers>
             {children}
