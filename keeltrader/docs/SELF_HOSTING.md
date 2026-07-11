@@ -23,7 +23,7 @@
    - `POSTGRES_PASSWORD`
    - `JWT_SECRET`（建议 >= 32 位）
    - `NEXTAUTH_SECRET`
-   - `OPENAI_API_KEY` 或 `ANTHROPIC_API_KEY`（需要 AI 能力时）
+   - 模型密钥在 `/agent` 的 BYOK 设置中由每个用户单独配置
 
 3. 启动服务：
 
@@ -42,11 +42,11 @@
 ## Agent 平台、BYOK 与 MCP
 
 - 运行 `alembic upgrade head` 创建 `agent_platform_*` 表。
-- `/agent` 是统一工作台；旧 `/chat` 与 `/agentos` 会跳转到该入口。
+- `/agent` 是唯一的 Agent 工作台和 API 入口。
 - 每位用户必须添加自己的 OpenAI-compatible 或 Anthropic BYOK；自托管镜像不附带运营方 Token。
 - BYOK 和 MCP Bearer Token 使用 `ENCRYPTION_KEY` 加密，仅在实际请求时解密。
 - MCP 默认只接受公网 HTTPS，阻止 loopback、私网和云元数据地址；工具必须逐项授权。
-- 定时研究由 `agent-engine` Worker 执行，只能使用永久授权工具。
+- 定时研究由 `agent-platform-worker` 执行，只能使用永久授权工具。
 - 任务级及每日 Token/费用硬上限耗尽时自动暂停。
 - Agent 工具集不包含下单、撤单、交易同步、Ghost Trade 或代码执行。
 
@@ -78,7 +78,7 @@ docker compose -f docker-compose.selfhost.yml exec -T api python scripts/init_us
 - 进入 API 容器：`docker compose -f docker-compose.selfhost.yml exec api sh`
 - 验证构建但不部署：`./build.sh`
 - 发布 Web：`scripts/deploy.sh web`
-- 发布 API + agent-engine：`scripts/deploy.sh api`
+- 发布 API + Agent Platform Worker：`scripts/deploy.sh api`
 
 ## 健康检查
 
@@ -111,7 +111,7 @@ Use `docker-compose.selfhost.yml` for private deployments. It includes isolated 
    - `POSTGRES_PASSWORD`
    - `JWT_SECRET` (recommended: >= 32 chars)
    - `NEXTAUTH_SECRET`
-   - `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` when AI features are needed
+   - Each user configures model credentials through BYOK settings in `/agent`
 
 3. Start services:
 
@@ -130,11 +130,11 @@ Use `docker-compose.selfhost.yml` for private deployments. It includes isolated 
 ## Agent Platform, BYOK, and MCP
 
 - Run `alembic upgrade head` to create the `agent_platform_*` tables.
-- `/agent` is the unified workspace; legacy `/chat` and `/agentos` redirect there.
+- `/agent` is the only Agent workspace and API entry point.
 - Each user adds an OpenAI-compatible or Anthropic BYOK profile. Self-hosted images contain no operator model token.
 - BYOK and MCP bearer tokens are encrypted with `ENCRYPTION_KEY` and decrypted only for the selected request.
 - User MCP accepts public HTTPS by default and blocks loopback, private networks, and cloud metadata destinations. Tools are approved individually.
-- Scheduled research runs in `agent-engine` and may use only permanently approved tools.
+- Scheduled research runs in `agent-platform-worker` and may use only permanently approved tools.
 - Per-run and daily token/cost limits pause work when exhausted.
 - No order placement, cancellation, trade sync, ghost-trade, or arbitrary-code tool is registered.
 
@@ -166,7 +166,7 @@ Do not enable `KEELTRADER_AUTO_INIT_TEST_USERS` in production.
 - Shell into API: `docker compose -f docker-compose.selfhost.yml exec api sh`
 - Validate builds without deploy: `./build.sh`
 - Release Web: `scripts/deploy.sh web`
-- Release API + agent-engine: `scripts/deploy.sh api`
+- Release API + Agent Platform Worker: `scripts/deploy.sh api`
 
 ## Health Checks
 

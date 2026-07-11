@@ -37,8 +37,8 @@ describe("server proxy helper", () => {
 
   it("returns 401 for protected paths without a token", async () => {
     const response = await proxyRequest(
-      request("/api/proxy/v1/agentos/health"),
-      context(["v1", "agentos", "health"]),
+      request("/api/proxy/v1/agent/health"),
+      context(["v1", "agent", "health"]),
       {
         baseUrls: () => ["http://api:8000"],
         auth: { accessTokenCookie: "keeltrader_access_token" },
@@ -95,10 +95,10 @@ describe("server proxy helper", () => {
     fetchMock.mockResolvedValueOnce(new Response("ok", { status: 200 }));
 
     await proxyRequest(
-      request("/api/proxy/v1/agentos/health", {
+      request("/api/proxy/v1/agent/health", {
         cookie: "keeltrader_access_token=cookie-token",
       }),
-      context(["v1", "agentos", "health"]),
+      context(["v1", "agent", "health"]),
       {
         baseUrls: () => ["http://api:8000"],
         auth: { accessTokenCookie: "keeltrader_access_token" },
@@ -117,10 +117,10 @@ describe("server proxy helper", () => {
       .mockResolvedValueOnce(new Response("ok", { status: 200 }));
 
     const response = await proxyRequest(
-      request("/api/proxy/v1/agentos/health", {
+      request("/api/proxy/v1/agent/health", {
         cookie: "keeltrader_access_token=cookie-token",
       }),
-      context(["v1", "agentos", "health"]),
+      context(["v1", "agent", "health"]),
       {
         baseUrls: () => ["http://localhost:8000", "http://api:8000"],
         auth: { accessTokenCookie: "keeltrader_access_token" },
@@ -130,7 +130,7 @@ describe("server proxy helper", () => {
     expect(response.status).toBe(200);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(String(fetchMock.mock.calls[1][0])).toBe(
-      "http://api:8000/api/v1/agentos/health"
+      "http://api:8000/api/v1/agent/health"
     );
   });
 

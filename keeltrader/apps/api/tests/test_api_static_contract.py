@@ -11,12 +11,6 @@ import pytest
 API_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_legacy_agent_routes_do_not_default_to_shared_user_id():
-    source = (API_ROOT / "routers" / "agents.py").read_text(encoding="utf-8")
-
-    assert 'user_id: str = "default"' not in source
-
-
 def test_legacy_database_scripts_have_production_guard():
     guarded_scripts = {
         "add_api_keys_columns.py",
@@ -29,7 +23,6 @@ def test_legacy_database_scripts_have_production_guard():
         "init_db_simple.py",
         "init_user.py",
         "init_user_simple.py",
-        "migrate_chat_messages.py",
         "migrate_to_multi_tenant.py",
         "save_api_key.py",
         "setup_custom_api.py",

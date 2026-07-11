@@ -24,7 +24,7 @@ usage() {
   cat <<'USAGE'
 Usage: scripts/release-api-overlay.sh [options]
 
-Build and release the KeelTrader API + agent-engine services using the local
+Build and release the KeelTrader API + Agent Platform worker using the local
 overlay image path.
 
 Options:
@@ -132,7 +132,7 @@ deploy_api() {
   fi
 
   run docker tag keeltrader-api:test-overlay keeltrader-api:latest
-  run docker compose up -d api agent-engine
+  run docker compose up -d api agent-platform-worker
 }
 
 container_http_code() {
@@ -213,7 +213,7 @@ import redis.asyncio as redis
 async def main() -> int:
     client = redis.from_url(os.environ["REDIS_URL"])
     try:
-        raw = await client.get("keeltrader:agentos:heartbeat")
+        raw = await client.get("keeltrader:agent-platform:heartbeat")
     finally:
         await client.aclose()
 
@@ -227,36 +227,36 @@ raise SystemExit(asyncio.run(main()))
 PY
 }
 
-expect_agent_engine_heartbeat() {
+expect_agent_platform_heartbeat() {
   local attempt
 
   for attempt in $(seq 1 "$SMOKE_ATTEMPTS"); do
     if heartbeat_present >/dev/null 2>&1; then
-      log "smoke ok: agent-engine heartbeat"
+      log "smoke ok: agent-platform-worker heartbeat"
       return
     fi
 
     if [ "$attempt" -lt "$SMOKE_ATTEMPTS" ]; then
-      log "smoke waiting: agent-engine heartbeat (attempt $attempt/$SMOKE_ATTEMPTS)"
+      log "smoke waiting: agent-platform-worker heartbeat (attempt $attempt/$SMOKE_ATTEMPTS)"
       sleep "$SMOKE_DELAY_SECONDS"
     fi
   done
 
-  die "Smoke failed: agent-engine heartbeat missing"
+  die "Smoke failed: agent-platform-worker heartbeat missing"
 }
 
 smoke() {
   log "Running smoke checks against local Docker Compose stack"
 
   expect_compose_service_running api
-  expect_compose_service_running agent-engine
+  expect_compose_service_running agent-platform-worker
   expect_container_code "api health" "200" "/api/health"
   expect_container_code "api liveness" "200" "/api/health/live"
-  expect_container_code "agentos health" "200" "/api/v1/agentos/health"
-  expect_agent_engine_heartbeat
+  expect_container_code "agent platform health" "200" "/api/v1/agent/health"
+  expect_agent_platform_heartbeat
   if [ "$DEPLOY" -eq 1 ] && [ "$SMOKE_ONLY" -eq 0 ]; then
     expect_service_revision api "$GIT_SHA"
-    expect_service_revision agent-engine "$GIT_SHA"
+    expect_service_revision agent-platform-worker "$GIT_SHA"
   fi
 }
 

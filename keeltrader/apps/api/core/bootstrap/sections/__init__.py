@@ -5,7 +5,6 @@ from .auth import ensure_auth_schema
 from .notifications import ensure_notifications_schema
 from .tenants import ensure_tenants_schema
 from .projects import ensure_projects_schema
-from .chat import ensure_chat_schema
 from .files import ensure_files_schema
 from .roundtable import ensure_roundtable_schema
 from .knowledge import ensure_knowledge_schema
@@ -22,7 +21,6 @@ __all__ = [
     "ensure_notifications_schema",
     "ensure_tenants_schema",
     "ensure_projects_schema",
-    "ensure_chat_schema",
     "ensure_files_schema",
     "ensure_roundtable_schema",
     "ensure_knowledge_schema",

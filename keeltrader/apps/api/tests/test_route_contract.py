@@ -12,11 +12,8 @@ def test_active_route_prefixes_are_mounted(client):
         "/api/v1/auth/login",
         "/api/v1/auth/register",
         "/api/v1/users/me",
-        "/api/v1/chat/send",
         "/api/v1/files/upload",
         "/api/v1/settings/risk",
-        "/api/v1/webhook/confirm",
-        "/api/v1/agentos/health",
         "/api/v1/agent/health",
         "/api/v1/agent/runs",
         "/api/v1/agent/definitions",
@@ -46,6 +43,9 @@ def test_legacy_routers_are_not_accidentally_exposed(client):
         "/api/v1/dashboard",
         "/api/v1/user/exchanges",
         "/api/exchanges",
+        "/api/v1/chat/send",
+        "/api/v1/webhook/confirm",
+        "/api/v1/agentos/health",
     }
 
     assert paths.isdisjoint(legacy_paths)

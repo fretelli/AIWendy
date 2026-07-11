@@ -63,7 +63,7 @@ export default function LoginPage() {
       const destination =
         next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/auth')
           ? next
-          : '/agentos'
+          : '/agent'
       router.replace(destination)
     } catch (err: unknown) {
       setError(getErrorMessage(err) || t('landing.auth.login.error'))

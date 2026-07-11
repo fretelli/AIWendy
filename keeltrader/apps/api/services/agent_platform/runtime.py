@@ -18,8 +18,7 @@ from domain.agent_platform.models import (
     AgentToolGrant, AgentUsageLedger,
 )
 from services.agent_platform.mcp import call_tool
-from services.tool_executor import execute_tool
-from services.tool_definitions import TOOL_DEFINITIONS
+from services.agent_platform.tools import TOOL_DEFINITIONS, execute_platform_tool
 
 TERMINAL = {"completed", "failed", "cancelled"}
 RUNNABLE = {"queued", "running"}
@@ -283,7 +282,7 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
                         return
                     result = await call_tool(server, tool_name, step.input_json)
                 else:
-                    result = await execute_tool(step.tool_name, step.input_json, session, run.user_id)
+                    result = await execute_platform_tool(step.tool_name, step.input_json, session, run.user_id)
                 if result.get("error"):
                     raise RuntimeError(result["error"])
                 output = redact_sensitive(result)
