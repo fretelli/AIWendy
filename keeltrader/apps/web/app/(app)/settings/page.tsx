@@ -138,7 +138,9 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    void loadResearchCloud();
+    queueMicrotask(() => {
+      void loadResearchCloud();
+    });
   }, [loadResearchCloud]);
 
   useEffect(() => {
