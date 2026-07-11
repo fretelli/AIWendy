@@ -101,3 +101,11 @@ def test_dossier_engine_is_watchlist_only_and_does_not_use_unrelated_reports():
     assert "refresh_enabled.is_(True)" in dossier
     report_kb = (Path(__file__).resolve().parents[1] / "services/agent_platform/report_kb.py").read_text(encoding="utf-8")
     assert "return await self.recent_reports(limit=limit)" not in report_kb
+
+
+def test_company_memory_attachments_and_self_host_privacy_contracts():
+    runtime = (Path(__file__).resolve().parents[1] / "services/agent_platform/runtime.py").read_text(encoding="utf-8")
+    router = (Path(__file__).resolve().parents[1] / "routers/agent_platform.py").read_text(encoding="utf-8")
+    assert "_company_memory_context" in runtime
+    assert 'key = f"company:{chat.company_code}:thesis"' in runtime
+    assert "attachment_ids" in router and "UploadedFile.user_id == user.id" in router

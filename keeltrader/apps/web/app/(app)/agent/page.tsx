@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown'
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from 'react-resizable-panels'
 import {
   Archive, Bot, Building2, Check, CircleStop, Command, Loader2, Menu, MessageSquarePlus, Plus,
-  PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pin, Search, Send, Settings2, Sparkles, X,
+  PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Paperclip, Pin, Search, Send, Settings2, Sparkles, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -50,6 +50,7 @@ export default function AgentWorkspacePage() {
   const [dossier, setDossier] = useState<CompanyDossier | null>(null)
   const [companyQuery, setCompanyQuery] = useState('')
   const [companyResults, setCompanyResults] = useState<CompanySearchItem[]>([])
+  const [attachments, setAttachments] = useState<Array<{ id: string; fileName: string }>>([])
   const [input, setInput] = useState('')
   const [search, setSearch] = useState('')
   const [sending, setSending] = useState(false)
@@ -114,6 +115,7 @@ export default function AgentWorkspacePage() {
 
   const currentSession = sessions.find(item => item.id === currentId)
   const activeRun = useMemo(() => [...runs].reverse().find(run => !TERMINAL.has(run.status)), [runs])
+  const streamedText = useMemo(() => events.filter(event => event.type === 'message.delta').map(event => String(event.payload.delta || '')).join(''), [events])
   useEffect(() => {
     const code = currentSession?.company_code
     if (!code) { queueMicrotask(() => setDossier(null)); return }
@@ -196,8 +198,9 @@ export default function AgentWorkspacePage() {
       let sessionId = currentId
       if (!sessionId) sessionId = (await createSession())?.id || null
       if (!sessionId) return
-      const result = await agentPlatformApi.sendMessage(sessionId, { content, agent_definition_id: selectedAgent || undefined })
+      const result = await agentPlatformApi.sendMessage(sessionId, { content, agent_definition_id: selectedAgent || undefined, attachment_ids: attachments.map(item => item.id) })
       setRuns(previous => [...previous, result.run]); setEvents([]); await loadTimeline(sessionId); await refreshWorkspace()
+      setAttachments([])
     } catch (error) { toast.error(error instanceof Error ? error.message : '发送失败'); setInput(rawContent) }
     finally { setSending(false) }
   }
@@ -253,14 +256,14 @@ export default function AgentWorkspacePage() {
       <ScrollArea className="flex-1"><div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
         {!messages.length && !activeRun && <div className="flex min-h-[45vh] flex-col items-center justify-center text-center"><div className="mb-4 rounded-2xl bg-primary/10 p-4"><Sparkles className="h-8 w-8 text-primary" /></div><h1 className="text-2xl font-semibold">今天想研究什么？</h1><div className="mt-5 grid gap-2 sm:grid-cols-2">{['解释这家公司的商业模式', '梳理一个投资假设', '列出关键风险和证伪条件', '比较两个标的的核心差异'].map(text => <Button key={text} variant="outline" onClick={() => setInput(text)}>{text}</Button>)}</div></div>}
         {messages.map(message => <MessageBubble key={message.id} message={message} />)}
-        {events.map(event => <EventCard key={`${event.id}-${event.type}`} event={event} />)}
+        {streamedText && <div className="rounded-xl border bg-card p-4"><ReactMarkdown>{streamedText}</ReactMarkdown></div>}{events.filter(event => event.type !== 'message.delta').map(event => <EventCard key={`${event.id}-${event.type}`} event={event} />)}
         {activeRun && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /><span>{statusLabel(activeRun.status)} · 步骤 {activeRun.current_step} · {activeRun.tokens_used} tokens</span></div>}
         {approvals.filter(item => !currentId || runs.some(run => run.id === (item as AgentApproval & { run_id?: string }).run_id)).map(item => <ApprovalCard key={item.id} item={item} onResolve={resolveApproval} />)}
         {notice && <Card className="border-primary/30"><CardContent className="whitespace-pre-wrap p-4 font-mono text-sm">{notice}</CardContent></Card>}
         <div ref={bottomRef} />
       </div></ScrollArea>
 
-      <div className="border-t bg-background p-3"><div className="relative mx-auto max-w-3xl">{input.startsWith('/') && <div className="absolute bottom-full z-20 mb-2 max-h-64 w-full overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">{COMMANDS.filter(([name]) => name.startsWith(input.split(/\s/, 1)[0])).map(([name, label]) => <button type="button" key={name} onClick={() => setInput(`${name} `)} className="flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm hover:bg-accent"><span className="font-mono">{name}</span><span className="text-xs text-muted-foreground">{label}</span></button>)}</div>}<form onSubmit={send} className="rounded-xl border bg-muted/20 shadow-sm focus-within:ring-1 focus-within:ring-ring"><Textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send() } if (e.key === 'Escape' && activeRun && currentId) void agentPlatformApi.stopSession(currentId) }} placeholder="输入问题，或输入 / 查看命令…" className="min-h-20 resize-none border-0 bg-transparent focus-visible:ring-0" /><div className="flex items-center gap-2 border-t px-2 py-2"><Badge variant="secondary" className="font-mono">/{currentSession?.interaction_mode || 'ask'}</Badge>{input.startsWith('/') && <div className="text-xs text-muted-foreground"><Command className="mr-1 inline h-3 w-3" />命令模式</div>}<div className="flex-1" />{activeRun && <Button type="button" size="sm" variant="outline" onClick={() => currentId && void agentPlatformApi.stopSession(currentId)}><CircleStop className="mr-1 h-4 w-4" />停止</Button>}<Button size="icon" disabled={!input.trim() || sending || !selectedAgent}>{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</Button></div></form></div><div className="mx-auto mt-1 flex max-w-3xl justify-between px-1 text-[11px] text-muted-foreground"><span>Enter 发送 · Shift+Enter 换行 · Esc 停止 · /help 命令</span><span>/{currentSession?.interaction_mode || 'ask'}</span></div></div>
+      <div className="border-t bg-background p-3"><div className="relative mx-auto max-w-3xl">{input.startsWith('/') && <div className="absolute bottom-full z-20 mb-2 max-h-64 w-full overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">{COMMANDS.filter(([name]) => name.startsWith(input.split(/\s/, 1)[0])).map(([name, label]) => <button type="button" key={name} onClick={() => setInput(`${name} `)} className="flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm hover:bg-accent"><span className="font-mono">{name}</span><span className="text-xs text-muted-foreground">{label}</span></button>)}</div>}{attachments.length > 0 && <div className="mb-2 flex flex-wrap gap-1">{attachments.map(file => <Badge key={file.id} variant="outline">{file.fileName}</Badge>)}</div>}<form onSubmit={send} className="rounded-xl border bg-muted/20 shadow-sm focus-within:ring-1 focus-within:ring-ring"><Textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send() } if (e.key === 'Escape' && activeRun && currentId) void agentPlatformApi.stopSession(currentId) }} placeholder="输入问题，或输入 / 查看命令…" className="min-h-20 resize-none border-0 bg-transparent focus-visible:ring-0" /><div className="flex items-center gap-2 border-t px-2 py-2"><label className="inline-flex cursor-pointer items-center rounded p-2 hover:bg-accent"><Paperclip className="h-4 w-4" /><input className="hidden" type="file" accept=".pdf,.docx,.xlsx,.csv,.txt,.md,image/*" onChange={e => { const file = e.target.files?.[0]; if (file) void agentPlatformApi.uploadAttachment(file).then(uploaded => setAttachments(items => [...items, uploaded])).catch(error => toast.error(error instanceof Error ? error.message : '附件上传失败')); e.currentTarget.value = '' }} /></label><Badge variant="secondary" className="font-mono">/{currentSession?.interaction_mode || 'ask'}</Badge>{input.startsWith('/') && <div className="text-xs text-muted-foreground"><Command className="mr-1 inline h-3 w-3" />命令模式</div>}<div className="flex-1" />{activeRun && <Button type="button" size="sm" variant="outline" onClick={() => currentId && void agentPlatformApi.stopSession(currentId)}><CircleStop className="mr-1 h-4 w-4" />停止</Button>}<Button size="icon" disabled={!input.trim() || sending || !selectedAgent}>{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</Button></div></form></div><div className="mx-auto mt-1 flex max-w-3xl justify-between px-1 text-[11px] text-muted-foreground"><span>Enter 发送 · Shift+Enter 换行 · 可附 PDF/DOCX/XLSX/图片</span><span>/{currentSession?.interaction_mode || 'ask'}</span></div></div>
     </main>
 
   return <div className="flex h-full min-h-0 overflow-hidden bg-background">
