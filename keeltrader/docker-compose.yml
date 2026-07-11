@@ -2,8 +2,7 @@
 # Deployment: self-hosted server
 # DB: NAS PostgreSQL keeltrader (FRP 5433) | Redis: local shared services-redis
 #
-# Default: docker compose up -d                    → 2 containers (api + web)
-# IBKR: docker compose --profile ibkr up -d     → 3 containers (+ ib-gateway)
+# Default: docker compose up -d → API, Web, and Agent Platform worker
 
 services:
   api:
@@ -31,10 +30,6 @@ services:
       - RESEARCH_CLOUD_ENABLED=${RESEARCH_CLOUD_ENABLED:-1}
       - RESEARCH_CLOUD_BASE_URL=${RESEARCH_CLOUD_BASE_URL:-https://research.joyeeassets.com}
       - REDIS_URL=${REDIS_URL}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL}
       - JWT_SECRET=${JWT_SECRET}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
       - KEELTRADER_AUTH_REQUIRED=${KEELTRADER_AUTH_REQUIRED:-1}
@@ -42,8 +37,6 @@ services:
       - KEELTRADER_AUTO_INIT_DB=${KEELTRADER_AUTO_INIT_DB:-0}
       - KEELTRADER_AUTO_INIT_TEST_USERS=${KEELTRADER_AUTO_INIT_TEST_USERS:-0}
       - KEELTRADER_RELOAD=${KEELTRADER_RELOAD:-0}
-      - TRADE_SYNC_ENABLED=${TRADE_SYNC_ENABLED:-0}
-      - TRADE_SYNC_INTERVAL_SECONDS=${TRADE_SYNC_INTERVAL_SECONDS:-60}
       - CORS_ORIGINS=${CORS_ORIGINS}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - ENVIRONMENT=production
@@ -101,9 +94,9 @@ services:
       - "traefik.http.routers.keeltrader-research-proxy.tls.certresolver=letsencrypt"
       - "traefik.http.routers.keeltrader-research-proxy.service=keeltrader-web"
 
-  agent-engine:
+  agent-platform-worker:
     image: keeltrader-api:latest
-    container_name: keeltrader-agent-engine
+    container_name: keeltrader-agent-platform-worker
     restart: unless-stopped
     mem_limit: 256m
     read_only: true
@@ -125,30 +118,10 @@ services:
     depends_on:
       api:
         condition: service_started
-    command: python tasks/agentos_engine.py
-
-  # === IBKR mode (profiles: [ibkr]) ===
-
-  ib-gateway:
-    image: gnzsnz/ib-gateway:10.29.1
-    container_name: keeltrader-ib-gateway
-    restart: unless-stopped
-    mem_limit: 1280m
-    profiles:
-      - ibkr
-    environment:
-      - TWS_USERID=${IBKR_USERNAME:-}
-      - TWS_PASSWORD=${IBKR_PASSWORD:-}
-      - TRADING_MODE=${IBKR_TRADING_MODE:-paper}
-      - TWS_ACCEPT_INCOMING=accept
-      - READ_ONLY_API=${IBKR_READ_ONLY:-yes}
-      - TWS_PORT=4001
-    volumes:
-      - ib_gateway_data:/root/Jts
+    command: python tasks/agent_platform_worker.py
 
 volumes:
   uploads_data:
-  ib_gateway_data:
 
 networks:
   default:

@@ -1,4 +1,4 @@
-"""Durable Agent Platform worker and compatibility heartbeat."""
+"""Durable Agent Platform worker."""
 
 from __future__ import annotations
 
@@ -28,12 +28,12 @@ async def main() -> None:
         while True:
             payload = {
                 "status": "running",
-                "service": "agentos-engine",
+                "service": "agent-platform-worker",
                 "mode": "durable-agent-platform-v1",
                 "timestamp": datetime.utcnow().isoformat(),
                 "tushare_token_required": False,
             }
-            await r.set("keeltrader:agentos:heartbeat", json.dumps(payload), ex=75)
+            await r.set("keeltrader:agent-platform:heartbeat", json.dumps(payload), ex=75)
             await asyncio.sleep(30)
     finally:
         if "worker" in locals():

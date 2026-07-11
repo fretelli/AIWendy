@@ -27,8 +27,8 @@ if [ "$(readlink keeltrader/README.md 2>/dev/null || true)" != "../README.md" ];
   exit 1
 fi
 
-if ! grep -q "自进化基本面投资研究 AgentOS" README.md; then
-  echo "[root-audit] canonical README is missing the fundamental AgentOS description" >&2
+if ! grep -q "自进化基本面投资研究 Agent Platform" README.md; then
+  echo "[root-audit] canonical README is missing the Agent Platform description" >&2
   exit 1
 fi
 
