@@ -50,3 +50,12 @@ def test_agent_platform_migration_splits_asyncpg_ddl_commands():
     migration = Path(__file__).resolve().parents[3] / "migrations/versions/020_agent_platform.py"
     source = migration.read_text(encoding="utf-8")
     assert 'for statement in ddl.split(";")' in source
+
+
+def test_agent_worker_bootstrap_adds_api_root_to_sys_path():
+    from pathlib import Path
+
+    worker = Path(__file__).resolve().parents[1] / "tasks/agentos_engine.py"
+    source = worker.read_text(encoding="utf-8")
+    assert "Path(__file__).resolve().parents[1]" in source
+    assert "sys.path.insert(0, API_ROOT)" in source

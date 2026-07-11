@@ -5,7 +5,15 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import sys
 from datetime import datetime
+from pathlib import Path
+
+# The Compose command executes this file directly (not with ``python -m``),
+# so Python otherwise exposes only /app/tasks on sys.path.
+API_ROOT = str(Path(__file__).resolve().parents[1])
+if API_ROOT not in sys.path:
+    sys.path.insert(0, API_ROOT)
 
 import redis.asyncio as aioredis
 
