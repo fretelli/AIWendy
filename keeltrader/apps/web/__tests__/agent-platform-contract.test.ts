@@ -29,6 +29,8 @@ describe('Agent Platform contract', () => {
     expect(page).not.toContain('[Ask mode:')
     expect(page).toContain('我的自选')
     expect(page).toContain('agentPlatformApi.addWatchlist')
+    expect(page).toContain('刷新基本面档案')
+    expect(page).toContain('证据与版本')
     expect(page).not.toContain('<Tabs')
   })
 

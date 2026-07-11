@@ -18,7 +18,8 @@ from config import get_settings
 from core.database import get_session
 from core.encryption import get_encryption_service
 from domain.agent_platform.models import (
-    AgentApproval, AgentArtifact, AgentCompanyWatchlist, AgentDefinition, AgentMCPServer, AgentMemory, AgentMemoryVersion,
+    AgentApproval, AgentArtifact, AgentCompanyDossier, AgentCompanyDossierVersion, AgentCompanyEvidence,
+    AgentCompanyWatchlist, AgentDefinition, AgentMCPServer, AgentMemory, AgentMemoryVersion,
     AgentMessage, AgentModelProfile, AgentRun, AgentRunEvent, AgentRunStep, AgentSchedule, AgentSession,
     AgentToolGrant, AgentUsageLedger,
 )
@@ -28,6 +29,7 @@ from services.agent_platform.network import validate_external_https_url
 from services.agent_platform.runtime import TERMINAL, emit, enqueue_run, parse_mcp_tool, redact_sensitive
 from services.agent_platform.tools import execute_platform_tool
 from services.agent_platform.tushare import TushareReadService
+from services.agent_platform.dossier import enqueue_dossier_refresh
 
 router = APIRouter()
 encryption = get_encryption_service()
@@ -408,6 +410,7 @@ async def add_watchlist(req: WatchlistAdd, session: AsyncSession = Depends(get_s
         await session.flush()
     else:
         item.refresh_enabled = True
+    await enqueue_dossier_refresh(user.id, code)
     return dump(item)
 
 
@@ -422,6 +425,53 @@ async def remove_watchlist(company_code: str, session: AsyncSession = Depends(ge
         raise HTTPException(404, "Watchlist company not found")
     await session.delete(item)
     return {"ok": True}
+
+
+@router.get("/dossiers/{company_code}")
+async def get_dossier(company_code: str, session: AsyncSession = Depends(get_session),
+                      user: User = Depends(get_current_user)):
+    dossier = (await session.execute(select(AgentCompanyDossier).where(
+        AgentCompanyDossier.user_id == user.id, AgentCompanyDossier.company_code == company_code,
+    ))).scalar_one_or_none()
+    if not dossier:
+        return {"status": "pending", "company_code": company_code, "snapshot": None, "evidence": [], "versions": []}
+    versions = (await session.execute(select(AgentCompanyDossierVersion).where(
+        AgentCompanyDossierVersion.dossier_id == dossier.id).order_by(desc(AgentCompanyDossierVersion.version))
+    )).scalars().all()
+    current = versions[0] if versions else None
+    evidence = []
+    if current:
+        evidence = (await session.execute(select(AgentCompanyEvidence).where(
+            AgentCompanyEvidence.dossier_version_id == current.id).order_by(AgentCompanyEvidence.created_at)
+        )).scalars().all()
+    return {"dossier": dump(dossier), "snapshot": current.snapshot if current else None,
+            "diff": current.diff if current else {}, "evidence": [dump(item) for item in evidence],
+            "versions": [dump(item) for item in versions]}
+
+
+@router.post("/dossiers/{company_code}/refresh")
+async def request_dossier_refresh(company_code: str, session: AsyncSession = Depends(get_session),
+                                  user: User = Depends(get_current_user)):
+    watch = (await session.execute(select(AgentCompanyWatchlist.id).where(
+        AgentCompanyWatchlist.user_id == user.id, AgentCompanyWatchlist.company_code == company_code,
+        AgentCompanyWatchlist.refresh_enabled.is_(True),
+    ))).scalar_one_or_none()
+    if not watch:
+        raise HTTPException(400, "Only companies in 我的自选 can be refreshed")
+    await enqueue_dossier_refresh(user.id, company_code, force=True)
+    return {"ok": True, "status": "queued"}
+
+
+@router.get("/dossiers/{company_code}/versions/{version}")
+async def get_dossier_version(company_code: str, version: int, session: AsyncSession = Depends(get_session),
+                              user: User = Depends(get_current_user)):
+    item = (await session.execute(select(AgentCompanyDossierVersion).join(AgentCompanyDossier).where(
+        AgentCompanyDossier.user_id == user.id, AgentCompanyDossier.company_code == company_code,
+        AgentCompanyDossierVersion.version == version,
+    ))).scalar_one_or_none()
+    if not item:
+        raise HTTPException(404, "Dossier version not found")
+    return dump(item)
 
 
 @router.post("/sessions")

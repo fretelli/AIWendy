@@ -216,6 +216,45 @@ class AgentCompanyWatchlist(Base):
     )
 
 
+class AgentCompanyDossier(Base):
+    __tablename__ = "agent_company_dossiers"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    company_code = Column(String(20), nullable=False)
+    company_name = Column(String(120), nullable=False)
+    industry = Column(String(120), nullable=True)
+    current_version = Column(Integer, nullable=False, default=0)
+    source_fingerprint = Column(String(64), nullable=True)
+    status = Column(String(30), nullable=False, default="pending")
+    stale = Column(Boolean, nullable=False, default=True)
+    last_refreshed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("uq_agent_company_dossier_user_code", "user_id", "company_code", unique=True),)
+
+
+class AgentCompanyDossierVersion(Base):
+    __tablename__ = "agent_company_dossier_versions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    dossier_id = Column(UUID(as_uuid=True), ForeignKey("agent_company_dossiers.id", ondelete="CASCADE"), nullable=False)
+    version = Column(Integer, nullable=False)
+    source_fingerprint = Column(String(64), nullable=False)
+    snapshot = Column(JSON, nullable=False)
+    diff = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("uq_agent_company_dossier_version", "dossier_id", "version", unique=True),)
+
+
+class AgentCompanyEvidence(Base):
+    __tablename__ = "agent_company_evidence"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    dossier_version_id = Column(UUID(as_uuid=True), ForeignKey("agent_company_dossier_versions.id", ondelete="CASCADE"), nullable=False)
+    source_type = Column(String(30), nullable=False)
+    citation = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("ix_agent_company_evidence_version", "dossier_version_id"),)
+
+
 class AgentMCPServer(Base):
     __tablename__ = "agent_platform_mcp_servers"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
