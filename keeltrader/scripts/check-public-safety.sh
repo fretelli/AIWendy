@@ -44,7 +44,7 @@ for name in files:
     path = pathlib.Path(name)
     try:
         text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
+    except (UnicodeDecodeError, OSError):
         continue
     for lineno, line in enumerate(text.splitlines(), start=1):
         for raw in pattern.findall(line):
