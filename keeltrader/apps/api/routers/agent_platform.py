@@ -23,6 +23,7 @@ from domain.agent_platform.models import (
     AgentMessage, AgentModelProfile, AgentRun, AgentRunEvent, AgentRunStep, AgentSchedule, AgentSession,
     AgentToolGrant, AgentUsageLedger,
 )
+from domain.file.models import UploadedFile
 from domain.user.models import User
 from services.agent_platform.mcp import call_tool, discover_tools, schema_digest
 from services.agent_platform.network import validate_external_https_url
@@ -30,6 +31,8 @@ from services.agent_platform.runtime import TERMINAL, emit, enqueue_run, parse_m
 from services.agent_platform.tools import execute_platform_tool
 from services.agent_platform.tushare import TushareReadService
 from services.agent_platform.dossier import enqueue_dossier_refresh
+from services.file_extractor import can_extract_text, extract_text
+from services.storage_service import get_storage_provider
 
 router = APIRouter()
 encryption = get_encryption_service()
@@ -156,6 +159,7 @@ class SessionUpdate(BaseModel):
 class SessionMessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=20000)
     agent_definition_id: UUID | None = None
+    attachment_ids: list[UUID] = Field(default_factory=list, max_length=10)
 
 
 class WatchlistAdd(BaseModel):
@@ -516,7 +520,36 @@ async def create_session_message(session_id: UUID, req: SessionMessageCreate, se
     if not agent or agent.user_id != user.id or not agent.is_active:
         raise HTTPException(404, "Agent not found")
     item.agent_definition_id = agent.id
-    run = await enqueue_run(session, user.id, agent, req.content, item.id, item.interaction_mode)
+    prompt = req.content
+    attachment_meta = []
+    if req.attachment_ids:
+        files = (await session.execute(select(UploadedFile).where(
+            UploadedFile.id.in_(req.attachment_ids), UploadedFile.user_id == user.id,
+            UploadedFile.deleted_at.is_(None),
+        ))).scalars().all()
+        if len(files) != len(set(req.attachment_ids)):
+            raise HTTPException(400, "Invalid attachment")
+        sections = []
+        storage = get_storage_provider()
+        for uploaded in files:
+            attachment_meta.append({"id": str(uploaded.id), "name": uploaded.file_name,
+                                    "company_code": item.company_code})
+            path = await storage.get_file_path(uploaded.storage_path)
+            if path and can_extract_text(uploaded.file_name):
+                result = extract_text(path)
+                if result.success and result.text:
+                    sections.append(f"Attachment {uploaded.file_name}:\n{result.text[:30000]}")
+            else:
+                sections.append(f"Attachment {uploaded.file_name}: binary/image supplied by the user; do not invent its contents.")
+        if sections:
+            prompt = f"{req.content}\n\nUser attachments bound to {item.company_code or 'this session'}:\n" + "\n\n".join(sections)
+    run = await enqueue_run(session, user.id, agent, prompt, item.id, item.interaction_mode)
+    if attachment_meta:
+        message = (await session.execute(select(AgentMessage).where(
+            AgentMessage.run_id == run.id, AgentMessage.role == "user"
+        ))).scalar_one_or_none()
+        if message:
+            message.metadata_json = {"attachments": attachment_meta}
     return {"run": dump(run), "session": dump(item)}
 
 
