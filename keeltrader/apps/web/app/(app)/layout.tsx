@@ -7,7 +7,6 @@ import { useAuth } from '@/lib/auth-context';
 import { Button } from '@/components/ui/button';
 import {
   BrainCircuit,
-  Settings,
   LogOut,
   Menu,
   X,
@@ -16,7 +15,6 @@ import { LanguageSwitcher, useI18n } from '@/lib/i18n/provider';
 
 const NAV_ITEMS = [
   { href: '/agent', icon: BrainCircuit, labelKey: 'nav.agent' },
-  { href: '/settings', icon: Settings, labelKey: 'nav.settings' },
 ] as const;
 
 export default function AppLayout({
