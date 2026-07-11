@@ -9,6 +9,8 @@ describe('Agent Platform contract', () => {
     expect(layout).toContain("href: '/agent'")
     expect(layout).not.toContain("href: '/research'")
     expect(layout).not.toContain("href: '/chat'")
+    expect(layout).not.toContain("href: '/settings'")
+    expect(fs.existsSync(path.join(root, 'app/(app)/settings/page.tsx'))).toBe(false)
   })
 
   it('uses a conversation-first workspace instead of the legacy tab console', () => {
