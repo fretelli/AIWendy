@@ -31,6 +31,8 @@ describe('Agent Platform contract', () => {
     expect(page).toContain('agentPlatformApi.addWatchlist')
     expect(page).toContain('刷新基本面档案')
     expect(page).toContain('证据与版本')
+    expect(page).toContain('Paperclip')
+    expect(page).toContain('可附 PDF/DOCX/XLSX/图片')
     expect(page).not.toContain('<Tabs')
   })
 

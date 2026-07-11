@@ -142,6 +142,17 @@ async def _daily_usage(session: AsyncSession, user_id: UUID) -> tuple[int, float
     return int(row[0]), float(row[1])
 
 
+async def _company_memory_context(session: AsyncSession, user_id: UUID, company_code: str | None) -> str:
+    if not company_code:
+        return ""
+    rows = (await session.execute(select(AgentMemory).where(
+        AgentMemory.user_id == user_id,
+        AgentMemory.key.like(f"company:{company_code}:%"),
+        AgentMemory.is_deleted.is_(False),
+    ).order_by(AgentMemory.updated_at.desc()).limit(8))).scalars().all()
+    return "\n".join(f"{item.key}: {json.dumps(item.value, ensure_ascii=False, default=str)}" for item in rows)
+
+
 async def _model_text(profile: AgentModelProfile, system: str, messages: list[dict[str, str]]) -> tuple[str, int, int]:
     if profile.credential_source == "managed":
         key = get_settings().agent_managed_api_key
@@ -204,6 +215,9 @@ async def _generate_plan(session: AsyncSession, run: AgentRun, agent: AgentDefin
     ) % (min(agent.max_steps, 20), json.dumps(schemas, ensure_ascii=False))
     chat = await session.get(AgentSession, run.session_id)
     task = f"Company context: {chat.company_code}\n\n{run.prompt}" if chat and chat.company_code else run.prompt
+    memory_context = await _company_memory_context(session, run.user_id, chat.company_code if chat else None)
+    if memory_context:
+        task = f"Company memory:\n{memory_context}\n\n{task}"
     text, input_tokens, output_tokens = await _model_text(profile, instruction, [{"role": "user", "content": task}])
     await _record_usage(session, run, profile, input_tokens, output_tokens)
     cleaned = text.strip()
@@ -317,11 +331,12 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
                 )
                 step_chat = await session.get(AgentSession, run.session_id)
                 company_context = step_chat.company_code if step_chat and step_chat.company_code else "none"
+                memory_context = await _company_memory_context(session, run.user_id, step_chat.company_code if step_chat else None)
                 prompt = json.dumps(outputs[-4:], ensure_ascii=False, default=str)
                 output_text, input_tokens, output_tokens = await _model_text(
                     profile,
                     agent.system_prompt + "\nYou are the " + step.agent_role + ". Research only; never place trades.",
-                    [{"role": "user", "content": f"Company context: {company_context}\n\nConversation:\n{conversation}\n\nTask: {run.prompt}\nEvidence: {prompt}"}],
+                    [{"role": "user", "content": f"Company context: {company_context}\nCompany memory:\n{memory_context}\n\nConversation:\n{conversation}\n\nTask: {run.prompt}\nEvidence: {prompt}"}],
                 )
                 await _record_usage(session, run, profile, input_tokens, output_tokens)
                 output = {"role": step.agent_role, "text": output_text}
@@ -361,13 +376,25 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
         if chat.context_tokens >= int(profile.context_window * .7):
             chat.summary = str(final.get("text") or json.dumps(final, ensure_ascii=False))[:12000]
             chat.context_tokens = min(run.tokens_used, profile.max_output_tokens)
-    if agent.memory_enabled:
-        memory = AgentMemory(user_id=run.user_id, agent_definition_id=agent.id,
-                             key=f"run:{run.id}", value={"summary": final},
-                             evidence=[{"run_id": str(run.id)}], confidence=.6)
-        session.add(memory)
-        await session.flush()
-        session.add(AgentMemoryVersion(memory_id=memory.id, version=1, value=memory.value, evidence=memory.evidence))
+    if agent.memory_enabled and chat and chat.company_code:
+        key = f"company:{chat.company_code}:thesis"
+        memory = (await session.execute(select(AgentMemory).where(
+            AgentMemory.user_id == run.user_id,
+            AgentMemory.agent_definition_id == agent.id,
+            AgentMemory.key == key,
+        ))).scalar_one_or_none()
+        evidence = [{"run_id": str(run.id), "company_code": chat.company_code}]
+        value = {"latest_conclusion": final_content[:12000], "updated_at": datetime.now(UTC).isoformat()}
+        if memory is None:
+            memory = AgentMemory(user_id=run.user_id, agent_definition_id=agent.id,
+                                 key=key, value=value, evidence=evidence, confidence=.7)
+            session.add(memory)
+            await session.flush()
+        else:
+            memory.version += 1
+            memory.value, memory.evidence, memory.confidence, memory.is_deleted = value, evidence, .7, False
+        session.add(AgentMemoryVersion(memory_id=memory.id, version=memory.version,
+                                       value=value, evidence=evidence))
     run.status, run.finished_at, run.lease_expires_at = "completed", datetime.now(UTC), None
     await emit(session, run.id, "run.completed", {"artifact_type": "research", "message": final_content})
     await session.commit()
@@ -382,6 +409,7 @@ async def _execute_direct_mode(session: AsyncSession, run: AgentRun, agent: Agen
     conversation = "\n".join(f"{item.role}: {item.content}" for item in reversed(recent_messages))
     chat = await session.get(AgentSession, run.session_id)
     company_context = chat.company_code if chat and chat.company_code else "none"
+    memory_context = await _company_memory_context(session, run.user_id, chat.company_code if chat else None)
     if run.interaction_mode == "plan":
         instruction = (
             agent.system_prompt
@@ -401,8 +429,10 @@ async def _execute_direct_mode(session: AsyncSession, run: AgentRun, agent: Agen
     await emit(session, run.id, "run.planned", {"steps": 0, "mode": run.interaction_mode})
     await session.commit()
     text, input_tokens, output_tokens = await _model_text(
-        profile, instruction, [{"role": "user", "content": f"Company context: {company_context}\n\nConversation:\n{conversation}\n\nCurrent request: {run.prompt}"}],
+        profile, instruction, [{"role": "user", "content": f"Company context: {company_context}\nCompany memory:\n{memory_context}\n\nConversation:\n{conversation}\n\nCurrent request: {run.prompt}"}],
     )
+    for offset in range(0, len(text), 120):
+        await emit(session, run.id, "message.delta", {"delta": text[offset:offset + 120]})
     await _record_usage(session, run, profile, input_tokens, output_tokens)
     session.add(AgentArtifact(user_id=run.user_id, run_id=run.id, artifact_type=artifact_type,
                               title=run.prompt[:200], content={"result": text, "mode": run.interaction_mode}))
