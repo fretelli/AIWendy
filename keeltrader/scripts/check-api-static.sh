@@ -66,7 +66,6 @@ guarded_scripts=(
   "init_db_simple.py"
   "init_user.py"
   "init_user_simple.py"
-  "migrate_chat_messages.py"
   "migrate_to_multi_tenant.py"
   "save_api_key.py"
   "setup_custom_api.py"
