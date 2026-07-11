@@ -2,9 +2,10 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
+import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from 'react-resizable-panels'
 import {
   Archive, Bot, Check, CircleStop, Command, Loader2, Menu, MessageSquarePlus,
-  PanelRight, Pin, Search, Send, Settings2, Sparkles, X,
+  PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pin, Search, Send, Settings2, Sparkles, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -18,15 +19,14 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   agentPlatformApi, type AgentApproval, type AgentDefinition, type AgentMemory,
   type AgentMessage, type AgentModelProfile, type AgentRun, type AgentSchedule,
-  type AgentSession, type MCPServer, type Usage,
+  type AgentSession, type InteractionMode, type MCPServer, type Usage,
 } from '@/lib/api/agent-platform'
 
 type LiveEvent = { id: string; type: string; payload: Record<string, unknown> }
-type Mode = 'ask' | 'research' | 'plan'
-
 const BUILTIN_TOOLS = ['query_research_reports', 'query_tushare_data', 'run_daily_brief', 'deep_research', 'run_weekly_review', 'record_fundamental_validation', 'record_investment_decision']
 const TERMINAL = new Set(['completed', 'failed', 'cancelled'])
 const COMMANDS = [
+  ['/ask', '直接回答，不调用工具'], ['/research', '执行只读投研'], ['/plan', '只生成研究计划'],
   ['/new', '新建会话'], ['/clear', '开始空白会话'], ['/compact', '压缩当前上下文'], ['/stop', '停止当前任务'],
   ['/settings', '打开安全设置'], ['/agents', '管理 Agent'], ['/model', '配置 BYOK'], ['/mcp', '配置 MCP'],
   ['/schedule', '管理定时任务'], ['/memory', '查看长期记忆'], ['/usage', '查看 Token 和费用'], ['/help', '显示命令帮助'],
@@ -49,7 +49,6 @@ export default function AgentWorkspacePage() {
   const [input, setInput] = useState('')
   const [search, setSearch] = useState('')
   const [sending, setSending] = useState(false)
-  const [mode, setMode] = useState<Mode>('research')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [contextOpen, setContextOpen] = useState(false)
@@ -61,6 +60,18 @@ export default function AgentWorkspacePage() {
   const [scheduleForm, setScheduleForm] = useState({ name: '', prompt: '', cron: '0 9 * * *', timezone: 'Asia/Shanghai' })
   const bottomRef = useRef<HTMLDivElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
+  const leftPanelRef = useRef<ImperativePanelHandle>(null)
+  const rightPanelRef = useRef<ImperativePanelHandle>(null)
+  const [leftCollapsed, setLeftCollapsed] = useState(false)
+  const [rightCollapsed, setRightCollapsed] = useState(false)
+  const [desktopPanels, setDesktopPanels] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 1280px)').matches)
+
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1280px)')
+    const sync = () => setDesktopPanels(media.matches)
+    media.addEventListener('change', sync)
+    return () => media.removeEventListener('change', sync)
+  }, [])
 
   const refreshWorkspace = useCallback(async () => {
     try {
@@ -115,14 +126,31 @@ export default function AgentWorkspacePage() {
 
   const createSession = async () => {
     if (!selectedAgent) { setSettingsOpen(true); toast.error('请先配置模型并创建 Agent'); return null }
-    const item = await agentPlatformApi.createSession({ agent_definition_id: selectedAgent, title: '新会话' })
+    const item = await agentPlatformApi.createSession({ agent_definition_id: selectedAgent, title: '新会话', interaction_mode: 'ask' })
     setSessions(previous => [item, ...previous]); setCurrentId(item.id); setMessages([]); setRuns([]); setEvents([]); setNotice(null)
     return item
   }
 
-  const runCommand = async (raw: string): Promise<boolean> => {
-    const command = raw.trim().split(/\s+/, 1)[0].toLowerCase()
-    if (!command.startsWith('/')) return false
+  const switchMode = async (mode: InteractionMode) => {
+    let sessionId = currentId
+    if (!sessionId) sessionId = (await createSession())?.id || null
+    if (!sessionId) return false
+    const updated = await agentPlatformApi.updateSession(sessionId, { interaction_mode: mode })
+    setSessions(previous => previous.map(item => item.id === sessionId ? updated : item))
+    setNotice(`已切换到 /${mode} 模式。`)
+    return true
+  }
+
+  const runCommand = async (raw: string): Promise<string | null> => {
+    const trimmed = raw.trim()
+    const [rawCommand, ...parts] = trimmed.split(/\s+/)
+    const command = rawCommand.toLowerCase()
+    if (!command.startsWith('/')) return trimmed
+    const remainder = parts.join(' ').trim()
+    if (command === '/ask' || command === '/research' || command === '/plan') {
+      const changed = await switchMode(command.slice(1) as InteractionMode)
+      return changed && remainder ? remainder : null
+    }
     if (command === '/new' || command === '/clear') await createSession()
     else if (command === '/compact' && currentId) { await agentPlatformApi.compactSession(currentId); setNotice('上下文已压缩，最近消息和会话摘要会继续参与后续研究。') }
     else if (command === '/stop' && currentId) { await agentPlatformApi.stopSession(currentId); setNotice('已请求停止当前任务。') }
@@ -130,24 +158,24 @@ export default function AgentWorkspacePage() {
     else if (command === '/usage') setNotice(`今日 Tokens：${(usage?.today.input_tokens || 0) + (usage?.today.output_tokens || 0)} · 成本 $${(usage?.today.cost_usd || 0).toFixed(4)}`)
     else if (command === '/help') setNotice(COMMANDS.map(([name, label]) => `${name}  ${label}`).join('\n'))
     else { setNotice(`未知命令：${command}\n输入 /help 查看可用命令。`) }
-    return true
+    return null
   }
 
   const send = async (event?: FormEvent) => {
     event?.preventDefault()
-    const content = input.trim()
-    if (!content || sending) return
+    const rawContent = input.trim()
+    if (!rawContent || sending) return
     setInput(''); setNotice(null)
-    if (await runCommand(content)) return
+    const content = await runCommand(rawContent)
+    if (!content) return
     setSending(true)
     try {
       let sessionId = currentId
       if (!sessionId) sessionId = (await createSession())?.id || null
       if (!sessionId) return
-      const prefix = mode === 'ask' ? '[Ask mode: answer without tools] ' : mode === 'plan' ? '[Plan mode: propose and explain the research plan before conclusions] ' : ''
-      const result = await agentPlatformApi.sendMessage(sessionId, { content: prefix + content, agent_definition_id: selectedAgent || undefined })
+      const result = await agentPlatformApi.sendMessage(sessionId, { content, agent_definition_id: selectedAgent || undefined })
       setRuns(previous => [...previous, result.run]); setEvents([]); await loadTimeline(sessionId); await refreshWorkspace()
-    } catch (error) { toast.error(error instanceof Error ? error.message : '发送失败'); setInput(content) }
+    } catch (error) { toast.error(error instanceof Error ? error.message : '发送失败'); setInput(rawContent) }
     finally { setSending(false) }
   }
 
@@ -162,6 +190,9 @@ export default function AgentWorkspacePage() {
 
   const filteredSessions = sessions.filter(item => item.title.toLowerCase().includes(search.toLowerCase()))
   if (loading) return <div className="flex h-full items-center justify-center"><Loader2 className="h-7 w-7 animate-spin" /></div>
+  const currentSession = sessions.find(item => item.id === currentId)
+  const pinCurrent = async () => { if (currentSession) { await agentPlatformApi.updateSession(currentSession.id, { is_pinned: !currentSession.is_pinned }); await refreshWorkspace() } }
+  const archiveCurrent = async () => { if (currentId) { await agentPlatformApi.updateSession(currentId, { archived: true }); setCurrentId(null); await refreshWorkspace() } }
 
   const sidebar = <div className="flex h-full flex-col bg-muted/20">
     <div className="flex items-center gap-2 border-b p-3"><Button className="flex-1 justify-start" onClick={() => void createSession()}><MessageSquarePlus className="mr-2 h-4 w-4" />新会话</Button><Button size="icon" variant="outline" onClick={() => setSettingsOpen(true)}><Settings2 className="h-4 w-4" /></Button></div>
@@ -170,15 +201,11 @@ export default function AgentWorkspacePage() {
     <div className="border-t p-3 text-xs text-muted-foreground"><div className="flex justify-between"><span>上下文</span><span>{sessions.find(s => s.id === currentId)?.context_tokens || 0} tokens</span></div><div className="mt-1 flex justify-between"><span>今日成本</span><span>${(usage?.today.cost_usd || 0).toFixed(4)}</span></div></div>
   </div>
 
-  return <div className="flex h-full min-h-0 overflow-hidden bg-background">
-    <aside className="hidden w-72 shrink-0 border-r lg:block">{sidebar}</aside>
-    <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}><SheetContent side="left" className="w-80 p-0"><SheetHeader className="sr-only"><SheetTitle>会话</SheetTitle></SheetHeader>{sidebar}</SheetContent></Sheet>
-
-    <main className="flex min-w-0 flex-1 flex-col">
-      <header className="flex h-14 items-center gap-2 border-b px-3"><Button className="lg:hidden" size="icon" variant="ghost" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></Button><div className="min-w-0 flex-1"><div className="truncate font-medium">{sessions.find(s => s.id === currentId)?.title || 'KeelTrader Agent'}</div><div className="text-xs text-muted-foreground">只读投研 · 不执行交易</div></div><select className="max-w-48 rounded-md border bg-background px-2 py-1 text-xs" value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}><option value="">选择 Agent</option>{agents.map(agent => <option value={agent.id} key={agent.id}>{agent.name}</option>)}</select><Button size="icon" variant="ghost" onClick={() => setContextOpen(true)}><PanelRight className="h-5 w-5" /></Button></header>
+  const mainPanel = <main className="flex h-full min-w-0 flex-1 flex-col">
+      <header className="flex h-14 items-center gap-2 border-b px-3"><Button className="xl:hidden" size="icon" variant="ghost" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></Button><Button className="hidden xl:inline-flex" size="icon" variant="ghost" onClick={() => leftPanelRef.current?.isCollapsed() ? leftPanelRef.current.expand() : leftPanelRef.current?.collapse()}>{leftCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}</Button><div className="min-w-0 flex-1"><div className="truncate font-medium">{currentSession?.title || 'KeelTrader Agent'}</div><div className="text-xs text-muted-foreground">只读投研 · 不执行交易</div></div><select className="max-w-48 rounded-md border bg-background px-2 py-1 text-xs" value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}><option value="">选择 Agent</option>{agents.map(agent => <option value={agent.id} key={agent.id}>{agent.name}</option>)}</select><Button size="icon" variant="ghost" onClick={() => desktopPanels ? (rightPanelRef.current?.isCollapsed() ? rightPanelRef.current.expand() : rightPanelRef.current?.collapse()) : setContextOpen(true)}>{rightCollapsed ? <PanelRightOpen className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}</Button></header>
 
       <ScrollArea className="flex-1"><div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
-        {!messages.length && !activeRun && <div className="flex min-h-[45vh] flex-col items-center justify-center text-center"><div className="mb-4 rounded-2xl bg-primary/10 p-4"><Sparkles className="h-8 w-8 text-primary" /></div><h1 className="text-2xl font-semibold">今天想研究什么？</h1><p className="mt-2 max-w-lg text-sm text-muted-foreground">连续追问、调用 report-kb 和 Tushare、查看证据、审批敏感工具，并把结论沉淀为可恢复记忆。</p><div className="mt-5 grid gap-2 sm:grid-cols-2">{['分析近期基本面变化和主要分歧', '搜索相关研报并列出可证伪条件', '比较多个标的的风险收益逻辑', '回顾我最近的研究结论'].map(text => <Button key={text} variant="outline" onClick={() => setInput(text)}>{text}</Button>)}</div></div>}
+        {!messages.length && !activeRun && <div className="flex min-h-[45vh] flex-col items-center justify-center text-center"><div className="mb-4 rounded-2xl bg-primary/10 p-4"><Sparkles className="h-8 w-8 text-primary" /></div><h1 className="text-2xl font-semibold">今天想研究什么？</h1><div className="mt-5 grid gap-2 sm:grid-cols-2">{['解释这家公司的商业模式', '梳理一个投资假设', '列出关键风险和证伪条件', '比较两个标的的核心差异'].map(text => <Button key={text} variant="outline" onClick={() => setInput(text)}>{text}</Button>)}</div></div>}
         {messages.map(message => <MessageBubble key={message.id} message={message} />)}
         {events.map(event => <EventCard key={`${event.id}-${event.type}`} event={event} />)}
         {activeRun && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /><span>{statusLabel(activeRun.status)} · 步骤 {activeRun.current_step} · {activeRun.tokens_used} tokens</span></div>}
@@ -187,17 +214,26 @@ export default function AgentWorkspacePage() {
         <div ref={bottomRef} />
       </div></ScrollArea>
 
-      <div className="border-t bg-background p-3"><div className="relative mx-auto max-w-3xl">{input.startsWith('/') && <div className="absolute bottom-full z-20 mb-2 max-h-64 w-full overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">{COMMANDS.filter(([name]) => name.startsWith(input.split(/\s/, 1)[0])).map(([name, label]) => <button type="button" key={name} onClick={() => setInput(`${name} `)} className="flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm hover:bg-accent"><span className="font-mono">{name}</span><span className="text-xs text-muted-foreground">{label}</span></button>)}</div>}<form onSubmit={send} className="rounded-xl border bg-muted/20 shadow-sm focus-within:ring-1 focus-within:ring-ring"><Textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send() } if (e.key === 'Escape' && activeRun && currentId) void agentPlatformApi.stopSession(currentId) }} placeholder="输入问题，或输入 / 查看命令…" className="min-h-20 resize-none border-0 bg-transparent focus-visible:ring-0" /><div className="flex items-center gap-2 border-t px-2 py-2"><select value={mode} onChange={e => setMode(e.target.value as Mode)} className="rounded border bg-background px-2 py-1 text-xs"><option value="ask">Ask</option><option value="research">Research</option><option value="plan">Plan</option></select>{input.startsWith('/') && <div className="text-xs text-muted-foreground"><Command className="mr-1 inline h-3 w-3" />命令模式</div>}<div className="flex-1" />{activeRun && <Button type="button" size="sm" variant="outline" onClick={() => currentId && void agentPlatformApi.stopSession(currentId)}><CircleStop className="mr-1 h-4 w-4" />停止</Button>}<Button size="icon" disabled={!input.trim() || sending || !selectedAgent}>{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</Button></div></form></div><div className="mx-auto mt-1 flex max-w-3xl justify-between px-1 text-[11px] text-muted-foreground"><span>Enter 发送 · Shift+Enter 换行 · Esc 停止 · /help 命令</span><span>{mode}</span></div></div>
+      <div className="border-t bg-background p-3"><div className="relative mx-auto max-w-3xl">{input.startsWith('/') && <div className="absolute bottom-full z-20 mb-2 max-h-64 w-full overflow-y-auto rounded-lg border bg-popover p-1 shadow-lg">{COMMANDS.filter(([name]) => name.startsWith(input.split(/\s/, 1)[0])).map(([name, label]) => <button type="button" key={name} onClick={() => setInput(`${name} `)} className="flex w-full items-center justify-between rounded px-3 py-2 text-left text-sm hover:bg-accent"><span className="font-mono">{name}</span><span className="text-xs text-muted-foreground">{label}</span></button>)}</div>}<form onSubmit={send} className="rounded-xl border bg-muted/20 shadow-sm focus-within:ring-1 focus-within:ring-ring"><Textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send() } if (e.key === 'Escape' && activeRun && currentId) void agentPlatformApi.stopSession(currentId) }} placeholder="输入问题，或输入 / 查看命令…" className="min-h-20 resize-none border-0 bg-transparent focus-visible:ring-0" /><div className="flex items-center gap-2 border-t px-2 py-2"><Badge variant="secondary" className="font-mono">/{currentSession?.interaction_mode || 'ask'}</Badge>{input.startsWith('/') && <div className="text-xs text-muted-foreground"><Command className="mr-1 inline h-3 w-3" />命令模式</div>}<div className="flex-1" />{activeRun && <Button type="button" size="sm" variant="outline" onClick={() => currentId && void agentPlatformApi.stopSession(currentId)}><CircleStop className="mr-1 h-4 w-4" />停止</Button>}<Button size="icon" disabled={!input.trim() || sending || !selectedAgent}>{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</Button></div></form></div><div className="mx-auto mt-1 flex max-w-3xl justify-between px-1 text-[11px] text-muted-foreground"><span>Enter 发送 · Shift+Enter 换行 · Esc 停止 · /help 命令</span><span>/{currentSession?.interaction_mode || 'ask'}</span></div></div>
     </main>
 
-    <ContextSheet open={contextOpen} onOpenChange={setContextOpen} session={sessions.find(s => s.id === currentId)} runs={runs} events={events} usage={usage} onPin={async () => { const current = sessions.find(s => s.id === currentId); if (current) { await agentPlatformApi.updateSession(current.id, { is_pinned: !current.is_pinned }); await refreshWorkspace() } }} onArchive={async () => { if (currentId) { await agentPlatformApi.updateSession(currentId, { archived: true }); setCurrentId(null); await refreshWorkspace() } }} />
+  return <div className="flex h-full min-h-0 overflow-hidden bg-background">
+    <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}><SheetContent side="left" className="w-80 p-0"><SheetHeader className="sr-only"><SheetTitle>会话</SheetTitle></SheetHeader>{sidebar}</SheetContent></Sheet>
+    {desktopPanels ? <PanelGroup direction="horizontal" autoSaveId="keeltrader-agent-workspace" className="h-full w-full">
+      <Panel ref={leftPanelRef} defaultSize={18} minSize={14} maxSize={30} collapsible collapsedSize={0} onCollapse={() => setLeftCollapsed(true)} onExpand={() => setLeftCollapsed(false)}><aside className="h-full border-r">{sidebar}</aside></Panel>
+      <PanelResizeHandle className="group relative w-1 bg-border/40 outline-none hover:bg-primary/40 focus-visible:bg-primary"><span className="absolute inset-y-0 -left-1 -right-1" /></PanelResizeHandle>
+      <Panel minSize={40}>{mainPanel}</Panel>
+      <PanelResizeHandle className="group relative w-1 bg-border/40 outline-none hover:bg-primary/40 focus-visible:bg-primary"><span className="absolute inset-y-0 -left-1 -right-1" /></PanelResizeHandle>
+      <Panel ref={rightPanelRef} defaultSize={24} minSize={18} maxSize={35} collapsible collapsedSize={0} onCollapse={() => setRightCollapsed(true)} onExpand={() => setRightCollapsed(false)}><aside className="h-full border-l bg-muted/10"><ContextContent session={currentSession} runs={runs} events={events} usage={usage} onPin={pinCurrent} onArchive={archiveCurrent} /></aside></Panel>
+    </PanelGroup> : mainPanel}
+    <ContextSheet open={contextOpen} onOpenChange={setContextOpen} session={currentSession} runs={runs} events={events} usage={usage} onPin={pinCurrent} onArchive={archiveCurrent} />
     <SettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} models={models} agents={agents} memories={memories} mcp={mcp} schedules={schedules} usage={usage} selectedAgent={selectedAgent} setSelectedAgent={setSelectedAgent} modelForm={modelForm} setModelForm={setModelForm} agentForm={agentForm} setAgentForm={setAgentForm} mcpForm={mcpForm} setMcpForm={setMcpForm} scheduleForm={scheduleForm} setScheduleForm={setScheduleForm} submit={submitSetting} />
   </div>
 }
 
 function MessageBubble({ message }: { message: AgentMessage }) {
   const user = message.role === 'user'
-  return <div className={`flex gap-3 ${user ? 'justify-end' : 'justify-start'}`}>{!user && <div className="mt-1 rounded-full bg-primary/10 p-2"><Bot className="h-4 w-4 text-primary" /></div>}<div className={`max-w-[88%] rounded-2xl px-4 py-3 ${user ? 'bg-primary text-primary-foreground' : 'bg-muted/60'}`}>{user ? <p className="whitespace-pre-wrap text-sm">{message.content.replace(/^\[(Ask|Plan) mode:[^\]]+\]\s*/, '')}</p> : <div className="prose prose-sm max-w-none dark:prose-invert"><ReactMarkdown>{message.content}</ReactMarkdown></div>}<div className={`mt-2 text-[10px] ${user ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>{new Date(message.created_at).toLocaleTimeString()}</div></div></div>
+  return <div className={`flex gap-3 ${user ? 'justify-end' : 'justify-start'}`}>{!user && <div className="mt-1 rounded-full bg-primary/10 p-2"><Bot className="h-4 w-4 text-primary" /></div>}<div className={`max-w-[88%] rounded-2xl px-4 py-3 ${user ? 'bg-primary text-primary-foreground' : 'bg-muted/60'}`}>{user ? <p className="whitespace-pre-wrap text-sm">{message.content}</p> : <div className="prose prose-sm max-w-none dark:prose-invert"><ReactMarkdown>{message.content}</ReactMarkdown></div>}<div className={`mt-2 text-[10px] ${user ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>{new Date(message.created_at).toLocaleTimeString()}</div></div></div>
 }
 
 function EventCard({ event }: { event: LiveEvent }) {
@@ -213,8 +249,12 @@ function ApprovalCard({ item, onResolve }: { item: AgentApproval; onResolve: (it
 }
 
 function ContextSheet({ open, onOpenChange, session, runs, events, usage, onPin, onArchive }: { open: boolean; onOpenChange: (v: boolean) => void; session?: AgentSession; runs: AgentRun[]; events: LiveEvent[]; usage: Usage | null; onPin: () => Promise<void>; onArchive: () => Promise<void> }) {
+  return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent className="w-[380px] overflow-y-auto"><SheetHeader><SheetTitle>会话上下文</SheetTitle></SheetHeader><ContextContent session={session} runs={runs} events={events} usage={usage} onPin={onPin} onArchive={onArchive} /></SheetContent></Sheet>
+}
+
+function ContextContent({ session, runs, events, usage, onPin, onArchive }: { session?: AgentSession; runs: AgentRun[]; events: LiveEvent[]; usage: Usage | null; onPin: () => Promise<void>; onArchive: () => Promise<void> }) {
   const latest = runs.at(-1)
-  return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent className="w-[380px] overflow-y-auto"><SheetHeader><SheetTitle>会话上下文</SheetTitle></SheetHeader><div className="mt-5 space-y-5"><div><div className="text-xs text-muted-foreground">当前会话</div><div className="font-medium">{session?.title || '-'}</div></div><div className="grid grid-cols-2 gap-2"><Metric label="上下文" value={`${session?.context_tokens || 0}`} /><Metric label="今日费用" value={`$${(usage?.today.cost_usd || 0).toFixed(4)}`} /><Metric label="任务状态" value={latest?.status || '-'} /><Metric label="实时事件" value={events.length} /></div>{session?.summary && <div><div className="mb-1 text-sm font-medium">压缩摘要</div><p className="whitespace-pre-wrap text-xs text-muted-foreground">{session.summary}</p></div>}<div className="flex gap-2"><Button variant="outline" onClick={() => void onPin()}><Pin className="mr-1 h-4 w-4" />{session?.is_pinned ? '取消置顶' : '置顶'}</Button><Button variant="outline" onClick={() => void onArchive()}><Archive className="mr-1 h-4 w-4" />归档</Button></div></div></SheetContent></Sheet>
+  return <div className="space-y-5 p-5"><div><div className="text-xs text-muted-foreground">当前会话</div><div className="truncate font-medium">{session?.title || '-'}</div><Badge variant="outline" className="mt-2 font-mono">/{session?.interaction_mode || 'ask'}</Badge></div><div className="grid grid-cols-2 gap-2"><Metric label="上下文" value={`${session?.context_tokens || 0}`} /><Metric label="今日费用" value={`$${(usage?.today.cost_usd || 0).toFixed(4)}`} /><Metric label="任务状态" value={latest?.status || '-'} /><Metric label="实时事件" value={events.length} /></div>{session?.summary && <div><div className="mb-1 text-sm font-medium">压缩摘要</div><p className="whitespace-pre-wrap text-xs text-muted-foreground">{session.summary}</p></div>}<div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => void onPin()}><Pin className="mr-1 h-4 w-4" />{session?.is_pinned ? '取消置顶' : '置顶'}</Button><Button variant="outline" onClick={() => void onArchive()}><Archive className="mr-1 h-4 w-4" />归档</Button></div></div>
 }
 
 type SettingsProps = {
