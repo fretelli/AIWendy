@@ -244,8 +244,20 @@ smoke() {
     die "Smoke failed: logged-in Agent Platform health expected 200, got $code"
   fi
 
+  code="$(curl -ksS -b "$cookies" -o "$body" -w '%{http_code}' "$BASE_URL/settings")"
+  if [ "$code" != "404" ]; then
+    rm -f "$cookies" "$body"
+    die "Smoke failed: removed /settings expected 404, got $code"
+  fi
+
+  code="$(curl -ksS -b "$cookies" -o "$body" -w '%{http_code}' "$BASE_URL/api/proxy/v1/settings/risk")"
+  if [ "$code" != "404" ]; then
+    rm -f "$cookies" "$body"
+    die "Smoke failed: removed settings API expected 404, got $code"
+  fi
+
   rm -f "$cookies" "$body"
-  log "smoke ok: logged-in Agent Platform"
+  log "smoke ok: logged-in Agent Platform and removed trading settings"
 }
 
 main() {

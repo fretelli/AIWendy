@@ -152,7 +152,6 @@ from routers import auth, health
 from routers.agent_platform import router as agent_platform_router
 from routers.users import router as users_router
 from routers.files import router as files_router
-from routers.settings_v2 import router as settings_v2_router
 from routers.market_data import (
     market_data_service,
     market_data_ws_service,
@@ -163,7 +162,6 @@ app.include_router(health.router, prefix="/api", tags=["Health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(files_router, prefix="/api/v1/files", tags=["Files"])
-app.include_router(settings_v2_router, prefix="/api/v1/settings", tags=["Settings"])
 app.include_router(agent_platform_router, prefix="/api/v1/agent", tags=["Agent Platform"])
 app.include_router(market_data_router, prefix="/api/v1/market-data", tags=["Market Data"])
 
