@@ -63,20 +63,24 @@ def parse_mcp_tool(name: str) -> tuple[UUID, str] | None:
 
 
 async def enqueue_run(session: AsyncSession, user_id: UUID, agent: AgentDefinition, prompt: str,
-                      session_id: UUID | None = None) -> AgentRun:
+                      session_id: UUID | None = None, interaction_mode: str | None = None) -> AgentRun:
     chat = None
     if session_id:
         chat = await session.get(AgentSession, session_id)
         if not chat or chat.user_id != user_id:
             raise ValueError("Session not found")
     if chat is None:
-        chat = AgentSession(user_id=user_id, agent_definition_id=agent.id, title=prompt[:120])
+        chat = AgentSession(user_id=user_id, agent_definition_id=agent.id, title=prompt[:120],
+                            interaction_mode=interaction_mode or "ask")
         session.add(chat)
         await session.flush()
-    user_message = AgentMessage(session_id=chat.id, role="user", content=prompt, status="completed")
+    mode = interaction_mode or chat.interaction_mode or "ask"
+    user_message = AgentMessage(session_id=chat.id, role="user", content=prompt, status="completed",
+                                metadata_json={"interaction_mode": mode})
     session.add(user_message)
     run = AgentRun(
         user_id=user_id, session_id=chat.id, agent_definition_id=agent.id, prompt=prompt,
+        interaction_mode=mode,
         token_budget=agent.task_token_budget, cost_budget_usd=agent.task_cost_budget_usd,
     )
     session.add(run)
@@ -120,7 +124,7 @@ async def dispatch_due_schedules(session: AsyncSession) -> int:
         if not agent or not agent.is_active:
             item.enabled = False
             continue
-        await enqueue_run(session, item.user_id, agent, item.prompt)
+        await enqueue_run(session, item.user_id, agent, item.prompt, interaction_mode="research")
         item.last_run_at = now
         item.next_run_at = item.next_run_at + timedelta(days=1)
         count += 1
@@ -222,6 +226,9 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
         run.status, run.error = "failed", "Agent model profile is not configured"
         run.finished_at = datetime.now(UTC)
         await emit(session, run.id, "run.failed", {"reason": run.error})
+        return
+    if run.interaction_mode in {"ask", "plan"}:
+        await _execute_direct_mode(session, run, agent, profile)
         return
     if not run.plan:
         run.plan = await _generate_plan(session, run, agent, profile)
@@ -353,6 +360,52 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
         session.add(AgentMemoryVersion(memory_id=memory.id, version=1, value=memory.value, evidence=memory.evidence))
     run.status, run.finished_at, run.lease_expires_at = "completed", datetime.now(UTC), None
     await emit(session, run.id, "run.completed", {"artifact_type": "research", "message": final_content})
+    await session.commit()
+
+
+async def _execute_direct_mode(session: AsyncSession, run: AgentRun, agent: AgentDefinition,
+                               profile: AgentModelProfile) -> None:
+    recent_messages = (await session.execute(
+        select(AgentMessage).where(AgentMessage.session_id == run.session_id)
+        .order_by(AgentMessage.created_at.desc()).limit(12)
+    )).scalars().all()
+    conversation = "\n".join(f"{item.role}: {item.content}" for item in reversed(recent_messages))
+    if run.interaction_mode == "plan":
+        instruction = (
+            agent.system_prompt
+            + "\nCreate a concise, executable investment research plan only. Do not call tools, "
+              "claim that research was performed, or provide a final investment conclusion. "
+              "State the questions, evidence needed, sequence, and completion criteria. Never place trades."
+        )
+        artifact_type = "plan"
+    else:
+        instruction = (
+            agent.system_prompt
+            + "\nAnswer directly from the supplied conversation only. Do not call or imply use of tools, "
+              "external research, private data, or live market data. State uncertainty when context is insufficient. "
+              "Never place trades."
+        )
+        artifact_type = "answer"
+    await emit(session, run.id, "run.planned", {"steps": 0, "mode": run.interaction_mode})
+    await session.commit()
+    text, input_tokens, output_tokens = await _model_text(
+        profile, instruction, [{"role": "user", "content": f"Conversation:\n{conversation}\n\nCurrent request: {run.prompt}"}],
+    )
+    await _record_usage(session, run, profile, input_tokens, output_tokens)
+    session.add(AgentArtifact(user_id=run.user_id, run_id=run.id, artifact_type=artifact_type,
+                              title=run.prompt[:200], content={"result": text, "mode": run.interaction_mode}))
+    session.add(AgentMessage(session_id=run.session_id, run_id=run.id, role="assistant", content=text,
+                             status="completed", metadata_json={"interaction_mode": run.interaction_mode,
+                                                                  "tokens": run.tokens_used,
+                                                                  "cost_usd": run.cost_used_usd}))
+    chat = await session.get(AgentSession, run.session_id)
+    if chat:
+        chat.context_tokens += run.tokens_used
+        chat.last_message_at = datetime.now(UTC)
+        chat.updated_at = datetime.now(UTC)
+    run.status, run.finished_at, run.lease_expires_at = "completed", datetime.now(UTC), None
+    await emit(session, run.id, "run.completed", {"artifact_type": artifact_type, "message": text,
+                                                    "mode": run.interaction_mode})
     await session.commit()
 
 

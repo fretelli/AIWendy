@@ -63,3 +63,20 @@ def test_conversational_migration_uses_split_asyncpg_statements():
     source = migration.read_text(encoding="utf-8")
     assert 'revision = "023"' in source
     assert "for statement in statements" in source
+
+
+def test_interaction_mode_migration_is_additive_and_research_safe():
+    migration = Path(__file__).resolve().parents[3] / "migrations/versions/024_agent_interaction_modes.py"
+    source = migration.read_text(encoding="utf-8")
+    assert 'revision = "024"' in source
+    assert 'down_revision = "023"' in source
+    assert "interaction_mode" in source
+    assert "'ask', 'research', 'plan'" in source
+
+
+def test_ask_and_plan_modes_use_the_no_tool_runtime_path():
+    runtime = Path(__file__).resolve().parents[1] / "services/agent_platform/runtime.py"
+    source = runtime.read_text(encoding="utf-8")
+    assert 'run.interaction_mode in {"ask", "plan"}' in source
+    assert "await _execute_direct_mode" in source
+    assert "Do not call or imply use of tools" in source
