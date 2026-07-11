@@ -4,7 +4,9 @@ export type AgentModelProfile = { id: string; name: string; provider: string; mo
 export type AgentDefinition = { id: string; name: string; role: string; description?: string; model_profile_id: string; tool_names: string[] }
 export type AgentRun = { id: string; prompt: string; status: string; current_step: number; tokens_used: number; cost_used_usd: number; created_at: string }
 export type InteractionMode = 'ask' | 'research' | 'plan'
-export type AgentSession = { id: string; agent_definition_id?: string; title: string; status: string; interaction_mode: InteractionMode; summary?: string; context_tokens: number; is_pinned: boolean; archived_at?: string; last_message_at: string; created_at: string }
+export type AgentSession = { id: string; agent_definition_id?: string; title: string; status: string; interaction_mode: InteractionMode; company_code?: string; summary?: string; context_tokens: number; is_pinned: boolean; archived_at?: string; last_message_at: string; created_at: string }
+export type CompanySearchItem = { ts_code: string; symbol: string; name: string; industry?: string; area?: string; market?: string; list_date?: string }
+export type WatchlistItem = { id: string; company_code: string; company_name: string; industry?: string; refresh_enabled: boolean; added_at: string }
 export type AgentMessage = { id: string; session_id: string; run_id?: string; role: 'user' | 'assistant' | 'system'; kind: string; status: string; content: string; metadata_json?: Record<string, unknown>; created_at: string }
 export type AgentApproval = { id: string; kind: string; preview: Record<string, unknown>; created_at: string }
 export type AgentMemory = { id: string; key: string; value: unknown; confidence: number; version: number; is_deleted: boolean }
@@ -22,8 +24,8 @@ export const agentPlatformApi = {
   runs: () => apiJson<{ items: AgentRun[] }>(`${base}/runs`),
   createRun: (body: object) => apiJson<AgentRun>(`${base}/runs`, { method: 'POST', body }),
   sessions: (includeArchived = false) => apiJson<{ items: AgentSession[] }>(`${base}/sessions?include_archived=${includeArchived}`),
-  createSession: (body: { agent_definition_id: string; title?: string; interaction_mode?: InteractionMode }) => apiJson<AgentSession>(`${base}/sessions`, { method: 'POST', body }),
-  updateSession: (id: string, body: { title?: string; is_pinned?: boolean; archived?: boolean; interaction_mode?: InteractionMode }) => apiJson<AgentSession>(`${base}/sessions/${id}`, { method: 'PATCH', body }),
+  createSession: (body: { agent_definition_id: string; title?: string; interaction_mode?: InteractionMode; company_code?: string | null }) => apiJson<AgentSession>(`${base}/sessions`, { method: 'POST', body }),
+  updateSession: (id: string, body: { title?: string; is_pinned?: boolean; archived?: boolean; interaction_mode?: InteractionMode; company_code?: string | null }) => apiJson<AgentSession>(`${base}/sessions/${id}`, { method: 'PATCH', body }),
   timeline: (id: string) => apiJson<{ session: AgentSession; messages: AgentMessage[]; runs: AgentRun[] }>(`${base}/sessions/${id}/timeline`),
   sendMessage: (id: string, body: { content: string; agent_definition_id?: string }) => apiJson<{ run: AgentRun; session: AgentSession }>(`${base}/sessions/${id}/messages`, { method: 'POST', body }),
   compactSession: (id: string) => apiJson<AgentSession>(`${base}/sessions/${id}/compact`, { method: 'POST' }),
@@ -39,4 +41,8 @@ export const agentPlatformApi = {
   schedules: () => apiJson<{ items: AgentSchedule[] }>(`${base}/schedules`),
   createSchedule: (body: object) => apiJson<AgentSchedule>(`${base}/schedules`, { method: 'POST', body }),
   usage: () => apiJson<Usage>(`${base}/usage`),
+  companies: (query: string) => apiJson<{ items: CompanySearchItem[] }>(`${base}/companies?query=${encodeURIComponent(query)}`),
+  watchlist: () => apiJson<{ items: WatchlistItem[] }>(`${base}/watchlist`),
+  addWatchlist: (company: string) => apiJson<WatchlistItem>(`${base}/watchlist`, { method: 'POST', body: { company } }),
+  removeWatchlist: (companyCode: string) => apiJson(`${base}/watchlist/${encodeURIComponent(companyCode)}`, { method: 'DELETE' }),
 }

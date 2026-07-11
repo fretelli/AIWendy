@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import ReactMarkdown from 'react-markdown'
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from 'react-resizable-panels'
 import {
-  Archive, Bot, Check, CircleStop, Command, Loader2, Menu, MessageSquarePlus,
+  Archive, Bot, Building2, Check, CircleStop, Command, Loader2, Menu, MessageSquarePlus, Plus,
   PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Pin, Search, Send, Settings2, Sparkles, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -19,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea'
 import {
   agentPlatformApi, type AgentApproval, type AgentDefinition, type AgentMemory,
   type AgentMessage, type AgentModelProfile, type AgentRun, type AgentSchedule,
-  type AgentSession, type InteractionMode, type MCPServer, type Usage,
+  type AgentSession, type CompanySearchItem, type InteractionMode, type MCPServer, type Usage, type WatchlistItem,
 } from '@/lib/api/agent-platform'
 
 type LiveEvent = { id: string; type: string; payload: Record<string, unknown> }
@@ -46,6 +46,9 @@ export default function AgentWorkspacePage() {
   const [mcp, setMcp] = useState<MCPServer[]>([])
   const [schedules, setSchedules] = useState<AgentSchedule[]>([])
   const [usage, setUsage] = useState<Usage | null>(null)
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([])
+  const [companyQuery, setCompanyQuery] = useState('')
+  const [companyResults, setCompanyResults] = useState<CompanySearchItem[]>([])
   const [input, setInput] = useState('')
   const [search, setSearch] = useState('')
   const [sending, setSending] = useState(false)
@@ -75,18 +78,27 @@ export default function AgentWorkspacePage() {
 
   const refreshWorkspace = useCallback(async () => {
     try {
-      const [sessionData, agentData, modelData, approvalData, memoryData, mcpData, scheduleData, usageData] = await Promise.all([
+      const [sessionData, agentData, modelData, approvalData, memoryData, mcpData, scheduleData, usageData, watchlistData] = await Promise.all([
         agentPlatformApi.sessions(), agentPlatformApi.agents(), agentPlatformApi.models(), agentPlatformApi.approvals(),
-        agentPlatformApi.memories(true), agentPlatformApi.mcpServers(), agentPlatformApi.schedules(), agentPlatformApi.usage(),
+        agentPlatformApi.memories(true), agentPlatformApi.mcpServers(), agentPlatformApi.schedules(), agentPlatformApi.usage(), agentPlatformApi.watchlist(),
       ])
       setSessions(sessionData.items); setAgents(agentData.items); setModels(modelData.items); setApprovals(approvalData.items)
       setMemories(memoryData.items); setMcp(mcpData.items); setSchedules(scheduleData.items); setUsage(usageData)
+      setWatchlist(watchlistData.items)
       if (agentData.items[0]) setSelectedAgent(previous => previous || agentData.items[0].id)
       setCurrentId(previous => previous || sessionData.items[0]?.id || null)
-      if (!agentData.items.length || !modelData.items.length) setSettingsOpen(true)
+      if (!agentData.items.length) setSettingsOpen(true)
     } catch (error) { toast.error(error instanceof Error ? error.message : '工作台加载失败') }
     finally { setLoading(false) }
   }, [])
+
+  useEffect(() => {
+    if (!companyQuery.trim()) return
+    const timer = window.setTimeout(() => {
+      void agentPlatformApi.companies(companyQuery.trim()).then(data => setCompanyResults(data.items)).catch(() => setCompanyResults([]))
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [companyQuery])
 
   const loadTimeline = useCallback(async (sessionId: string) => {
     try {
@@ -124,9 +136,11 @@ export default function AgentWorkspacePage() {
     return () => window.clearInterval(timer)
   }, [activeRun, currentId, loadTimeline, refreshWorkspace])
 
-  const createSession = async () => {
+  const createSession = async (companyCode?: string) => {
     if (!selectedAgent) { setSettingsOpen(true); toast.error('请先配置模型并创建 Agent'); return null }
-    const item = await agentPlatformApi.createSession({ agent_definition_id: selectedAgent, title: '新会话', interaction_mode: 'ask' })
+    const company = watchlist.find(item => item.company_code === companyCode)
+    const item = await agentPlatformApi.createSession({ agent_definition_id: selectedAgent,
+      title: company ? `${company.company_name}研究` : '新会话', interaction_mode: 'ask', company_code: companyCode || null })
     setSessions(previous => [item, ...previous]); setCurrentId(item.id); setMessages([]); setRuns([]); setEvents([]); setNotice(null)
     return item
   }
@@ -188,6 +202,29 @@ export default function AgentWorkspacePage() {
     try { await fn(); toast.success(message); await refreshWorkspace() } catch (error) { toast.error(error instanceof Error ? error.message : '保存失败') }
   }
 
+  const selectCompany = async (companyCode: string) => {
+    let sessionId = currentId
+    if (!sessionId) sessionId = (await createSession(companyCode))?.id || null
+    if (!sessionId) return
+    const updated = await agentPlatformApi.updateSession(sessionId, { company_code: companyCode })
+    setSessions(previous => previous.map(item => item.id === sessionId ? updated : item))
+    const company = watchlist.find(item => item.company_code === companyCode)
+    setNotice(company ? `当前研究公司：${company.company_name}（${company.company_code}）` : `当前研究公司：${companyCode}`)
+  }
+
+  const addCompany = async (company: CompanySearchItem) => {
+    try {
+      const item = await agentPlatformApi.addWatchlist(company.ts_code)
+      setWatchlist(previous => previous.some(existing => existing.company_code === item.company_code) ? previous : [item, ...previous])
+      setCompanyQuery(''); setCompanyResults([]); await selectCompany(item.company_code)
+    } catch (error) { toast.error(error instanceof Error ? error.message : '加入自选失败') }
+  }
+
+  const removeCompany = async (companyCode: string) => {
+    await agentPlatformApi.removeWatchlist(companyCode)
+    setWatchlist(previous => previous.filter(item => item.company_code !== companyCode))
+  }
+
   const filteredSessions = sessions.filter(item => item.title.toLowerCase().includes(search.toLowerCase()))
   if (loading) return <div className="flex h-full items-center justify-center"><Loader2 className="h-7 w-7 animate-spin" /></div>
   const currentSession = sessions.find(item => item.id === currentId)
@@ -196,13 +233,14 @@ export default function AgentWorkspacePage() {
 
   const sidebar = <div className="flex h-full flex-col bg-muted/20">
     <div className="flex items-center gap-2 border-b p-3"><Button className="flex-1 justify-start" onClick={() => void createSession()}><MessageSquarePlus className="mr-2 h-4 w-4" />新会话</Button><Button size="icon" variant="outline" onClick={() => setSettingsOpen(true)}><Settings2 className="h-4 w-4" /></Button></div>
+    <div className="border-b p-3"><div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground"><Building2 className="h-3.5 w-3.5" />我的自选</div><div className="relative"><Input value={companyQuery} onChange={e => { setCompanyQuery(e.target.value); if (!e.target.value) setCompanyResults([]) }} placeholder="搜索A股代码或名称" className="h-8 text-xs" />{companyResults.length > 0 && <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-popover p-1 shadow-lg">{companyResults.map(company => <button key={company.ts_code} className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-accent" onClick={() => void addCompany(company)}><Plus className="h-3 w-3" /><span className="truncate">{company.name}</span><span className="ml-auto text-muted-foreground">{company.ts_code}</span></button>)}</div>}</div><div className="mt-2 space-y-1">{watchlist.map(company => <div key={company.company_code} className={`group flex items-center rounded-md ${currentSession?.company_code === company.company_code ? 'bg-accent' : 'hover:bg-accent/60'}`}><button className="min-w-0 flex-1 px-2 py-1.5 text-left text-xs" onClick={() => void selectCompany(company.company_code)}><span className="block truncate font-medium">{company.company_name}</span><span className="text-[10px] text-muted-foreground">{company.company_code}{company.industry ? ` · ${company.industry}` : ''}</span></button><Button className="mr-1 h-6 w-6 opacity-0 group-hover:opacity-100" size="icon" variant="ghost" onClick={() => void removeCompany(company.company_code)}><X className="h-3 w-3" /></Button></div>)}</div></div>
     <div className="p-3"><div className="relative"><Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="pl-8" placeholder="搜索会话" value={search} onChange={e => setSearch(e.target.value)} /></div></div>
     <ScrollArea className="flex-1 px-2"><div className="space-y-1 pb-4">{filteredSessions.map(item => <button key={item.id} onClick={() => { setCurrentId(item.id); setSidebarOpen(false); setEvents([]) }} className={`group flex w-full items-start gap-2 rounded-md px-3 py-2 text-left text-sm ${currentId === item.id ? 'bg-accent' : 'hover:bg-accent/60'}`}><MessageSquarePlus className="mt-0.5 h-4 w-4 shrink-0" /><span className="min-w-0 flex-1"><span className="block truncate font-medium">{item.title}</span><span className="block text-xs text-muted-foreground">{new Date(item.last_message_at || item.created_at).toLocaleString()}</span></span>{item.is_pinned && <Pin className="h-3 w-3" />}</button>)}</div></ScrollArea>
     <div className="border-t p-3 text-xs text-muted-foreground"><div className="flex justify-between"><span>上下文</span><span>{sessions.find(s => s.id === currentId)?.context_tokens || 0} tokens</span></div><div className="mt-1 flex justify-between"><span>今日成本</span><span>${(usage?.today.cost_usd || 0).toFixed(4)}</span></div></div>
   </div>
 
   const mainPanel = <main className="flex h-full min-w-0 flex-1 flex-col">
-      <header className="flex h-14 items-center gap-2 border-b px-3"><Button className="xl:hidden" size="icon" variant="ghost" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></Button><Button className="hidden xl:inline-flex" size="icon" variant="ghost" onClick={() => leftPanelRef.current?.isCollapsed() ? leftPanelRef.current.expand() : leftPanelRef.current?.collapse()}>{leftCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}</Button><div className="min-w-0 flex-1"><div className="truncate font-medium">{currentSession?.title || 'KeelTrader Agent'}</div><div className="text-xs text-muted-foreground">只读投研 · 不执行交易</div></div><select className="max-w-48 rounded-md border bg-background px-2 py-1 text-xs" value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}><option value="">选择 Agent</option>{agents.map(agent => <option value={agent.id} key={agent.id}>{agent.name}</option>)}</select><Button size="icon" variant="ghost" onClick={() => desktopPanels ? (rightPanelRef.current?.isCollapsed() ? rightPanelRef.current.expand() : rightPanelRef.current?.collapse()) : setContextOpen(true)}>{rightCollapsed ? <PanelRightOpen className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}</Button></header>
+      <header className="flex h-14 items-center gap-2 border-b px-3"><Button className="xl:hidden" size="icon" variant="ghost" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></Button><Button className="hidden xl:inline-flex" size="icon" variant="ghost" onClick={() => leftPanelRef.current?.isCollapsed() ? leftPanelRef.current.expand() : leftPanelRef.current?.collapse()}>{leftCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}</Button><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><div className="truncate font-medium">{currentSession?.title || 'KeelTrader Agent'}</div>{currentSession?.company_code && <Badge variant="outline" className="font-mono text-[10px]">{currentSession.company_code}</Badge>}</div><div className="text-xs text-muted-foreground">只读投研 · 不执行交易</div></div><select className="max-w-48 rounded-md border bg-background px-2 py-1 text-xs" value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}><option value="">选择 Agent</option>{agents.map(agent => <option value={agent.id} key={agent.id}>{agent.name}</option>)}</select><Button size="icon" variant="ghost" onClick={() => desktopPanels ? (rightPanelRef.current?.isCollapsed() ? rightPanelRef.current.expand() : rightPanelRef.current?.collapse()) : setContextOpen(true)}>{rightCollapsed ? <PanelRightOpen className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}</Button></header>
 
       <ScrollArea className="flex-1"><div className="mx-auto max-w-3xl space-y-5 px-4 py-6">
         {!messages.length && !activeRun && <div className="flex min-h-[45vh] flex-col items-center justify-center text-center"><div className="mb-4 rounded-2xl bg-primary/10 p-4"><Sparkles className="h-8 w-8 text-primary" /></div><h1 className="text-2xl font-semibold">今天想研究什么？</h1><div className="mt-5 grid gap-2 sm:grid-cols-2">{['解释这家公司的商业模式', '梳理一个投资假设', '列出关键风险和证伪条件', '比较两个标的的核心差异'].map(text => <Button key={text} variant="outline" onClick={() => setInput(text)}>{text}</Button>)}</div></div>}

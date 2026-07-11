@@ -27,6 +27,8 @@ describe('Agent Platform contract', () => {
     expect(page).not.toContain('<select value={mode}')
     expect(page).not.toContain('连续追问、调用 report-kb 和 Tushare')
     expect(page).not.toContain('[Ask mode:')
+    expect(page).toContain('我的自选')
+    expect(page).toContain('agentPlatformApi.addWatchlist')
     expect(page).not.toContain('<Tabs')
   })
 
