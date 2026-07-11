@@ -100,7 +100,6 @@ async def init_database() -> None:
         from domain.journal import models as journal_models  # noqa
         from domain.project import models as project_models  # noqa
         from domain.rpg import models as rpg_models  # noqa
-        from domain.research_cloud import models as research_cloud_models  # noqa
         from domain.user import models as user_models  # noqa
 
         async with engine.begin() as conn:

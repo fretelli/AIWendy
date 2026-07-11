@@ -51,7 +51,6 @@
     "analysis": "分析",
     "reports": "报告",
     "agent": "Agent",
-    "research": "研报",
     "coaches": "AI教练",
     "chat": "聊天",
     "roundtable": "圆桌讨论",
@@ -1079,9 +1078,7 @@
         "error": "登录失败，请重试。",
         "checking": "正在检查账号状态...",
         "alreadySignedIn": "已登录。提交后会进入 AgentOS，或回到刚才请求的页面。",
-        "inviteCaptured": "已捕获邀请来源：{source} · {type}",
-        "protectedNotice": "登录后才能访问 AgentOS、研报中心、Chat、设置和其它业务页面。",
-        "researchNotice": "研报反馈和请求会写入 research 后台，管理员能在同一处看到并处理。"
+        "protectedNotice": "登录后才能访问 Agent 工作台和设置。"
       },
       "register": {
         "title": "创建账号",

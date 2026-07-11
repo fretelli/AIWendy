@@ -32,7 +32,6 @@ def _import_domain_models():
     import domain.journal.models  # noqa
     import domain.project.models  # noqa
     import domain.rpg.models  # noqa
-    import domain.research_cloud.models  # noqa
     import domain.user.models  # noqa
 
 
@@ -154,7 +153,6 @@ from routers.agent_platform import router as agent_platform_router
 from routers.users import router as users_router
 from routers.files import router as files_router
 from routers.settings_v2 import router as settings_v2_router
-from routers.research_cloud import router as research_cloud_router
 from routers.market_data import (
     market_data_service,
     market_data_ws_service,
@@ -166,11 +164,6 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(files_router, prefix="/api/v1/files", tags=["Files"])
 app.include_router(settings_v2_router, prefix="/api/v1/settings", tags=["Settings"])
-app.include_router(
-    research_cloud_router,
-    prefix="/api/v1/research-cloud",
-    tags=["Research Cloud"],
-)
 app.include_router(agent_platform_router, prefix="/api/v1/agent", tags=["Agent Platform"])
 app.include_router(market_data_router, prefix="/api/v1/market-data", tags=["Market Data"])
 

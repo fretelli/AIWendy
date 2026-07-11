@@ -46,6 +46,7 @@ def test_legacy_routers_are_not_accidentally_exposed(client):
         "/api/v1/chat/send",
         "/api/v1/webhook/confirm",
         "/api/v1/agentos/health",
+        "/api/v1/research-cloud/connection",
     }
 
     assert paths.isdisjoint(legacy_paths)

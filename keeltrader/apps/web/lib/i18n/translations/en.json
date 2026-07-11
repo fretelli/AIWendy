@@ -51,7 +51,6 @@
     "analysis": "Analysis",
     "reports": "Reports",
     "agent": "Agent",
-    "research": "Research",
     "coaches": "AI Coaches",
     "chat": "Chat",
     "roundtable": "Roundtable",
@@ -1079,9 +1078,7 @@
         "error": "Failed to sign in. Please try again.",
         "checking": "Checking account status...",
         "alreadySignedIn": "You are already signed in. Submit to enter AgentOS or return to the requested page.",
-        "inviteCaptured": "Captured invite source: {source} · {type}",
-        "protectedNotice": "Sign in to access AgentOS, Research, Chat, Settings, and other workspace pages.",
-        "researchNotice": "Research feedback and requests are routed to the research backend for administrator review."
+        "protectedNotice": "Sign in to access the Agent workspace and settings."
       },
       "register": {
         "title": "Create an account",

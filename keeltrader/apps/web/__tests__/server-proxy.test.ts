@@ -134,27 +134,6 @@ describe("server proxy helper", () => {
     );
   });
 
-  it("keeps research proxy protected but forwards with a token", async () => {
-    fetchMock.mockResolvedValueOnce(new Response("research", { status: 200 }));
-
-    const response = await proxyRequest(
-      request("/api/research/reports/search", {
-        method: "POST",
-        headers: { authorization: "Bearer research-token" },
-        body: JSON.stringify({ query: "retail" }),
-      }),
-      context(["reports", "search"]),
-      {
-        baseUrls: () => ["https://research.example.com"],
-      }
-    );
-
-    expect(response.status).toBe(200);
-    expect(String(fetchMock.mock.calls[0][0])).toBe(
-      "https://research.example.com/api/reports/search"
-    );
-  });
-
   it("rewrites API location headers to same-origin proxy paths", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(null, {

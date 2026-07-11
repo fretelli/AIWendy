@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -10,7 +10,6 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Icons } from '@/components/icons'
 import { useAuth } from '@/lib/auth-context'
-import { getPendingInvite, savePendingInviteFromParams } from '@/lib/research-api'
 import { LanguageSwitcher, useI18n } from '@/lib/i18n/provider'
 
 function getErrorMessage(error: unknown): string | null {
@@ -31,26 +30,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [inviteNotice, setInviteNotice] = useState<{ source: string; type: string } | null>(null)
 
   const router = useRouter()
   const searchParams = useSearchParams()
   const { login, user, isLoading: authLoading } = useAuth()
   const { t } = useI18n()
-
-  useEffect(() => {
-    const params = new URLSearchParams(searchParams?.toString() || '')
-    const pendingInvite = savePendingInviteFromParams(params, 'auth_login', 'auth_login')
-    if (pendingInvite) {
-      const latestInvite = getPendingInvite()
-      queueMicrotask(() => {
-        setInviteNotice({
-          source: String(latestInvite?.invite_code || latestInvite?.inviter_user_id || '-'),
-          type: String(latestInvite?.source_type || 'auth_login'),
-        })
-      })
-    }
-  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -105,13 +89,6 @@ export default function LoginPage() {
                     </AlertDescription>
                   </Alert>
                 ) : null}
-                {inviteNotice && (
-                  <Alert>
-                    <AlertDescription>
-                      {t('landing.auth.login.inviteCaptured', inviteNotice)}
-                    </AlertDescription>
-                  </Alert>
-                )}
                 {error && (
                   <Alert className="alert-error">
                     <AlertDescription>{error}</AlertDescription>
@@ -171,9 +148,6 @@ export default function LoginPage() {
             <div className="grid gap-3 text-sm text-muted-foreground">
               <div className="rounded-md border p-4">
                 {t('landing.auth.login.protectedNotice')}
-              </div>
-              <div className="rounded-md border p-4">
-                {t('landing.auth.login.researchNotice')}
               </div>
             </div>
           </div>
