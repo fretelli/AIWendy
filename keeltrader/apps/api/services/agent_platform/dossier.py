@@ -65,9 +65,11 @@ async def dossier_worker_loop() -> None:
             if not item:
                 await asyncio.sleep(1)
                 continue
+            job_id = item.id
+            company_code = str(item.payload["company_code"])
+            force = bool(item.payload.get("force"))
             try:
-                await refresh_dossier(session, item.user_id, item.payload["company_code"],
-                                      force=bool(item.payload.get("force")))
+                await refresh_dossier(session, item.user_id, company_code, force=force)
                 item.status = "completed"
                 item.finished_at = datetime.now(UTC)
                 item.lease_owner = None
@@ -78,7 +80,7 @@ async def dossier_worker_loop() -> None:
             except Exception as exc:
                 await session.rollback()
                 async with session.begin():
-                    failed = await session.get(AgentBackgroundJob, item.id, with_for_update=True)
+                    failed = await session.get(AgentBackgroundJob, job_id, with_for_update=True)
                     failed.last_error = str(exc)[:2000]
                     failed.lease_owner = None
                     failed.lease_expires_at = None
@@ -97,7 +99,7 @@ async def dossier_worker_loop() -> None:
                         dossier.stale = True
                         dossier.last_error = failed.last_error
                         dossier.next_retry_at = failed.available_at if failed.status == "retry" else None
-                logger.exception("dossier_refresh_failed", job_id=str(item.id), error=str(exc))
+                logger.exception("dossier_refresh_failed", job_id=str(job_id), error=str(exc))
 
 
 async def dossier_scheduler_loop() -> None:

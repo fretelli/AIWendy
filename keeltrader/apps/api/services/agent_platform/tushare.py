@@ -217,19 +217,21 @@ class TushareReadService:
                              limit: int = 20) -> list[dict[str, Any]]:
         if not industry or not await self.table_exists("stock_basic") or not await self.table_exists("fina_indicator"):
             return []
+        period_clause = "AND f.end_date = :period" if period else ""
         q = text(f"""
             SELECT DISTINCT ON (f.ts_code) f.ts_code, b.name, f.end_date, f.roe, f.grossprofit_margin,
                    f.netprofit_margin, f.debt_to_assets
             FROM {self.schema}.fina_indicator f
             JOIN {self.schema}.stock_basic b ON b.ts_code = f.ts_code
             WHERE b.industry = :industry AND f.ts_code <> :symbol
-              AND (:period IS NULL OR f.end_date = :period)
+              {period_clause}
             ORDER BY f.ts_code, f.end_date DESC, f.ann_date DESC NULLS LAST, f.updated_at DESC NULLS LAST
             LIMIT :limit
         """)
-        return await self._execute_mappings(q, {
-            "industry": industry, "symbol": exclude_symbol, "period": period, "limit": limit,
-        })
+        params = {"industry": industry, "symbol": exclude_symbol, "limit": limit}
+        if period:
+            params["period"] = period
+        return await self._execute_mappings(q, params)
 
     async def query_table(
         self,
