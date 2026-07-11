@@ -73,13 +73,17 @@ async def enqueue_run(session: AsyncSession, user_id: UUID, agent: AgentDefiniti
         chat = AgentSession(user_id=user_id, agent_definition_id=agent.id, title=prompt[:120])
         session.add(chat)
         await session.flush()
-    session.add(AgentMessage(session_id=chat.id, role="user", content=prompt))
+    user_message = AgentMessage(session_id=chat.id, role="user", content=prompt, status="completed")
+    session.add(user_message)
     run = AgentRun(
         user_id=user_id, session_id=chat.id, agent_definition_id=agent.id, prompt=prompt,
         token_budget=agent.task_token_budget, cost_budget_usd=agent.task_cost_budget_usd,
     )
     session.add(run)
     await session.flush()
+    user_message.run_id = run.id
+    chat.last_message_at = datetime.now(UTC)
+    chat.updated_at = datetime.now(UTC)
     await emit(session, run.id, "run.queued", {"prompt_length": len(prompt)})
     return run
 
@@ -226,7 +230,7 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
                                      input_json=item.get("args") or {}, idempotency_key=f"{run.id}:{seq}"))
         run.status = "running"
         await emit(session, run.id, "run.planned", {"steps": len(run.plan)})
-        await session.flush()
+        await session.commit()
     steps = (await session.execute(select(AgentRunStep).where(AgentRunStep.run_id == run.id)
                                    .order_by(AgentRunStep.sequence))).scalars().all()
     outputs: list[dict[str, Any]] = list((run.checkpoint or {}).get("outputs") or [])
@@ -244,7 +248,7 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
             return
         step.status, step.started_at, step.attempts = "running", datetime.now(UTC), step.attempts + 1
         await emit(session, run.id, "step.started", {"step_id": str(step.id), "role": step.agent_role, "tool": step.tool_name})
-        await session.flush()
+        await session.commit()
         try:
             if step.tool_name:
                 if step.tool_name not in set(agent.tool_names or []):
@@ -255,6 +259,7 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
                     session.add(approval)
                     step.status, run.status = "waiting_approval", "waiting_approval"
                     await emit(session, run.id, "approval.required", {"approval_id": str(approval.id)})
+                    await session.commit()
                     return
                 mcp_ref = parse_mcp_tool(step.tool_name)
                 if mcp_ref:
@@ -279,6 +284,7 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
                         step.status, run.status = "waiting_approval", "waiting_approval"
                         await session.flush()
                         await emit(session, run.id, "approval.required", {"approval_id": str(approval.id)})
+                        await session.commit()
                         return
                     result = await call_tool(server, tool_name, step.input_json)
                 else:
@@ -287,11 +293,18 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
                     raise RuntimeError(result["error"])
                 output = redact_sensitive(result)
             else:
+                recent_messages = (await session.execute(
+                    select(AgentMessage).where(AgentMessage.session_id == run.session_id)
+                    .order_by(AgentMessage.created_at.desc()).limit(12)
+                )).scalars().all()
+                conversation = "\n".join(
+                    f"{message.role}: {message.content}" for message in reversed(recent_messages)
+                )
                 prompt = json.dumps(outputs[-4:], ensure_ascii=False, default=str)
                 output_text, input_tokens, output_tokens = await _model_text(
                     profile,
                     agent.system_prompt + "\nYou are the " + step.agent_role + ". Research only; never place trades.",
-                    [{"role": "user", "content": f"Task: {run.prompt}\nEvidence: {prompt}"}],
+                    [{"role": "user", "content": f"Conversation:\n{conversation}\n\nTask: {run.prompt}\nEvidence: {prompt}"}],
                 )
                 await _record_usage(session, run, profile, input_tokens, output_tokens)
                 output = {"role": step.agent_role, "text": output_text}
@@ -299,26 +312,35 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
             outputs.append(output)
             run.current_step = step.sequence + 1
             run.checkpoint = {"outputs": outputs, "last_step": step.sequence}
-            await emit(session, run.id, "step.completed", {"step_id": str(step.id)})
-            await session.flush()
+            await emit(session, run.id, "step.completed", {
+                "step_id": str(step.id), "role": step.agent_role, "tool": step.tool_name,
+                "output": redact_sensitive(output),
+            })
+            await session.commit()
         except Exception as exc:
             step.error = str(exc)[:1000]
             if step.attempts < 2:
                 step.status = "pending"
                 await emit(session, run.id, "step.retry", {"step_id": str(step.id)})
+                await session.commit()
                 return
             step.status, run.status, run.error = "failed", "failed", step.error
             run.finished_at = datetime.now(UTC)
             await emit(session, run.id, "run.failed", {"reason": step.error})
+            await session.commit()
             return
     final = outputs[-1] if outputs else {"text": "No output"}
     session.add(AgentArtifact(user_id=run.user_id, run_id=run.id, artifact_type="research",
                               title=run.prompt[:200], content={"result": final, "evidence": outputs[:-1]}))
-    session.add(AgentMessage(session_id=run.session_id, role="assistant",
-                             content=str(final.get("text") or json.dumps(final, ensure_ascii=False))))
+    final_content = str(final.get("text") or json.dumps(final, ensure_ascii=False))
+    session.add(AgentMessage(session_id=run.session_id, run_id=run.id, role="assistant",
+                             content=final_content, status="completed",
+                             metadata_json={"tokens": run.tokens_used, "cost_usd": run.cost_used_usd}))
     chat = await session.get(AgentSession, run.session_id)
     if chat:
         chat.context_tokens += run.tokens_used
+        chat.last_message_at = datetime.now(UTC)
+        chat.updated_at = datetime.now(UTC)
         if chat.context_tokens >= int(profile.context_window * .7):
             chat.summary = str(final.get("text") or json.dumps(final, ensure_ascii=False))[:12000]
             chat.context_tokens = min(run.tokens_used, profile.max_output_tokens)
@@ -330,7 +352,8 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
         await session.flush()
         session.add(AgentMemoryVersion(memory_id=memory.id, version=1, value=memory.value, evidence=memory.evidence))
     run.status, run.finished_at, run.lease_expires_at = "completed", datetime.now(UTC), None
-    await emit(session, run.id, "run.completed", {"artifact_type": "research"})
+    await emit(session, run.id, "run.completed", {"artifact_type": "research", "message": final_content})
+    await session.commit()
 
 
 async def worker_loop() -> None:
@@ -342,9 +365,8 @@ async def worker_loop() -> None:
                     await dispatch_due_schedules(session)
                     run = await claim_run(session, worker_id)
                 if run:
-                    async with session.begin():
-                        run = await session.get(AgentRun, run.id, with_for_update=True)
-                        await execute_claimed_run(session, run)
+                    run = await session.get(AgentRun, run.id, with_for_update=True)
+                    await execute_claimed_run(session, run)
                     continue
         except asyncio.CancelledError:
             raise
