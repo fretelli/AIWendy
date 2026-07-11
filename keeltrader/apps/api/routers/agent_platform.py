@@ -4,19 +4,21 @@ import asyncio
 import json
 from datetime import UTC, datetime, timedelta
 from typing import Any, AsyncIterator, Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from core.auth import get_current_user
+from config import get_settings
 from core.database import get_session
 from core.encryption import get_encryption_service
 from domain.agent_platform.models import (
-    AgentApproval, AgentArtifact, AgentDefinition, AgentMCPServer, AgentMemory, AgentMemoryVersion,
+    AgentApproval, AgentArtifact, AgentCompanyWatchlist, AgentDefinition, AgentMCPServer, AgentMemory, AgentMemoryVersion,
     AgentMessage, AgentModelProfile, AgentRun, AgentRunEvent, AgentRunStep, AgentSchedule, AgentSession,
     AgentToolGrant, AgentUsageLedger,
 )
@@ -25,6 +27,7 @@ from services.agent_platform.mcp import call_tool, discover_tools, schema_digest
 from services.agent_platform.network import validate_external_https_url
 from services.agent_platform.runtime import TERMINAL, emit, enqueue_run, parse_mcp_tool, redact_sensitive
 from services.agent_platform.tools import execute_platform_tool
+from services.agent_platform.tushare import TushareReadService
 
 router = APIRouter()
 encryption = get_encryption_service()
@@ -33,6 +36,61 @@ BUILTIN_TOOLS = {
     "run_daily_brief", "deep_research", "record_investment_decision", "run_weekly_review",
     "query_tushare_data", "query_research_reports", "record_fundamental_validation",
 }
+
+DEFAULT_AGENT_TOOLS = sorted(BUILTIN_TOOLS - {"record_investment_decision"})
+
+
+async def _ensure_managed_profile(session: AsyncSession) -> AgentModelProfile | None:
+    settings = get_settings()
+    if not settings.agent_managed_api_key or not settings.agent_managed_model:
+        return None
+    item = (await session.execute(select(AgentModelProfile).where(
+        AgentModelProfile.managed_slug == "deployment-default",
+    ))).scalar_one_or_none()
+    if item is None:
+        await session.execute(pg_insert(AgentModelProfile).values(
+            id=uuid4(), user_id=None, name="部署默认模型", provider=settings.agent_managed_provider,
+            base_url=settings.agent_managed_base_url, model=settings.agent_managed_model,
+            api_key_encrypted=None, credential_source="managed", managed_slug="deployment-default",
+            key_prefix=None, context_window=settings.agent_managed_context_window,
+            max_output_tokens=settings.agent_managed_max_output_tokens,
+            input_cost_per_million=0, output_cost_per_million=0, is_active=True,
+        ).on_conflict_do_nothing())
+        await session.flush()
+        item = (await session.execute(select(AgentModelProfile).where(
+            AgentModelProfile.managed_slug == "deployment-default",
+        ))).scalar_one()
+    else:
+        item.provider = settings.agent_managed_provider
+        item.base_url = settings.agent_managed_base_url
+        item.model = settings.agent_managed_model
+        item.context_window = settings.agent_managed_context_window
+        item.max_output_tokens = settings.agent_managed_max_output_tokens
+        item.is_active = True
+    return item
+
+
+async def _ensure_default_agent(session: AsyncSession, user: User) -> AgentDefinition | None:
+    existing = (await session.execute(select(AgentDefinition).where(
+        AgentDefinition.user_id == user.id, AgentDefinition.is_default.is_(True),
+        AgentDefinition.is_active.is_(True),
+    ))).scalar_one_or_none()
+    if existing:
+        return existing
+    profile = await _ensure_managed_profile(session)
+    if profile is None:
+        return None
+    item = AgentDefinition(
+        user_id=user.id, name="基本面研究员", description="A股公司基本面、证据与风险研究",
+        system_prompt=("你是只读基本面研究员。所有结论必须区分事实、推断和不确定性，"
+                       "引用可核验证据，主动寻找反例与证伪条件，禁止执行交易。"),
+        role="fundamental_researcher", model_profile_id=profile.id, tool_names=DEFAULT_AGENT_TOOLS,
+        memory_enabled=True, max_steps=12, max_parallel=3, task_token_budget=50000,
+        task_cost_budget_usd=5, is_default=True, is_active=True,
+    )
+    session.add(item)
+    await session.flush()
+    return item
 
 
 def dump(model, *, secret_fields: set[str] | None = None) -> dict[str, Any]:
@@ -82,6 +140,7 @@ class SessionCreate(BaseModel):
     agent_definition_id: UUID
     title: str = Field(default="新会话", min_length=1, max_length=200)
     interaction_mode: Literal["ask", "research", "plan"] = "ask"
+    company_code: str | None = Field(default=None, max_length=20)
 
 
 class SessionUpdate(BaseModel):
@@ -89,11 +148,16 @@ class SessionUpdate(BaseModel):
     is_pinned: bool | None = None
     archived: bool | None = None
     interaction_mode: Literal["ask", "research", "plan"] | None = None
+    company_code: str | None = Field(default=None, max_length=20)
 
 
 class SessionMessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=20000)
     agent_definition_id: UUID | None = None
+
+
+class WatchlistAdd(BaseModel):
+    company: str = Field(min_length=1, max_length=120)
 
 
 class ApprovalResolve(BaseModel):
@@ -129,7 +193,9 @@ class ScheduleCreate(BaseModel):
 
 @router.get("/health")
 async def health():
-    return {"status": "ok", "service": "agent-platform", "mode": "research-only"}
+    settings = get_settings()
+    return {"status": "ok", "service": "agent-platform", "mode": "research-only",
+            "managed_model_available": bool(settings.agent_managed_api_key and settings.agent_managed_model)}
 
 
 @router.post("/model-credentials")
@@ -138,6 +204,7 @@ async def create_model(req: ModelProfileCreate, session: AsyncSession = Depends(
         validate_external_https_url(req.base_url)
     item = AgentModelProfile(user_id=user.id, name=req.name, provider=req.provider, base_url=req.base_url,
                              model=req.model, api_key_encrypted=encryption.encrypt(req.api_key),
+                             credential_source="byok", managed_slug=None,
                              key_prefix=req.api_key[:6], context_window=req.context_window,
                              max_output_tokens=req.max_output_tokens,
                              input_cost_per_million=req.input_cost_per_million,
@@ -149,7 +216,10 @@ async def create_model(req: ModelProfileCreate, session: AsyncSession = Depends(
 
 @router.get("/model-credentials")
 async def list_models(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
-    items = (await session.execute(select(AgentModelProfile).where(AgentModelProfile.user_id == user.id)
+    await _ensure_managed_profile(session)
+    items = (await session.execute(select(AgentModelProfile).where(
+                                   or_(AgentModelProfile.user_id == user.id,
+                                       AgentModelProfile.managed_slug == "deployment-default"))
                                    .order_by(desc(AgentModelProfile.created_at)))).scalars().all()
     return {"items": [dump(item, secret_fields={"api_key_encrypted"}) for item in items]}
 
@@ -157,7 +227,7 @@ async def list_models(session: AsyncSession = Depends(get_session), user: User =
 @router.delete("/model-credentials/{item_id}")
 async def delete_model(item_id: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     item = await session.get(AgentModelProfile, item_id)
-    if not item or item.user_id != user.id:
+    if not item or item.user_id != user.id or item.credential_source == "managed":
         raise HTTPException(404, "Model profile not found")
     item.is_active = False
     return {"ok": True}
@@ -166,7 +236,7 @@ async def delete_model(item_id: UUID, session: AsyncSession = Depends(get_sessio
 @router.post("/definitions")
 async def create_definition(req: DefinitionCreate, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     profile = await session.get(AgentModelProfile, req.model_profile_id)
-    if not profile or profile.user_id != user.id or not profile.is_active:
+    if not profile or (profile.user_id not in {None, user.id}) or not profile.is_active:
         raise HTTPException(400, "Invalid model profile")
     unknown = set(req.tool_names) - BUILTIN_TOOLS
     for name in unknown:
@@ -184,6 +254,7 @@ async def create_definition(req: DefinitionCreate, session: AsyncSession = Depen
 
 @router.get("/definitions")
 async def list_definitions(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    await _ensure_default_agent(session, user)
     items = (await session.execute(select(AgentDefinition).where(AgentDefinition.user_id == user.id,
                                                                   AgentDefinition.is_active.is_(True))
                                    .order_by(desc(AgentDefinition.created_at)))).scalars().all()
@@ -303,13 +374,63 @@ async def list_sessions(include_archived: bool = False, session: AsyncSession = 
     return {"items": [dump(item) for item in items]}
 
 
+@router.get("/companies")
+async def search_companies(query: str = Query(default="", max_length=120), limit: int = Query(20, ge=1, le=50),
+                           session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    del user
+    return {"items": await TushareReadService(session).search_companies(query, limit)}
+
+
+@router.get("/watchlist")
+async def list_watchlist(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    items = (await session.execute(select(AgentCompanyWatchlist).where(
+        AgentCompanyWatchlist.user_id == user.id,
+    ).order_by(desc(AgentCompanyWatchlist.added_at)))).scalars().all()
+    return {"items": [dump(item) for item in items]}
+
+
+@router.post("/watchlist")
+async def add_watchlist(req: WatchlistAdd, session: AsyncSession = Depends(get_session),
+                        user: User = Depends(get_current_user)):
+    profile = await TushareReadService(session).stock_profile(req.company.strip())
+    if not profile or not profile.get("ts_code"):
+        raise HTTPException(404, "A-share company not found")
+    code = str(profile["ts_code"])
+    item = (await session.execute(select(AgentCompanyWatchlist).where(
+        AgentCompanyWatchlist.user_id == user.id,
+        AgentCompanyWatchlist.company_code == code,
+    ))).scalar_one_or_none()
+    if item is None:
+        item = AgentCompanyWatchlist(user_id=user.id, company_code=code,
+                                     company_name=str(profile.get("name") or code),
+                                     industry=profile.get("industry"), refresh_enabled=True)
+        session.add(item)
+        await session.flush()
+    else:
+        item.refresh_enabled = True
+    return dump(item)
+
+
+@router.delete("/watchlist/{company_code}")
+async def remove_watchlist(company_code: str, session: AsyncSession = Depends(get_session),
+                           user: User = Depends(get_current_user)):
+    item = (await session.execute(select(AgentCompanyWatchlist).where(
+        AgentCompanyWatchlist.user_id == user.id,
+        AgentCompanyWatchlist.company_code == company_code,
+    ))).scalar_one_or_none()
+    if not item:
+        raise HTTPException(404, "Watchlist company not found")
+    await session.delete(item)
+    return {"ok": True}
+
+
 @router.post("/sessions")
 async def create_session(req: SessionCreate, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     agent = await session.get(AgentDefinition, req.agent_definition_id)
     if not agent or agent.user_id != user.id or not agent.is_active:
         raise HTTPException(404, "Agent not found")
     item = AgentSession(user_id=user.id, agent_definition_id=agent.id, title=req.title,
-                        interaction_mode=req.interaction_mode)
+                        interaction_mode=req.interaction_mode, company_code=req.company_code)
     session.add(item)
     await session.flush()
     return dump(item)
@@ -329,6 +450,8 @@ async def update_session(session_id: UUID, req: SessionUpdate, session: AsyncSes
         item.status = "archived" if req.archived else "active"
     if req.interaction_mode is not None:
         item.interaction_mode = req.interaction_mode
+    if "company_code" in req.model_fields_set:
+        item.company_code = req.company_code
     item.updated_at = datetime.now(UTC)
     return dump(item)
 

@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import async_session
 from core.encryption import get_encryption_service
+from config import get_settings
 from domain.agent_platform.models import (
     AgentApproval, AgentArtifact, AgentDefinition, AgentMCPServer, AgentMemory, AgentMemoryVersion,
     AgentMessage, AgentModelProfile, AgentRun, AgentRunEvent, AgentRunStep, AgentSchedule, AgentSession,
@@ -142,7 +143,14 @@ async def _daily_usage(session: AsyncSession, user_id: UUID) -> tuple[int, float
 
 
 async def _model_text(profile: AgentModelProfile, system: str, messages: list[dict[str, str]]) -> tuple[str, int, int]:
-    key = get_encryption_service().decrypt(profile.api_key_encrypted)
+    if profile.credential_source == "managed":
+        key = get_settings().agent_managed_api_key
+        if not key or profile.managed_slug != "deployment-default":
+            raise RuntimeError("Deployment-managed Agent model is not configured")
+    else:
+        if not profile.api_key_encrypted:
+            raise RuntimeError("BYOK model credential is missing")
+        key = get_encryption_service().decrypt(profile.api_key_encrypted)
     if profile.provider == "anthropic":
         from anthropic import AsyncAnthropic
         client = AsyncAnthropic(api_key=key, base_url=profile.base_url or None)
@@ -194,9 +202,9 @@ async def _generate_plan(session: AsyncSession, run: AgentRun, agent: AgentDefin
         "Never plan orders, trades, code execution, or credential access. End with analyst, red_team, "
         "risk_reviewer, and coordinator synthesis steps using tool=null.\nTools: %s"
     ) % (min(agent.max_steps, 20), json.dumps(schemas, ensure_ascii=False))
-    text, input_tokens, output_tokens = await _model_text(
-        profile, instruction, [{"role": "user", "content": run.prompt}],
-    )
+    chat = await session.get(AgentSession, run.session_id)
+    task = f"Company context: {chat.company_code}\n\n{run.prompt}" if chat and chat.company_code else run.prompt
+    text, input_tokens, output_tokens = await _model_text(profile, instruction, [{"role": "user", "content": task}])
     await _record_usage(session, run, profile, input_tokens, output_tokens)
     cleaned = text.strip()
     if cleaned.startswith("```"):
@@ -222,7 +230,7 @@ async def _generate_plan(session: AsyncSession, run: AgentRun, agent: AgentDefin
 async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
     agent = await session.get(AgentDefinition, run.agent_definition_id)
     profile = await session.get(AgentModelProfile, agent.model_profile_id) if agent and agent.model_profile_id else None
-    if not agent or not profile or profile.user_id != run.user_id:
+    if not agent or not profile or profile.user_id not in {None, run.user_id}:
         run.status, run.error = "failed", "Agent model profile is not configured"
         run.finished_at = datetime.now(UTC)
         await emit(session, run.id, "run.failed", {"reason": run.error})
@@ -307,11 +315,13 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
                 conversation = "\n".join(
                     f"{message.role}: {message.content}" for message in reversed(recent_messages)
                 )
+                step_chat = await session.get(AgentSession, run.session_id)
+                company_context = step_chat.company_code if step_chat and step_chat.company_code else "none"
                 prompt = json.dumps(outputs[-4:], ensure_ascii=False, default=str)
                 output_text, input_tokens, output_tokens = await _model_text(
                     profile,
                     agent.system_prompt + "\nYou are the " + step.agent_role + ". Research only; never place trades.",
-                    [{"role": "user", "content": f"Conversation:\n{conversation}\n\nTask: {run.prompt}\nEvidence: {prompt}"}],
+                    [{"role": "user", "content": f"Company context: {company_context}\n\nConversation:\n{conversation}\n\nTask: {run.prompt}\nEvidence: {prompt}"}],
                 )
                 await _record_usage(session, run, profile, input_tokens, output_tokens)
                 output = {"role": step.agent_role, "text": output_text}
@@ -370,6 +380,8 @@ async def _execute_direct_mode(session: AsyncSession, run: AgentRun, agent: Agen
         .order_by(AgentMessage.created_at.desc()).limit(12)
     )).scalars().all()
     conversation = "\n".join(f"{item.role}: {item.content}" for item in reversed(recent_messages))
+    chat = await session.get(AgentSession, run.session_id)
+    company_context = chat.company_code if chat and chat.company_code else "none"
     if run.interaction_mode == "plan":
         instruction = (
             agent.system_prompt
@@ -389,7 +401,7 @@ async def _execute_direct_mode(session: AsyncSession, run: AgentRun, agent: Agen
     await emit(session, run.id, "run.planned", {"steps": 0, "mode": run.interaction_mode})
     await session.commit()
     text, input_tokens, output_tokens = await _model_text(
-        profile, instruction, [{"role": "user", "content": f"Conversation:\n{conversation}\n\nCurrent request: {run.prompt}"}],
+        profile, instruction, [{"role": "user", "content": f"Company context: {company_context}\n\nConversation:\n{conversation}\n\nCurrent request: {run.prompt}"}],
     )
     await _record_usage(session, run, profile, input_tokens, output_tokens)
     session.add(AgentArtifact(user_id=run.user_id, run_id=run.id, artifact_type=artifact_type,

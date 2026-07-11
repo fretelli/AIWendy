@@ -40,6 +40,10 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env}
+      AGENT_MANAGED_PROVIDER: ${AGENT_MANAGED_PROVIDER:-openai}
+      AGENT_MANAGED_MODEL: ${AGENT_MANAGED_MODEL:-}
+      AGENT_MANAGED_BASE_URL: ${AGENT_MANAGED_BASE_URL:-}
+      AGENT_MANAGED_API_KEY: ${AGENT_MANAGED_API_KEY:-}
       DEPLOYMENT_MODE: self-hosted
       ENVIRONMENT: production
       KEELTRADER_AUTH_REQUIRED: ${KEELTRADER_AUTH_REQUIRED:-1}
@@ -55,6 +59,40 @@ services:
         condition: service_healthy
     volumes:
       - selfhost_uploads:/app/uploads
+
+  agent-platform-worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,size=50M
+    environment:
+      DATABASE_URL: postgresql+asyncpg://keeltrader:${POSTGRES_PASSWORD}@postgres:5432/keeltrader
+      REDIS_URL: redis://redis:6379/0
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set ENCRYPTION_KEY in .env}
+      AGENT_MANAGED_PROVIDER: ${AGENT_MANAGED_PROVIDER:-openai}
+      AGENT_MANAGED_MODEL: ${AGENT_MANAGED_MODEL:-}
+      AGENT_MANAGED_BASE_URL: ${AGENT_MANAGED_BASE_URL:-}
+      AGENT_MANAGED_API_KEY: ${AGENT_MANAGED_API_KEY:-}
+      REPORT_KB_URL: ${REPORT_KB_URL:-}
+      REPORT_KB_SERVICE_KEY: ${REPORT_KB_SERVICE_KEY:-}
+      TUSHARE_DATABASE_URL: ${TUSHARE_DATABASE_URL:-}
+      DEPLOYMENT_MODE: self-hosted
+      ENVIRONMENT: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python tasks/agent_platform_worker.py
 
   web:
     build:

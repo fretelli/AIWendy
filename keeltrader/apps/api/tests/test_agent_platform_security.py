@@ -80,3 +80,14 @@ def test_ask_and_plan_modes_use_the_no_tool_runtime_path():
     assert 'run.interaction_mode in {"ask", "plan"}' in source
     assert "await _execute_direct_mode" in source
     assert "Do not call or imply use of tools" in source
+
+
+def test_managed_model_and_watchlist_migration_is_private_by_default():
+    migration = Path(__file__).resolve().parents[3] / "migrations/versions/025_fundamental_watchlist_foundation.py"
+    source = migration.read_text(encoding="utf-8")
+    assert 'revision = "025"' in source
+    assert 'down_revision = "024"' in source
+    assert "agent_company_watchlist" in source
+    config = (Path(__file__).resolve().parents[1] / "config.py").read_text(encoding="utf-8")
+    assert 'agent_managed_api_key: Optional[str] = None' in config
+    assert "joyeeassets.com" not in config
