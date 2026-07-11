@@ -11,6 +11,15 @@ describe('Agent Platform contract', () => {
     expect(layout).not.toContain("href: '/chat'")
   })
 
+  it('uses a conversation-first workspace instead of the legacy tab console', () => {
+    const page = fs.readFileSync(path.join(root, 'app/(app)/agent/page.tsx'), 'utf8')
+    expect(page).toContain('新会话')
+    expect(page).toContain('EventSource')
+    expect(page).toContain("'/compact'")
+    expect(page).toContain('需要你的批准')
+    expect(page).not.toContain('<Tabs')
+  })
+
   it('does not expose trade execution controls in the Agent workspace', () => {
     const page = fs.readFileSync(path.join(root, 'app/(app)/agent/page.tsx'), 'utf8')
     expect(page).not.toContain('place_order')
