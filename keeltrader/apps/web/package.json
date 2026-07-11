@@ -49,6 +49,7 @@
     "react-dom": "18.3.1",
     "react-hook-form": "7.55.0",
     "react-markdown": "10.1.0",
+    "react-resizable-panels": "2.1.9",
     "react-syntax-highlighter": "16.1.0",
     "recharts": "2.12.7",
     "remark-gfm": "4.0.1",

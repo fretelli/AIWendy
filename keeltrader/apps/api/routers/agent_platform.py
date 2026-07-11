@@ -81,12 +81,14 @@ class RunCreate(BaseModel):
 class SessionCreate(BaseModel):
     agent_definition_id: UUID
     title: str = Field(default="新会话", min_length=1, max_length=200)
+    interaction_mode: Literal["ask", "research", "plan"] = "ask"
 
 
 class SessionUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     is_pinned: bool | None = None
     archived: bool | None = None
+    interaction_mode: Literal["ask", "research", "plan"] | None = None
 
 
 class SessionMessageCreate(BaseModel):
@@ -199,7 +201,8 @@ async def create_run(req: RunCreate, session: AsyncSession = Depends(get_session
     if not agent or agent.user_id != user.id or not agent.is_active:
         raise HTTPException(404, "Agent not found")
     try:
-        run = await enqueue_run(session, user.id, agent, req.prompt, req.session_id)
+        run = await enqueue_run(session, user.id, agent, req.prompt, req.session_id,
+                                None if req.session_id else "research")
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
     return dump(run)
@@ -305,7 +308,8 @@ async def create_session(req: SessionCreate, session: AsyncSession = Depends(get
     agent = await session.get(AgentDefinition, req.agent_definition_id)
     if not agent or agent.user_id != user.id or not agent.is_active:
         raise HTTPException(404, "Agent not found")
-    item = AgentSession(user_id=user.id, agent_definition_id=agent.id, title=req.title)
+    item = AgentSession(user_id=user.id, agent_definition_id=agent.id, title=req.title,
+                        interaction_mode=req.interaction_mode)
     session.add(item)
     await session.flush()
     return dump(item)
@@ -323,6 +327,8 @@ async def update_session(session_id: UUID, req: SessionUpdate, session: AsyncSes
     if req.archived is not None:
         item.archived_at = datetime.now(UTC) if req.archived else None
         item.status = "archived" if req.archived else "active"
+    if req.interaction_mode is not None:
+        item.interaction_mode = req.interaction_mode
     item.updated_at = datetime.now(UTC)
     return dump(item)
 
@@ -337,7 +343,7 @@ async def create_session_message(session_id: UUID, req: SessionMessageCreate, se
     if not agent or agent.user_id != user.id or not agent.is_active:
         raise HTTPException(404, "Agent not found")
     item.agent_definition_id = agent.id
-    run = await enqueue_run(session, user.id, agent, req.content, item.id)
+    run = await enqueue_run(session, user.id, agent, req.content, item.id, item.interaction_mode)
     return {"run": dump(run), "session": dump(item)}
 
 
