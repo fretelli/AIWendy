@@ -11,6 +11,7 @@ def register_domain_models() -> None:
     import domain.file.models  # noqa: F401
     import domain.journal.models  # noqa: F401
     import domain.project.models  # noqa: F401
+    import domain.research_cloud.models  # noqa: F401
     import domain.rpg.models  # noqa: F401
     import domain.user.models  # noqa: F401
 

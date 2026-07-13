@@ -37,7 +37,7 @@
    docker compose -f docker-compose.selfhost.yml exec -T api alembic upgrade head
    ```
 
-KeelTrader 不包含独立 Research Cloud 连接器。Agent 只通过管理员配置的只读 `report-kb` 服务检索研报，本地文档、模型密钥和决策日志不会发送到外部 Research 服务。
+KeelTrader 默认不连接 Research Cloud。管理员可显式设置 `RESEARCH_CLOUD_ENABLED=1` 和 `RESEARCH_CLOUD_BASE_URL`，之后仍需每位用户通过 `/agent` 的“云研报”设置完成设备授权。连接器只发送检索词、公司筛选和报告 ID；本地文档、持仓、交易、模型密钥和决策日志不会上传。
 
 ## Agent 平台、BYOK 与 MCP
 
@@ -125,7 +125,7 @@ Use `docker-compose.selfhost.yml` for private deployments. It includes isolated 
    docker compose -f docker-compose.selfhost.yml exec -T api alembic upgrade head
    ```
 
-KeelTrader does not include a standalone Research Cloud connector. Agents retrieve reports only through the administrator-configured, read-only `report-kb` service; local documents, model credentials, and decision journals are not sent to the external Research service.
+KeelTrader does not connect to Research Cloud by default. An administrator may explicitly set `RESEARCH_CLOUD_ENABLED=1` and `RESEARCH_CLOUD_BASE_URL`; each user must still complete device authorization in the `/agent` “Cloud Research” settings. The connector sends only search terms, company filters, and report IDs. Local documents, positions, trades, model credentials, and decision journals are never uploaded.
 
 ## Agent Platform, BYOK, and MCP
 
