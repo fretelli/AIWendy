@@ -28,6 +28,8 @@ def test_active_route_prefixes_are_mounted(client):
         "/api/v1/agent/watchlist/{company_code}",
         "/api/v1/agent/dossiers/{company_code}",
         "/api/v1/agent/dossiers/{company_code}/refresh",
+        "/api/v1/research-cloud/connection",
+        "/api/v1/research-cloud/search",
         "/api/v1/market-data/historical/{symbol}",
     }
 
@@ -58,7 +60,6 @@ def test_legacy_routers_are_not_accidentally_exposed(client):
         "/api/v1/chat/send",
         "/api/v1/webhook/confirm",
         "/api/v1/agentos/health",
-        "/api/v1/research-cloud/connection",
     }
 
     assert paths.isdisjoint(legacy_paths)

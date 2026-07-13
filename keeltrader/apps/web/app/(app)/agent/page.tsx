@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { KeelMark, ThemeMenu } from '@/components/keel-brand'
 import { LanguageSwitcher } from '@/lib/i18n/provider'
@@ -25,6 +26,7 @@ import {
   type AgentMessage, type AgentModelProfile, type AgentRun, type AgentSchedule,
   type AgentSession, type CompanyDossier, type CompanySearchItem, type InteractionMode, type MCPServer, type Usage, type WatchlistItem,
 } from '@/lib/api/agent-platform'
+import { apiFetch } from '@/lib/api/client'
 
 type LiveEvent = { id: string; type: string; payload: Record<string, unknown> }
 const BUILTIN_TOOLS = ['query_research_reports', 'query_tushare_data', 'run_daily_brief', 'deep_research', 'run_weekly_review', 'record_fundamental_validation', 'record_investment_decision']
@@ -337,12 +339,52 @@ type SettingsProps = {
   modelForm: Record<string, string | number>; setModelForm: (v: never) => void; agentForm: Record<string, unknown>; setAgentForm: (v: never) => void; mcpForm: Record<string, string>; setMcpForm: (v: never) => void; scheduleForm: Record<string, string>; setScheduleForm: (v: never) => void; submit: (fn: () => Promise<unknown>, message: string) => Promise<void>
 }
 
+type ResearchCloudConnection = {
+  status: string
+  connected: boolean
+  key_prefix?: string | null
+  plan_code?: string | null
+  user_code?: string | null
+  verification_uri?: string | null
+  last_error?: string | null
+  cloud_auto_context?: boolean
+}
+
 function SettingsSheet(props: SettingsProps) {
   const { open, onOpenChange, models, agents, memories, mcp, schedules, usage, selectedAgent, setSelectedAgent, modelForm, setModelForm, agentForm, setAgentForm, mcpForm, setMcpForm, scheduleForm, setScheduleForm, submit } = props
   const [section, setSection] = useState('setup')
-  const labels: Record<string, string> = { setup: '模型与隐私', agents: 'Agent', mcp: '扩展工具', memory: '记忆', schedule: '定时研究', usage: '用量' }
+  const [researchCloud, setResearchCloud] = useState<ResearchCloudConnection>({ status: 'disconnected', connected: false })
+  const [researchCloudAvailable, setResearchCloudAvailable] = useState(true)
+  const loadResearchCloud = useCallback(async (poll = false) => {
+    const response = await apiFetch(poll ? '/research-cloud/connection/status' : '/research-cloud/connection')
+    if (response.status === 503) { setResearchCloudAvailable(false); return }
+    if (response.ok) { setResearchCloudAvailable(true); setResearchCloud(await response.json()) }
+  }, [])
+  useEffect(() => {
+    if (open) queueMicrotask(() => void loadResearchCloud())
+  }, [loadResearchCloud, open])
+  useEffect(() => {
+    if (!open || researchCloud.status !== 'pending') return
+    const timer = window.setInterval(() => void loadResearchCloud(true), 5000)
+    return () => window.clearInterval(timer)
+  }, [loadResearchCloud, open, researchCloud.status])
+  const connectResearchCloud = async () => {
+    const response = await apiFetch('/research-cloud/connection/start', { method: 'POST' })
+    if (!response.ok) { toast.error(response.status === 503 ? '管理员尚未启用云研报' : '无法启动云研报授权'); return }
+    setResearchCloud(await response.json())
+  }
+  const disconnectResearchCloud = async () => {
+    const response = await apiFetch('/research-cloud/connection', { method: 'DELETE' })
+    if (response.ok) setResearchCloud(await response.json())
+  }
+  const setCloudAutoContext = async (enabled: boolean) => {
+    const response = await apiFetch('/research-cloud/connection/preferences', { method: 'PUT', body: { cloud_auto_context: enabled } })
+    if (response.ok) setResearchCloud(await response.json())
+  }
+  const labels: Record<string, string> = { setup: '模型与隐私', cloud: '云研报', agents: 'Agent', mcp: '扩展工具', memory: '记忆', schedule: '定时研究', usage: '用量' }
   return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent className="chart-surface w-full overflow-y-auto sm:max-w-xl"><SheetHeader><SheetTitle className="font-display text-2xl">研究台设置</SheetTitle></SheetHeader><div className="mt-4 flex flex-wrap gap-2">{Object.keys(labels).map(item => <Button key={item} size="sm" variant={section === item ? 'default' : 'outline'} onClick={() => setSection(item)}>{labels[item]}</Button>)}</div><div className="mt-5 space-y-4">
     {section === 'setup' && <Card><CardHeader><CardTitle className="text-base">安全配置 BYOK</CardTitle></CardHeader><CardContent className="grid gap-3"><Input placeholder="配置名称" value={String(modelForm.name)} onChange={e => setModelForm({ ...modelForm, name: e.target.value } as never)} /><select className="rounded border bg-background p-2" value={String(modelForm.provider)} onChange={e => setModelForm({ ...modelForm, provider: e.target.value } as never)}><option value="openai">OpenAI-compatible</option><option value="anthropic">Anthropic</option></select><Input placeholder="Base URL（官方可留空）" value={String(modelForm.base_url)} onChange={e => setModelForm({ ...modelForm, base_url: e.target.value } as never)} /><Input placeholder="Model" value={String(modelForm.model)} onChange={e => setModelForm({ ...modelForm, model: e.target.value } as never)} /><Input type="password" autoComplete="off" placeholder="API Key（不会进入聊天记录）" value={String(modelForm.api_key)} onChange={e => setModelForm({ ...modelForm, api_key: e.target.value } as never)} /><Button onClick={() => void submit(() => agentPlatformApi.createModel({ ...modelForm, base_url: modelForm.base_url || null }), '模型凭证已加密保存')}>保存模型</Button><div className="space-y-1">{models.map(item => <div className="rounded border p-2 text-sm" key={item.id}>{item.name} · {item.model}</div>)}</div></CardContent></Card>}
+    {section === 'cloud' && <Card><CardHeader><CardTitle className="text-base">可选 Research Cloud</CardTitle></CardHeader><CardContent className="space-y-3">{!researchCloudAvailable ? <p className="text-sm text-muted-foreground">此部署未启用云研报，研究活动保持在本机与管理员配置的 report-kb 内。</p> : researchCloud.connected ? <><div className="flex items-center gap-2"><Badge>已连接</Badge><span className="text-xs text-muted-foreground">{researchCloud.plan_code || 'Research plan'} · {researchCloud.key_prefix || '加密凭证'}</span></div><p className="text-sm text-muted-foreground">只发送检索词、公司筛选和报告 ID；本地文档、持仓、交易、模型密钥与决策日志不会上传。</p><div className="flex items-center justify-between rounded-xl border p-3"><div><div className="text-sm font-medium">自动补充云研报上下文</div><div className="text-xs text-muted-foreground">默认关闭；仅在你接受自动云查询时启用。</div></div><Switch checked={Boolean(researchCloud.cloud_auto_context)} onCheckedChange={value => void setCloudAutoContext(value)} /></div><Button variant="outline" onClick={() => void disconnectResearchCloud()}>断开连接</Button></> : researchCloud.status === 'pending' ? <><p className="text-sm">打开授权页面并输入设备码：</p><div className="font-data text-2xl tracking-[0.18em]">{researchCloud.user_code}</div>{researchCloud.verification_uri && <a className="text-sm text-primary underline" href={researchCloud.verification_uri} target="_blank" rel="noreferrer">打开授权页面</a>}<p className="text-xs text-muted-foreground">本页每 5 秒检查一次授权状态。</p></> : <>{researchCloud.last_error && <p className="text-sm text-destructive">{researchCloud.last_error}</p>}<p className="text-sm text-muted-foreground">管理员启用后，每位用户仍需独立授权；默认不共享任何本地研究资产。</p><Button onClick={() => void connectResearchCloud()}>连接云研报</Button></>}</CardContent></Card>}
     {section === 'agents' && <Card><CardHeader><CardTitle className="text-base">Agent</CardTitle></CardHeader><CardContent className="grid gap-3"><Input placeholder="名称" value={String(agentForm.name || '')} onChange={e => setAgentForm({ ...agentForm, name: e.target.value } as never)} /><Input placeholder="描述" value={String(agentForm.description || '')} onChange={e => setAgentForm({ ...agentForm, description: e.target.value } as never)} /><select className="rounded border bg-background p-2" value={String(agentForm.model_profile_id || '')} onChange={e => setAgentForm({ ...agentForm, model_profile_id: e.target.value } as never)}><option value="">选择模型</option>{models.map(item => <option key={item.id} value={item.id}>{item.name} · {item.model}</option>)}</select><Textarea value={String(agentForm.system_prompt || '')} onChange={e => setAgentForm({ ...agentForm, system_prompt: e.target.value } as never)} /><Button onClick={() => void submit(() => agentPlatformApi.createAgent(agentForm), 'Agent 已创建')}>创建 Agent</Button>{agents.map(item => <button className={`rounded border p-3 text-left ${selectedAgent === item.id ? 'border-primary' : ''}`} key={item.id} onClick={() => setSelectedAgent(item.id)}><div className="font-medium">{item.name}</div><div className="text-xs text-muted-foreground">{item.role} · {item.tool_names.length} tools</div></button>)}</CardContent></Card>}
     {section === 'mcp' && <Card><CardHeader><CardTitle className="text-base">公网 HTTPS MCP</CardTitle></CardHeader><CardContent className="grid gap-3"><Input placeholder="名称" value={mcpForm.name} onChange={e => setMcpForm({ ...mcpForm, name: e.target.value } as never)} /><Input placeholder="https://..." value={mcpForm.url} onChange={e => setMcpForm({ ...mcpForm, url: e.target.value } as never)} /><Input type="password" autoComplete="off" placeholder="Bearer Token（不会进入聊天记录）" value={mcpForm.auth_token} onChange={e => setMcpForm({ ...mcpForm, auth_token: e.target.value } as never)} /><Button onClick={() => void submit(() => agentPlatformApi.createMcp({ ...mcpForm, auth_token: mcpForm.auth_token || null }), 'MCP 已连接')}>发现工具</Button>{mcp.map(item => <div className="rounded border p-3 text-sm" key={item.id}>{item.name} <Badge>{item.status}</Badge><div className="text-xs text-muted-foreground">{item.url}</div></div>)}</CardContent></Card>}
     {section === 'memory' && <div className="space-y-2">{memories.map(item => <Card key={item.id}><CardContent className="p-3"><div className="font-medium">{item.key}</div><pre className="mt-2 max-h-52 overflow-auto whitespace-pre-wrap text-xs">{JSON.stringify(item.value, null, 2)}</pre></CardContent></Card>)}</div>}
