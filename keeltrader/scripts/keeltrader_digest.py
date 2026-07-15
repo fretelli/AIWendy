@@ -59,9 +59,11 @@ def _required_env(name: str) -> str:
 MINIFLUX_API_URL = _required_env("MINIFLUX_API_URL")
 MINIFLUX_API_KEY = _required_env("MINIFLUX_API_KEY")
 
-LLM_API_BASE = _required_env("LLM_API_BASE")
-LLM_API_KEY  = _required_env("LLM_API_KEY")
-LLM_MODEL    = os.environ.get("LLM_MODEL",    "deepseek-v3.2")
+LLM_API_BASE = (os.environ.get("LLM_API_BASE") or os.environ.get("CONTENT_LLM_BASE_URL", "")).strip()
+LLM_API_KEY = (os.environ.get("LLM_API_KEY") or os.environ.get("CONTENT_LLM_API_KEY", "")).strip()
+LLM_MODEL = (os.environ.get("LLM_MODEL") or os.environ.get("CONTENT_LLM_MODEL", "deepseek-v3.2")).strip()
+if not LLM_API_BASE or not LLM_API_KEY or not LLM_MODEL:
+    raise RuntimeError("Missing required LLM configuration")
 
 FEISHU_WEBHOOK_URL    = _required_env("FEISHU_WEBHOOK_URL")
 FEISHU_WEBHOOK_SECRET = _required_env("FEISHU_WEBHOOK_SECRET")
@@ -761,6 +763,14 @@ def _parse_post(text: str) -> tuple[str, str, str]:
     return title, "\n".join(lines[body_start:body_end]).strip(), "\n".join(tags_lines)
 
 
+def validate_post_text(text: str) -> None:
+    title, body, _ = _parse_post(text)
+    if not title:
+        raise ValueError("生成内容缺少标题")
+    if len(body) < 120:
+        raise ValueError(f"生成内容正文过短: {len(body)}")
+
+
 def send_to_feishu(feishu_title: str, post_text: str, cover_key: str | None):
     title, body, tags = _parse_post(post_text)
     if cover_key:
@@ -943,6 +953,15 @@ def main():
             metadata={"reason": "editorial_guard", "failures": len(failures)},
             logger=logger,
         )
+        return
+    try:
+        validate_post_text(post_text)
+    except ValueError as exc:
+        logger.error("生成内容未通过质量门禁: %s", exc)
+        if args.dry_run:
+            print(f"质量门禁失败: {exc}")
+        else:
+            _send_text(f"【{config['feishu_title']} ({date_range})】\n\n今日草稿未通过质量门禁，已禁止自动推送。\n原因: {exc}")
         return
     logger.info("帖子生成完成 (%d 字)", len(post_text))
 
