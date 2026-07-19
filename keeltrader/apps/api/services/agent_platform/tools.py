@@ -30,6 +30,12 @@ TOOL_DEFINITIONS = [
      "parameters": {"type": "object", "properties": {}}},
     {"name": "record_fundamental_validation", "description": "Record research evidence for a fundamental thesis",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "conclusion": {"type": "string"}, "evidence": {"type": "array", "items": {}}, "risks": {"type": "array", "items": {}}, "notes": {"type": "string"}}, "required": ["symbol"]}},
+    {"name": "search_holder", "description": "Search disclosed A-share top-10 floating shareholder names without excluding any holder type",
+     "parameters": {"type": "object", "properties": {"query": {"type": "string"}, "limit": {"type": "integer", "default": 20}}, "required": ["query"]}},
+    {"name": "holder_positions", "description": "Find stocks where an exact shareholder name appears in each company's latest disclosed top-10 floating shareholder list",
+     "parameters": {"type": "object", "properties": {"holder_name": {"type": "string"}, "holder_type": {"type": "string", "default": "未知"}, "aliases": {"type": "array", "items": {"type": "string"}}, "limit": {"type": "integer", "default": 100}}, "required": ["holder_name", "holder_type"]}},
+    {"name": "holder_history", "description": "Return objective quarter-by-quarter top-10 floating shareholder changes and exits",
+     "parameters": {"type": "object", "properties": {"holder_name": {"type": "string"}, "holder_type": {"type": "string", "default": "未知"}, "aliases": {"type": "array", "items": {"type": "string"}}, "limit": {"type": "integer", "default": 200}}, "required": ["holder_name", "holder_type"]}},
 ]
 
 
@@ -102,6 +108,37 @@ async def _validation(session: AsyncSession, user_id: UUID, args: dict[str, Any]
             "research_only": True, "user_id": str(user_id)}
 
 
+async def _search_holder(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
+    del user_id
+    service = TushareReadService(session)
+    items = await service.search_holders(str(args["query"]), int(args.get("limit", 20)))
+    return {"items": items, "source_available": await service.table_exists("top10_floatholders"),
+            "identity_note": "Natural-person names are disclosure-name matches and may include namesakes."}
+
+
+def _holder_tool_names(args: dict[str, Any]) -> list[str]:
+    values = [args.get("holder_name"), *(args.get("aliases") or [])]
+    return [str(value).strip() for value in values if str(value or "").strip()]
+
+
+async def _holder_positions(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
+    del user_id
+    return await TushareReadService(session).holder_current_positions(
+        _holder_tool_names(args), str(args.get("holder_type") or "未知"),
+        limit=int(args.get("limit", 100)),
+    )
+
+
+async def _holder_history(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
+    del user_id
+    result = await TushareReadService(session).holder_history(
+        _holder_tool_names(args), str(args.get("holder_type") or "未知"),
+        limit=int(args.get("limit", 200)),
+    )
+    result["exit_note"] = "exited_top10 means absent from a later disclosed top-ten list, not a confirmed full sale."
+    return result
+
+
 TOOL_HANDLERS: dict[str, ToolHandler] = {
     "query_research_reports": _reports,
     "query_tushare_data": _tushare,
@@ -110,6 +147,9 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "record_investment_decision": _decision,
     "run_weekly_review": _weekly_review,
     "record_fundamental_validation": _validation,
+    "search_holder": _search_holder,
+    "holder_positions": _holder_positions,
+    "holder_history": _holder_history,
 }
 
 

@@ -43,6 +43,7 @@ ALLOWED_TABLES = {
     "cn_gdp",
     "shibor",
     "lpr",
+    "top10_floatholders",
 }
 
 _tushare_session_factory: async_sessionmaker[AsyncSession] | None = None
@@ -232,6 +233,194 @@ class TushareReadService:
         if period:
             params["period"] = period
         return await self._execute_mappings(q, params)
+
+    async def holder_source_watermark(self) -> str | None:
+        """Return a cheap watermark for change detection by the holder inbox worker."""
+        if not await self.table_exists("top10_floatholders"):
+            return None
+        q = text(f"SELECT MAX(updated_at) FROM {self.schema}.top10_floatholders")
+        async with self._session_scope() as session:
+            value = (await session.execute(q)).scalar()
+        return _json_safe(value) if value else None
+
+    async def search_holders(self, query: str, limit: int = 30) -> list[dict[str, Any]]:
+        """Search raw shareholder names and return coverage metadata without filtering types."""
+        if not await self.table_exists("top10_floatholders"):
+            return []
+        value = query.strip()
+        if not value:
+            return []
+        limit = max(1, min(limit, 50))
+        q = text(f"""
+            SELECT holder_name, COALESCE(holder_type, '未知') AS holder_type,
+                   COUNT(DISTINCT ts_code) AS stock_count,
+                   MIN(end_date) AS first_end_date,
+                   MAX(end_date) AS last_end_date,
+                   MAX(ann_date) AS last_ann_date,
+                   CASE WHEN holder_name = :query THEN true ELSE false END AS exact_match
+            FROM {self.schema}.top10_floatholders
+            WHERE holder_name ILIKE :pattern
+            GROUP BY holder_name, COALESCE(holder_type, '未知')
+            ORDER BY CASE WHEN holder_name = :query THEN 0 ELSE 1 END,
+                     MAX(end_date) DESC, COUNT(DISTINCT ts_code) DESC, holder_name
+            LIMIT :limit
+        """)
+        return await self._execute_mappings(q, {
+            "query": value, "pattern": f"%{value}%", "limit": limit,
+        })
+
+    async def holder_current_positions(
+        self,
+        holder_names: list[str],
+        holder_type: str,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """Return positions present in each company's own latest disclosed period."""
+        if not await self.table_exists("top10_floatholders"):
+            return {"items": [], "total": 0, "source_available": False, "source_as_of": None}
+        names = [name.strip() for name in holder_names if name.strip()]
+        if not names:
+            return {"items": [], "total": 0, "source_available": True, "source_as_of": None}
+        limit, offset = max(1, min(limit, 500)), max(0, offset)
+        q = text(f"""
+            WITH matching_codes AS (
+                SELECT DISTINCT ts_code
+                FROM {self.schema}.top10_floatholders
+                WHERE holder_name = ANY(:holder_names)
+                  AND COALESCE(holder_type, '未知') = :holder_type
+            ), latest_periods AS (
+                SELECT source.ts_code, MAX(source.end_date) AS end_date
+                FROM {self.schema}.top10_floatholders source
+                JOIN matching_codes matched ON matched.ts_code = source.ts_code
+                GROUP BY source.ts_code
+            ), positions AS (
+                SELECT source.ts_code, source.end_date, MAX(source.ann_date) AS ann_date,
+                       ARRAY_AGG(DISTINCT source.holder_name ORDER BY source.holder_name) AS matched_names,
+                       SUM(source.hold_amount) AS hold_amount,
+                       SUM(source.hold_ratio) AS hold_ratio,
+                       SUM(source.hold_float_ratio) AS hold_float_ratio,
+                       SUM(source.hold_change) AS hold_change
+                FROM {self.schema}.top10_floatholders source
+                JOIN latest_periods latest
+                  ON latest.ts_code = source.ts_code AND latest.end_date = source.end_date
+                WHERE source.holder_name = ANY(:holder_names)
+                  AND COALESCE(source.holder_type, '未知') = :holder_type
+                GROUP BY source.ts_code, source.end_date
+            ), result AS (
+                SELECT position.*, stock.name AS company_name, stock.industry, stock.market,
+                       COUNT(*) OVER() AS total_count
+                FROM positions position
+                LEFT JOIN {self.schema}.stock_basic stock ON stock.ts_code = position.ts_code
+            )
+            SELECT * FROM result
+            ORDER BY end_date DESC, ann_date DESC NULLS LAST, ts_code
+            LIMIT :limit OFFSET :offset
+        """)
+        rows = await self._execute_mappings(q, {
+            "holder_names": names, "holder_type": holder_type or "未知",
+            "limit": limit, "offset": offset,
+        })
+        total = int(rows[0].pop("total_count")) if rows else 0
+        source_as_of = max((str(row.get("ann_date") or "") for row in rows), default="") or None
+        return {"items": rows, "total": total, "source_available": True, "source_as_of": source_as_of}
+
+    async def holder_history(
+        self,
+        holder_names: list[str],
+        holder_type: str,
+        *,
+        limit: int = 200,
+        offset: int = 0,
+        min_end_date: str | None = None,
+    ) -> dict[str, Any]:
+        """Build objective quarter-to-quarter holder events, including top-ten exits."""
+        if not await self.table_exists("top10_floatholders"):
+            return {"items": [], "total": 0, "source_available": False, "source_as_of": None}
+        names = [name.strip() for name in holder_names if name.strip()]
+        if not names:
+            return {"items": [], "total": 0, "source_available": True, "source_as_of": None}
+        limit, offset = max(1, min(limit, 1000)), max(0, offset)
+        period_filter = "AND source.end_date >= :min_end_date" if min_end_date else ""
+        q = text(f"""
+            WITH matching_codes AS (
+                SELECT DISTINCT ts_code
+                FROM {self.schema}.top10_floatholders
+                WHERE holder_name = ANY(:holder_names)
+                  AND COALESCE(holder_type, '未知') = :holder_type
+            ), company_periods AS (
+                SELECT source.ts_code, source.end_date, MAX(source.ann_date) AS ann_date
+                FROM {self.schema}.top10_floatholders source
+                JOIN matching_codes matched ON matched.ts_code = source.ts_code
+                WHERE true {period_filter}
+                GROUP BY source.ts_code, source.end_date
+            ), positions AS (
+                SELECT source.ts_code, source.end_date,
+                       ARRAY_AGG(DISTINCT source.holder_name ORDER BY source.holder_name) AS matched_names,
+                       SUM(source.hold_amount) AS hold_amount,
+                       SUM(source.hold_ratio) AS hold_ratio,
+                       SUM(source.hold_float_ratio) AS hold_float_ratio,
+                       SUM(source.hold_change) AS hold_change
+                FROM {self.schema}.top10_floatholders source
+                JOIN matching_codes matched ON matched.ts_code = source.ts_code
+                WHERE source.holder_name = ANY(:holder_names)
+                  AND COALESCE(source.holder_type, '未知') = :holder_type
+                  {period_filter}
+                GROUP BY source.ts_code, source.end_date
+            ), positioned AS (
+                SELECT period.ts_code, period.end_date, period.ann_date,
+                       position.matched_names, position.hold_amount, position.hold_ratio,
+                       position.hold_float_ratio, position.hold_change,
+                       (position.ts_code IS NOT NULL) AS present
+                FROM company_periods period
+                LEFT JOIN positions position
+                  ON position.ts_code = period.ts_code AND position.end_date = period.end_date
+            ), timeline AS (
+                SELECT positioned.*,
+                       LAG(present) OVER (PARTITION BY ts_code ORDER BY end_date) AS previous_present,
+                       LAG(end_date) OVER (PARTITION BY ts_code ORDER BY end_date) AS previous_end_date,
+                       LAG(hold_amount) OVER (PARTITION BY ts_code ORDER BY end_date) AS previous_hold_amount,
+                       LAG(hold_ratio) OVER (PARTITION BY ts_code ORDER BY end_date) AS previous_hold_ratio,
+                       LAG(hold_float_ratio) OVER (PARTITION BY ts_code ORDER BY end_date) AS previous_hold_float_ratio
+                FROM positioned
+            ), classified AS (
+                SELECT timeline.*,
+                       CASE
+                           WHEN present AND previous_present IS NULL THEN 'first_seen'
+                           WHEN present AND previous_present = false THEN 'new'
+                           WHEN NOT present AND previous_present = true THEN 'exited_top10'
+                           WHEN present AND previous_present = true AND
+                                (hold_amount > previous_hold_amount OR
+                                 (hold_amount IS NULL AND hold_float_ratio > previous_hold_float_ratio)) THEN 'increased'
+                           WHEN present AND previous_present = true AND
+                                (hold_amount < previous_hold_amount OR
+                                 (hold_amount IS NULL AND hold_float_ratio < previous_hold_float_ratio)) THEN 'reduced'
+                           WHEN present AND previous_present = true THEN 'unchanged'
+                           ELSE NULL
+                       END AS event_type
+                FROM timeline
+            ), result AS (
+                SELECT classified.*, stock.name AS company_name, stock.industry, stock.market,
+                       COUNT(*) OVER() AS total_count
+                FROM classified
+                LEFT JOIN {self.schema}.stock_basic stock ON stock.ts_code = classified.ts_code
+                WHERE classified.event_type IS NOT NULL
+            )
+            SELECT * FROM result
+            ORDER BY end_date DESC, ann_date DESC NULLS LAST, ts_code
+            LIMIT :limit OFFSET :offset
+        """)
+        params: dict[str, Any] = {
+            "holder_names": names, "holder_type": holder_type or "未知",
+            "limit": limit, "offset": offset,
+        }
+        if min_end_date:
+            params["min_end_date"] = min_end_date
+        rows = await self._execute_mappings(q, params)
+        total = int(rows[0].pop("total_count")) if rows else 0
+        source_as_of = max((str(row.get("ann_date") or "") for row in rows), default="") or None
+        return {"items": rows, "total": total, "source_available": True, "source_as_of": source_as_of}
 
     async def query_table(
         self,
