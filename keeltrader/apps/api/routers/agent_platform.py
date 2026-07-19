@@ -548,6 +548,10 @@ async def create_session(req: SessionCreate, session: AsyncSession = Depends(get
                         interaction_mode=req.interaction_mode, company_code=req.company_code)
     session.add(item)
     await session.flush()
+    # FastAPI may finalize yield-based dependencies after the response is sent.
+    # Commit here so the frontend's immediate timeline request can always see
+    # the newly-created session (read-after-write consistency).
+    await session.commit()
     return dump(item)
 
 
