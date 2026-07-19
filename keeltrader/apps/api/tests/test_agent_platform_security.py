@@ -31,6 +31,16 @@ def test_keeltrader_is_the_single_product_level_agent():
     assert 'name="基本面研究员"' not in source
 
 
+def test_session_creation_commits_before_returning():
+    router = Path(__file__).resolve().parents[1] / "routers/agent_platform.py"
+    source = router.read_text(encoding="utf-8")
+    start = source.index('@router.post("/sessions")')
+    end = source.index('@router.patch("/sessions/{session_id}")')
+    create_session_source = source[start:end]
+    assert "await session.commit()" in create_session_source
+    assert create_session_source.index("await session.commit()") < create_session_source.index("return dump(item)")
+
+
 def test_secret_fields_are_never_serialized():
     table = SimpleNamespace(columns=[SimpleNamespace(name="name"), SimpleNamespace(name="api_key_encrypted")])
     model = SimpleNamespace(__table__=table, name="demo", api_key_encrypted="ciphertext")
