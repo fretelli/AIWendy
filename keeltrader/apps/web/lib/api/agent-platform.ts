@@ -21,7 +21,6 @@ export const agentPlatformApi = {
   models: () => apiJson<{ items: AgentModelProfile[] }>(`${base}/model-credentials`),
   createModel: (body: object) => apiJson<AgentModelProfile>(`${base}/model-credentials`, { method: 'POST', body }),
   agents: () => apiJson<{ items: AgentDefinition[]; builtin_tools: string[]; mcp_tools: Array<{ name: string; server: string; description: string }> }>(`${base}/definitions`),
-  createAgent: (body: object) => apiJson<AgentDefinition>(`${base}/definitions`, { method: 'POST', body }),
   runs: () => apiJson<{ items: AgentRun[] }>(`${base}/runs`),
   createRun: (body: object) => apiJson<AgentRun>(`${base}/runs`, { method: 'POST', body }),
   sessions: (includeArchived = false) => apiJson<{ items: AgentSession[] }>(`${base}/sessions?include_archived=${includeArchived}`),
