@@ -27,7 +27,7 @@ from services.agent_platform.report_kb import ReportKBService
 from services.agent_platform.tushare import TushareReadService
 
 logger = get_logger(__name__)
-CALCULATION_VERSION = "fundamental-v2"
+CALCULATION_VERSION = "fundamental-v3"
 IMPLEMENTED_DIVIDEND_MARKERS = ("实施", "已实施", "完成")
 
 
@@ -192,8 +192,27 @@ def _metric(value: float | None, *, formula: str, table: str, fields: list[str],
 
 
 def _report_has_content(report: dict[str, Any]) -> bool:
-    return bool(str(report.get("excerpt") or "").strip() and
+    return bool(report.get("company_match_verified") is True and
+                str(report.get("excerpt") or "").strip() and
                 (report.get("section_id") or report.get("page_number") is not None))
+
+
+def _report_evidence_state(
+    usable_reports: list[dict[str, Any]],
+    company_candidates: list[dict[str, Any]],
+) -> tuple[str, str | None]:
+    if usable_reports:
+        return "sufficient", None
+    if not company_candidates:
+        return "no_company_report", "知识库中尚未找到与该公司名称或证券代码精确匹配的研报。"
+    incomplete = any(
+        int(report.get("sections_count") or 0) == 0
+        or str(report.get("ingest_status") or "") != "completed"
+        for report in company_candidates
+    )
+    if incomplete:
+        return "company_report_processing", "已找到该公司研报，但正文解析、OCR 或章节入库尚未完成，暂不能作为可定位证据。"
+    return "company_report_not_locatable", "已找到该公司研报记录，但未检索到同时包含正文摘录与章节/页码定位的证据，需检查实体或检索索引质量。"
 
 
 def _implemented_dividend_yield(rows: list[dict[str, Any]], close: float | None,
@@ -250,12 +269,18 @@ async def refresh_dossier(session: AsyncSession, user_id, company_code: str, *, 
     peers = await tushare.industry_peers(
         str(profile.get("industry") or watch.industry or ""), company_code, latest_period or None,
     )
-    reports = await ReportKBService().search_reports(
-        f"{profile.get('name') or watch.company_name} {company_code} 基本面 盈利 风险", top_k=8,
-        companies=[company_code, str(profile.get("name") or watch.company_name)], granularity="section",
+    report_kb = ReportKBService()
+    company_identifiers = [company_code, str(profile.get("name") or watch.company_name)]
+    reports, company_report_candidates = await asyncio.gather(
+        report_kb.search_reports(
+            f"{profile.get('name') or watch.company_name} {company_code} 基本面 盈利 风险", top_k=8,
+            companies=company_identifiers, granularity="chunk",
+        ),
+        report_kb.company_report_candidates(company_identifiers),
     )
     fingerprint_payload = {"calculation_version": CALCULATION_VERSION, "financials": raw,
-                           "reports": reports, "profile": profile, "peers": peers}
+                           "reports": reports, "report_candidates": company_report_candidates,
+                           "profile": profile, "peers": peers}
     fingerprint = hashlib.sha256(json.dumps(fingerprint_payload, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
     dossier = (await session.execute(select(AgentCompanyDossier).where(
@@ -360,6 +385,7 @@ async def refresh_dossier(session: AsyncSession, user_id, company_code: str, *, 
         values = [value for value in values if value is not None]
         peer_metrics[key] = median(values) if values else None
     usable_reports = [report for report in reports if _report_has_content(report)]
+    evidence_status, evidence_shortage = _report_evidence_state(usable_reports, company_report_candidates)
     calculation_errors = [name for name in ("revenue_ttm", "net_profit_ttm", "pe", "pb", "ps")
                           if (metric_lineage.get(name) or {}).get("value") is None]
     snapshot = {
@@ -369,8 +395,8 @@ async def refresh_dossier(session: AsyncSession, user_id, company_code: str, *, 
         "calculation_version": CALCULATION_VERSION,
         "financial_as_of": latest_period,
         "calculation_errors": calculation_errors,
-        "evidence_status": "sufficient" if usable_reports else "shortage",
-        "evidence_shortage": None if usable_reports else "未找到含正文定位与摘录的公司研报证据；标题命中不计为充分证据。",
+        "evidence_status": evidence_status,
+        "evidence_shortage": evidence_shortage,
         "generated_at": datetime.now(UTC).isoformat(),
     }
     previous = (await session.execute(select(AgentCompanyDossierVersion).where(
@@ -381,7 +407,10 @@ async def refresh_dossier(session: AsyncSession, user_id, company_code: str, *, 
         source_fingerprint=fingerprint, snapshot=snapshot, diff=_diff(previous.snapshot if previous else {}, snapshot),
         calculation_version=CALCULATION_VERSION, financial_as_of=latest_period or None,
         quality={"canonical_rows": True, "same_period_yoy": True, "ttm": True,
-                 "peer_period_aligned": True, "usable_report_count": len(usable_reports)},
+                 "peer_period_aligned": True, "usable_report_count": len(usable_reports),
+                 "company_report_candidate_count": len(company_report_candidates),
+                 "rejected_report_count": max(len(reports) - len(usable_reports), 0),
+                 "report_evidence_policy": "strict-company-locatable-v1"},
         calculation_errors=calculation_errors)
     session.add(version)
     await session.flush()
@@ -389,7 +418,7 @@ async def refresh_dossier(session: AsyncSession, user_id, company_code: str, *, 
         for row in rows[:2]:
             session.add(AgentCompanyEvidence(dossier_version_id=version.id, source_type="financial",
                 citation={"table": table, "ts_code": company_code, "reporting_period": row.get("end_date") or row.get("trade_date"), "fields": row}))
-    for report in reports:
+    for report in usable_reports:
         session.add(AgentCompanyEvidence(dossier_version_id=version.id, source_type="report",
             citation={key: report.get(key) for key in ("report_id", "section_id", "page_number", "broker", "report_date", "title", "excerpt")}))
     dossier.current_version = version_number
