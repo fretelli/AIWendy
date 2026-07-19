@@ -44,6 +44,13 @@ BUILTIN_TOOLS = {
 }
 
 DEFAULT_AGENT_TOOLS = sorted(BUILTIN_TOOLS - {"record_investment_decision"})
+DEFAULT_AGENT_NAME = "KeelTrader"
+DEFAULT_AGENT_DESCRIPTION = "统一的只读投资研究助手"
+DEFAULT_AGENT_ROLE = "research_assistant"
+DEFAULT_AGENT_PROMPT = (
+    "你是 KeelTrader，只读投资研究助手。所有结论必须区分事实、推断和不确定性，"
+    "引用可核验证据，主动寻找反例与证伪条件，禁止执行交易。"
+)
 
 
 async def _ensure_managed_profile(session: AsyncSession) -> AgentModelProfile | None:
@@ -76,21 +83,28 @@ async def _ensure_managed_profile(session: AsyncSession) -> AgentModelProfile | 
     return item
 
 
-async def _ensure_default_agent(session: AsyncSession, user: User) -> AgentDefinition | None:
+async def _ensure_default_agent(session: AsyncSession, user: User,
+                                preferred_profile: AgentModelProfile | None = None) -> AgentDefinition | None:
     existing = (await session.execute(select(AgentDefinition).where(
         AgentDefinition.user_id == user.id, AgentDefinition.is_default.is_(True),
         AgentDefinition.is_active.is_(True),
     ))).scalar_one_or_none()
     if existing:
+        # The product exposes one KeelTrader assistant. Keep the persisted definition as
+        # an implementation detail so historical sessions and foreign keys stay valid.
+        existing.name = DEFAULT_AGENT_NAME
+        existing.description = DEFAULT_AGENT_DESCRIPTION
+        existing.role = DEFAULT_AGENT_ROLE
+        if preferred_profile is not None:
+            existing.model_profile_id = preferred_profile.id
         return existing
-    profile = await _ensure_managed_profile(session)
+    profile = preferred_profile or await _ensure_managed_profile(session)
     if profile is None:
         return None
     await session.execute(pg_insert(AgentDefinition).values(
-        id=uuid4(), user_id=user.id, name="基本面研究员", description="A股公司基本面、证据与风险研究",
-        system_prompt=("你是只读基本面研究员。所有结论必须区分事实、推断和不确定性，"
-                       "引用可核验证据，主动寻找反例与证伪条件，禁止执行交易。"),
-        role="fundamental_researcher", model_profile_id=profile.id, tool_names=DEFAULT_AGENT_TOOLS,
+        id=uuid4(), user_id=user.id, name=DEFAULT_AGENT_NAME, description=DEFAULT_AGENT_DESCRIPTION,
+        system_prompt=DEFAULT_AGENT_PROMPT,
+        role=DEFAULT_AGENT_ROLE, model_profile_id=profile.id, tool_names=DEFAULT_AGENT_TOOLS,
         memory_enabled=True, max_steps=12, max_parallel=3, task_token_budget=50000,
         task_cost_budget_usd=5, is_default=True, is_active=True,
     ).on_conflict_do_nothing())
@@ -239,6 +253,7 @@ async def create_model(req: ModelProfileCreate, session: AsyncSession = Depends(
                              output_cost_per_million=req.output_cost_per_million)
     session.add(item)
     await session.flush()
+    await _ensure_default_agent(session, user, preferred_profile=item)
     return dump(item, secret_fields={"api_key_encrypted"})
 
 
@@ -257,6 +272,12 @@ async def delete_model(item_id: UUID, session: AsyncSession = Depends(get_sessio
     item = await session.get(AgentModelProfile, item_id)
     if not item or item.user_id != user.id or item.credential_source == "managed":
         raise HTTPException(404, "Model profile not found")
+    default_agent = await _ensure_default_agent(session, user)
+    if default_agent and default_agent.model_profile_id == item.id:
+        fallback = await _ensure_managed_profile(session)
+        if fallback is None:
+            raise HTTPException(409, "Cannot remove the active model without a deployment default")
+        default_agent.model_profile_id = fallback.id
     item.is_active = False
     return {"ok": True}
 
@@ -274,18 +295,27 @@ async def create_definition(req: DefinitionCreate, session: AsyncSession = Depen
         server = await session.get(AgentMCPServer, mcp_ref[0])
         if not server or server.user_id != user.id or server.status != "active" or mcp_ref[1] not in {t["name"] for t in server.tools_snapshot or []}:
             raise HTTPException(400, f"Unavailable MCP tool: {name}")
-    item = AgentDefinition(user_id=user.id, **req.model_dump())
-    session.add(item)
-    await session.flush()
+    item = await _ensure_default_agent(session, user, preferred_profile=profile)
+    if item is None:
+        raise HTTPException(503, "KeelTrader model is not configured")
+    item.system_prompt = req.system_prompt
+    item.tool_names = req.tool_names
+    item.memory_enabled = req.memory_enabled
+    item.max_steps = req.max_steps
+    item.max_parallel = req.max_parallel
+    item.task_token_budget = req.task_token_budget
+    item.task_cost_budget_usd = req.task_cost_budget_usd
     return dump(item)
 
 
 @router.get("/definitions")
 async def list_definitions(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     await _ensure_default_agent(session, user)
-    items = (await session.execute(select(AgentDefinition).where(AgentDefinition.user_id == user.id,
-                                                                  AgentDefinition.is_active.is_(True))
-                                   .order_by(desc(AgentDefinition.created_at)))).scalars().all()
+    items = (await session.execute(select(AgentDefinition).where(
+        AgentDefinition.user_id == user.id,
+        AgentDefinition.is_default.is_(True),
+        AgentDefinition.is_active.is_(True),
+    ))).scalars().all()
     servers = (await session.execute(select(AgentMCPServer).where(AgentMCPServer.user_id == user.id,
                                                                   AgentMCPServer.status == "active"))).scalars().all()
     mcp_tools = [{"name": f"mcp:{server.id}:{tool['name']}", "server": server.name,

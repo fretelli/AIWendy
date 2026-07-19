@@ -39,6 +39,10 @@ describe('Agent Platform contract', () => {
     expect(page).toContain('15000')
     expect(page).not.toContain('void refreshWorkspace() }, 2500')
     expect(page).not.toContain('<Tabs')
+    expect(page).toContain('KeelTrader 始终只有一个研究助手')
+    expect(page).not.toContain('选择 Agent')
+    expect(page).not.toContain('创建 Agent')
+    expect(page).not.toContain('Agent 数')
   })
 
   it('does not expose trade execution controls in the Agent workspace', () => {
