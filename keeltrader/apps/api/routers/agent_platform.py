@@ -575,6 +575,24 @@ async def update_session(session_id: UUID, req: SessionUpdate, session: AsyncSes
     return dump(item)
 
 
+@router.delete("/sessions/{session_id}")
+async def delete_session(session_id: UUID, session: AsyncSession = Depends(get_session),
+                         user: User = Depends(get_current_user)):
+    item = await session.get(AgentSession, session_id)
+    if not item or item.user_id != user.id:
+        raise HTTPException(404, "Session not found")
+    active_run = (await session.execute(select(AgentRun.id).where(
+        AgentRun.session_id == session_id,
+        AgentRun.user_id == user.id,
+        AgentRun.status.not_in(TERMINAL),
+    ).limit(1))).scalar_one_or_none()
+    if active_run:
+        raise HTTPException(409, "Stop the active research task before deleting this session")
+    await session.delete(item)
+    await session.commit()
+    return {"ok": True}
+
+
 @router.post("/sessions/{session_id}/messages")
 async def create_session_message(session_id: UUID, req: SessionMessageCreate, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     item = await session.get(AgentSession, session_id)

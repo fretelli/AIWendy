@@ -41,6 +41,18 @@ def test_session_creation_commits_before_returning():
     assert create_session_source.index("await session.commit()") < create_session_source.index("return dump(item)")
 
 
+def test_session_deletion_is_owned_safe_and_committed():
+    router = Path(__file__).resolve().parents[1] / "routers/agent_platform.py"
+    source = router.read_text(encoding="utf-8")
+    start = source.index('@router.delete("/sessions/{session_id}")')
+    end = source.index('@router.post("/sessions/{session_id}/messages")')
+    delete_source = source[start:end]
+    assert "item.user_id != user.id" in delete_source
+    assert "AgentRun.status.not_in(TERMINAL)" in delete_source
+    assert "await session.delete(item)" in delete_source
+    assert "await session.commit()" in delete_source
+
+
 def test_secret_fields_are_never_serialized():
     table = SimpleNamespace(columns=[SimpleNamespace(name="name"), SimpleNamespace(name="api_key_encrypted")])
     model = SimpleNamespace(__table__=table, name="demo", api_key_encrypted="ciphertext")

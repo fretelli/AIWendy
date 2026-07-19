@@ -43,6 +43,8 @@ describe('Agent Platform contract', () => {
     expect(page).not.toContain('选择 Agent')
     expect(page).not.toContain('创建 Agent')
     expect(page).not.toContain('Agent 数')
+    expect(page).toContain('永久删除这个研究会话？')
+    expect(page).toContain('agentPlatformApi.deleteSession')
   })
 
   it('does not expose trade execution controls in the Agent workspace', () => {
