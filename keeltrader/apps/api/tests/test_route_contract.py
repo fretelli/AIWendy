@@ -19,6 +19,7 @@ def test_active_route_prefixes_are_mounted(client):
         "/api/v1/agent/mcp-servers",
         "/api/v1/agent/model-credentials",
         "/api/v1/agent/sessions",
+        "/api/v1/agent/sessions/{session_id}",
         "/api/v1/agent/sessions/{session_id}/messages",
         "/api/v1/agent/sessions/{session_id}/timeline",
         "/api/v1/agent/sessions/{session_id}/compact",
