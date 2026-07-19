@@ -222,6 +222,50 @@ class AgentCompanyWatchlist(Base):
     )
 
 
+class AgentHolderWatchlist(Base):
+    __tablename__ = "agent_holder_watchlist"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    holder_name = Column(String(500), nullable=False)
+    normalized_name = Column(String(500), nullable=False)
+    holder_type = Column(String(80), nullable=False, default="未知")
+    aliases = Column(JSON, nullable=False, default=list)
+    enabled = Column(Boolean, nullable=False, default=True)
+    last_scanned_at = Column(DateTime(timezone=True), nullable=True)
+    last_source_watermark = Column(String(80), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        Index("ix_agent_holder_watchlist_user", "user_id", "created_at"),
+        Index("uq_agent_holder_watchlist_user_match", "user_id", "normalized_name", "holder_type", unique=True),
+    )
+
+
+class AgentHolderEvent(Base):
+    __tablename__ = "agent_holder_events"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    watch_id = Column(UUID(as_uuid=True), ForeignKey("agent_holder_watchlist.id", ondelete="CASCADE"), nullable=False)
+    event_key = Column(String(64), nullable=False)
+    ts_code = Column(String(20), nullable=False)
+    company_name = Column(String(120), nullable=True)
+    holder_name = Column(String(500), nullable=False)
+    holder_type = Column(String(80), nullable=False, default="未知")
+    event_type = Column(String(40), nullable=False)
+    end_date = Column(String(8), nullable=False)
+    ann_date = Column(String(8), nullable=True)
+    previous_end_date = Column(String(8), nullable=True)
+    values = Column(JSON, nullable=False, default=dict)
+    read_at = Column(DateTime(timezone=True), nullable=True)
+    detected_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        Index("uq_agent_holder_event_period", "watch_id", "ts_code", "end_date", unique=True),
+        Index("ix_agent_holder_events_user_unread", "user_id", "read_at", "detected_at"),
+        Index("ix_agent_holder_events_watch", "watch_id", "end_date"),
+    )
+
+
 class AgentCompanyDossier(Base):
     __tablename__ = "agent_company_dossiers"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

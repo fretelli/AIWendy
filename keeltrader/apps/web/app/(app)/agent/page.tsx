@@ -1,12 +1,13 @@
 'use client'
 
+import Link from 'next/link'
 import { FormEvent, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from 'react-resizable-panels'
 import {
   Archive, Bot, Building2, Check, CircleStop, Command, Loader2, Menu, MessageSquarePlus, Plus,
   Compass, Database, LogOut, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Paperclip, Pin,
-  Search, Send, Settings2, ShieldCheck, Trash2, Waves, X,
+  Radar, Search, Send, Settings2, ShieldCheck, Trash2, Waves, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -266,7 +267,7 @@ export default function AgentWorkspacePage() {
   </div>
 
   const mainPanel = <main className="flex h-full min-w-0 flex-1 flex-col bg-background/80 backdrop-blur-[2px]">
-      <header className="research-bearing flex min-h-16 shrink-0 items-center gap-2 border-b bg-card/92 px-3 shadow-[0_1px_0_hsl(var(--border)/.45)]"><Button className="xl:hidden" size="icon" variant="ghost" aria-label="打开自选与会话" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></Button><Button className="hidden xl:inline-flex" size="icon" variant="ghost" aria-label="折叠左栏" onClick={() => leftPanelRef.current?.isCollapsed() ? leftPanelRef.current.expand() : leftPanelRef.current?.collapse()}>{leftCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}</Button><div className="hidden border-r pr-4 md:block"><KeelMark /></div><ResearchBearing session={currentSession} dossier={dossier} run={activeRun} /><Badge variant="outline" className="hidden border-[hsl(var(--copper)/.35)] bg-card font-data text-[10px] text-[hsl(var(--copper-foreground))] lg:inline-flex">KeelTrader</Badge><ThemeMenu /><LanguageSwitcher className="hidden 2xl:block" /><Button size="icon" variant="ghost" aria-label="公司档案" onClick={() => desktopPanels ? (rightPanelRef.current?.isCollapsed() ? rightPanelRef.current.expand() : rightPanelRef.current?.collapse()) : setContextOpen(true)}>{rightCollapsed ? <PanelRightOpen className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}</Button><Button size="icon" variant="ghost" aria-label="退出登录" onClick={() => void logout()}><LogOut className="h-4 w-4" /></Button></header>
+      <header className="research-bearing flex min-h-16 shrink-0 items-center gap-2 border-b bg-card/92 px-3 shadow-[0_1px_0_hsl(var(--border)/.45)]"><Button className="xl:hidden" size="icon" variant="ghost" aria-label="打开自选与会话" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></Button><Button className="hidden xl:inline-flex" size="icon" variant="ghost" aria-label="折叠左栏" onClick={() => leftPanelRef.current?.isCollapsed() ? leftPanelRef.current.expand() : leftPanelRef.current?.collapse()}>{leftCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}</Button><div className="hidden border-r pr-4 md:block"><KeelMark /></div><ResearchBearing session={currentSession} dossier={dossier} run={activeRun} /><Badge variant="outline" className="hidden border-[hsl(var(--copper)/.35)] bg-card font-data text-[10px] text-[hsl(var(--copper-foreground))] lg:inline-flex">KeelTrader</Badge><Button asChild size="sm" variant="outline"><Link href="/agent/holders"><Radar className="mr-1.5 h-4 w-4" />股东雷达</Link></Button><ThemeMenu /><LanguageSwitcher className="hidden 2xl:block" /><Button size="icon" variant="ghost" aria-label="公司档案" onClick={() => desktopPanels ? (rightPanelRef.current?.isCollapsed() ? rightPanelRef.current.expand() : rightPanelRef.current?.collapse()) : setContextOpen(true)}>{rightCollapsed ? <PanelRightOpen className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}</Button><Button size="icon" variant="ghost" aria-label="退出登录" onClick={() => void logout()}><LogOut className="h-4 w-4" /></Button></header>
 
       <ScrollArea className="flex-1"><div className="mx-auto max-w-[840px] space-y-6 px-4 py-7 md:px-7">
         {!messages.length && !activeRun && <ResearchEmptyState companyName={watchlist.find(item => item.company_code === currentSession?.company_code)?.company_name} onPrompt={setInput} />}
