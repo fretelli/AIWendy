@@ -4,7 +4,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from routers.agent_platform import BUILTIN_TOOLS, dump
+from routers.agent_platform import BUILTIN_TOOLS, DEFAULT_AGENT_NAME, DEFAULT_AGENT_ROLE, dump
 from services.agent_platform import network
 from services.agent_platform.runtime import default_plan, redact_sensitive
 
@@ -19,6 +19,16 @@ def test_default_plan_is_research_only():
     plan = default_plan("analyze ACME", ["query_research_reports"])
     assert plan[0]["tool"] == "query_research_reports"
     assert {step["role"] for step in plan} >= {"red_team", "risk_reviewer", "coordinator"}
+
+
+def test_keeltrader_is_the_single_product_level_agent():
+    router = Path(__file__).resolve().parents[1] / "routers/agent_platform.py"
+    source = router.read_text(encoding="utf-8")
+    assert DEFAULT_AGENT_NAME == "KeelTrader"
+    assert DEFAULT_AGENT_ROLE == "research_assistant"
+    assert "AgentDefinition.is_default.is_(True)" in source
+    assert "_ensure_default_agent(session, user, preferred_profile=item)" in source
+    assert 'name="基本面研究员"' not in source
 
 
 def test_secret_fields_are_never_serialized():
