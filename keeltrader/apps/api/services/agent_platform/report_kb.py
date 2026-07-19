@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -60,6 +61,12 @@ def _query_terms(query: str, companies: list[str] | None = None) -> list[str]:
         "风险",
         "研究",
         "分析",
+        "基本面",
+        "业绩",
+        "估值",
+        "财务",
+        "证券",
+        "股票",
         "stock",
         "equity",
         "report",
@@ -79,6 +86,62 @@ def _query_terms(query: str, companies: list[str] | None = None) -> list[str]:
         if len(terms) >= 8:
             break
     return terms
+
+
+def _company_identifiers(companies: list[str] | None) -> list[str]:
+    identifiers: list[str] = []
+    for item in companies or []:
+        value = str(item or "").strip().lower()
+        if not value:
+            continue
+        variants = (value, re.sub(r"\.(?:sh|sz|bj|hk)$", "", value))
+        for variant in variants:
+            if variant and variant not in identifiers:
+                identifiers.append(variant)
+    return identifiers
+
+
+def _contains_identifier(text: str, identifier: str) -> bool:
+    haystack = str(text or "").lower()
+    needle = str(identifier or "").lower()
+    if not haystack or not needle:
+        return False
+    if re.fullmatch(r"\d{4,8}", needle):
+        return re.search(rf"(?<![0-9a-z]){re.escape(needle)}(?![0-9a-z])", haystack) is not None
+    if re.fullmatch(r"[a-z][a-z0-9.+-]*", needle):
+        return re.search(rf"(?<![0-9a-z]){re.escape(needle)}(?![0-9a-z])", haystack) is not None
+    return len(needle) >= 2 and needle in haystack
+
+
+def _structured_company_identifiers(metadata: dict[str, Any]) -> list[str]:
+    values: list[str] = []
+    for key in ("company_names", "primary_company_name", "companies"):
+        raw = metadata.get(key)
+        items = raw if isinstance(raw, list) else [raw]
+        for item in items:
+            if isinstance(item, dict):
+                candidates = [item.get("name"), item.get("name_cn"), item.get("ticker")]
+            else:
+                candidates = [item]
+            for candidate in candidates:
+                values.extend(_company_identifiers([str(candidate or "")]))
+    if metadata.get("_search_company_filter_verified") is True:
+        raw_verified = metadata.get("_search_company_identifiers")
+        if isinstance(raw_verified, list):
+            values.extend(_company_identifiers([str(item or "") for item in raw_verified]))
+    return list(dict.fromkeys(values))
+
+
+def _report_matches_company(report: dict[str, Any], companies: list[str] | None) -> bool:
+    requested = _company_identifiers(companies)
+    if not requested:
+        return True
+    metadata = report.get("metadata") if isinstance(report.get("metadata"), dict) else {}
+    structured = _structured_company_identifiers(metadata)
+    if set(requested) & set(structured):
+        return True
+    text = " ".join(str(report.get(key) or "") for key in ("title", "excerpt"))
+    return any(_contains_identifier(text, identifier) for identifier in requested)
 
 
 class ReportKBService:
@@ -125,11 +188,42 @@ class ReportKBService:
         result = await asyncio.to_thread(_http_json, "POST", "/search", payload)
         rows = result.get("results") if isinstance(result, dict) else None
         if isinstance(rows, list) and rows:
-            return [_normalize_search_hit(row) for row in rows]
+            normalized = [_normalize_search_hit(row) for row in rows]
+            accepted = [row for row in normalized if _report_matches_company(row, companies)]
+            for row in accepted:
+                row["company_match_verified"] = True
+            return accepted
 
-        # Never substitute unrelated recent reports for missing company evidence.
-        # An empty result is an explicit, auditable evidence shortage.
+        # Company evidence must come from a locatable search hit. Never turn a
+        # generic title/summary match into company evidence.
+        if companies:
+            return []
         return await self._search_recent_report_titles(query, limit=limit, companies=companies)
+
+    async def company_report_candidates(
+        self,
+        companies: list[str],
+        *,
+        limit: int = 200,
+    ) -> list[dict[str, Any]]:
+        identifiers = [item for item in companies if str(item or "").strip()]
+        if not identifiers:
+            return []
+        query_items: list[tuple[str, Any]] = [
+            ("doc_type", "research_report"),
+            ("limit", max(1, min(limit, 200))),
+            ("include_incomplete", "true"),
+        ]
+        query_items.extend(("companies", item) for item in identifiers)
+        path = "/reports/recent-candidates?" + parse.urlencode(query_items)
+        rows = await asyncio.to_thread(_http_json, "GET", path)
+        if not isinstance(rows, list):
+            return []
+        normalized = [_normalize_summary_hit(row, score=0, match_scopes=["structured_company"]) for row in rows]
+        accepted = [row for row in normalized if _report_matches_company(row, identifiers)]
+        for row in accepted:
+            row["company_match_verified"] = True
+        return accepted
 
     async def recent_reports(self, *, limit: int = 5) -> list[dict[str, Any]]:
         path = "/reports/recent-candidates?" + parse.urlencode({
@@ -220,6 +314,8 @@ def _normalize_summary_hit(
         **metadata,
         "match_scopes": match_scopes,
         "fallback": True,
+        "company_names": row.get("company_names") or metadata.get("company_names") or [],
+        "primary_company_name": row.get("primary_company_name") or metadata.get("primary_company_name"),
     }
     return {
         "report_id": str(row.get("id") or row.get("report_id") or ""),
@@ -235,4 +331,6 @@ def _normalize_summary_hit(
         "score": score,
         "excerpt": (row.get("summary") or row.get("title") or "")[:1200],
         "metadata": metadata,
+        "sections_count": row.get("sections_count"),
+        "ingest_status": row.get("ingest_status"),
     }
