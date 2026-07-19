@@ -4,6 +4,8 @@ from services.agent_platform.dossier import (
     _growth,
     _implemented_dividend_yield,
     _ratio,
+    _report_evidence_state,
+    _report_has_content,
     _ttm,
 )
 
@@ -51,4 +53,33 @@ def test_dividend_yield_uses_only_implemented_trailing_cash_dividends():
 
 
 def test_calculation_contract_is_versioned():
-    assert CALCULATION_VERSION == "fundamental-v2"
+    assert CALCULATION_VERSION == "fundamental-v3"
+
+
+def test_report_evidence_requires_verified_company_and_body_location():
+    title_only = {
+        "title": "同益中公司深度报告",
+        "excerpt": "同益中公司深度报告",
+        "company_match_verified": True,
+    }
+    valid = {
+        "title": "同益中公司深度报告",
+        "excerpt": "同益中盈利能力持续改善。",
+        "section_id": "section-1",
+        "company_match_verified": True,
+    }
+    unverified = {**valid, "company_match_verified": False}
+
+    assert _report_has_content(title_only) is False
+    assert _report_has_content(unverified) is False
+    assert _report_has_content(valid) is True
+
+
+def test_report_evidence_state_distinguishes_absent_processing_and_unlocatable():
+    assert _report_evidence_state([], []) == (
+        "no_company_report",
+        "知识库中尚未找到与该公司名称或证券代码精确匹配的研报。",
+    )
+    assert _report_evidence_state([], [{"sections_count": 0, "ingest_status": "partial"}])[0] == "company_report_processing"
+    assert _report_evidence_state([], [{"sections_count": 4, "ingest_status": "completed"}])[0] == "company_report_not_locatable"
+    assert _report_evidence_state([{"section_id": "1"}], [])[0] == "sufficient"
