@@ -20,7 +20,7 @@ from core.database import get_session
 from core.encryption import get_encryption_service
 from domain.agent_platform.models import (
     AgentApproval, AgentArtifact, AgentBackgroundJob, AgentCompanyDossier, AgentCompanyDossierVersion, AgentCompanyEvidence,
-    AgentCompanyWatchlist, AgentDefinition, AgentMCPServer, AgentMemory, AgentMemoryVersion,
+    AgentCompanyWatchlist, AgentDefinition, AgentHolderEvent, AgentHolderWatchlist, AgentMCPServer, AgentMemory, AgentMemoryVersion,
     AgentMessage, AgentModelProfile, AgentRun, AgentRunEvent, AgentRunStep, AgentSchedule, AgentSession,
     AgentToolGrant, AgentUsageLedger,
 )
@@ -32,6 +32,7 @@ from services.agent_platform.runtime import TERMINAL, emit, enqueue_run, parse_m
 from services.agent_platform.tools import execute_platform_tool
 from services.agent_platform.tushare import TushareReadService
 from services.agent_platform.dossier import enqueue_dossier_refresh
+from services.agent_platform.holders import enqueue_holder_scan, holder_names, normalize_holder_name
 from services.file_extractor import can_extract_text, extract_text
 from services.storage_service import get_storage_provider
 
@@ -41,6 +42,7 @@ encryption = get_encryption_service()
 BUILTIN_TOOLS = {
     "run_daily_brief", "deep_research", "record_investment_decision", "run_weekly_review",
     "query_tushare_data", "query_research_reports", "record_fundamental_validation",
+    "search_holder", "holder_positions", "holder_history",
 }
 
 DEFAULT_AGENT_TOOLS = sorted(BUILTIN_TOOLS - {"record_investment_decision"})
@@ -95,6 +97,7 @@ async def _ensure_default_agent(session: AsyncSession, user: User,
         existing.name = DEFAULT_AGENT_NAME
         existing.description = DEFAULT_AGENT_DESCRIPTION
         existing.role = DEFAULT_AGENT_ROLE
+        existing.tool_names = DEFAULT_AGENT_TOOLS
         if preferred_profile is not None:
             existing.model_profile_id = preferred_profile.id
         return existing
@@ -182,6 +185,20 @@ class SessionMessageCreate(BaseModel):
 
 class WatchlistAdd(BaseModel):
     company: str = Field(min_length=1, max_length=120)
+
+
+class HolderWatchAdd(BaseModel):
+    holder_name: str = Field(min_length=1, max_length=500)
+    holder_type: str = Field(default="未知", min_length=1, max_length=80)
+
+
+class HolderWatchUpdate(BaseModel):
+    aliases: list[str] | None = Field(default=None, max_length=20)
+    enabled: bool | None = None
+
+
+class HolderEventsRead(BaseModel):
+    event_ids: list[UUID] = Field(default_factory=list, max_length=500)
 
 
 class ApprovalResolve(BaseModel):
@@ -490,6 +507,186 @@ async def remove_watchlist(company_code: str, session: AsyncSession = Depends(ge
         raise HTTPException(404, "Watchlist company not found")
     await session.delete(item)
     return {"ok": True}
+
+
+def holder_watch_dump(item: AgentHolderWatchlist) -> dict[str, Any]:
+    result = dump(item)
+    result["identity_warning"] = "自然人仅按披露姓名匹配，可能存在同名。" if item.holder_type == "自然人" else None
+    return result
+
+
+@router.get("/holders/search")
+async def search_holders(
+    query: str = Query(min_length=1, max_length=120),
+    limit: int = Query(30, ge=1, le=50),
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    del user
+    service = TushareReadService(session)
+    items = await service.search_holders(query, limit)
+    return {
+        "items": [{
+            **item,
+            "identity_warning": "自然人仅按披露姓名匹配，可能存在同名。"
+            if item.get("holder_type") == "自然人" else None,
+        } for item in items],
+        "source_available": await service.table_exists("top10_floatholders"),
+    }
+
+
+@router.get("/holder-watchlist")
+async def list_holder_watchlist(
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    items = (await session.execute(select(AgentHolderWatchlist).where(
+        AgentHolderWatchlist.user_id == user.id,
+    ).order_by(desc(AgentHolderWatchlist.created_at)))).scalars().all()
+    return {"items": [holder_watch_dump(item) for item in items]}
+
+
+@router.post("/holder-watchlist")
+async def add_holder_watch(
+    req: HolderWatchAdd,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    name = normalize_holder_name(req.holder_name)
+    holder_type = normalize_holder_name(req.holder_type) or "未知"
+    candidates = await TushareReadService(session).search_holders(name, 50)
+    exact = next((item for item in candidates if item.get("holder_name") == name
+                  and item.get("holder_type") == holder_type), None)
+    if not exact:
+        raise HTTPException(404, "未找到该股东名称与类型的精确披露记录")
+    item = (await session.execute(select(AgentHolderWatchlist).where(
+        AgentHolderWatchlist.user_id == user.id,
+        AgentHolderWatchlist.normalized_name == normalize_holder_name(name),
+        AgentHolderWatchlist.holder_type == holder_type,
+    ))).scalar_one_or_none()
+    if item is None:
+        item = AgentHolderWatchlist(
+            user_id=user.id, holder_name=name, normalized_name=normalize_holder_name(name),
+            holder_type=holder_type, aliases=[], enabled=True,
+        )
+        session.add(item)
+        await session.flush()
+        await enqueue_holder_scan(session, user.id, item.id, initial=True)
+    else:
+        item.enabled = True
+        await enqueue_holder_scan(session, user.id, item.id)
+    return holder_watch_dump(item)
+
+
+async def owned_holder_watch(session: AsyncSession, user_id, watch_id: UUID) -> AgentHolderWatchlist:
+    item = await session.get(AgentHolderWatchlist, watch_id)
+    if not item or item.user_id != user_id:
+        raise HTTPException(404, "关注股东不存在")
+    return item
+
+
+@router.patch("/holder-watchlist/{watch_id}")
+async def update_holder_watch(
+    watch_id: UUID,
+    req: HolderWatchUpdate,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    item = await owned_holder_watch(session, user.id, watch_id)
+    if req.aliases is not None:
+        aliases: list[str] = []
+        seen = {item.holder_name}
+        for raw in req.aliases:
+            alias = normalize_holder_name(raw)
+            if alias and alias not in seen:
+                aliases.append(alias)
+                seen.add(alias)
+        item.aliases = aliases
+    if req.enabled is not None:
+        item.enabled = req.enabled
+    if item.enabled:
+        await enqueue_holder_scan(session, user.id, item.id)
+    return holder_watch_dump(item)
+
+
+@router.delete("/holder-watchlist/{watch_id}")
+async def delete_holder_watch(
+    watch_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    item = await owned_holder_watch(session, user.id, watch_id)
+    await session.delete(item)
+    return {"ok": True}
+
+
+@router.post("/holder-watchlist/{watch_id}/refresh")
+async def refresh_holder_watch(
+    watch_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    item = await owned_holder_watch(session, user.id, watch_id)
+    await enqueue_holder_scan(session, user.id, item.id)
+    return {"ok": True, "status": "queued"}
+
+
+@router.get("/holders/{watch_id}/positions")
+async def holder_positions(
+    watch_id: UUID,
+    view: Literal["latest", "history"] = "latest",
+    all_history: bool = False,
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    item = await owned_holder_watch(session, user.id, watch_id)
+    service = TushareReadService(session)
+    if view == "history":
+        min_end_date = None if all_history else (datetime.now(UTC) - timedelta(days=820)).strftime("%Y%m%d")
+        result = await service.holder_history(
+            holder_names(item), item.holder_type, limit=limit, offset=offset,
+            min_end_date=min_end_date,
+        )
+    else:
+        result = await service.holder_current_positions(holder_names(item), item.holder_type, limit=limit, offset=offset)
+    return {**result, "watch": holder_watch_dump(item)}
+
+
+@router.get("/holder-events")
+async def holder_events(
+    unread_only: bool = False,
+    limit: int = Query(100, ge=1, le=500),
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    stmt = select(AgentHolderEvent).where(AgentHolderEvent.user_id == user.id)
+    if unread_only:
+        stmt = stmt.where(AgentHolderEvent.read_at.is_(None))
+    items = (await session.execute(stmt.order_by(
+        desc(AgentHolderEvent.end_date), desc(AgentHolderEvent.detected_at)
+    ).limit(limit))).scalars().all()
+    unread = (await session.execute(select(func.count()).select_from(AgentHolderEvent).where(
+        AgentHolderEvent.user_id == user.id, AgentHolderEvent.read_at.is_(None),
+    ))).scalar_one()
+    return {"items": [dump(item) for item in items], "unread": int(unread)}
+
+
+@router.post("/holder-events/read")
+async def read_holder_events(
+    req: HolderEventsRead,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    stmt = select(AgentHolderEvent).where(AgentHolderEvent.user_id == user.id)
+    if req.event_ids:
+        stmt = stmt.where(AgentHolderEvent.id.in_(req.event_ids))
+    items = (await session.execute(stmt)).scalars().all()
+    now = datetime.now(UTC)
+    for item in items:
+        item.read_at = now
+    return {"ok": True, "updated": len(items)}
 
 
 @router.get("/dossiers/{company_code}")

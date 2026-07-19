@@ -14,6 +14,11 @@ export type AgentMemory = { id: string; key: string; value: unknown; confidence:
 export type MCPServer = { id: string; name: string; url: string; status: string; tools_snapshot: Array<{ name: string; description?: string }> }
 export type AgentSchedule = { id: string; name: string; cron: string; prompt: string; enabled: boolean; next_run_at?: string }
 export type Usage = { today: { input_tokens: number; output_tokens: number; cost_usd: number }; limits: { tokens: number; cost_usd: number } }
+export type HolderSearchItem = { holder_name: string; holder_type: string; stock_count: number; first_end_date?: string; last_end_date?: string; last_ann_date?: string; exact_match: boolean; identity_warning?: string }
+export type HolderWatchItem = { id: string; holder_name: string; normalized_name: string; holder_type: string; aliases: string[]; enabled: boolean; last_scanned_at?: string; identity_warning?: string; created_at: string }
+export type HolderPosition = { ts_code: string; company_name?: string; industry?: string; market?: string; end_date: string; ann_date?: string; matched_names?: string[]; hold_amount?: number; hold_ratio?: number; hold_float_ratio?: number; hold_change?: number }
+export type HolderHistoryEvent = HolderPosition & { event_type: 'first_seen' | 'new' | 'increased' | 'reduced' | 'unchanged' | 'exited_top10'; previous_end_date?: string; previous_hold_amount?: number; previous_hold_ratio?: number; previous_hold_float_ratio?: number; present: boolean }
+export type HolderInboxEvent = { id: string; watch_id: string; ts_code: string; company_name?: string; holder_name: string; holder_type: string; event_type: HolderHistoryEvent['event_type']; end_date: string; ann_date?: string; previous_end_date?: string; values: Record<string, unknown>; read_at?: string; detected_at: string }
 
 const base = '/agent'
 export const agentPlatformApi = {
@@ -49,4 +54,13 @@ export const agentPlatformApi = {
   removeWatchlist: (companyCode: string) => apiJson(`${base}/watchlist/${encodeURIComponent(companyCode)}`, { method: 'DELETE' }),
   dossier: (companyCode: string) => apiJson<CompanyDossier>(`${base}/dossiers/${encodeURIComponent(companyCode)}`),
   refreshDossier: (companyCode: string) => apiJson(`${base}/dossiers/${encodeURIComponent(companyCode)}/refresh`, { method: 'POST' }),
+  searchHolders: (query: string) => apiJson<{ items: HolderSearchItem[]; source_available: boolean }>(`${base}/holders/search?query=${encodeURIComponent(query)}`),
+  holderWatchlist: () => apiJson<{ items: HolderWatchItem[] }>(`${base}/holder-watchlist`),
+  addHolderWatch: (body: { holder_name: string; holder_type: string }) => apiJson<HolderWatchItem>(`${base}/holder-watchlist`, { method: 'POST', body }),
+  updateHolderWatch: (id: string, body: { aliases?: string[]; enabled?: boolean }) => apiJson<HolderWatchItem>(`${base}/holder-watchlist/${id}`, { method: 'PATCH', body }),
+  removeHolderWatch: (id: string) => apiJson<{ ok: boolean }>(`${base}/holder-watchlist/${id}`, { method: 'DELETE' }),
+  refreshHolderWatch: (id: string) => apiJson<{ ok: boolean; status: string }>(`${base}/holder-watchlist/${id}/refresh`, { method: 'POST' }),
+  holderPositions: (id: string, view: 'latest' | 'history', limit = 200, offset = 0, allHistory = false) => apiJson<{ items: Array<HolderPosition | HolderHistoryEvent>; total: number; source_available: boolean; source_as_of?: string; watch: HolderWatchItem }>(`${base}/holders/${id}/positions?view=${view}&limit=${limit}&offset=${offset}&all_history=${allHistory}`),
+  holderEvents: (unreadOnly = false) => apiJson<{ items: HolderInboxEvent[]; unread: number }>(`${base}/holder-events?unread_only=${unreadOnly}`),
+  readHolderEvents: (eventIds: string[] = []) => apiJson<{ ok: boolean; updated: number }>(`${base}/holder-events/read`, { method: 'POST', body: { event_ids: eventIds } }),
 }
