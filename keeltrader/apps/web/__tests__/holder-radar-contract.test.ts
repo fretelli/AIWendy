@@ -14,6 +14,15 @@ test('holder radar is a query workspace without scoring or recommendations', () 
   expect(page).not.toContain('综合评分')
 })
 
+test('holder radar shares the resizable workspace behavior', () => {
+  expect(page).toContain('PanelResizeHandle')
+  expect(page).toContain('autoSaveId="keeltrader-holder-radar-workspace"')
+  expect(page).toContain('collapsible collapsedSize={0}')
+  expect(page).toContain('打开关注股东')
+  expect(page).toContain('打开披露变化')
+  expect(page).not.toContain('xl:grid-cols-[290px_minmax(0,1fr)_330px]')
+})
+
 test('holder API client exposes search, watchlist, positions and inbox', () => {
   expect(api).toContain('searchHolders')
   expect(api).toContain('holderWatchlist')
