@@ -121,7 +121,7 @@ function MarketTape({ data, refreshing }: { data: MarketCapitalSnapshot; refresh
         <label className="flex items-center gap-2"><input aria-label="图表终点" className="w-full accent-[hsl(var(--copper-foreground))]" type="range" min={0} max={Math.max(0, chartData.length - 1)} value={rangeEnd} onChange={event => { setRangeEnd(Math.max(Number(event.target.value), Math.min(chartData.length - 1, rangeStart + 1))); setHoverIndex(null) }} /><span className="shrink-0">终点</span></label>
       </div>
     </div>
-    <div className="flex flex-wrap gap-x-5 gap-y-2 border-t bg-secondary/25 px-5 py-3 text-[10px] text-muted-foreground"><span>成交额：全 A 股日成交金额原始合计</span><span>涨跌广度：按个股日涨跌幅正负原始计数</span><span>不叠加均线、评分或趋势信号</span></div>
+    <div className="flex flex-wrap gap-x-5 gap-y-2 border-t bg-secondary/25 px-5 py-3 text-[10px] text-muted-foreground"><span>成交额：全 A 股日成交金额原始合计</span><span>涨跌广度：按个股日涨跌幅正负原始计数</span><span>仅展示源数据历史与单日事实</span></div>
   </section>
 }
 
