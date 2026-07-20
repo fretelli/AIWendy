@@ -42,7 +42,7 @@ encryption = get_encryption_service()
 BUILTIN_TOOLS = {
     "run_daily_brief", "deep_research", "record_investment_decision", "run_weekly_review",
     "query_tushare_data", "query_research_reports", "record_fundamental_validation",
-    "search_holder", "holder_positions", "holder_history",
+    "search_holder", "holder_positions", "holder_history", "market_capital_snapshot",
 }
 
 DEFAULT_AGENT_TOOLS = sorted(BUILTIN_TOOLS - {"record_investment_decision"})
@@ -533,6 +533,16 @@ async def search_holders(
         } for item in items],
         "source_available": await service.table_exists("top10_floatholders"),
     }
+
+
+@router.get("/market-capital")
+async def market_capital(
+    window: int = Query(60, ge=20, le=250),
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    del user
+    return await TushareReadService(session).market_capital_snapshot(window)
 
 
 @router.get("/holder-watchlist")
