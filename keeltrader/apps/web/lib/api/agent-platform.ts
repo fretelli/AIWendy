@@ -21,6 +21,17 @@ export type HolderPosition = { ts_code: string; company_name?: string; industry?
 export type HolderPriceEstimate = { side: 'buy' | 'sell' | 'possible_sell'; window_start: string; window_end: string; first_trade_date?: string; last_trade_date?: string; low: number; high: number; volume_weighted_price: number; trading_days: number; changed_shares?: number; estimated_amount?: number; method: 'qfq_close_volume_weighted_reporting_window'; disclaimer: string }
 export type HolderHistoryEvent = HolderPosition & { event_type: 'first_seen' | 'new' | 'increased' | 'reduced' | 'unchanged' | 'exited_top10'; previous_end_date?: string; previous_hold_amount?: number; previous_hold_ratio?: number; previous_hold_float_ratio?: number; present: boolean; price_estimate?: HolderPriceEstimate | null }
 export type HolderInboxEvent = { id: string; watch_id: string; ts_code: string; company_name?: string; holder_name: string; holder_type: string; event_type: HolderHistoryEvent['event_type']; end_date: string; ann_date?: string; previous_end_date?: string; values: Record<string, unknown>; read_at?: string; detected_at: string }
+export type MarketCapitalSnapshot = {
+  available: boolean; as_of?: string; window: number; interpretations: string[]
+  sources: Record<string, { available: boolean; as_of?: string; lag_days?: number; row_count?: number }>
+  liquidity: { turnover_cny: number; average_5d_cny?: number; average_20d_cny?: number; vs_5d_pct?: number; vs_20d_pct?: number; top20_turnover_share?: number; top50_turnover_share?: number; note: string }
+  breadth: { advances: number; declines: number; flat: number; advance_ratio?: number; median_return_pct?: number; limit_up?: number; limit_down?: number; limit_source_available: boolean }
+  leverage: { available: boolean; as_of?: string; lag_days?: number; balance_cny?: number; purchases_cny?: number; repayments_cny?: number; daily_net_financing_cny?: number; five_day_net_financing_cny?: number; coverage_label?: string }
+  etf_flows: { available: boolean; as_of?: string; lag_days?: number; estimated_net_flow_cny?: number; groups?: Record<string, number>; fund_count?: number; flow_covered_funds?: number; coverage_ratio?: number; method?: string; note?: string }
+  funding_rates: { available: boolean; as_of?: string; lag_days?: number; overnight_pct?: number; seven_day_pct?: number; overnight_change_bp?: number; seven_day_change_bp?: number }
+  flow_proxy: { available: boolean; as_of?: string; lag_days?: number; provider?: string; method?: string; warning?: string; values?: Record<string, number | string | null> }
+  history: Array<{ trade_date: string; turnover_cny: number; advances: number; declines: number; flat: number; median_return_pct?: number }>
+}
 
 const base = '/agent'
 export const agentPlatformApi = {
@@ -65,4 +76,5 @@ export const agentPlatformApi = {
   holderPositions: (id: string, view: 'latest' | 'history', limit = 200, offset = 0, allHistory = false) => apiJson<{ items: Array<HolderPosition | HolderHistoryEvent>; total: number; source_available: boolean; source_as_of?: string; watch: HolderWatchItem }>(`${base}/holders/${id}/positions?view=${view}&limit=${limit}&offset=${offset}&all_history=${allHistory}`),
   holderEvents: (unreadOnly = false) => apiJson<{ items: HolderInboxEvent[]; unread: number }>(`${base}/holder-events?unread_only=${unreadOnly}`),
   readHolderEvents: (eventIds: string[] = []) => apiJson<{ ok: boolean; updated: number }>(`${base}/holder-events/read`, { method: 'POST', body: { event_ids: eventIds } }),
+  marketCapital: (window = 60) => apiJson<MarketCapitalSnapshot>(`${base}/market-capital?window=${window}`),
 }
