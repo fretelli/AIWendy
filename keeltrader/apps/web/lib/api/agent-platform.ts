@@ -23,6 +23,7 @@ export type HolderHistoryEvent = HolderPosition & { event_type: 'first_seen' | '
 export type HolderInboxEvent = { id: string; watch_id: string; ts_code: string; company_name?: string; holder_name: string; holder_type: string; event_type: HolderHistoryEvent['event_type']; end_date: string; ann_date?: string; previous_end_date?: string; values: Record<string, unknown>; read_at?: string; detected_at: string }
 export type MarketCapitalSnapshot = {
   available: boolean; as_of?: string; window: number; interpretations: string[]
+  methodology?: { scope?: string; complete_day_threshold?: number; flow_warning?: string }
   sources: Record<string, { available: boolean; as_of?: string; lag_days?: number; row_count?: number }>
   liquidity: { turnover_cny: number; average_5d_cny?: number; average_20d_cny?: number; vs_5d_pct?: number; vs_20d_pct?: number; top20_turnover_share?: number; top50_turnover_share?: number; note: string }
   breadth: { advances: number; declines: number; flat: number; advance_ratio?: number; median_return_pct?: number; limit_up?: number; limit_down?: number; limit_source_available: boolean }
