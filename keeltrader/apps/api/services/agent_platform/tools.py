@@ -36,6 +36,8 @@ TOOL_DEFINITIONS = [
      "parameters": {"type": "object", "properties": {"holder_name": {"type": "string"}, "holder_type": {"type": "string", "default": "未知"}, "aliases": {"type": "array", "items": {"type": "string"}}, "limit": {"type": "integer", "default": 100}}, "required": ["holder_name", "holder_type"]}},
     {"name": "holder_history", "description": "Return objective quarter-by-quarter top-10 floating shareholder changes and exits",
      "parameters": {"type": "object", "properties": {"holder_name": {"type": "string"}, "holder_type": {"type": "string", "default": "未知"}, "aliases": {"type": "array", "items": {"type": "string"}}, "limit": {"type": "integer", "default": 200}}, "required": ["holder_name", "holder_type"]}},
+    {"name": "market_capital_snapshot", "description": "Return a deterministic, source-dated full A-share post-close capital snapshot without scoring or recommendations",
+     "parameters": {"type": "object", "properties": {"window": {"type": "integer", "default": 60, "minimum": 20, "maximum": 250}}}},
 ]
 
 
@@ -139,6 +141,11 @@ async def _holder_history(session: AsyncSession, user_id: UUID, args: dict[str, 
     return result
 
 
+async def _market_capital(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
+    del user_id
+    return await TushareReadService(session).market_capital_snapshot(int(args.get("window", 60)))
+
+
 TOOL_HANDLERS: dict[str, ToolHandler] = {
     "query_research_reports": _reports,
     "query_tushare_data": _tushare,
@@ -150,6 +157,7 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "search_holder": _search_holder,
     "holder_positions": _holder_positions,
     "holder_history": _holder_history,
+    "market_capital_snapshot": _market_capital,
 }
 
 
