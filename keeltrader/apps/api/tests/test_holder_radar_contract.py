@@ -26,6 +26,22 @@ def test_holder_queries_use_each_company_latest_period_and_explicit_exit_languag
     assert "holder_name = ANY(:holder_names)" in source
 
 
+def test_holder_history_classifies_full_timeline_before_recent_window_and_estimates_prices():
+    source = (ROOT / "apps/api/services/agent_platform/tushare.py").read_text(encoding="utf-8")
+    history = source.split("async def holder_history(", 1)[1].split("async def query_table(", 1)[0]
+    assert "result_filter = \"AND classified.end_date >= :min_end_date\"" in source
+    assert "price.adj_type = 'qfq'" in source
+    assert "price.trade_date > TO_DATE(paged.previous_end_date, 'YYYYMMDD')" in source
+    assert "qfq_close_volume_weighted_reporting_window" in source
+    assert "退出前十仅表示后续榜单未出现" in source
+    company_periods = history.split("), company_periods AS (", 1)[1].split("), positions AS (", 1)[0]
+    positions = history.split("), positions AS (", 1)[1].split("), positioned AS (", 1)[0]
+    assert "min_end_date" not in company_periods
+    assert "min_end_date" not in positions
+    scanner = (ROOT / "apps/api/services/agent_platform/holders.py").read_text(encoding="utf-8")
+    assert "include_price_estimates=False" in scanner
+
+
 def test_holder_tools_do_not_add_scoring_or_sourcing():
     source = (ROOT / "apps/api/services/agent_platform/tools.py").read_text(encoding="utf-8")
     assert '"search_holder"' in source
