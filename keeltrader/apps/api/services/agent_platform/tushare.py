@@ -7,10 +7,12 @@ has already been synchronized by /opt/services/tushare.
 from __future__ import annotations
 
 import asyncio
+import copy
 from contextlib import asynccontextmanager
 from datetime import date, datetime
 from decimal import Decimal
 import re
+import time
 from typing import Any
 
 from sqlalchemy import text
@@ -54,6 +56,8 @@ ALLOWED_TABLES = {
 
 _tushare_session_factory: async_sessionmaker[AsyncSession] | None = None
 _tushare_session_url: str | None = None
+_market_capital_cache: dict[int, tuple[float, dict[str, Any]]] = {}
+_MARKET_CAPITAL_CACHE_SECONDS = 300
 
 
 def _get_tushare_session_factory() -> async_sessionmaker[AsyncSession] | None:
@@ -598,6 +602,9 @@ class TushareReadService:
         """Build one deterministic, source-dated A-share post-close capital snapshot."""
         from services.agent_platform.market_capital import factual_interpretations, pct_change
         window = max(20, min(int(window), 250))
+        cached = _market_capital_cache.get(window)
+        if cached and time.monotonic() - cached[0] < _MARKET_CAPITAL_CACHE_SECONDS:
+            return copy.deepcopy(cached[1])
         if not await self.table_exists("stock_daily"):
             return {"available": False, "as_of": None, "reason": "stock_daily unavailable", "interpretations": []}
         complete = await self._execute_mappings(text(f"""
@@ -614,6 +621,7 @@ class TushareReadService:
         if not complete:
             return {"available": False, "as_of": None, "reason": "no complete trading day", "interpretations": []}
         as_of = str(complete[0]["trade_date"])
+        as_of_date = date.fromisoformat(as_of)
         history = await self._execute_mappings(text(f"""
             SELECT trade_date,COUNT(*)::int AS stock_count,SUM(COALESCE(amount,0))*1000 AS turnover_cny,
                    COUNT(*) FILTER (WHERE pct_chg>0)::int AS advances,
@@ -626,7 +634,7 @@ class TushareReadService:
               GROUP BY trade_date ORDER BY trade_date DESC LIMIT :window
             ) GROUP BY trade_date
             ORDER BY trade_date DESC LIMIT :window
-        """), {"as_of": as_of, "window": window})
+        """), {"as_of": as_of_date, "window": window})
         latest = history[0]
         turnovers = [float(row["turnover_cny"] or 0) for row in history]
         avg5 = sum(turnovers[:5]) / len(turnovers[:5])
@@ -638,7 +646,7 @@ class TushareReadService:
               FROM {self.schema}.stock_daily WHERE trade_date=:as_of
             ) SELECT SUM(amount) FILTER (WHERE rank<=20)/NULLIF(MAX(total),0) AS top20,
                      SUM(amount) FILTER (WHERE rank<=50)/NULLIF(MAX(total),0) AS top50 FROM ranked
-        """), {"as_of": as_of})
+        """), {"as_of": as_of_date})
         liquidity = {"turnover_cny": float(latest["turnover_cny"] or 0), "average_5d_cny": avg5,
                      "average_20d_cny": avg20, "vs_5d_pct": pct_change(float(latest["turnover_cny"] or 0), avg5),
                      "vs_20d_pct": pct_change(float(latest["turnover_cny"] or 0), avg20),
@@ -656,7 +664,7 @@ class TushareReadService:
                        COUNT(*) FILTER (WHERE d.close=l.down_limit)::int AS limit_down,COUNT(*)::int AS covered
                 FROM {self.schema}.stk_limit l JOIN {self.schema}.stock_daily d
                   ON d.trade_date=l.trade_date AND d.ts_code=l.ts_code WHERE l.trade_date=:as_of
-            """), {"as_of": as_of})
+            """), {"as_of": as_of_date})
             if limits and limits[0]["covered"]:
                 breadth.update(limit_up=limits[0]["limit_up"], limit_down=limits[0]["limit_down"], limit_source_available=True)
                 sources["stk_limit"] = {"available": True, "as_of": as_of, "row_count": limits[0]["covered"]}
@@ -665,8 +673,8 @@ class TushareReadService:
         else:
             sources["stk_limit"] = {"available": False, "as_of": None}
         leverage, etfs, rates, proxy = await asyncio.gather(
-            self._market_leverage(as_of), self._market_etf_flows(as_of),
-            self._market_funding_rates(as_of), self._market_flow_proxy(as_of),
+            self._market_leverage(as_of_date), self._market_etf_flows(as_of_date),
+            self._market_funding_rates(as_of_date), self._market_flow_proxy(as_of_date),
         )
         for key, value in (("leverage", leverage), ("etf_flows", etfs), ("shibor", rates), ("moneyflow_mkt_dc", proxy)):
             component_date = value.get("as_of")
@@ -679,9 +687,10 @@ class TushareReadService:
                   "interpretations": [], "methodology": {"scope": "A-share full market",
                   "complete_day_threshold": 0.95, "flow_warning": "成交额不等于净流入"}}
         result["interpretations"] = factual_interpretations(result)
+        _market_capital_cache[window] = (time.monotonic(), copy.deepcopy(result))
         return result
 
-    async def _market_leverage(self, as_of: str) -> dict[str, Any]:
+    async def _market_leverage(self, as_of: date) -> dict[str, Any]:
         table = "margin_detail" if await self.table_exists("margin_detail") else "margin" if await self.table_exists("margin") else None
         if not table:
             return {"available": False, "as_of": None, "reason": "financing source unavailable"}
@@ -700,22 +709,31 @@ class TushareReadService:
                 "daily_net_financing_cny": net(latest), "five_day_net_financing_cny": sum(net(row) for row in rows),
                 "coverage": latest["exchanges"], "coverage_label": "+".join(latest["exchanges"] or []), "source_table": table}
 
-    async def _market_etf_flows(self, as_of: str) -> dict[str, Any]:
-        if not all([await self.table_exists("fund_basic"), await self.table_exists("fund_share"), await self.table_exists("fund_nav")]):
+    async def _market_etf_flows(self, as_of: date) -> dict[str, Any]:
+        if not all(await asyncio.gather(
+            self.table_exists("fund_basic"), self.table_exists("fund_share"), self.table_exists("fund_nav"),
+        )):
             return {"available": False, "as_of": None, "reason": "ETF share or NAV source unavailable"}
         rows = await self._execute_mappings(text(f"""
             WITH etfs AS (
               SELECT ts_code,name,COALESCE(fund_type,'') fund_type,COALESCE(type,'') subtype FROM {self.schema}.fund_basic
               WHERE market='E' AND (name ILIKE '%ETF%' OR type ILIKE '%ETF%' OR fund_type ILIKE '%ETF%')
-            ), ranked AS (
-              SELECT e.*,s.trade_date,s.fd_share,ROW_NUMBER() OVER(PARTITION BY e.ts_code ORDER BY s.trade_date DESC) rn
-              FROM etfs e JOIN {self.schema}.fund_share s USING(ts_code) WHERE s.trade_date<=:as_of
-            ), paired AS (
-              SELECT *,LAG(fd_share) OVER(PARTITION BY ts_code ORDER BY trade_date) previous_share FROM ranked WHERE rn<=2
             )
-            SELECT p.*,n.nav_date,n.unit_nav FROM paired p LEFT JOIN LATERAL (
-              SELECT nav_date,unit_nav FROM {self.schema}.fund_nav n WHERE n.ts_code=p.ts_code AND n.nav_date<=p.trade_date
-              ORDER BY nav_date DESC LIMIT 1) n ON true WHERE p.rn=1
+            SELECT e.*,s.trade_date,s.fd_share,s.previous_share,n.nav_date,n.unit_nav
+            FROM etfs e
+            JOIN LATERAL (
+              SELECT latest.trade_date,latest.fd_share,
+                     (SELECT previous.fd_share FROM {self.schema}.fund_share previous
+                      WHERE previous.ts_code=e.ts_code AND previous.trade_date<latest.trade_date
+                      ORDER BY previous.trade_date DESC LIMIT 1) AS previous_share
+              FROM {self.schema}.fund_share latest
+              WHERE latest.ts_code=e.ts_code AND latest.trade_date<=:as_of
+              ORDER BY latest.trade_date DESC LIMIT 1
+            ) s ON true
+            LEFT JOIN LATERAL (
+              SELECT nav_date,unit_nav FROM {self.schema}.fund_nav n WHERE n.ts_code=e.ts_code AND n.nav_date<=s.trade_date
+              ORDER BY nav_date DESC LIMIT 1
+            ) n ON true
         """), {"as_of": as_of})
         if not rows:
             return {"available": False, "as_of": None, "reason": "no listed ETF share rows"}
@@ -733,10 +751,10 @@ class TushareReadService:
                 "method": "share_change_x_latest_matching_nav",
                 "note": "估算申赎资金流；份额单位按万份换算，净值日期不晚于份额日期。"}
 
-    async def _market_funding_rates(self, as_of: str) -> dict[str, Any]:
+    async def _market_funding_rates(self, as_of: date) -> dict[str, Any]:
         if not await self.table_exists("shibor"):
             return {"available": False, "as_of": None}
-        rows = await self._execute_mappings(text(f"SELECT date,on,\"1w\" FROM {self.schema}.shibor WHERE date<=:as_of ORDER BY date DESC LIMIT 2"), {"as_of": as_of})
+        rows = await self._execute_mappings(text(f"SELECT date,\"on\",\"1w\" FROM {self.schema}.shibor WHERE date<=:as_of ORDER BY date DESC LIMIT 2"), {"as_of": as_of})
         if not rows:
             return {"available": False, "as_of": None}
         latest, previous = rows[0], rows[1] if len(rows)>1 else {}
@@ -745,7 +763,7 @@ class TushareReadService:
                 "overnight_change_bp": (float(latest["on"])-float(previous["on"]))*100 if previous.get("on") is not None else None,
                 "seven_day_change_bp": (float(latest["1w"])-float(previous["1w"]))*100 if previous.get("1w") is not None else None}
 
-    async def _market_flow_proxy(self, as_of: str) -> dict[str, Any]:
+    async def _market_flow_proxy(self, as_of: date) -> dict[str, Any]:
         base = {"available": False, "as_of": None, "provider": "Tushare / 东方财富", "separate_proxy": True}
         if not await self.table_exists("moneyflow_mkt_dc"):
             return base
