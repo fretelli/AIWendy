@@ -6,6 +6,7 @@ has already been synchronized by /opt/services/tushare.
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import date, datetime
 from decimal import Decimal
@@ -602,6 +603,7 @@ class TushareReadService:
         complete = await self._execute_mappings(text(f"""
             WITH daily AS (
               SELECT trade_date, COUNT(*)::int AS row_count FROM {self.schema}.stock_daily
+              WHERE trade_date >= (SELECT MAX(trade_date) - INTERVAL '60 days' FROM {self.schema}.stock_daily)
               GROUP BY trade_date ORDER BY trade_date DESC LIMIT 30
             ), baseline AS (
               SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY row_count) AS normal_count FROM daily
@@ -618,7 +620,11 @@ class TushareReadService:
                    COUNT(*) FILTER (WHERE pct_chg<0)::int AS declines,
                    COUNT(*) FILTER (WHERE pct_chg=0)::int AS flat,
                    percentile_cont(0.5) WITHIN GROUP (ORDER BY pct_chg) AS median_return_pct
-            FROM {self.schema}.stock_daily WHERE trade_date<=:as_of GROUP BY trade_date
+            FROM {self.schema}.stock_daily
+            WHERE trade_date IN (
+              SELECT trade_date FROM {self.schema}.stock_daily WHERE trade_date<=:as_of
+              GROUP BY trade_date ORDER BY trade_date DESC LIMIT :window
+            ) GROUP BY trade_date
             ORDER BY trade_date DESC LIMIT :window
         """), {"as_of": as_of, "window": window})
         latest = history[0]
@@ -658,8 +664,10 @@ class TushareReadService:
                 sources["stk_limit"] = {"available": False, "as_of": None}
         else:
             sources["stk_limit"] = {"available": False, "as_of": None}
-        leverage, etfs = await self._market_leverage(as_of), await self._market_etf_flows(as_of)
-        rates, proxy = await self._market_funding_rates(as_of), await self._market_flow_proxy(as_of)
+        leverage, etfs, rates, proxy = await asyncio.gather(
+            self._market_leverage(as_of), self._market_etf_flows(as_of),
+            self._market_funding_rates(as_of), self._market_flow_proxy(as_of),
+        )
         for key, value in (("leverage", leverage), ("etf_flows", etfs), ("shibor", rates), ("moneyflow_mkt_dc", proxy)):
             component_date = value.get("as_of")
             lag_days = (date.fromisoformat(as_of) - date.fromisoformat(component_date)).days if component_date else None
