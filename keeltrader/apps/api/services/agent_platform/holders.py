@@ -95,6 +95,7 @@ async def scan_holder_watch(
         result = await service.holder_history(
             holder_names(watch), watch.holder_type,
             limit=page_size, offset=offset, min_end_date=min_end_date,
+            include_price_estimates=False,
         )
         if not result["source_available"]:
             raise RuntimeError("top10_floatholders source is unavailable")

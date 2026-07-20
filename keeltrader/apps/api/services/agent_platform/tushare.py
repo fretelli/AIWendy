@@ -334,15 +334,38 @@ class TushareReadService:
         limit: int = 200,
         offset: int = 0,
         min_end_date: str | None = None,
+        include_price_estimates: bool = True,
     ) -> dict[str, Any]:
-        """Build objective quarter-to-quarter holder events, including top-ten exits."""
+        """Build objective quarter-to-quarter holder events and price-window estimates."""
         if not await self.table_exists("top10_floatholders"):
             return {"items": [], "total": 0, "source_available": False, "source_as_of": None}
         names = [name.strip() for name in holder_names if name.strip()]
         if not names:
             return {"items": [], "total": 0, "source_available": True, "source_as_of": None}
         limit, offset = max(1, min(limit, 1000)), max(0, offset)
-        period_filter = "AND source.end_date >= :min_end_date" if min_end_date else ""
+        result_filter = "AND classified.end_date >= :min_end_date" if min_end_date else ""
+        price_source_available = include_price_estimates and await self.table_exists("stock_daily_adj")
+        estimate_join = f"""
+            LEFT JOIN LATERAL (
+                SELECT MIN(price.low) AS estimate_low,
+                       MAX(price.high) AS estimate_high,
+                       SUM(price.close * price.vol) / NULLIF(SUM(price.vol), 0) AS estimate_volume_weighted_price,
+                       COUNT(*) AS estimate_trading_days,
+                       MIN(price.trade_date) AS estimate_first_trade_date,
+                       MAX(price.trade_date) AS estimate_last_trade_date
+                FROM {self.schema}.stock_daily_adj price
+                WHERE price.ts_code = paged.ts_code
+                  AND price.adj_type = 'qfq'
+                  AND price.trade_date > TO_DATE(paged.previous_end_date, 'YYYYMMDD')
+                  AND price.trade_date <= TO_DATE(paged.end_date, 'YYYYMMDD')
+            ) estimate ON paged.previous_end_date IS NOT NULL
+              AND paged.event_type IN ('new', 'increased', 'reduced', 'exited_top10')
+        """ if price_source_available else ""
+        estimate_columns = """
+                estimate.estimate_low, estimate.estimate_high,
+                estimate.estimate_volume_weighted_price, estimate.estimate_trading_days,
+                estimate.estimate_first_trade_date, estimate.estimate_last_trade_date
+        """ if price_source_available else ""
         q = text(f"""
             WITH matching_codes AS (
                 SELECT DISTINCT ts_code
@@ -353,7 +376,6 @@ class TushareReadService:
                 SELECT source.ts_code, source.end_date, MAX(source.ann_date) AS ann_date
                 FROM {self.schema}.top10_floatholders source
                 JOIN matching_codes matched ON matched.ts_code = source.ts_code
-                WHERE true {period_filter}
                 GROUP BY source.ts_code, source.end_date
             ), positions AS (
                 SELECT source.ts_code, source.end_date,
@@ -366,7 +388,6 @@ class TushareReadService:
                 JOIN matching_codes matched ON matched.ts_code = source.ts_code
                 WHERE source.holder_name = ANY(:holder_names)
                   AND COALESCE(source.holder_type, '未知') = :holder_type
-                  {period_filter}
                 GROUP BY source.ts_code, source.end_date
             ), positioned AS (
                 SELECT period.ts_code, period.end_date, period.ann_date,
@@ -400,16 +421,23 @@ class TushareReadService:
                            ELSE NULL
                        END AS event_type
                 FROM timeline
-            ), result AS (
+            ), filtered AS (
                 SELECT classified.*, stock.name AS company_name, stock.industry, stock.market,
                        COUNT(*) OVER() AS total_count
                 FROM classified
                 LEFT JOIN {self.schema}.stock_basic stock ON stock.ts_code = classified.ts_code
                 WHERE classified.event_type IS NOT NULL
+                  {result_filter}
+            ), paged AS (
+                SELECT *
+                FROM filtered
+                ORDER BY end_date DESC, ann_date DESC NULLS LAST, ts_code
+                LIMIT :limit OFFSET :offset
             )
-            SELECT * FROM result
-            ORDER BY end_date DESC, ann_date DESC NULLS LAST, ts_code
-            LIMIT :limit OFFSET :offset
+            SELECT paged.*{"," if price_source_available else ""}{estimate_columns}
+            FROM paged
+            {estimate_join}
+            ORDER BY paged.end_date DESC, paged.ann_date DESC NULLS LAST, paged.ts_code
         """)
         params: dict[str, Any] = {
             "holder_names": names, "holder_type": holder_type or "未知",
@@ -418,7 +446,53 @@ class TushareReadService:
         if min_end_date:
             params["min_end_date"] = min_end_date
         rows = await self._execute_mappings(q, params)
-        total = int(rows[0].pop("total_count")) if rows else 0
+        total = int(rows[0].get("total_count") or 0) if rows else 0
+        for row in rows:
+            row.pop("total_count", None)
+            event_type = row.get("event_type")
+            side = {
+                "new": "buy",
+                "increased": "buy",
+                "reduced": "sell",
+                "exited_top10": "possible_sell",
+            }.get(event_type)
+            low = row.pop("estimate_low", None)
+            high = row.pop("estimate_high", None)
+            weighted_price = row.pop("estimate_volume_weighted_price", None)
+            trading_days = row.pop("estimate_trading_days", None)
+            first_trade_date = row.pop("estimate_first_trade_date", None)
+            last_trade_date = row.pop("estimate_last_trade_date", None)
+            row["price_estimate"] = None
+            if side and low is not None and high is not None and weighted_price is not None:
+                changed_shares = None
+                current_amount = row.get("hold_amount")
+                previous_amount = row.get("previous_hold_amount")
+                if event_type == "new" and current_amount is not None:
+                    changed_shares = current_amount
+                elif event_type == "increased" and current_amount is not None and previous_amount is not None:
+                    changed_shares = max(0, current_amount - previous_amount)
+                elif event_type == "reduced" and current_amount is not None and previous_amount is not None:
+                    changed_shares = max(0, previous_amount - current_amount)
+                row["price_estimate"] = {
+                    "side": side,
+                    "window_start": row.get("previous_end_date"),
+                    "window_end": row.get("end_date"),
+                    "first_trade_date": first_trade_date,
+                    "last_trade_date": last_trade_date,
+                    "low": low,
+                    "high": high,
+                    "volume_weighted_price": weighted_price,
+                    "trading_days": trading_days,
+                    "changed_shares": changed_shares if side != "possible_sell" else None,
+                    "estimated_amount": weighted_price * changed_shares
+                    if changed_shares is not None and side != "possible_sell" else None,
+                    "method": "qfq_close_volume_weighted_reporting_window",
+                    "disclaimer": (
+                        "按相邻报告期之间的前复权行情估算，并非股东实际成交价。"
+                        if side != "possible_sell" else
+                        "退出前十仅表示后续榜单未出现，不能确认卖出、卖出数量或已清仓。"
+                    ),
+                }
         source_as_of = max((str(row.get("ann_date") or "") for row in rows), default="") or None
         return {"items": rows, "total": total, "source_available": True, "source_as_of": source_as_of}
 
