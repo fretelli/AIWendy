@@ -11,6 +11,7 @@ import copy
 from contextlib import asynccontextmanager
 from datetime import date, datetime
 from decimal import Decimal
+import math
 import re
 import time
 from typing import Any
@@ -1106,7 +1107,10 @@ def _json_safe(value: Any) -> Any:
     if isinstance(value, (datetime, date)):
         return value.isoformat()
     if isinstance(value, Decimal):
-        return float(value)
+        converted = float(value)
+        return converted if math.isfinite(converted) else None
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
     if isinstance(value, list):
         return [_json_safe(v) for v in value]
     if isinstance(value, dict):
