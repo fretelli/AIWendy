@@ -52,12 +52,23 @@ ALLOWED_TABLES = {
     "shibor",
     "lpr",
     "top10_floatholders",
+    "fut_basic",
+    "fut_daily",
+    "fut_mapping",
+    "opt_basic",
+    "opt_daily",
+    "cn_m",
+    "sf_month",
+    "us_tycr",
+    "us_trycr",
 }
 
 _tushare_session_factory: async_sessionmaker[AsyncSession] | None = None
 _tushare_session_url: str | None = None
 _market_capital_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _MARKET_CAPITAL_CACHE_SECONDS = 300
+_market_domain_cache: dict[str, tuple[float, Any]] = {}
+_MARKET_DOMAIN_CACHE_SECONDS = 600
 
 
 def _get_tushare_session_factory() -> async_sessionmaker[AsyncSession] | None:
@@ -683,6 +694,181 @@ class TushareReadService:
         result["interpretations"] = factual_interpretations(result)
         _market_capital_cache[cache_key] = (time.monotonic(), copy.deepcopy(result))
         return result
+
+    async def macro_market_snapshot(self) -> dict[str, Any]:
+        """Return every synchronized raw macro series without normalization or scoring."""
+        cache_key = "macro_market"
+        cached = _market_domain_cache.get(cache_key)
+        if cached and time.monotonic() - cached[0] < _MARKET_DOMAIN_CACHE_SECONDS:
+            return copy.deepcopy(cached[1])
+        definitions = {
+            "gdp": ("cn_gdp", "quarter", "quarterly"),
+            "cpi": ("cn_cpi", "month", "monthly"),
+            "ppi": ("cn_ppi", "month", "monthly"),
+            "money_supply": ("cn_m", "month", "monthly"),
+            "social_financing": ("sf_month", "month", "monthly"),
+            "pmi": ("cn_pmi", "month", "monthly"),
+            "shibor": ("shibor", "date", "daily"),
+            "lpr": ("lpr", "date", "monthly"),
+            "us_treasury": ("us_tycr", "date", "daily"),
+            "us_real_treasury": ("us_trycr", "date", "daily"),
+        }
+        series: dict[str, Any] = {}
+        for key, (table, period_column, frequency) in definitions.items():
+            if not await self.table_exists(table):
+                series[key] = {"available": False, "table": table, "frequency": frequency, "rows": []}
+                continue
+            rows = await self._execute_mappings(text(
+                f"SELECT * FROM {self.schema}.{table} ORDER BY {period_column} ASC"
+            ), {})
+            series[key] = {
+                "available": bool(rows), "table": table, "frequency": frequency,
+                "period_field": period_column, "start": str(rows[0].get(period_column)) if rows else None,
+                "end": str(rows[-1].get(period_column)) if rows else None,
+                "points": len(rows), "raw": True, "rows": rows,
+            }
+        result = {"available": any(value["available"] for value in series.values()), "series": series,
+                  "methodology": {"raw": True, "local_transforms": False,
+                  "note": "同比与环比仅在上游源字段存在时原样展示。"}}
+        _market_domain_cache[cache_key] = (time.monotonic(), copy.deepcopy(result))
+        return result
+
+    async def futures_products(self) -> dict[str, Any]:
+        cached = _market_domain_cache.get("futures_products")
+        if cached and time.monotonic() - cached[0] < _MARKET_DOMAIN_CACHE_SECONDS:
+            return copy.deepcopy(cached[1])
+        if not all([await self.table_exists("fut_mapping"), await self.table_exists("fut_daily")]):
+            return {"available": False, "items": []}
+        rows = await self._execute_mappings(text(f"""
+            WITH latest AS (
+              SELECT DISTINCT ON (m.ts_code) m.ts_code AS product_code,m.trade_date,m.mapping_ts_code
+              FROM {self.schema}.fut_mapping m
+              ORDER BY m.ts_code,m.trade_date DESC
+            )
+            SELECT l.product_code,l.trade_date,l.mapping_ts_code,b.name,b.fut_code,b.exchange,
+                   d.close,d.settle,d.vol,d.amount,d.oi
+            FROM latest l
+            JOIN {self.schema}.fut_daily d ON d.ts_code=l.mapping_ts_code AND d.trade_date=l.trade_date
+            LEFT JOIN {self.schema}.fut_basic b ON b.ts_code=l.mapping_ts_code
+            ORDER BY COALESCE(b.exchange,''),l.product_code
+        """), {})
+        result = {"available": bool(rows), "as_of": max((str(row["trade_date"]) for row in rows), default=None),
+                  "items": rows, "source": "tushare.fut_mapping+fut_daily+fut_basic", "raw": True}
+        _market_domain_cache["futures_products"] = (time.monotonic(), copy.deepcopy(result))
+        return result
+
+    async def futures_history(self, product_code: str) -> dict[str, Any]:
+        rows = await self._execute_mappings(text(f"""
+            SELECT m.trade_date,m.ts_code AS product_code,m.mapping_ts_code AS contract_code,
+                   d.open,d.high,d.low,d.close,d.settle,d.vol,d.amount,d.oi,d.oi_chg
+            FROM {self.schema}.fut_mapping m
+            JOIN {self.schema}.fut_daily d ON d.ts_code=m.mapping_ts_code AND d.trade_date=m.trade_date
+            WHERE m.ts_code=:product_code
+            ORDER BY m.trade_date ASC
+        """), {"product_code": product_code})
+        return {"available": bool(rows), "product_code": product_code, "history": rows,
+                "history_meta": {"scope": "all_available", "raw": True,
+                "start_date": str(rows[0]["trade_date"]) if rows else None,
+                "end_date": str(rows[-1]["trade_date"]) if rows else None, "points": len(rows),
+                "adjusted": False, "source": "tushare.fut_mapping+fut_daily"}}
+
+    async def futures_curve(self, product_code: str, trade_date: date | None = None) -> dict[str, Any]:
+        roots = await self._execute_mappings(text(f"""
+            SELECT b.fut_code FROM {self.schema}.fut_mapping m
+            JOIN {self.schema}.fut_basic b ON b.ts_code=m.mapping_ts_code
+            WHERE m.ts_code=:product_code ORDER BY m.trade_date DESC LIMIT 1
+        """), {"product_code": product_code})
+        fut_code = roots[0]["fut_code"] if roots else None
+        chosen = trade_date
+        if chosen is None and fut_code:
+            latest = await self._execute_mappings(text(f"""
+                SELECT MAX(d.trade_date) AS trade_date FROM {self.schema}.fut_daily d
+                JOIN {self.schema}.fut_basic b ON b.ts_code=d.ts_code WHERE b.fut_code=:fut_code
+            """), {"fut_code": fut_code})
+            chosen = latest[0]["trade_date"] if latest and latest[0].get("trade_date") else None
+        if isinstance(chosen, str):
+            chosen = date.fromisoformat(chosen)
+        rows = [] if chosen is None or not fut_code else await self._execute_mappings(text(f"""
+            SELECT d.trade_date,d.ts_code AS contract_code,b.name,b.list_date,b.delist_date,
+                   d.close,d.settle,d.vol,d.amount,d.oi
+            FROM {self.schema}.fut_daily d JOIN {self.schema}.fut_basic b ON b.ts_code=d.ts_code
+            WHERE b.fut_code=:fut_code AND d.trade_date=:trade_date
+            ORDER BY b.delist_date ASC NULLS LAST,d.ts_code
+        """), {"fut_code": fut_code, "trade_date": chosen})
+        return {"available": bool(rows), "product_code": product_code,
+                "fut_code": fut_code, "trade_date": str(chosen) if chosen else None, "items": rows, "raw": True}
+
+    async def options_series(self) -> dict[str, Any]:
+        cached = _market_domain_cache.get("options_series")
+        if cached and time.monotonic() - cached[0] < _MARKET_DOMAIN_CACHE_SECONDS:
+            return copy.deepcopy(cached[1])
+        if not await self.table_exists("opt_basic"):
+            return {"available": False, "items": []}
+        rows = await self._execute_mappings(text(f"""
+            SELECT opt_code,exchange,MAX(opt_type) AS opt_type,MIN(list_date) AS list_date,
+                   MAX(maturity_date) AS latest_maturity,COUNT(*)::int AS contracts,
+                   COUNT(*) FILTER (WHERE delist_date IS NULL OR delist_date>=CURRENT_DATE)::int AS active_contracts
+            FROM {self.schema}.opt_basic WHERE opt_code IS NOT NULL
+            GROUP BY opt_code,exchange ORDER BY exchange,opt_code
+        """), {})
+        watermark = await self._execute_mappings(text(f"SELECT MIN(trade_date) start_date,MAX(trade_date) end_date FROM {self.schema}.opt_daily"), {})
+        result = {"available": bool(rows), "items": rows, "history_meta": {
+                  "scope": "current_available", "raw": True,
+                  "start_date": str(watermark[0]["start_date"]) if watermark and watermark[0]["start_date"] else None,
+                  "end_date": str(watermark[0]["end_date"]) if watermark and watermark[0]["end_date"] else None,
+                  "backfill_target": "2015-02-09", "source": "tushare.opt_basic+opt_daily"}}
+        _market_domain_cache["options_series"] = (time.monotonic(), copy.deepcopy(result))
+        return result
+
+    async def options_history(self, opt_code: str) -> dict[str, Any]:
+        rows = await self._execute_mappings(text(f"""
+            SELECT d.trade_date,
+                   SUM(COALESCE(d.vol,0)) FILTER (WHERE b.call_put='C') AS call_volume,
+                   SUM(COALESCE(d.vol,0)) FILTER (WHERE b.call_put='P') AS put_volume,
+                   SUM(COALESCE(d.amount,0)) FILTER (WHERE b.call_put='C') AS call_amount,
+                   SUM(COALESCE(d.amount,0)) FILTER (WHERE b.call_put='P') AS put_amount,
+                   SUM(COALESCE(d.oi,0)) FILTER (WHERE b.call_put='C') AS call_oi,
+                   SUM(COALESCE(d.oi,0)) FILTER (WHERE b.call_put='P') AS put_oi,
+                   COUNT(*) FILTER (WHERE b.call_put='C')::int AS call_contracts,
+                   COUNT(*) FILTER (WHERE b.call_put='P')::int AS put_contracts
+            FROM {self.schema}.opt_daily d JOIN {self.schema}.opt_basic b ON b.ts_code=d.ts_code
+            WHERE b.opt_code=:opt_code GROUP BY d.trade_date ORDER BY d.trade_date ASC
+        """), {"opt_code": opt_code})
+        return {"available": bool(rows), "opt_code": opt_code, "history": rows,
+                "history_meta": {"scope": "current_available", "raw_aggregation": True,
+                "start_date": str(rows[0]["trade_date"]) if rows else None,
+                "end_date": str(rows[-1]["trade_date"]) if rows else None,
+                "points": len(rows), "source": "tushare.opt_daily+opt_basic"}}
+
+    async def options_chain(self, opt_code: str, trade_date: date | None = None,
+                            maturity: date | None = None, limit: int = 300, offset: int = 0) -> dict[str, Any]:
+        limit, offset = max(1, min(limit, 500)), max(0, offset)
+        chosen = trade_date
+        if chosen is None:
+            latest = await self._execute_mappings(text(f"""
+                SELECT MAX(d.trade_date) AS trade_date FROM {self.schema}.opt_daily d
+                JOIN {self.schema}.opt_basic b ON b.ts_code=d.ts_code WHERE b.opt_code=:opt_code
+            """), {"opt_code": opt_code})
+            chosen = latest[0]["trade_date"] if latest and latest[0].get("trade_date") else None
+        if isinstance(chosen, str):
+            chosen = date.fromisoformat(chosen)
+        params = {"opt_code": opt_code, "trade_date": chosen, "maturity": maturity,
+                  "limit": limit, "offset": offset}
+        rows = [] if chosen is None else await self._execute_mappings(text(f"""
+            SELECT d.trade_date,d.ts_code,b.name,b.exchange,b.call_put,b.exercise_price,b.maturity_date,
+                   d.open,d.high,d.low,d.close,d.settle,d.vol,d.amount,d.oi,
+                   COUNT(*) OVER()::int AS total
+            FROM {self.schema}.opt_daily d JOIN {self.schema}.opt_basic b ON b.ts_code=d.ts_code
+            WHERE b.opt_code=:opt_code AND d.trade_date=:trade_date
+              AND (CAST(:maturity AS date) IS NULL OR b.maturity_date=CAST(:maturity AS date))
+            ORDER BY b.maturity_date,b.exercise_price,b.call_put LIMIT :limit OFFSET :offset
+        """), params)
+        total = rows[0].get("total", 0) if rows else 0
+        for row in rows:
+            row.pop("total", None)
+        return {"available": bool(rows), "opt_code": opt_code, "trade_date": str(chosen) if chosen else None,
+                "maturity": str(maturity) if maturity else None, "items": rows, "total": total,
+                "limit": limit, "offset": offset, "raw": True}
 
     async def _market_leverage(self, as_of: date) -> dict[str, Any]:
         detail_exists, summary_exists = await asyncio.gather(
