@@ -322,9 +322,101 @@ class TushareReadService:
             "holder_names": names, "holder_type": holder_type or "未知",
             "limit": limit, "offset": offset,
         })
-        total = int(rows[0].pop("total_count")) if rows else 0
+        total = int(rows[0].get("total_count") or 0) if rows else 0
+        for row in rows:
+            row.pop("total_count", None)
+        cost_estimates: dict[str, dict[str, Any]] = {}
+        if rows and await self.table_exists("stock_daily_adj"):
+            cost_estimates = await self._holder_current_cost_estimates(
+                names, holder_type or "未知", [str(row["ts_code"]) for row in rows],
+            )
+        for row in rows:
+            row["cost_estimate"] = cost_estimates.get(str(row["ts_code"]))
         source_as_of = max((str(row.get("ann_date") or "") for row in rows), default="") or None
         return {"items": rows, "total": total, "source_available": True, "source_as_of": source_as_of}
+
+    async def _holder_current_cost_estimates(
+        self,
+        holder_names: list[str],
+        holder_type: str,
+        ts_codes: list[str],
+    ) -> dict[str, dict[str, Any]]:
+        """Reconstruct the estimable portion of current holdings with an average-cost ledger."""
+        if not ts_codes:
+            return {}
+        q = text(f"""
+            WITH company_periods AS (
+                SELECT source.ts_code, source.end_date
+                FROM {self.schema}.top10_floatholders source
+                WHERE source.ts_code = ANY(:ts_codes)
+                GROUP BY source.ts_code, source.end_date
+            ), positions AS (
+                SELECT source.ts_code, source.end_date,
+                       SUM(source.hold_amount) AS hold_amount,
+                       SUM(source.hold_float_ratio) AS hold_float_ratio,
+                       SUM(source.hold_change) AS hold_change
+                FROM {self.schema}.top10_floatholders source
+                WHERE source.ts_code = ANY(:ts_codes)
+                  AND source.holder_name = ANY(:holder_names)
+                  AND COALESCE(source.holder_type, '未知') = :holder_type
+                GROUP BY source.ts_code, source.end_date
+            ), positioned AS (
+                SELECT period.ts_code, period.end_date,
+                       position.hold_amount, position.hold_float_ratio, position.hold_change,
+                       (position.ts_code IS NOT NULL) AS present
+                FROM company_periods period
+                LEFT JOIN positions position
+                  ON position.ts_code = period.ts_code AND position.end_date = period.end_date
+            ), timeline AS (
+                SELECT positioned.*,
+                       LAG(present) OVER (PARTITION BY ts_code ORDER BY end_date) AS previous_present,
+                       LAG(end_date) OVER (PARTITION BY ts_code ORDER BY end_date) AS previous_end_date,
+                       LAG(hold_amount) OVER (PARTITION BY ts_code ORDER BY end_date) AS previous_hold_amount,
+                       LAG(hold_float_ratio) OVER (PARTITION BY ts_code ORDER BY end_date) AS previous_hold_float_ratio
+                FROM positioned
+            ), classified AS (
+                SELECT timeline.*,
+                       CASE
+                           WHEN present AND previous_present IS NULL THEN 'first_seen'
+                           WHEN present AND previous_present = false THEN 'new'
+                           WHEN NOT present AND previous_present = true THEN 'exited_top10'
+                           WHEN present AND previous_present = true AND
+                                (hold_amount > previous_hold_amount OR
+                                 (hold_amount IS NULL AND hold_float_ratio > previous_hold_float_ratio)) THEN 'increased'
+                           WHEN present AND previous_present = true AND
+                                (hold_amount < previous_hold_amount OR
+                                 (hold_amount IS NULL AND hold_float_ratio < previous_hold_float_ratio)) THEN 'reduced'
+                           WHEN present AND previous_present = true THEN 'unchanged'
+                           ELSE NULL
+                       END AS event_type
+                FROM timeline
+            )
+            SELECT classified.ts_code, classified.end_date, classified.previous_end_date,
+                   classified.event_type, classified.hold_amount, classified.previous_hold_amount,
+                   classified.hold_change,
+                   estimate.estimate_low, estimate.estimate_high,
+                   estimate.estimate_volume_weighted_price
+            FROM classified
+            LEFT JOIN LATERAL (
+                SELECT MIN(price.low) AS estimate_low,
+                       MAX(price.high) AS estimate_high,
+                       SUM(price.close * price.vol) / NULLIF(SUM(price.vol), 0) AS estimate_volume_weighted_price
+                FROM {self.schema}.stock_daily_adj price
+                WHERE price.ts_code = classified.ts_code
+                  AND price.adj_type = 'qfq'
+                  AND price.trade_date > TO_DATE(classified.previous_end_date, 'YYYYMMDD')
+                  AND price.trade_date <= TO_DATE(classified.end_date, 'YYYYMMDD')
+            ) estimate ON classified.previous_end_date IS NOT NULL
+              AND classified.event_type IN ('new', 'increased', 'reduced')
+            WHERE classified.event_type IS NOT NULL
+            ORDER BY classified.ts_code, classified.end_date
+        """)
+        events = await self._execute_mappings(q, {
+            "holder_names": holder_names,
+            "holder_type": holder_type,
+            "ts_codes": ts_codes,
+        })
+        return _build_holder_cost_estimates(events)
 
     async def holder_history(
         self,
@@ -522,6 +614,96 @@ class TushareReadService:
         where_sql = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         q = text(f"SELECT * FROM {self.schema}.{table} {where_sql} LIMIT :limit")
         return await self._execute_mappings(q, params)
+
+
+def _build_holder_cost_estimates(events: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Apply a deterministic average-cost ledger to classified disclosure events."""
+    ledgers: dict[str, dict[str, Any]] = {}
+    for event in events:
+        code = str(event["ts_code"])
+        ledger = ledgers.setdefault(code, {
+            "known_shares": 0.0, "unknown_shares": 0.0,
+            "cost": 0.0, "cost_low": 0.0, "cost_high": 0.0,
+            "first_estimated_period": None, "last_estimated_period": None,
+        })
+        event_type = event.get("event_type")
+        current = float(event.get("hold_amount") or 0)
+        previous = float(event.get("previous_hold_amount") or 0)
+        weighted = event.get("estimate_volume_weighted_price")
+        low = event.get("estimate_low")
+        high = event.get("estimate_high")
+
+        if event_type == "exited_top10":
+            ledger.update(known_shares=0.0, unknown_shares=0.0, cost=0.0, cost_low=0.0, cost_high=0.0)
+            ledger["first_estimated_period"] = None
+            ledger["last_estimated_period"] = None
+            continue
+        if event_type == "first_seen":
+            ledger.update(known_shares=0.0, unknown_shares=current, cost=0.0, cost_low=0.0, cost_high=0.0)
+            ledger["first_estimated_period"] = None
+            ledger["last_estimated_period"] = None
+            continue
+        if event_type == "new":
+            ledger.update(known_shares=0.0, unknown_shares=0.0, cost=0.0, cost_low=0.0, cost_high=0.0)
+            changed = current
+        elif event_type in {"increased", "reduced"}:
+            disclosed_change = event.get("hold_change")
+            transaction_change = float(disclosed_change) if disclosed_change is not None else current - previous
+            corporate_adjusted_base = max(0.0, current - transaction_change)
+            scale = corporate_adjusted_base / previous if previous > 0 else 0.0
+            ledger["known_shares"] *= scale
+            ledger["unknown_shares"] *= scale
+            ledger["cost"] *= scale
+            ledger["cost_low"] *= scale
+            ledger["cost_high"] *= scale
+            if transaction_change < 0:
+                ratio = min(1.0, current / corporate_adjusted_base) if corporate_adjusted_base > 0 else 0.0
+                ledger["known_shares"] *= ratio
+                ledger["unknown_shares"] *= ratio
+                ledger["cost"] *= ratio
+                ledger["cost_low"] *= ratio
+                ledger["cost_high"] *= ratio
+                continue
+            changed = max(0.0, transaction_change)
+        else:
+            continue
+
+        if changed <= 0:
+            continue
+        if weighted is None or low is None or high is None:
+            ledger["unknown_shares"] += changed
+            continue
+        ledger["known_shares"] += changed
+        ledger["cost"] += changed * float(weighted)
+        ledger["cost_low"] += changed * float(low)
+        ledger["cost_high"] += changed * float(high)
+        ledger["first_estimated_period"] = ledger["first_estimated_period"] or event.get("end_date")
+        ledger["last_estimated_period"] = event.get("end_date")
+
+    result: dict[str, dict[str, Any]] = {}
+    for code, ledger in ledgers.items():
+        known_shares = float(ledger["known_shares"])
+        total_shares = known_shares + float(ledger["unknown_shares"])
+        if known_shares <= 0 or total_shares <= 0:
+            continue
+        coverage_ratio = min(1.0, known_shares / total_shares)
+        result[code] = {
+            "unit_cost": ledger["cost"] / known_shares,
+            "unit_cost_low": ledger["cost_low"] / known_shares,
+            "unit_cost_high": ledger["cost_high"] / known_shares,
+            "covered_shares": known_shares,
+            "coverage_ratio": coverage_ratio,
+            "estimated_covered_cost": ledger["cost"],
+            "estimated_position_cost": ledger["cost"] if coverage_ratio >= 0.999999 else None,
+            "first_estimated_period": ledger["first_estimated_period"],
+            "last_estimated_period": ledger["last_estimated_period"],
+            "method": "qfq_disclosure_average_cost_ledger",
+            "disclaimer": (
+                "按公开披露的增持价格窗口累计，减持按平均成本比例扣减；"
+                "送转股等仅按披露持股数与变动数校正，历史起点前持仓和真实成交无法还原。"
+            ),
+        }
+    return result
 
 
 def _json_safe(value: Any) -> Any:
