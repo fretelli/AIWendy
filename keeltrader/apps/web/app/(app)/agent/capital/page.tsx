@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, Banknote, BookOpen,
   Database, Droplets, Gauge, Landmark, Loader2, Radar, RefreshCw, ShipWheel,
@@ -9,7 +9,7 @@ import {
 } from 'lucide-react'
 import {
   Area, Bar, Brush, CartesianGrid, ComposedChart, Line, ReferenceLine,
-  ResponsiveContainer, Tooltip as RechartsTooltip, XAxis, YAxis,
+  Tooltip as RechartsTooltip, XAxis, YAxis,
 } from 'recharts'
 import { toast } from 'sonner'
 
@@ -97,10 +97,25 @@ function MarketContext({ data }: { data: MarketCapitalSnapshot }) {
 
 function MarketTape({ data, window, onWindowChange, refreshing }: { data: MarketCapitalSnapshot; window: (typeof WINDOWS)[number]; onWindowChange: (value: (typeof WINDOWS)[number]) => void; refreshing: boolean }) {
   const [mode, setMode] = useState<ChartMode>('turnover')
+  const chartHost = useRef<HTMLDivElement>(null)
+  const [chartSize, setChartSize] = useState({ width: 0, height: 0 })
   const chartData = useMemo<HistoryPoint[]>(() => data.history.map((row, index, rows) => {
     const sample = rows.slice(Math.max(0, index - 19), index + 1)
     return { ...row, declines_negative: -row.declines, turnover_average_20d: sample.reduce((sum, item) => sum + Number(item.turnover_cny || 0), 0) / sample.length }
   }), [data.history])
+
+  useEffect(() => {
+    const node = chartHost.current
+    if (!node) return
+    const measure = () => setChartSize(current => {
+      const next = { width: Math.floor(node.clientWidth), height: Math.floor(node.clientHeight) }
+      return current.width === next.width && current.height === next.height ? current : next
+    })
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
   return <section data-chart-priority="primary" className="overflow-hidden rounded-2xl border bg-card/88 shadow-sm">
     <div className="flex flex-col gap-3 border-b p-4 md:p-5 lg:flex-row lg:items-center">
@@ -109,7 +124,8 @@ function MarketTape({ data, window, onWindowChange, refreshing }: { data: Market
       <div className="flex items-center gap-1 rounded-lg border bg-background/55 p-1">{WINDOWS.map(days => <button key={days} type="button" disabled={refreshing} onClick={() => onWindowChange(days)} className={`rounded-md px-2.5 py-1.5 font-data text-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${window === days ? 'bg-[hsl(var(--copper))] text-[hsl(var(--copper-foreground))]' : 'text-muted-foreground hover:bg-secondary'}`}>{days}日</button>)}</div>
     </div>
     <div className={`h-[320px] p-2 transition-opacity sm:h-[360px] md:h-[420px] md:p-5 ${refreshing ? 'opacity-55' : ''}`}>
-      <ResponsiveContainer width="100%" height="100%"><ComposedChart key={`${mode}-${window}-${data.as_of}`} data={chartData} margin={{ top: 12, right: 10, left: 4, bottom: 8 }}>
+      <div ref={chartHost} data-chart-canvas="market-capital" className="h-full min-h-0 w-full min-w-0">
+      {chartSize.width > 0 && chartSize.height > 0 ? <ComposedChart width={chartSize.width} height={chartSize.height} key={`${mode}-${window}-${data.as_of}`} data={chartData} margin={{ top: 12, right: 10, left: 4, bottom: 8 }}>
         <defs><linearGradient id="capital-turnover" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(var(--accent))" stopOpacity={.34}/><stop offset="95%" stopColor="hsl(var(--accent))" stopOpacity={0}/></linearGradient></defs>
         <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 5" vertical={false} />
         <XAxis dataKey="trade_date" tickFormatter={shortDate} tick={{ fontSize: 10 }} minTickGap={24} axisLine={false} tickLine={false} />
@@ -119,7 +135,8 @@ function MarketTape({ data, window, onWindowChange, refreshing }: { data: Market
         {mode === 'breadth' && <><ReferenceLine y={0} stroke="hsl(var(--border))" /><Bar dataKey="advances" name="上涨" fill="#e05a67" radius={[3,3,0,0]} /><Bar dataKey="declines_negative" name="下跌" fill="#24906f" radius={[0,0,3,3]} /></>}
         {mode === 'return' && <><ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" /><Line type="monotone" dataKey="median_return_pct" name="中位涨跌幅" stroke="hsl(var(--copper-foreground))" dot={false} strokeWidth={2.2} /></>}
         <Brush dataKey="trade_date" height={24} travellerWidth={8} tickFormatter={shortDate} stroke="hsl(var(--border))" fill="hsl(var(--secondary))" />
-      </ComposedChart></ResponsiveContainer>
+      </ComposedChart> : <div className="grid h-full place-items-center text-xs text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />图表尺寸初始化中</div>}
+      </div>
     </div>
     <div className="flex flex-wrap gap-x-5 gap-y-2 border-t bg-secondary/25 px-5 py-3 text-[10px] text-muted-foreground"><span>成交额：全 A 股日成交金额合计</span><span>上涨/下跌：按个股日涨跌幅正负计数</span><span>虚线：所选数据内滚动 20 日均额</span></div>
   </section>
