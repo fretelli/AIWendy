@@ -1,11 +1,6 @@
 """Deterministic calculations and factual language for the market-capital snapshot."""
 from __future__ import annotations
-from statistics import median
 from typing import Any
-
-
-def pct_change(value: float | None, base: float | None) -> float | None:
-    return None if value is None or base in (None, 0) else (float(value) / float(base) - 1) * 100
 
 
 def market_day(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -15,7 +10,6 @@ def market_day(rows: list[dict[str, Any]]) -> dict[str, Any]:
     return {"turnover_cny": total, "advances": sum(v > 0 for v in returns),
             "declines": sum(v < 0 for v in returns), "flat": sum(v == 0 for v in returns),
             "advance_ratio": sum(v > 0 for v in returns) / len(returns) if returns else None,
-            "median_return_pct": median(returns) if returns else None,
             "top20_turnover_share": sum(ordered[:20]) / total if total else None,
             "top50_turnover_share": sum(ordered[:50]) / total if total else None}
 
@@ -30,13 +24,9 @@ def etf_flow(share_now_10k: float | None, share_previous_10k: float | None, nav:
 
 def factual_interpretations(snapshot: dict[str, Any]) -> list[str]:
     lines: list[str] = []
-    liquidity, breadth = snapshot.get("liquidity") or {}, snapshot.get("breadth") or {}
-    vs20, advances = liquidity.get("vs_20d_pct"), breadth.get("advance_ratio")
-    if vs20 is not None:
-        text = f"成交额较20日均值{'高' if vs20 >= 0 else '低'}{abs(vs20):.1f}%"
-        if advances is not None:
-            text += f"，上涨家数占比为{advances * 100:.1f}%"
-        lines.append(text + "。")
+    breadth = snapshot.get("breadth") or {}
+    if all(breadth.get(key) is not None for key in ("advances", "declines", "flat")):
+        lines.append(f"当日上涨{breadth['advances']}家、下跌{breadth['declines']}家、平盘{breadth['flat']}家。")
     leverage = snapshot.get("leverage") or {}
     if leverage.get("available") and leverage.get("daily_net_financing_cny") is not None:
         value = leverage["daily_net_financing_cny"]

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import {
   Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, Banknote, BookOpen,
   Database, Droplets, Gauge, Landmark, Loader2, Radar, RefreshCw, ShipWheel,
@@ -14,33 +14,27 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { agentPlatformApi, type MarketCapitalSnapshot } from '@/lib/api/agent-platform'
 
-type ChartMode = 'turnover' | 'breadth' | 'return'
-type HistoryPoint = MarketCapitalSnapshot['history'][number] & {
-  declines_negative: number
-  turnover_average_20d: number
-}
+type ChartMode = 'turnover' | 'breadth'
+type HistoryPoint = MarketCapitalSnapshot['history'][number]
 
-const WINDOWS = [20, 60, 120, 250] as const
 const CHART_MODES: Array<{ value: ChartMode; label: string }> = [
   { value: 'turnover', label: '成交水位' },
   { value: 'breadth', label: '涨跌广度' },
-  { value: 'return', label: '中位涨跌幅' },
 ]
 
 export default function MarketCapitalPage() {
   const [data, setData] = useState<MarketCapitalSnapshot | null>(null)
-  const [window, setWindow] = useState<(typeof WINDOWS)[number]>(60)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
-  const load = useCallback(async (days: number, refresh = false) => {
+  const load = useCallback(async (refresh = false) => {
     refresh ? setRefreshing(true) : setLoading(true)
-    try { setData(await agentPlatformApi.marketCapital(days)) }
+    try { setData(await agentPlatformApi.marketCapital()) }
     catch (error) { toast.error(error instanceof Error ? error.message : '资金面快照加载失败') }
     finally { setLoading(false); setRefreshing(false) }
   }, [])
 
-  useEffect(() => { queueMicrotask(() => { void load(window) }) }, [load, window])
+  useEffect(() => { queueMicrotask(() => { void load() }) }, [load])
   if (loading && !data) return <div className="grid h-full place-items-center"><Loader2 className="h-7 w-7 animate-spin" /></div>
 
   return <div className="h-full min-h-0 overflow-y-auto bg-background/80">
@@ -48,7 +42,7 @@ export default function MarketCapitalPage() {
       <div className="hidden border-r pr-4 sm:block"><KeelMark /></div>
       <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><Waves className="h-4 w-4 text-[hsl(var(--copper-foreground))]" /><h1 className="font-display text-lg font-semibold">全市场资金面</h1></div><p className="truncate text-[10px] text-muted-foreground">A 股收盘后客观快照 · 不评分，不推荐</p></div>
       <Badge variant="outline" className="hidden font-data sm:inline-flex">截至 {fmtDate(data?.as_of)}</Badge>
-      <Button size="sm" variant="outline" disabled={refreshing} onClick={() => void load(window, true)}><RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />刷新</Button>
+      <Button size="sm" variant="outline" disabled={refreshing} onClick={() => void load(true)}><RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />刷新</Button>
       <Button asChild size="sm" variant="outline"><Link href="/agent/holders"><Radar className="mr-1.5 h-4 w-4" /><span className="hidden md:inline">股东雷达</span></Link></Button>
       <Button asChild size="sm" variant="outline"><Link href="/agent"><ShipWheel className="mr-1.5 h-4 w-4" /><span className="hidden md:inline">研究台</span></Link></Button><ThemeMenu />
     </header>
@@ -56,12 +50,12 @@ export default function MarketCapitalPage() {
     <div className="mx-auto max-w-[1580px] space-y-5 p-4 md:p-7">
       {!data?.available && <Unavailable title="全市场基础行情不可用" />}
       {data?.available && <>
-        <MarketTape key={`${data.window}-${data.as_of}`} data={data} window={window} onWindowChange={setWindow} refreshing={refreshing} />
+        <MarketTape key={`${data.history_meta.start_date}-${data.as_of}`} data={data} refreshing={refreshing} />
         <MarketContext data={data} />
 
         <section className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
-          <Panel title="流动性与成交结构" icon={<Droplets className="h-4 w-4" />} source={data.sources.stock_daily}><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="全市场成交额" value={money(data.liquidity.turnover_cny)} delta={data.liquidity.vs_20d_pct} suffix="较20日均值" /><Metric label="5日均额" value={money(data.liquidity.average_5d_cny)} /><Metric label="前20集中度" value={pct(data.liquidity.top20_turnover_share)} /><Metric label="前50集中度" value={pct(data.liquidity.top50_turnover_share)} /></div></Panel>
-          <Panel title="市场广度" icon={<Activity className="h-4 w-4" />} source={data.sources.stock_daily}><div className="grid grid-cols-2 gap-3"><Metric label="上涨" value={String(data.breadth.advances)} positive /><Metric label="下跌" value={String(data.breadth.declines)} negative /><Metric label="平盘" value={String(data.breadth.flat)} /><Metric label="中位涨跌幅" value={signedPct(data.breadth.median_return_pct)} /></div><div className="mt-4 grid grid-cols-2 gap-3 border-t pt-4"><Metric label="涨停" value={data.breadth.limit_source_available ? String(data.breadth.limit_up) : '不可用'} /><Metric label="跌停" value={data.breadth.limit_source_available ? String(data.breadth.limit_down) : '不可用'} /></div></Panel>
+          <Panel title="流动性与成交结构" icon={<Droplets className="h-4 w-4" />} source={data.sources.stock_daily}><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="全市场成交额" value={money(data.liquidity.turnover_cny)} /><Metric label="覆盖股票" value={`${data.history.at(-1)?.stock_count || '—'} 只`} /><Metric label="前20成交占比" value={pct(data.liquidity.top20_turnover_share)} /><Metric label="前50成交占比" value={pct(data.liquidity.top50_turnover_share)} /></div></Panel>
+          <Panel title="市场广度" icon={<Activity className="h-4 w-4" />} source={data.sources.stock_daily}><div className="grid grid-cols-3 gap-3"><Metric label="上涨" value={String(data.breadth.advances)} positive /><Metric label="下跌" value={String(data.breadth.declines)} negative /><Metric label="平盘" value={String(data.breadth.flat)} /></div><div className="mt-4 grid grid-cols-2 gap-3 border-t pt-4"><Metric label="涨停" value={data.breadth.limit_source_available ? String(data.breadth.limit_up) : '不可用'} /><Metric label="跌停" value={data.breadth.limit_source_available ? String(data.breadth.limit_down) : '不可用'} /></div></Panel>
         </section>
 
         <section className="grid gap-4 lg:grid-cols-2">
@@ -90,14 +84,11 @@ function MarketContext({ data }: { data: MarketCapitalSnapshot }) {
   </section>
 }
 
-function MarketTape({ data, window, onWindowChange, refreshing }: { data: MarketCapitalSnapshot; window: (typeof WINDOWS)[number]; onWindowChange: (value: (typeof WINDOWS)[number]) => void; refreshing: boolean }) {
+function MarketTape({ data, refreshing }: { data: MarketCapitalSnapshot; refreshing: boolean }) {
   const [mode, setMode] = useState<ChartMode>('turnover')
   const chartHost = useRef<HTMLDivElement>(null)
   const [chartSize, setChartSize] = useState({ width: 0, height: 0 })
-  const chartData = useMemo<HistoryPoint[]>(() => data.history.map((row, index, rows) => {
-    const sample = rows.slice(Math.max(0, index - 19), index + 1)
-    return { ...row, declines_negative: -row.declines, turnover_average_20d: sample.reduce((sum, item) => sum + Number(item.turnover_cny || 0), 0) / sample.length }
-  }), [data.history])
+  const chartData = data.history
   const [rangeStart, setRangeStart] = useState(0)
   const [rangeEnd, setRangeEnd] = useState(Math.max(0, chartData.length - 1))
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
@@ -117,9 +108,8 @@ function MarketTape({ data, window, onWindowChange, refreshing }: { data: Market
 
   return <section data-chart-priority="primary" className="overflow-hidden rounded-2xl border bg-card/88 shadow-sm">
     <div className="flex flex-col gap-3 border-b p-4 md:p-5 lg:flex-row lg:items-center">
-      <div className="flex min-w-0 items-start gap-3"><div className="rounded-lg border bg-secondary/55 p-2 text-[hsl(var(--copper-foreground))]"><SlidersHorizontal className="h-4 w-4" /></div><div><h2 className="font-display text-xl font-semibold">资金水位记录带</h2><p className="mt-1 text-xs text-muted-foreground">悬停查看单日明细，拖动底部时间轴缩放观察区间。</p></div></div>
+      <div className="flex min-w-0 items-start gap-3"><div className="rounded-lg border bg-secondary/55 p-2 text-[hsl(var(--copper-foreground))]"><SlidersHorizontal className="h-4 w-4" /></div><div><div className="flex flex-wrap items-center gap-2"><h2 className="font-display text-xl font-semibold">全量原始历史</h2><Badge variant="outline" className="font-data text-[9px]">{data.history_meta.points} 个交易日</Badge></div><p className="mt-1 text-xs text-muted-foreground">{fmtDate(data.history_meta.start_date)} — {fmtDate(data.history_meta.end_date)} · 悬停查看原始单日数据，底部滑块缩放区间。</p></div></div>
       <div className="flex flex-wrap gap-2 lg:ml-auto">{CHART_MODES.map(item => <Button key={item.value} size="sm" variant={mode === item.value ? 'default' : 'outline'} onClick={() => setMode(item.value)}>{item.label}</Button>)}</div>
-      <div className="flex items-center gap-1 rounded-lg border bg-background/55 p-1">{WINDOWS.map(days => <button key={days} type="button" disabled={refreshing} onClick={() => onWindowChange(days)} className={`rounded-md px-2.5 py-1.5 font-data text-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${window === days ? 'bg-[hsl(var(--copper))] text-[hsl(var(--copper-foreground))]' : 'text-muted-foreground hover:bg-secondary'}`}>{days}日</button>)}</div>
     </div>
     <div className={`h-[350px] p-2 transition-opacity sm:h-[390px] md:h-[450px] md:p-5 ${refreshing ? 'opacity-55' : ''}`}>
       <div ref={chartHost} data-chart-canvas="market-capital" className="relative h-[calc(100%-48px)] min-h-0 w-full min-w-0">
@@ -131,7 +121,7 @@ function MarketTape({ data, window, onWindowChange, refreshing }: { data: Market
         <label className="flex items-center gap-2"><input aria-label="图表终点" className="w-full accent-[hsl(var(--copper-foreground))]" type="range" min={0} max={Math.max(0, chartData.length - 1)} value={rangeEnd} onChange={event => { setRangeEnd(Math.max(Number(event.target.value), Math.min(chartData.length - 1, rangeStart + 1))); setHoverIndex(null) }} /><span className="shrink-0">终点</span></label>
       </div>
     </div>
-    <div className="flex flex-wrap gap-x-5 gap-y-2 border-t bg-secondary/25 px-5 py-3 text-[10px] text-muted-foreground"><span>成交额：全 A 股日成交金额合计</span><span>上涨/下跌：按个股日涨跌幅正负计数</span><span>虚线：所选数据内滚动 20 日均额</span></div>
+    <div className="flex flex-wrap gap-x-5 gap-y-2 border-t bg-secondary/25 px-5 py-3 text-[10px] text-muted-foreground"><span>成交额：全 A 股日成交金额原始合计</span><span>涨跌广度：按个股日涨跌幅正负原始计数</span><span>不叠加均线、评分或趋势信号</span></div>
   </section>
 }
 
@@ -140,9 +130,8 @@ function NativeCapitalChart({ width, height, mode, data, hoverIndex, onHover }: 
   const plotWidth = Math.max(1, width - margin.left - margin.right)
   const plotHeight = Math.max(1, height - margin.top - margin.bottom)
   const values = mode === 'turnover'
-    ? data.flatMap(row => [row.turnover_cny, row.turnover_average_20d])
-    : mode === 'breadth' ? data.flatMap(row => [row.advances, -row.declines])
-      : data.map(row => Number(row.median_return_pct || 0))
+    ? data.map(row => row.turnover_cny)
+    : data.flatMap(row => [row.advances, -row.declines])
   const finite = values.filter(Number.isFinite)
   let minimum = mode === 'turnover' ? 0 : Math.min(0, ...finite)
   let maximum = Math.max(0, ...finite)
@@ -160,7 +149,7 @@ function NativeCapitalChart({ width, height, mode, data, hoverIndex, onHover }: 
   const dateTickIndexes = Array.from(new Set(Array.from({ length: Math.min(5, data.length) }, (_, index) => Math.round(index * Math.max(0, data.length - 1) / Math.max(1, Math.min(5, data.length) - 1)))))
   const hovered = hoverIndex === null ? null : data[hoverIndex]
   const hoverX = hoverIndex === null ? 0 : x(hoverIndex)
-  const formatTick = mode === 'turnover' ? compactMoney : mode === 'return' ? (value: number) => `${value.toFixed(1)}%` : compactCount
+  const formatTick = mode === 'turnover' ? compactMoney : compactCount
   const onPointerMove = (event: ReactPointerEvent<SVGRectElement>) => {
     if (!data.length) return
     const rect = event.currentTarget.getBoundingClientRect()
@@ -175,13 +164,12 @@ function NativeCapitalChart({ width, height, mode, data, hoverIndex, onHover }: 
       {yTicks.map(tick => <g key={tick}><line x1={margin.left} x2={width - margin.right} y1={y(tick)} y2={y(tick)} stroke="hsl(var(--border))" strokeDasharray="3 5" /><text x={margin.left - 8} y={y(tick) + 3} textAnchor="end" fontSize="9" fill="hsl(var(--muted-foreground))">{formatTick(tick)}</text></g>)}
       {dateTickIndexes.map(index => <text key={index} x={x(index)} y={height - 7} textAnchor={index === 0 ? 'start' : index === data.length - 1 ? 'end' : 'middle'} fontSize="9" fill="hsl(var(--muted-foreground))">{shortDate(data[index]?.trade_date || '')}</text>)}
       {mode !== 'turnover' && <line x1={margin.left} x2={width - margin.right} y1={y(0)} y2={y(0)} stroke="hsl(var(--muted-foreground))" strokeWidth="1" />}
-      {mode === 'turnover' && <><path d={areaPath} fill="url(#native-capital-area)" /><path d={turnoverPath} fill="none" stroke="hsl(var(--accent))" strokeWidth="2.5" strokeLinejoin="round" /><path d={linePath(row => row.turnover_average_20d)} fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="1.3" strokeDasharray="5 5" /></>}
-      {mode === 'breadth' && data.map((row, index) => { const barWidth = Math.max(1, Math.min(10, plotWidth / Math.max(1, data.length) * .72)); const zero = y(0); return <g key={row.trade_date}><rect x={x(index)-barWidth/2} y={y(row.advances)} width={barWidth} height={Math.max(1, zero-y(row.advances))} fill="#e05a67" rx="1" /><rect x={x(index)-barWidth/2} y={zero} width={barWidth} height={Math.max(1, y(-row.declines)-zero)} fill="#24906f" rx="1" /></g> })}
-      {mode === 'return' && <path d={linePath(row => Number(row.median_return_pct || 0))} fill="none" stroke="hsl(var(--copper-foreground))" strokeWidth="2.5" strokeLinejoin="round" />}
-      {hovered && <><line x1={hoverX} x2={hoverX} y1={margin.top} y2={height-margin.bottom} stroke="hsl(var(--copper-foreground))" strokeDasharray="3 3" /><circle cx={hoverX} cy={y(mode === 'turnover' ? hovered.turnover_cny : mode === 'breadth' ? hovered.advances : Number(hovered.median_return_pct || 0))} r="4" fill="hsl(var(--background))" stroke="hsl(var(--copper-foreground))" strokeWidth="2" /></>}
+      {mode === 'turnover' && <><path d={areaPath} fill="url(#native-capital-area)" /><path d={turnoverPath} fill="none" stroke="hsl(var(--accent))" strokeWidth="2.5" strokeLinejoin="round" /></>}
+      {mode === 'breadth' && <><path d={linePath(row => row.advances)} fill="none" stroke="#e05a67" strokeWidth="1.8" strokeLinejoin="round" /><path d={linePath(row => -row.declines)} fill="none" stroke="#24906f" strokeWidth="1.8" strokeLinejoin="round" /></>}
+      {hovered && <><line x1={hoverX} x2={hoverX} y1={margin.top} y2={height-margin.bottom} stroke="hsl(var(--copper-foreground))" strokeDasharray="3 3" /><circle cx={hoverX} cy={y(mode === 'turnover' ? hovered.turnover_cny : hovered.advances)} r="4" fill="hsl(var(--background))" stroke="hsl(var(--copper-foreground))" strokeWidth="2" /></>}
       <rect x={margin.left} y={margin.top} width={plotWidth} height={plotHeight} fill="transparent" onPointerMove={onPointerMove} onPointerLeave={() => onHover(null)} />
     </svg>
-    {hovered && <div className="pointer-events-none absolute top-2 z-10 min-w-48 rounded-xl border bg-popover/96 p-3 text-xs shadow-xl backdrop-blur" style={{ left: Math.max(4, Math.min(width - 205, hoverX + 10)) }}><p className="font-data font-semibold">{fmtDate(hovered.trade_date)}</p><div className="mt-2 space-y-1.5 text-muted-foreground"><TooltipRow label="成交额" value={money(hovered.turnover_cny)} /><TooltipRow label="20日均额" value={money(hovered.turnover_average_20d)} /><TooltipRow label="上涨 / 下跌 / 平盘" value={`${hovered.advances} / ${hovered.declines} / ${hovered.flat}`} /><TooltipRow label="中位涨跌幅" value={signedPct(hovered.median_return_pct)} /></div></div>}
+    {hovered && <div className="pointer-events-none absolute top-2 z-10 min-w-48 rounded-xl border bg-popover/96 p-3 text-xs shadow-xl backdrop-blur" style={{ left: Math.max(4, Math.min(width - 205, hoverX + 10)) }}><p className="font-data font-semibold">{fmtDate(hovered.trade_date)}</p><div className="mt-2 space-y-1.5 text-muted-foreground"><TooltipRow label="覆盖股票" value={`${hovered.stock_count} 只`} /><TooltipRow label="成交额" value={money(hovered.turnover_cny)} /><TooltipRow label="上涨 / 下跌 / 平盘" value={`${hovered.advances} / ${hovered.declines} / ${hovered.flat}`} /></div></div>}
   </>
 }
 
@@ -197,9 +185,9 @@ function SourceRail({ sources }: { sources: MarketCapitalSnapshot['sources'] }) 
 
 function MethodologyCenter({ data }: { data: MarketCapitalSnapshot }) {
   const methods = [
-    { title: '完整交易日与时间范围', source: 'stock_daily', body: '以最近正常交易日股票数量的中位数为基准，股票记录数达到基准的 95% 才作为完整交易日。页面只展示收盘后日频数据，不代表盘中实时状态。' },
+    { title: '完整交易日与时间范围', source: 'stock_daily', body: '以最近交易日中的最大股票记录数为完整度基准，记录数达到基准的 95% 才作为完整交易日。页面只展示收盘后日频数据，不代表盘中实时状态。' },
     { title: '成交额与集中度', source: 'stock_daily', body: '成交额 = stock_daily.amount × 1,000，统一换算为人民币元。前20/前50集中度 = 当日成交额最高的20/50只股票成交额 ÷ 全市场成交额。成交额不是净流入。' },
-    { title: '市场广度与涨跌停', source: 'stock_daily + stk_limit', body: '上涨、下跌和平盘按个股 pct_chg 与 0 的关系计数；中位涨跌幅取全市场个股涨跌幅中位数。涨跌停要求收盘价精确等于当日涨停价或跌停价。' },
+    { title: '市场广度与涨跌停', source: 'stock_daily + stk_limit', body: '上涨、下跌和平盘按个股 pct_chg 与 0 的关系直接计数。涨跌停要求收盘价精确等于当日涨停价或跌停价。' },
     { title: '融资余额与融资净额', source: 'margin + margin_detail', body: '优先采用交易所汇总，缺失交易所才由个股明细补齐，避免重复计数。融资净额 = 融资买入额 − 融资偿还额；5日融资净额为最近5个已披露日之和。' },
     { title: 'ETF 申赎估算', source: 'fund_share + fund_nav', body: '估算金额 =（最新份额 − 上一期份额）× 10,000 × 不晚于份额日期的最新单位净值。它是份额变化估算，不等同于交易所逐笔资金净流入；NAV覆盖率同时展示。' },
     { title: '资金价格', source: 'shibor', body: '展示 SHIBOR 隔夜和7天利率；变化基点 =（当日利率 − 前一披露日利率）× 100。来源滞后按自然日计算。' },
@@ -220,6 +208,5 @@ const compactMoney = (value: number) => Math.abs(value) >= 1e12 ? `${(value/1e12
 const compactCount = (value: number) => `${Math.abs(value).toFixed(0)}`
 const signedMoney = (value?: number) => value === undefined || value === null ? '—' : `${value >= 0 ? '+' : '-'}${money(Math.abs(value))}`
 const pct = (value?: number) => value === undefined || value === null ? '—' : `${(value*100).toFixed(1)}%`
-const signedPct = (value?: number) => value === undefined || value === null ? '—' : `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
 const rate = (value?: number) => value === undefined || value === null ? '—' : `${value.toFixed(3)}%`
 const groupName = (value: string) => ({equity:'权益',bond:'债券',commodity:'商品',cross_border:'跨境',other:'其他'}[value] || value)

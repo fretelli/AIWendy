@@ -56,7 +56,7 @@ ALLOWED_TABLES = {
 
 _tushare_session_factory: async_sessionmaker[AsyncSession] | None = None
 _tushare_session_url: str | None = None
-_market_capital_cache: dict[int, tuple[float, dict[str, Any]]] = {}
+_market_capital_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _MARKET_CAPITAL_CACHE_SECONDS = 300
 
 
@@ -598,11 +598,11 @@ class TushareReadService:
         source_as_of = max((str(row.get("ann_date") or "") for row in rows), default="") or None
         return {"items": rows, "total": total, "source_available": True, "source_as_of": source_as_of}
 
-    async def market_capital_snapshot(self, window: int = 60) -> dict[str, Any]:
+    async def market_capital_snapshot(self) -> dict[str, Any]:
         """Build one deterministic, source-dated A-share post-close capital snapshot."""
-        from services.agent_platform.market_capital import factual_interpretations, pct_change
-        window = max(20, min(int(window), 250))
-        cached = _market_capital_cache.get(window)
+        from services.agent_platform.market_capital import factual_interpretations
+        cache_key = "all_raw_history"
+        cached = _market_capital_cache.get(cache_key)
         if cached and time.monotonic() - cached[0] < _MARKET_CAPITAL_CACHE_SECONDS:
             return copy.deepcopy(cached[1])
         if not await self.table_exists("stock_daily"):
@@ -613,7 +613,7 @@ class TushareReadService:
               WHERE trade_date >= (SELECT MAX(trade_date) - INTERVAL '60 days' FROM {self.schema}.stock_daily)
               GROUP BY trade_date ORDER BY trade_date DESC LIMIT 30
             ), baseline AS (
-              SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY row_count) AS normal_count FROM daily
+              SELECT MAX(row_count) AS normal_count FROM daily
             )
             SELECT trade_date,row_count,normal_count FROM daily CROSS JOIN baseline
             WHERE row_count >= normal_count * 0.95 ORDER BY trade_date DESC LIMIT 1
@@ -626,19 +626,13 @@ class TushareReadService:
             SELECT trade_date,COUNT(*)::int AS stock_count,SUM(COALESCE(amount,0))*1000 AS turnover_cny,
                    COUNT(*) FILTER (WHERE pct_chg>0)::int AS advances,
                    COUNT(*) FILTER (WHERE pct_chg<0)::int AS declines,
-                   COUNT(*) FILTER (WHERE pct_chg=0)::int AS flat,
-                   percentile_cont(0.5) WITHIN GROUP (ORDER BY pct_chg) AS median_return_pct
+                   COUNT(*) FILTER (WHERE pct_chg=0)::int AS flat
             FROM {self.schema}.stock_daily
-            WHERE trade_date IN (
-              SELECT trade_date FROM {self.schema}.stock_daily WHERE trade_date<=:as_of
-              GROUP BY trade_date ORDER BY trade_date DESC LIMIT :window
-            ) GROUP BY trade_date
-            ORDER BY trade_date DESC LIMIT :window
-        """), {"as_of": as_of_date, "window": window})
-        latest = history[0]
-        turnovers = [float(row["turnover_cny"] or 0) for row in history]
-        avg5 = sum(turnovers[:5]) / len(turnovers[:5])
-        avg20 = sum(turnovers[:20]) / len(turnovers[:20])
+            WHERE trade_date<=:as_of
+            GROUP BY trade_date
+            ORDER BY trade_date ASC
+        """), {"as_of": as_of_date})
+        latest = history[-1]
         concentration = await self._execute_mappings(text(f"""
             WITH ranked AS (
               SELECT amount,ROW_NUMBER() OVER (ORDER BY amount DESC NULLS LAST) AS rank,
@@ -647,15 +641,12 @@ class TushareReadService:
             ) SELECT SUM(amount) FILTER (WHERE rank<=20)/NULLIF(MAX(total),0) AS top20,
                      SUM(amount) FILTER (WHERE rank<=50)/NULLIF(MAX(total),0) AS top50 FROM ranked
         """), {"as_of": as_of_date})
-        liquidity = {"turnover_cny": float(latest["turnover_cny"] or 0), "average_5d_cny": avg5,
-                     "average_20d_cny": avg20, "vs_5d_pct": pct_change(float(latest["turnover_cny"] or 0), avg5),
-                     "vs_20d_pct": pct_change(float(latest["turnover_cny"] or 0), avg20),
+        liquidity = {"turnover_cny": float(latest["turnover_cny"] or 0),
                      "top20_turnover_share": float(concentration[0]["top20"]) if concentration[0]["top20"] is not None else None,
                      "top50_turnover_share": float(concentration[0]["top50"]) if concentration[0]["top50"] is not None else None,
                      "unit": "CNY", "note": "成交额不等于净流入；买卖成交在全市场逐笔匹配。"}
         breadth = {"advances": latest["advances"], "declines": latest["declines"], "flat": latest["flat"],
                    "advance_ratio": latest["advances"] / latest["stock_count"] if latest["stock_count"] else None,
-                   "median_return_pct": float(latest["median_return_pct"]) if latest["median_return_pct"] is not None else None,
                    "limit_up": None, "limit_down": None, "limit_source_available": False}
         sources: dict[str, Any] = {"stock_daily": {"available": True, "as_of": as_of, "row_count": complete[0]["row_count"]}}
         if await self.table_exists("stk_limit"):
@@ -681,13 +672,16 @@ class TushareReadService:
             lag_days = (date.fromisoformat(as_of) - date.fromisoformat(component_date)).days if component_date else None
             value["lag_days"] = lag_days
             sources[key] = {"available": bool(value.get("available")), "as_of": component_date, "lag_days": lag_days}
-        result = {"available": True, "as_of": as_of, "window": window, "sources": sources,
+        result = {"available": True, "as_of": as_of, "window": "all", "sources": sources,
                   "liquidity": liquidity, "breadth": breadth, "leverage": leverage, "etf_flows": etfs,
-                  "funding_rates": rates, "flow_proxy": proxy, "history": list(reversed(history)),
+                  "funding_rates": rates, "flow_proxy": proxy, "history": history,
+                  "history_meta": {"scope": "all_available", "raw": True,
+                  "start_date": str(history[0]["trade_date"]), "end_date": str(history[-1]["trade_date"]),
+                  "points": len(history), "source": f"{self.schema}.stock_daily"},
                   "interpretations": [], "methodology": {"scope": "A-share full market",
                   "complete_day_threshold": 0.95, "flow_warning": "成交额不等于净流入"}}
         result["interpretations"] = factual_interpretations(result)
-        _market_capital_cache[window] = (time.monotonic(), copy.deepcopy(result))
+        _market_capital_cache[cache_key] = (time.monotonic(), copy.deepcopy(result))
         return result
 
     async def _market_leverage(self, as_of: date) -> dict[str, Any]:

@@ -537,12 +537,11 @@ async def search_holders(
 
 @router.get("/market-capital")
 async def market_capital(
-    window: int = Query(60, ge=20, le=250),
     session: AsyncSession = Depends(get_session),
     user: User = Depends(get_current_user),
 ):
     del user
-    return await TushareReadService(session).market_capital_snapshot(window)
+    return await TushareReadService(session).market_capital_snapshot()
 
 
 @router.get("/holder-watchlist")
