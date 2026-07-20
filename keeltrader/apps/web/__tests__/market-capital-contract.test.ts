@@ -27,6 +27,11 @@ test('market capital dashboard exposes interactive history and methodology', () 
   expect(page).toContain('不会以 0 或其他指标替代')
 })
 
+test('interactive chart is the first dashboard content, not hidden below the context block', () => {
+  expect(page).toContain('data-chart-priority="primary"')
+  expect(page.indexOf('<MarketTape')).toBeLessThan(page.indexOf('<MarketContext'))
+})
+
 test('capital route is exposed in API client and research desk', () => {
   expect(api).toContain('marketCapital')
   expect(api).toContain('/market-capital?window=')
