@@ -66,6 +66,23 @@ class AgentMessage(Base):
     __table_args__ = (Index("ix_agent_platform_messages_session", "session_id", "created_at"),)
 
 
+class AgentContextSnapshot(Base):
+    """Immutable, user-owned evidence handoff selected explicitly in a market workspace."""
+    __tablename__ = "agent_context_snapshots"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    resource_type = Column(String(40), nullable=False)
+    resource_id = Column(String(120), nullable=False)
+    field = Column(String(80), nullable=True)
+    visible_start = Column(String(32), nullable=True)
+    visible_end = Column(String(32), nullable=True)
+    selected_point = Column(JSON, nullable=True)
+    source = Column(String(240), nullable=False)
+    methodology = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("ix_agent_context_snapshots_user", "user_id", "created_at"),)
+
+
 class AgentRun(Base):
     __tablename__ = "agent_platform_runs"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

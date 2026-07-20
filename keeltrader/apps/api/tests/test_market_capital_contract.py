@@ -53,6 +53,7 @@ def test_margin_detail_maps_beijing_exchange_before_summary_deduplication():
 def test_macro_futures_and_options_routes_keep_raw_source_contracts():
     service = (ROOT / "apps/api/services/agent_platform/tushare.py").read_text()
     router = (ROOT / "apps/api/routers/agent_platform.py").read_text()
+    markets_router = (ROOT / "apps/api/routers/markets.py").read_text()
     for route in (
         '/macro-market', '/futures/products', '/futures/{product_code}/history',
         '/futures/{product_code}/curve', '/options/series',
@@ -66,7 +67,11 @@ def test_macro_futures_and_options_routes_keep_raw_source_contracts():
     assert 'CAST(:maturity AS date)' in service
     assert '"scope": "current_available"' in service
     assert 'ORDER BY m.trade_date ASC' in service
-    assert 'ORDER BY d.trade_date ASC' in service
+    assert 'FROM {self.schema}.opt_series_daily' in service
+    assert 'WHERE opt_code=:opt_code ORDER BY trade_date ASC' in service
+    assert '@router.get("/macro/series/{key}")' in markets_router
+    assert '@router.get("/options/{code}/underlying")' in markets_router
+    assert '@router.get("/underlyings/{relationship}/{code}/series")' in markets_router
     assert 'percentile_cont' not in service
     assert 'moving_average' not in service
     assert 'pcr' not in service.lower()
