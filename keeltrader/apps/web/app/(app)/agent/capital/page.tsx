@@ -59,17 +59,10 @@ export default function MarketCapitalPage() {
     </header>
 
     <div className="mx-auto max-w-[1580px] space-y-5 p-4 md:p-7">
-      <section className="overflow-hidden rounded-2xl border border-[hsl(var(--copper)/.32)] bg-card shadow-sm">
-        <div className="grid gap-5 p-5 lg:grid-cols-[1.25fr_.75fr] lg:p-7">
-          <div><p className="font-data text-[10px] uppercase tracking-[.22em] text-[hsl(var(--copper-foreground))]">Observable market conditions</p><h2 className="mt-2 font-display text-3xl font-semibold md:text-4xl">成交额不等于净流入</h2><p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">全市场每笔成交都有买方和卖方，无法直接观察一个字面意义上的“全市场净流入”。这里优先展示可验证的成交活跃度、涨跌广度、融资变化、ETF 份额变化与资金利率。</p></div>
-          <div className="rounded-xl border bg-secondary/45 p-4"><p className="text-xs font-semibold">事实摘录</p><div className="mt-3 space-y-2">{data?.interpretations?.map(line => <p key={line} className="text-xs leading-5 text-muted-foreground">— {line}</p>)}{!data?.interpretations?.length && <p className="text-xs text-muted-foreground">当前没有足够数据生成事实摘录。</p>}</div></div>
-        </div>
-        {data?.sources && <SourceRail sources={data.sources} />}
-      </section>
-
       {!data?.available && <Unavailable title="全市场基础行情不可用" />}
       {data?.available && <>
         <MarketTape data={data} window={window} onWindowChange={setWindow} refreshing={refreshing} />
+        <MarketContext data={data} />
 
         <section className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
           <Panel title="流动性与成交结构" icon={<Droplets className="h-4 w-4" />} source={data.sources.stock_daily}><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Metric label="全市场成交额" value={money(data.liquidity.turnover_cny)} delta={data.liquidity.vs_20d_pct} suffix="较20日均值" /><Metric label="5日均额" value={money(data.liquidity.average_5d_cny)} /><Metric label="前20集中度" value={pct(data.liquidity.top20_turnover_share)} /><Metric label="前50集中度" value={pct(data.liquidity.top50_turnover_share)} /></div></Panel>
@@ -92,6 +85,16 @@ export default function MarketCapitalPage() {
   </div>
 }
 
+function MarketContext({ data }: { data: MarketCapitalSnapshot }) {
+  return <section className="overflow-hidden rounded-2xl border border-[hsl(var(--copper)/.32)] bg-card shadow-sm">
+    <div className="grid gap-4 p-4 md:grid-cols-[1.25fr_.75fr] md:items-center md:p-5">
+      <div><p className="font-data text-[9px] uppercase tracking-[.2em] text-[hsl(var(--copper-foreground))]">Interpretation boundary</p><h2 className="mt-1 font-display text-xl font-semibold md:text-2xl">成交额不等于净流入</h2><p className="mt-2 max-w-3xl text-xs leading-5 text-muted-foreground">全市场每笔成交都有买方和卖方。这里展示可验证的成交活跃度、涨跌广度、融资变化、ETF份额变化与资金利率。</p></div>
+      <div className="rounded-xl border bg-secondary/45 p-3"><p className="text-[10px] font-semibold">事实摘录</p><div className="mt-2 space-y-1">{data.interpretations?.map(line => <p key={line} className="text-[10px] leading-4 text-muted-foreground">— {line}</p>)}{!data.interpretations?.length && <p className="text-[10px] text-muted-foreground">当前没有足够数据生成事实摘录。</p>}</div></div>
+    </div>
+    <SourceRail sources={data.sources} />
+  </section>
+}
+
 function MarketTape({ data, window, onWindowChange, refreshing }: { data: MarketCapitalSnapshot; window: (typeof WINDOWS)[number]; onWindowChange: (value: (typeof WINDOWS)[number]) => void; refreshing: boolean }) {
   const [mode, setMode] = useState<ChartMode>('turnover')
   const chartData = useMemo<HistoryPoint[]>(() => data.history.map((row, index, rows) => {
@@ -99,13 +102,13 @@ function MarketTape({ data, window, onWindowChange, refreshing }: { data: Market
     return { ...row, declines_negative: -row.declines, turnover_average_20d: sample.reduce((sum, item) => sum + Number(item.turnover_cny || 0), 0) / sample.length }
   }), [data.history])
 
-  return <section className="overflow-hidden rounded-2xl border bg-card/88 shadow-sm">
-    <div className="flex flex-col gap-4 border-b p-5 lg:flex-row lg:items-center">
+  return <section data-chart-priority="primary" className="overflow-hidden rounded-2xl border bg-card/88 shadow-sm">
+    <div className="flex flex-col gap-3 border-b p-4 md:p-5 lg:flex-row lg:items-center">
       <div className="flex min-w-0 items-start gap-3"><div className="rounded-lg border bg-secondary/55 p-2 text-[hsl(var(--copper-foreground))]"><SlidersHorizontal className="h-4 w-4" /></div><div><h2 className="font-display text-xl font-semibold">资金水位记录带</h2><p className="mt-1 text-xs text-muted-foreground">悬停查看单日明细，拖动底部时间轴缩放观察区间。</p></div></div>
       <div className="flex flex-wrap gap-2 lg:ml-auto">{CHART_MODES.map(item => <Button key={item.value} size="sm" variant={mode === item.value ? 'default' : 'outline'} onClick={() => setMode(item.value)}>{item.label}</Button>)}</div>
       <div className="flex items-center gap-1 rounded-lg border bg-background/55 p-1">{WINDOWS.map(days => <button key={days} type="button" disabled={refreshing} onClick={() => onWindowChange(days)} className={`rounded-md px-2.5 py-1.5 font-data text-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${window === days ? 'bg-[hsl(var(--copper))] text-[hsl(var(--copper-foreground))]' : 'text-muted-foreground hover:bg-secondary'}`}>{days}日</button>)}</div>
     </div>
-    <div className={`h-[360px] p-3 transition-opacity md:h-[420px] md:p-5 ${refreshing ? 'opacity-55' : ''}`}>
+    <div className={`h-[320px] p-2 transition-opacity sm:h-[360px] md:h-[420px] md:p-5 ${refreshing ? 'opacity-55' : ''}`}>
       <ResponsiveContainer width="100%" height="100%"><ComposedChart key={`${mode}-${window}-${data.as_of}`} data={chartData} margin={{ top: 12, right: 10, left: 4, bottom: 8 }}>
         <defs><linearGradient id="capital-turnover" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(var(--accent))" stopOpacity={.34}/><stop offset="95%" stopColor="hsl(var(--accent))" stopOpacity={0}/></linearGradient></defs>
         <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 5" vertical={false} />
