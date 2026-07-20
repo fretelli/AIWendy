@@ -1,6 +1,8 @@
 from pathlib import Path
+from decimal import Decimal
 
 from services.agent_platform.market_capital import etf_flow, factual_interpretations, financing_net, market_day
+from services.agent_platform.tushare import _json_safe
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -68,3 +70,9 @@ def test_macro_futures_and_options_routes_keep_raw_source_contracts():
     assert 'percentile_cont' not in service
     assert 'moving_average' not in service
     assert 'pcr' not in service.lower()
+
+
+def test_tushare_json_conversion_replaces_nonfinite_source_values_with_null():
+    assert _json_safe(float("nan")) is None
+    assert _json_safe(float("inf")) is None
+    assert _json_safe(Decimal("NaN")) is None
