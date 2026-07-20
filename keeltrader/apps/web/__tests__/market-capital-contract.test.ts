@@ -16,6 +16,17 @@ test('market capital page separates observable data from provider proxy', () => 
   expect(page).not.toContain('选股推荐')
 })
 
+test('market capital dashboard exposes interactive history and methodology', () => {
+  expect(page).toContain('资金水位记录带')
+  expect(page).toContain('数据口径中心')
+  expect(page).toContain('<Brush')
+  expect(page).toContain("type ChartMode = 'turnover' | 'breadth' | 'return'")
+  expect(page).toContain('const WINDOWS = [20, 60, 120, 250] as const')
+  expect(page).toContain('完整交易日与时间范围')
+  expect(page).toContain('融资净额 = 融资买入额 − 融资偿还额')
+  expect(page).toContain('不会以 0 或其他指标替代')
+})
+
 test('capital route is exposed in API client and research desk', () => {
   expect(api).toContain('marketCapital')
   expect(api).toContain('/market-capital?window=')
