@@ -77,7 +77,14 @@ export function parseCookieHeader(cookieHeader: string | null): Map<string, stri
     const name = part.slice(0, index).trim();
     const value = part.slice(index + 1).trim();
     if (!name) continue;
-    cookies.set(name, decodeURIComponent(value));
+    try {
+      cookies.set(name, decodeURIComponent(value));
+    } catch {
+      // A stale or third-party cookie with malformed percent encoding must not
+      // crash the same-origin API proxy. Ignore only the damaged cookie so
+      // unrelated valid authentication cookies can still be used.
+      continue;
+    }
   }
 
   return cookies;
