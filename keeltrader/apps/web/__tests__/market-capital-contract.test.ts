@@ -47,6 +47,7 @@ test('market chart uses native SVG instead of the incompatible Recharts runtime'
   expect(page).not.toContain('20日均额')
   expect(page).not.toContain('5日均额')
   expect(page).not.toContain('较20日均值')
+  expect(page).not.toContain('均线')
   expect(page).not.toContain('中位涨跌幅')
   expect(page).not.toContain('median_return_pct')
 })
