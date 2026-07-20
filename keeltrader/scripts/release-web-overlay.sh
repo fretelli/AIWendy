@@ -186,7 +186,8 @@ deploy_web() {
   fi
 
   run docker tag keeltrader-web:test-overlay keeltrader-web:latest
-  run docker compose up -d web
+  # Web releases must not pull, build, recreate, or retag API dependencies.
+  run docker compose up -d --no-deps web
 }
 
 smoke() {
