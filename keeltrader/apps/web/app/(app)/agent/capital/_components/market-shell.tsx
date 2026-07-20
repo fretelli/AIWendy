@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, CircleDollarSign, Landmark, Radar, RefreshCw, ShipWheel, Waves } from 'lucide-react'
+import { BarChart3, CircleDollarSign, Landmark, Radar, RefreshCw, Send, ShipWheel, Waves } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { KeelMark, ThemeMenu } from '@/components/keel-brand'
@@ -15,8 +15,8 @@ const sections = [
   { href: '/agent/capital/options', label: '期权', icon: CircleDollarSign },
 ]
 
-export function MarketShell({ title, subtitle, refreshing, onRefresh, children }: {
-  title: string; subtitle: string; refreshing?: boolean; onRefresh?: () => void; children: ReactNode
+export function MarketShell({ title, subtitle, refreshing, onRefresh, onResearch, trail, children }: {
+  title: string; subtitle: string; refreshing?: boolean; onRefresh?: () => void; onResearch?: () => void; trail?: { object:string; asOf?:string; source?:string }; children: ReactNode
 }) {
   const pathname = usePathname()
   return <div className="h-full min-h-0 overflow-y-auto bg-background/80">
@@ -25,11 +25,13 @@ export function MarketShell({ title, subtitle, refreshing, onRefresh, children }
         <div className="hidden border-r pr-4 sm:block"><KeelMark /></div>
         <div className="min-w-0 flex-1"><h1 className="font-display text-lg font-semibold">{title}</h1><p className="truncate text-[10px] text-muted-foreground">{subtitle}</p></div>
         {onRefresh && <Button size="sm" variant="outline" disabled={refreshing} onClick={onRefresh}><RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />刷新</Button>}
+        {onResearch && <Button size="sm" onClick={onResearch}><Send className="mr-1.5 h-3.5 w-3.5" />带入研究</Button>}
         <Button asChild size="sm" variant="outline"><Link href="/agent/holders"><Radar className="mr-1.5 h-4 w-4" /><span className="hidden md:inline">股东雷达</span></Link></Button>
         <Button asChild size="sm" variant="outline"><Link href="/agent"><ShipWheel className="mr-1.5 h-4 w-4" /><span className="hidden md:inline">研究台</span></Link></Button>
         <ThemeMenu />
       </div>
       <MarketNavigation pathname={pathname} />
+      {trail && <div className="evidence-rail flex min-h-8 items-center gap-3 overflow-x-auto border-t px-4 text-[9px] text-muted-foreground"><span className="shrink-0 font-semibold uppercase tracking-[.18em] text-[hsl(var(--copper-foreground))]">证据航迹</span><span className="shrink-0 text-foreground">{trail.object}</span><span className="shrink-0">{trail.asOf || '日期不可用'}</span><span className="shrink-0 font-data">{trail.source || '来源待选择'}</span><span className="ml-auto shrink-0">仅在点击“带入研究”后写入会话上下文</span></div>}
     </header>
     <main className="mx-auto max-w-[1580px] space-y-5 p-4 md:p-7">{children}</main>
   </div>

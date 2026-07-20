@@ -57,6 +57,7 @@ export type FuturesCurve = {
 }
 export type OptionSeries = {
   opt_code: string; exchange?: string; opt_type?: string; list_date?: string; latest_maturity?: string; contracts: number; active_contracts: number
+  underlying_code?: string; underlying_type?: 'index'|'etf'|'futures_contract'|'unresolved'
 }
 export type OptionsSeriesResponse = {
   available: boolean; items: OptionSeries[]
@@ -71,6 +72,11 @@ export type OptionsChain = {
   available: boolean; opt_code: string; trade_date?: string; maturity?: string; total: number; limit: number; offset: number; raw: true
   items: Array<{ trade_date: string; ts_code: string; name?: string; exchange?: string; call_put?: 'C' | 'P'; exercise_price?: number; maturity_date?: string; open?: number; high?: number; low?: number; close?: number; settle?: number; vol?: number; amount?: number; oi?: number }>
 }
+export type MarketUnderlying = { available: boolean; relationship: 'index'|'etf'|'futures_contract'|'deliverable_bond_basket'|'commodity_physical_market'|'unresolved'; code?: string; name?: string; source?: string; series_available: boolean; methodology: string; specification?: Record<string, unknown> }
+export type UnderlyingSeries = { available: boolean; relationship: string; code: string; source?: string; start?: string; end?: string; points?: number; raw?: true; rows: Array<{ trade_date: string; open?: number; high?: number; low?: number; close?: number; pre_close?: number; vol?: number; amount?: number }> }
+export type MacroCatalog = { available: boolean; items: Array<{ key:string; label:string; table:string; frequency?:string; period_field?:string; available:boolean; fields:string[]; start?:string; end?:string; points?:number; source?:string }>; methodology:{raw:true;local_transforms:false} }
+export type MacroSeriesDetail = { available:boolean; key:string; label:string; field:string; frequency:string; period_field:string; source:string; start?:string; end?:string; points:number; raw:true; rows:Array<{period:string;value:number|null}>; recent_source_rows:Array<Record<string,string|number|null>> }
+export type ContextSnapshot = { id:string; resource_type:string; resource_id:string; field?:string; visible_start?:string; visible_end?:string; source:string; methodology:string; created_at:string }
 
 const base = '/agent'
 export const agentPlatformApi = {
@@ -85,7 +91,8 @@ export const agentPlatformApi = {
   updateSession: (id: string, body: { title?: string; is_pinned?: boolean; archived?: boolean; interaction_mode?: InteractionMode; company_code?: string | null }) => apiJson<AgentSession>(`${base}/sessions/${id}`, { method: 'PATCH', body }),
   deleteSession: (id: string) => apiJson<{ ok: boolean }>(`${base}/sessions/${id}`, { method: 'DELETE' }),
   timeline: (id: string) => apiJson<{ session: AgentSession; messages: AgentMessage[]; runs: AgentRun[] }>(`${base}/sessions/${id}/timeline`),
-  sendMessage: (id: string, body: { content: string; client_request_id: string; agent_definition_id?: string; attachment_ids?: string[] }) => apiJson<{ run: AgentRun; session: AgentSession }>(`${base}/sessions/${id}/messages`, { method: 'POST', body }),
+  sendMessage: (id: string, body: { content: string; client_request_id: string; agent_definition_id?: string; attachment_ids?: string[]; context_snapshot_ids?: string[] }) => apiJson<{ run: AgentRun; session: AgentSession }>(`${base}/sessions/${id}/messages`, { method: 'POST', body }),
+  createContextSnapshot: (body: { resource_type:'macro'|'futures'|'options'|'underlying'|'capital'; resource_id:string; field?:string; visible_start?:string; visible_end?:string; selected_point?:Record<string,unknown>; source:string; methodology:string }) => apiJson<ContextSnapshot>(`${base}/context-snapshots`, { method:'POST', body }),
   uploadAttachment: (file: File) => { const form = new FormData(); form.append('file', file); return apiForm<{ id: string; fileName: string }>('/files/upload', form, { method: 'POST' }) },
   compactSession: (id: string) => apiJson<AgentSession>(`${base}/sessions/${id}/compact`, { method: 'POST' }),
   stopSession: (id: string) => apiJson<AgentRun>(`${base}/sessions/${id}/stop`, { method: 'POST' }),
@@ -131,4 +138,19 @@ export const agentPlatformApi = {
     const suffix = query.size ? `?${query.toString()}` : ''
     return apiJson<OptionsChain>(`${base}/options/${encodeURIComponent(optCode)}/chain${suffix}`)
   },
+}
+
+const marketsBase = '/markets'
+export const marketsApi = {
+  macroCatalog: () => apiJson<MacroCatalog>(`${marketsBase}/macro/series`),
+  macroSeries: (key:string, field:string) => apiJson<MacroSeriesDetail>(`${marketsBase}/macro/series/${encodeURIComponent(key)}?field=${encodeURIComponent(field)}`),
+  futuresProducts: () => apiJson<{ available:boolean; as_of?:string; items:FuturesProduct[]; source:string; raw:true }>(`${marketsBase}/futures/products`),
+  futuresHistory: (code:string) => apiJson<FuturesHistory>(`${marketsBase}/futures/${encodeURIComponent(code)}/history`),
+  futuresCurve: (code:string) => apiJson<FuturesCurve>(`${marketsBase}/futures/${encodeURIComponent(code)}/curve`),
+  futuresUnderlying: (code:string) => apiJson<MarketUnderlying>(`${marketsBase}/futures/${encodeURIComponent(code)}/underlying`),
+  optionsCatalog: () => apiJson<OptionsSeriesResponse>(`${marketsBase}/options/underlyings`),
+  optionsHistory: (code:string) => apiJson<OptionsHistory>(`${marketsBase}/options/${encodeURIComponent(code)}/history`),
+  optionsChain: (code:string, params:{tradeDate?:string;maturity?:string;limit?:number;offset?:number}={}) => { const query=new URLSearchParams(); if(params.tradeDate)query.set('trade_date',params.tradeDate);if(params.maturity)query.set('maturity',params.maturity);if(params.limit!==undefined)query.set('limit',String(params.limit));if(params.offset!==undefined)query.set('offset',String(params.offset));return apiJson<OptionsChain>(`${marketsBase}/options/${encodeURIComponent(code)}/chain${query.size?`?${query}`:''}`) },
+  optionUnderlying: (code:string) => apiJson<MarketUnderlying>(`${marketsBase}/options/${encodeURIComponent(code)}/underlying`),
+  underlyingSeries: (relationship:string, code:string) => apiJson<UnderlyingSeries>(`${marketsBase}/underlyings/${encodeURIComponent(relationship)}/${encodeURIComponent(code)}/series`),
 }

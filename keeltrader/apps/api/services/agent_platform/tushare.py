@@ -58,6 +58,9 @@ ALLOWED_TABLES = {
     "fut_mapping",
     "opt_basic",
     "opt_daily",
+    "opt_series_daily",
+    "index_daily",
+    "fund_daily",
     "cn_m",
     "sf_month",
     "us_tycr",
@@ -734,6 +737,71 @@ class TushareReadService:
         _market_domain_cache[cache_key] = (time.monotonic(), copy.deepcopy(result))
         return result
 
+    @staticmethod
+    def macro_definitions() -> dict[str, tuple[str, str, str, str]]:
+        return {
+            "gdp": ("cn_gdp", "quarter", "quarterly", "国内生产总值"),
+            "cpi": ("cn_cpi", "month", "monthly", "居民消费价格"),
+            "ppi": ("cn_ppi", "month", "monthly", "工业生产者价格"),
+            "money_supply": ("cn_m", "month", "monthly", "货币供应"),
+            "social_financing": ("sf_month", "month", "monthly", "社会融资"),
+            "pmi": ("cn_pmi", "month", "monthly", "采购经理指数"),
+            "shibor": ("shibor", "date", "daily", "上海银行间拆放利率"),
+            "lpr": ("lpr", "date", "monthly", "贷款市场报价利率"),
+            "us_treasury": ("us_tycr", "date", "daily", "美国国债收益率"),
+            "us_real_treasury": ("us_trycr", "date", "daily", "美国实际国债收益率"),
+        }
+
+    async def macro_catalog(self) -> dict[str, Any]:
+        """Return metadata only; never download every macro row for navigation."""
+        async def describe(key: str, definition: tuple[str, str, str, str]) -> dict[str, Any]:
+            table, period, frequency, label = definition
+            if not await self.table_exists(table):
+                return {"key": key, "label": label, "table": table, "available": False, "fields": []}
+            columns = await self._execute_mappings(text("""
+                SELECT column_name, data_type
+                FROM information_schema.columns
+                WHERE table_schema=:schema AND table_name=:table
+                ORDER BY ordinal_position
+            """), {"schema": self.schema, "table": table})
+            numeric_types = {"smallint", "integer", "bigint", "numeric", "real", "double precision"}
+            fields = [row["column_name"] for row in columns if row["data_type"] in numeric_types]
+            stats = await self._execute_mappings(text(
+                f"SELECT MIN({period}) AS start, MAX({period}) AS end, COUNT(*)::int AS points FROM {self.schema}.{table}"
+            ), {})
+            meta = stats[0] if stats else {}
+            return {"key": key, "label": label, "table": table, "frequency": frequency,
+                    "period_field": period, "available": bool(meta.get("points")), "fields": fields,
+                    "start": str(meta.get("start")) if meta.get("start") else None,
+                    "end": str(meta.get("end")) if meta.get("end") else None,
+                    "points": int(meta.get("points") or 0), "source": f"{self.schema}.{table}"}
+        items = await asyncio.gather(*(describe(key, value) for key, value in self.macro_definitions().items()))
+        return {"available": any(item["available"] for item in items), "items": items,
+                "methodology": {"raw": True, "local_transforms": False}}
+
+    async def macro_series(self, key: str, field: str) -> dict[str, Any]:
+        definition = self.macro_definitions().get(key)
+        if not definition:
+            raise ValueError("Unknown macro series")
+        table, period, frequency, label = definition
+        catalog = await self.macro_catalog()
+        meta = next(item for item in catalog["items"] if item["key"] == key)
+        if field not in meta["fields"]:
+            raise ValueError("Unknown macro source field")
+        rows, recent = await asyncio.gather(
+            self._execute_mappings(text(
+                f'SELECT {period} AS period, "{field}" AS value FROM {self.schema}.{table} ORDER BY {period} ASC'
+            ), {}),
+            self._execute_mappings(text(
+                f"SELECT * FROM {self.schema}.{table} ORDER BY {period} DESC LIMIT 12"
+            ), {}),
+        )
+        return {"available": bool(rows), "key": key, "label": label, "field": field,
+                "frequency": frequency, "period_field": period, "source": f"{self.schema}.{table}",
+                "start": str(rows[0]["period"]) if rows else None,
+                "end": str(rows[-1]["period"]) if rows else None, "points": len(rows),
+                "raw": True, "rows": rows, "recent_source_rows": recent}
+
     async def futures_products(self) -> dict[str, Any]:
         cached = _market_domain_cache.get("futures_products")
         if cached and time.monotonic() - cached[0] < _MARKET_DOMAIN_CACHE_SECONDS:
@@ -808,7 +876,26 @@ class TushareReadService:
         rows = await self._execute_mappings(text(f"""
             SELECT opt_code,exchange,MAX(opt_type) AS opt_type,MIN(list_date) AS list_date,
                    MAX(maturity_date) AS latest_maturity,COUNT(*)::int AS contracts,
-                   COUNT(*) FILTER (WHERE delist_date IS NULL OR delist_date>=CURRENT_DATE)::int AS active_contracts
+                   COUNT(*) FILTER (WHERE delist_date IS NULL OR delist_date>=CURRENT_DATE)::int AS active_contracts,
+                   CASE
+                     WHEN opt_code='IO' THEN '000300.SH' WHEN opt_code='HO' THEN '000016.SH'
+                     WHEN opt_code='MO' THEN '000852.SH'
+                     WHEN opt_code LIKE 'OP510050.SH%' THEN '510050.SH'
+                     WHEN opt_code LIKE 'OP510300.SH%' THEN '510300.SH'
+                     WHEN opt_code LIKE 'OP510500.SH%' THEN '510500.SH'
+                     WHEN opt_code LIKE 'OP588000.SH%' THEN '588000.SH'
+                     WHEN opt_code LIKE 'OP588080.SH%' THEN '588080.SH'
+                     WHEN opt_code LIKE 'OP159901.SZ%' THEN '159901.SZ'
+                     WHEN opt_code LIKE 'OP159915.SZ%' THEN '159915.SZ'
+                     WHEN opt_code LIKE 'OP159919.SZ%' THEN '159919.SZ'
+                     WHEN opt_code LIKE 'OP159922.SZ%' THEN '159922.SZ'
+                     WHEN opt_code LIKE 'OP%.%' THEN SUBSTRING(opt_code FROM 3)
+                     ELSE NULL
+                   END AS underlying_code,
+                   CASE WHEN opt_code IN ('IO','HO','MO') THEN 'index'
+                     WHEN opt_code LIKE 'OP510%.SH%' OR opt_code LIKE 'OP588%.SH%'
+                       OR opt_code LIKE 'OP159%.SZ%' THEN 'etf'
+                     WHEN opt_code LIKE 'OP%.%' THEN 'futures_contract' ELSE 'unresolved' END AS underlying_type
             FROM {self.schema}.opt_basic WHERE opt_code IS NOT NULL
             GROUP BY opt_code,exchange ORDER BY exchange,opt_code
         """), {})
@@ -823,23 +910,86 @@ class TushareReadService:
 
     async def options_history(self, opt_code: str) -> dict[str, Any]:
         rows = await self._execute_mappings(text(f"""
-            SELECT d.trade_date,
-                   SUM(COALESCE(d.vol,0)) FILTER (WHERE b.call_put='C') AS call_volume,
-                   SUM(COALESCE(d.vol,0)) FILTER (WHERE b.call_put='P') AS put_volume,
-                   SUM(COALESCE(d.amount,0)) FILTER (WHERE b.call_put='C') AS call_amount,
-                   SUM(COALESCE(d.amount,0)) FILTER (WHERE b.call_put='P') AS put_amount,
-                   SUM(COALESCE(d.oi,0)) FILTER (WHERE b.call_put='C') AS call_oi,
-                   SUM(COALESCE(d.oi,0)) FILTER (WHERE b.call_put='P') AS put_oi,
-                   COUNT(*) FILTER (WHERE b.call_put='C')::int AS call_contracts,
-                   COUNT(*) FILTER (WHERE b.call_put='P')::int AS put_contracts
-            FROM {self.schema}.opt_daily d JOIN {self.schema}.opt_basic b ON b.ts_code=d.ts_code
-            WHERE b.opt_code=:opt_code GROUP BY d.trade_date ORDER BY d.trade_date ASC
+            SELECT trade_date,call_vol AS call_volume,put_vol AS put_volume,
+                   call_amount,put_amount,total_amount,call_oi,put_oi,
+                   call_contract_count AS call_contracts,put_contract_count AS put_contracts
+            FROM {self.schema}.opt_series_daily
+            WHERE opt_code=:opt_code ORDER BY trade_date ASC
         """), {"opt_code": opt_code})
         return {"available": bool(rows), "opt_code": opt_code, "history": rows,
                 "history_meta": {"scope": "current_available", "raw_aggregation": True,
                 "start_date": str(rows[0]["trade_date"]) if rows else None,
                 "end_date": str(rows[-1]["trade_date"]) if rows else None,
-                "points": len(rows), "source": "tushare.opt_daily+opt_basic"}}
+                "points": len(rows), "source": "tushare.opt_series_daily (from opt_daily+opt_basic)"}}
+
+    async def futures_underlying(self, product_code: str) -> dict[str, Any]:
+        index_map = {
+            "IF": ("000300.SH", "沪深300指数"), "IH": ("000016.SH", "上证50指数"),
+            "IC": ("000905.SH", "中证500指数"), "IM": ("000852.SH", "中证1000指数"),
+        }
+        root = product_code.upper().removesuffix(".CFX")
+        if root in index_map:
+            code, name = index_map[root]
+            return await self._underlying_payload("index", code, name, "index_daily")
+        if root in {"T", "TF", "TS", "TL"}:
+            return {"available": True, "relationship": "deliverable_bond_basket", "code": None,
+                    "name": "可交割国债篮子", "series_available": False,
+                    "methodology": "国债期货对应可交割券篮子，不伪造单一现货价格。"}
+        return {"available": True, "relationship": "commodity_physical_market", "code": None,
+                "name": "商品现货市场", "series_available": False,
+                "methodology": "商品期货没有唯一且可通用的现货序列；仅展示交易所合约与主力映射。"}
+
+    async def option_underlying(self, opt_code: str) -> dict[str, Any]:
+        financial = {
+            "IO": ("index", "000300.SH", "沪深300指数", "index_daily"),
+            "HO": ("index", "000016.SH", "上证50指数", "index_daily"),
+            "MO": ("index", "000852.SH", "中证1000指数", "index_daily"),
+            "OP510050.SH": ("etf", "510050.SH", "50ETF", "fund_daily"),
+            "OP510300.SH": ("etf", "510300.SH", "300ETF", "fund_daily"),
+            "OP510500.SH": ("etf", "510500.SH", "500ETF", "fund_daily"),
+            "OP588000.SH": ("etf", "588000.SH", "科创50ETF", "fund_daily"),
+            "OP588080.SH": ("etf", "588080.SH", "科创板50ETF", "fund_daily"),
+            "OP159901.SZ": ("etf", "159901.SZ", "深100ETF", "fund_daily"),
+            "OP159915.SZ": ("etf", "159915.SZ", "创业板ETF", "fund_daily"),
+            "OP159919.SZ": ("etf", "159919.SZ", "沪深300ETF", "fund_daily"),
+            "OP159922.SZ": ("etf", "159922.SZ", "中证500ETF", "fund_daily"),
+        }
+        key = opt_code.upper()
+        if key in financial:
+            kind, code, name, table = financial[key]
+            return await self._underlying_payload(kind, code, name, table)
+        if key in {"IO", "HO", "MO"}:
+            kind, code, name, table = financial[key]
+            return await self._underlying_payload(kind, code, name, table)
+        if key.startswith("OP") and "." in key:
+            contract_code = key[2:]
+            rows = await self._execute_mappings(text(f"""
+                SELECT ts_code,name,exchange,list_date,delist_date,per_unit,quote_unit,quote_unit_desc
+                FROM {self.schema}.fut_basic WHERE ts_code=:code LIMIT 1
+            """), {"code": contract_code})
+            return {"available": bool(rows), "relationship": "futures_contract", "code": contract_code,
+                    "name": rows[0].get("name") if rows else contract_code, "source": f"{self.schema}.fut_basic+fut_daily",
+                    "series_available": await self.table_exists("fut_daily"), "specification": rows[0] if rows else None,
+                    "methodology": "期货期权序列代码按交易所规则精确对应同交易所期货合约。"}
+        return {"available": False, "relationship": "unresolved", "code": None,
+                "series_available": False, "methodology": "源合约无可核验的底层标的映射。"}
+
+    async def _underlying_payload(self, kind: str, code: str, name: str, table: str) -> dict[str, Any]:
+        return {"available": True, "relationship": kind, "code": code, "name": name,
+                "source": f"{self.schema}.{table}", "series_available": await self.table_exists(table),
+                "methodology": "交易所产品与标准化底层标的的明确对应关系。"}
+
+    async def underlying_series(self, relationship: str, code: str) -> dict[str, Any]:
+        table = {"index": "index_daily", "etf": "fund_daily", "futures_contract": "fut_daily"}.get(relationship)
+        if not table or not await self.table_exists(table):
+            return {"available": False, "relationship": relationship, "code": code, "rows": []}
+        rows = await self._execute_mappings(text(f"""
+            SELECT trade_date,open,high,low,close,pre_close,vol,amount
+            FROM {self.schema}.{table} WHERE ts_code=:code ORDER BY trade_date ASC
+        """), {"code": code})
+        return {"available": bool(rows), "relationship": relationship, "code": code, "raw": True,
+                "source": f"{self.schema}.{table}", "start": str(rows[0]["trade_date"]) if rows else None,
+                "end": str(rows[-1]["trade_date"]) if rows else None, "points": len(rows), "rows": rows}
 
     async def options_chain(self, opt_code: str, trade_date: date | None = None,
                             maturity: date | None = None, limit: int = 300, offset: int = 0) -> dict[str, Any]:
