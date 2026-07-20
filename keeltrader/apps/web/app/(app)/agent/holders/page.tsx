@@ -252,7 +252,31 @@ function PositionRow({ row, history }: { row: HolderPosition | HolderHistoryEven
     <Datum label="持股比例" value={exited ? '—' : formatPercent(row.hold_ratio)} />
     <Datum label="流通占比" value={exited ? '—' : formatPercent(row.hold_float_ratio)} />
     <div className="flex items-center justify-between gap-2 md:justify-end"><span className="font-data text-[9px] text-muted-foreground">公告 {formatDate(row.ann_date)}</span><Button size="sm" variant="ghost" aria-label={`将 ${row.company_name || row.ts_code} 加入公司自选`} onClick={() => void agentPlatformApi.addWatchlist(row.ts_code).then(() => toast.success('已加入公司自选')).catch(error => toast.error(error instanceof Error ? error.message : '加入自选失败'))}><Plus className="h-3.5 w-3.5" /><span className="sr-only">加入公司自选</span></Button></div>
-    {historyRow && <PriceWindow event={historyRow} />}
+    {historyRow ? <PriceWindow event={historyRow} /> : <CurrentCostWindow position={row} />}
+  </div>
+}
+
+function CurrentCostWindow({ position }: { position: HolderPosition }) {
+  const estimate = position.cost_estimate
+  if (!estimate) return <div className="col-span-full border-t border-dashed pt-3 text-[10px] text-muted-foreground">
+    公开披露历史不足，无法可靠估算当前持仓成本。
+  </div>
+
+  const complete = estimate.coverage_ratio >= 0.999999
+  return <div className="col-span-full grid gap-3 border-t border-dashed pt-3 md:grid-cols-[minmax(190px,1.1fr)_minmax(190px,1fr)_minmax(220px,1.2fr)] md:items-center">
+    <div>
+      <div className="text-[9px] uppercase tracking-[.14em] text-[hsl(var(--copper-foreground))]">披露成本账本</div>
+      <div className="font-data mt-1 text-sm font-semibold">估算持仓成本 {formatPrice(estimate.unit_cost)}</div>
+      <div className="font-data mt-1 text-[10px] text-muted-foreground">成本窗口 {formatPriceRange(estimate.unit_cost_low, estimate.unit_cost_high)}</div>
+    </div>
+    <div className="font-data text-[10px] text-muted-foreground">
+      <div>{complete ? `覆盖全部 ${formatNumber(estimate.covered_shares)} 股` : `可估算 ${formatPercentValue(estimate.coverage_ratio)} · ${formatNumber(estimate.covered_shares)} 股`}</div>
+      <div className="mt-1">累计区间 {formatDate(estimate.first_estimated_period)} → {formatDate(estimate.last_estimated_period)}</div>
+    </div>
+    <div className="text-[10px] text-muted-foreground md:text-right">
+      <div className="font-data text-foreground">{complete && estimate.estimated_position_cost != null ? `估算持仓总成本 ${formatMoney(estimate.estimated_position_cost)}` : `已覆盖部分成本 ${formatMoney(estimate.estimated_covered_cost)}`}</div>
+      <div className="mt-1 leading-4">{estimate.disclaimer}</div>
+    </div>
   </div>
 }
 
@@ -328,4 +352,8 @@ function formatPriceRange(low: number, high: number) {
 
 function formatMoney(value: number) {
   return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', notation: 'compact', maximumFractionDigits: 2 }).format(value)
+}
+
+function formatPercentValue(value: number) {
+  return new Intl.NumberFormat('zh-CN', { style: 'percent', maximumFractionDigits: 1 }).format(value)
 }
