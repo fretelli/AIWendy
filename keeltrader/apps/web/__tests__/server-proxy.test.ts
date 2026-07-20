@@ -3,6 +3,7 @@
  */
 
 import {
+  parseCookieHeader,
   proxyRequest,
   rewriteApiLocationToProxy,
   type RouteContext,
@@ -33,6 +34,16 @@ describe("server proxy helper", () => {
   beforeEach(() => {
     fetchMock.mockReset();
     global.fetch = fetchMock;
+  });
+
+  it("ignores only malformed cookie values", () => {
+    const cookies = parseCookieHeader(
+      "broken=%; keeltrader_access_token=valid%2Dtoken; theme=dark"
+    );
+
+    expect(cookies.get("broken")).toBeUndefined();
+    expect(cookies.get("keeltrader_access_token")).toBe("valid-token");
+    expect(cookies.get("theme")).toBe("dark");
   });
 
   it("returns 401 for protected paths without a token", async () => {
@@ -91,6 +102,40 @@ describe("server proxy helper", () => {
     expect(response.headers.get("set-cookie")).toContain("Max-Age=123");
   });
 
+  it("allows login when an unrelated browser cookie is malformed", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          access_token: "access-token",
+          refresh_token: "refresh-token",
+          expires_in: 123,
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    );
+
+    const response = await proxyRequest(
+      request("/api/proxy/v1/auth/login", {
+        method: "POST",
+        cookie: "stale=%",
+        body: JSON.stringify({ email: "a@b.test", password: "secret" }),
+      }),
+      context(["v1", "auth", "login"]),
+      {
+        baseUrls: () => ["http://api:8000"],
+        publicPaths: ["v1/auth/login"],
+        auth: {
+          loginPath: "v1/auth/login",
+          accessTokenCookie: "keeltrader_access_token",
+          refreshTokenCookie: "keeltrader_refresh_token",
+        },
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("injects bearer auth from the access token cookie", async () => {
     fetchMock.mockResolvedValueOnce(new Response("ok", { status: 200 }));
 
@@ -109,6 +154,43 @@ describe("server proxy helper", () => {
     expect((init.headers as Headers).get("authorization")).toBe(
       "Bearer cookie-token"
     );
+  });
+
+  it("uses a valid access token alongside a malformed cookie", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("ok", { status: 200 }));
+
+    const response = await proxyRequest(
+      request("/api/proxy/v1/agent/health", {
+        cookie: "stale=%; keeltrader_access_token=cookie-token",
+      }),
+      context(["v1", "agent", "health"]),
+      {
+        baseUrls: () => ["http://api:8000"],
+        auth: { accessTokenCookie: "keeltrader_access_token" },
+      }
+    );
+
+    expect(response.status).toBe(200);
+    const [, init] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect((init.headers as Headers).get("authorization")).toBe(
+      "Bearer cookie-token"
+    );
+  });
+
+  it("treats a malformed access token cookie as unauthenticated", async () => {
+    const response = await proxyRequest(
+      request("/api/proxy/v1/agent/health", {
+        cookie: "keeltrader_access_token=%",
+      }),
+      context(["v1", "agent", "health"]),
+      {
+        baseUrls: () => ["http://api:8000"],
+        auth: { accessTokenCookie: "keeltrader_access_token" },
+      }
+    );
+
+    expect(response.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("falls back to the next upstream candidate", async () => {
