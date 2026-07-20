@@ -45,6 +45,9 @@ describe('Agent Platform contract', () => {
     expect(page).not.toContain('Agent 数')
     expect(page).toContain('永久删除这个研究会话？')
     expect(page).toContain('agentPlatformApi.deleteSession')
+    expect(page).toContain('重命名研究会话')
+    expect(page).toContain('agentPlatformApi.updateSession(renameSession.id, { title })')
+    expect(page).toContain('aria-label={`重命名 ${item.title}`}')
   })
 
   it('does not expose trade execution controls in the Agent workspace', () => {
