@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, AsyncIterator, Literal
 from uuid import UUID, uuid4
 
@@ -542,6 +542,53 @@ async def market_capital(
 ):
     del user
     return await TushareReadService(session).market_capital_snapshot()
+
+
+@router.get("/macro-market")
+async def macro_market(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    del user
+    return await TushareReadService(session).macro_market_snapshot()
+
+
+@router.get("/futures/products")
+async def futures_products(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    del user
+    return await TushareReadService(session).futures_products()
+
+
+@router.get("/futures/{product_code}/history")
+async def futures_history(product_code: str, session: AsyncSession = Depends(get_session),
+                          user: User = Depends(get_current_user)):
+    del user
+    return await TushareReadService(session).futures_history(product_code)
+
+
+@router.get("/futures/{product_code}/curve")
+async def futures_curve(product_code: str, trade_date: date | None = Query(None),
+                        session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    del user
+    return await TushareReadService(session).futures_curve(product_code, trade_date)
+
+
+@router.get("/options/series")
+async def options_series(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    del user
+    return await TushareReadService(session).options_series()
+
+
+@router.get("/options/{opt_code}/history")
+async def options_history(opt_code: str, session: AsyncSession = Depends(get_session),
+                          user: User = Depends(get_current_user)):
+    del user
+    return await TushareReadService(session).options_history(opt_code)
+
+
+@router.get("/options/{opt_code}/chain")
+async def options_chain(opt_code: str, trade_date: date | None = Query(None), maturity: date | None = Query(None),
+                        limit: int = Query(300, ge=1, le=500), offset: int = Query(0, ge=0),
+                        session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    del user
+    return await TushareReadService(session).options_chain(opt_code, trade_date, maturity, limit, offset)
 
 
 @router.get("/holder-watchlist")
