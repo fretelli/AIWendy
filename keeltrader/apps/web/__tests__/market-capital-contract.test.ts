@@ -32,6 +32,14 @@ test('interactive chart is the first dashboard content, not hidden below the con
   expect(page.indexOf('<MarketTape')).toBeLessThan(page.indexOf('<MarketContext'))
 })
 
+test('market chart uses measured dimensions instead of the incompatible responsive wrapper', () => {
+  expect(page).toContain('data-chart-canvas="market-capital"')
+  expect(page).toContain('new ResizeObserver(measure)')
+  expect(page).toContain('width={chartSize.width}')
+  expect(page).toContain('height={chartSize.height}')
+  expect(page).not.toContain('<ResponsiveContainer')
+})
+
 test('capital route is exposed in API client and research desk', () => {
   expect(api).toContain('marketCapital')
   expect(api).toContain('/market-capital?window=')
