@@ -137,7 +137,7 @@ class TushareReadService:
                 return [_json_safe(dict(r)) for r in rows]
             except (ProgrammingError, DBAPIError) as exc:
                 message = str(exc).lower()
-                if "undefinedtableerror" in message or "does not exist" in message:
+                if "undefinedtableerror" in message or ("relation" in message and "does not exist" in message):
                     await session.rollback()
                     return []
                 raise
@@ -691,14 +691,37 @@ class TushareReadService:
         return result
 
     async def _market_leverage(self, as_of: date) -> dict[str, Any]:
-        table = "margin_detail" if await self.table_exists("margin_detail") else "margin" if await self.table_exists("margin") else None
-        if not table:
+        detail_exists, summary_exists = await asyncio.gather(
+            self.table_exists("margin_detail"), self.table_exists("margin"),
+        )
+        if not detail_exists and not summary_exists:
             return {"available": False, "as_of": None, "reason": "financing source unavailable"}
-        exchange = "CASE WHEN ts_code LIKE '%.SH' THEN 'SSE' WHEN ts_code LIKE '%.SZ' THEN 'SZSE' ELSE 'OTHER' END" if table == "margin_detail" else "exchange_id"
+        detail_sql = f"""
+            SELECT trade_date,
+                   CASE WHEN ts_code LIKE '%.SH' THEN 'SSE' WHEN ts_code LIKE '%.SZ' THEN 'SZSE' ELSE 'OTHER' END AS exchange,
+                   SUM(rzye) AS balance,SUM(rzmre) AS purchases,SUM(rzche) AS repayments
+            FROM {self.schema}.margin_detail
+            WHERE trade_date BETWEEN CAST(:as_of AS date) - INTERVAL '15 days' AND CAST(:as_of AS date)
+            GROUP BY trade_date,exchange
+        """ if detail_exists else "SELECT NULL::date trade_date,NULL::text exchange,NULL::numeric balance,NULL::numeric purchases,NULL::numeric repayments WHERE false"
+        summary_sql = f"""
+            SELECT trade_date,exchange_id::text AS exchange,rzye::numeric AS balance,
+                   rzmre::numeric AS purchases,rzche::numeric AS repayments
+            FROM {self.schema}.margin
+            WHERE trade_date BETWEEN CAST(:as_of AS date) - INTERVAL '15 days' AND CAST(:as_of AS date)
+        """ if summary_exists else "SELECT NULL::date trade_date,NULL::text exchange,NULL::numeric balance,NULL::numeric purchases,NULL::numeric repayments WHERE false"
         rows = await self._execute_mappings(text(f"""
-            SELECT trade_date,SUM(rzye) AS balance,SUM(rzmre) AS purchases,SUM(rzche) AS repayments,
-                   ARRAY_AGG(DISTINCT {exchange}) AS exchanges FROM {self.schema}.{table}
-            WHERE trade_date<=:as_of GROUP BY trade_date ORDER BY trade_date DESC LIMIT 5
+            WITH detail AS ({detail_sql}), summary AS ({summary_sql}), combined AS (
+              SELECT * FROM summary
+              UNION ALL
+              SELECT detail.* FROM detail
+              WHERE NOT EXISTS (
+                SELECT 1 FROM summary WHERE summary.trade_date=detail.trade_date AND summary.exchange=detail.exchange
+              )
+            )
+            SELECT trade_date,SUM(balance) AS balance,SUM(purchases) AS purchases,SUM(repayments) AS repayments,
+                   ARRAY_AGG(DISTINCT exchange ORDER BY exchange) AS exchanges
+            FROM combined GROUP BY trade_date ORDER BY trade_date DESC LIMIT 5
         """), {"as_of": as_of})
         if not rows:
             return {"available": False, "as_of": None, "reason": "no financing rows"}
@@ -707,7 +730,8 @@ class TushareReadService:
         return {"available": True, "as_of": str(latest["trade_date"]), "balance_cny": float(latest["balance"] or 0),
                 "purchases_cny": float(latest["purchases"] or 0), "repayments_cny": float(latest["repayments"] or 0),
                 "daily_net_financing_cny": net(latest), "five_day_net_financing_cny": sum(net(row) for row in rows),
-                "coverage": latest["exchanges"], "coverage_label": "+".join(latest["exchanges"] or []), "source_table": table}
+                "coverage": latest["exchanges"], "coverage_label": "+".join(latest["exchanges"] or []),
+                "source_table": "+".join(name for name, exists in (("margin_detail", detail_exists), ("margin", summary_exists)) if exists)}
 
     async def _market_etf_flows(self, as_of: date) -> dict[str, Any]:
         if not all(await asyncio.gather(
