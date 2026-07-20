@@ -7,7 +7,7 @@ import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from
 import {
   Archive, Bot, Building2, Check, CircleStop, Command, Loader2, Menu, MessageSquarePlus, Plus,
   Compass, Database, LogOut, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Paperclip, Pin,
-  Radar, Search, Send, Settings2, ShieldCheck, Trash2, Waves, X,
+  Pencil, Radar, Search, Send, Settings2, ShieldCheck, Trash2, Waves, X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -64,6 +65,9 @@ export default function AgentWorkspacePage() {
   const [sending, setSending] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [renameSession, setRenameSession] = useState<AgentSession | null>(null)
+  const [renameTitle, setRenameTitle] = useState('')
+  const [renaming, setRenaming] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [contextOpen, setContextOpen] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -258,16 +262,38 @@ export default function AgentWorkspacePage() {
     } catch (error) { toast.error(error instanceof Error ? error.message : '删除会话失败') }
   }
 
+  const openRename = (session: AgentSession) => {
+    setRenameSession(session)
+    setRenameTitle(session.title)
+  }
+
+  const saveRename = async (event?: FormEvent) => {
+    event?.preventDefault()
+    if (!renameSession || renaming) return
+    const title = renameTitle.trim()
+    if (!title) { toast.error('会话名称不能为空'); return }
+    if (title.length > 200) { toast.error('会话名称不能超过 200 个字符'); return }
+    if (title === renameSession.title) { setRenameSession(null); return }
+    setRenaming(true)
+    try {
+      const updated = await agentPlatformApi.updateSession(renameSession.id, { title })
+      setSessions(previous => previous.map(item => item.id === updated.id ? updated : item))
+      setRenameSession(null)
+      toast.success('会话名称已更新')
+    } catch (error) { toast.error(error instanceof Error ? error.message : '会话重命名失败') }
+    finally { setRenaming(false) }
+  }
+
   const sidebar = <div className="chart-surface flex h-full flex-col">
     <div className="flex items-center gap-2 border-b border-border/70 p-3"><Button className="flex-1 justify-start shadow-sm" onClick={() => void createSession()}><MessageSquarePlus className="mr-2 h-4 w-4" />新建研究</Button><Button size="icon" variant="outline" aria-label="打开设置" onClick={() => setSettingsOpen(true)}><Settings2 className="h-4 w-4" /></Button></div>
     <div className="border-b border-border/70 p-3"><div className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"><span className="flex items-center gap-2"><Building2 className="h-3.5 w-3.5" />我的自选</span><span className="font-data tracking-normal">{watchlist.length}</span></div><div className="relative"><Input value={companyQuery} onChange={e => { setCompanyQuery(e.target.value); if (!e.target.value) setCompanyResults([]) }} placeholder="搜索 A 股代码或名称" className="h-9 bg-card/90 text-xs" />{companyResults.length > 0 && <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border bg-popover p-1 shadow-xl">{companyResults.map(company => <button key={company.ts_code} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-secondary" onClick={() => void addCompany(company)}><Plus className="h-3 w-3 text-[hsl(var(--copper-foreground))]" /><span className="truncate">{company.name}</span><span className="ml-auto font-data text-muted-foreground">{company.ts_code}</span></button>)}</div>}</div><div className="mt-2 space-y-1">{watchlist.map(company => <div key={company.company_code} className={`group flex items-center rounded-lg border border-transparent transition-colors ${currentSession?.company_code === company.company_code ? 'border-[hsl(var(--accent)/.35)] bg-[hsl(var(--accent)/.09)]' : 'hover:bg-secondary/70'}`}><button className="min-w-0 flex-1 px-2.5 py-2 text-left text-xs" onClick={() => void selectCompany(company.company_code)}><span className="block truncate font-semibold">{company.company_name}</span><span className="font-data text-[10px] text-muted-foreground">{company.company_code}{company.industry ? ` · ${company.industry}` : ''}</span></button><Button className="mr-1 h-7 w-7 opacity-0 focus-visible:opacity-100 group-hover:opacity-100" aria-label={`移除 ${company.company_name}`} size="icon" variant="ghost" onClick={() => void removeCompany(company.company_code)}><X className="h-3 w-3" /></Button></div>)}</div></div>
     <div className="p-3"><div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">研究记录</div><div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="h-9 bg-card/80 pl-8 text-xs" placeholder="搜索研究记录" value={search} onChange={e => setSearch(e.target.value)} /></div></div>
-    <ScrollArea className="flex-1 px-2"><div className="space-y-1 pb-4">{filteredSessions.map(item => <button key={item.id} onClick={() => { setCurrentId(item.id); setSidebarOpen(false); setEvents([]) }} className={`group flex w-full items-start gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${currentId === item.id ? 'bg-secondary shadow-sm' : 'hover:bg-secondary/60'}`}><Compass className={`mt-0.5 h-4 w-4 shrink-0 ${currentId === item.id ? 'text-[hsl(var(--copper-foreground))]' : 'text-muted-foreground'}`} /><span className="min-w-0 flex-1"><span className="block truncate font-semibold">{item.title}</span><span className="font-data block text-[10px] text-muted-foreground">{new Date(item.last_message_at || item.created_at).toLocaleString()}</span></span>{item.is_pinned && <Pin className="h-3 w-3 text-[hsl(var(--copper-foreground))]" />}</button>)}</div></ScrollArea>
+    <ScrollArea className="flex-1 px-2"><div className="space-y-1 pb-4">{filteredSessions.map(item => <div key={item.id} className={`group flex items-start rounded-lg transition-colors ${currentId === item.id ? 'bg-secondary shadow-sm' : 'hover:bg-secondary/60'}`}><button onClick={() => { setCurrentId(item.id); setSidebarOpen(false); setEvents([]) }} className="flex min-w-0 flex-1 items-start gap-2 px-3 py-2.5 text-left text-sm"><Compass className={`mt-0.5 h-4 w-4 shrink-0 ${currentId === item.id ? 'text-[hsl(var(--copper-foreground))]' : 'text-muted-foreground'}`} /><span className="min-w-0 flex-1"><span className="block truncate font-semibold">{item.title}</span><span className="font-data block text-[10px] text-muted-foreground">{new Date(item.last_message_at || item.created_at).toLocaleString()}</span></span>{item.is_pinned && <Pin className="h-3 w-3 shrink-0 text-[hsl(var(--copper-foreground))]" />}</button><Button size="icon" variant="ghost" className="mr-1 mt-1 h-8 w-8 shrink-0 opacity-70 xl:opacity-0 xl:group-hover:opacity-100 focus-visible:opacity-100" aria-label={`重命名 ${item.title}`} onClick={() => openRename(item)}><Pencil className="h-3.5 w-3.5" /></Button></div>)}</div></ScrollArea>
     <div className="border-t border-border/70 bg-card/55 p-3 text-[11px] text-muted-foreground"><div className="flex justify-between"><span>上下文</span><span className="font-data">{sessions.find(s => s.id === currentId)?.context_tokens || 0} tokens</span></div><div className="mt-1.5 flex justify-between"><span>今日模型费用</span><span className="font-data">${(usage?.today.cost_usd || 0).toFixed(4)}</span></div></div>
   </div>
 
   const mainPanel = <main className="flex h-full min-w-0 flex-1 flex-col bg-background/80 backdrop-blur-[2px]">
-      <header className="research-bearing flex min-h-16 shrink-0 items-center gap-2 border-b bg-card/92 px-3 shadow-[0_1px_0_hsl(var(--border)/.45)]"><Button className="xl:hidden" size="icon" variant="ghost" aria-label="打开自选与会话" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></Button><Button className="hidden xl:inline-flex" size="icon" variant="ghost" aria-label="折叠左栏" onClick={() => leftPanelRef.current?.isCollapsed() ? leftPanelRef.current.expand() : leftPanelRef.current?.collapse()}>{leftCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}</Button><div className="hidden border-r pr-4 md:block"><KeelMark /></div><ResearchBearing session={currentSession} dossier={dossier} run={activeRun} /><Badge variant="outline" className="hidden border-[hsl(var(--copper)/.35)] bg-card font-data text-[10px] text-[hsl(var(--copper-foreground))] lg:inline-flex">KeelTrader</Badge><Button asChild size="sm" variant="outline"><Link href="/agent/holders"><Radar className="mr-1.5 h-4 w-4" />股东雷达</Link></Button><ThemeMenu /><LanguageSwitcher className="hidden 2xl:block" /><Button size="icon" variant="ghost" aria-label="公司档案" onClick={() => desktopPanels ? (rightPanelRef.current?.isCollapsed() ? rightPanelRef.current.expand() : rightPanelRef.current?.collapse()) : setContextOpen(true)}>{rightCollapsed ? <PanelRightOpen className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}</Button><Button size="icon" variant="ghost" aria-label="退出登录" onClick={() => void logout()}><LogOut className="h-4 w-4" /></Button></header>
+      <header className="research-bearing flex min-h-16 shrink-0 items-center gap-2 border-b bg-card/92 px-3 shadow-[0_1px_0_hsl(var(--border)/.45)]"><Button className="xl:hidden" size="icon" variant="ghost" aria-label="打开自选与会话" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></Button><Button className="hidden xl:inline-flex" size="icon" variant="ghost" aria-label="折叠左栏" onClick={() => leftPanelRef.current?.isCollapsed() ? leftPanelRef.current.expand() : leftPanelRef.current?.collapse()}>{leftCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}</Button><div className="hidden border-r pr-4 md:block"><KeelMark /></div><ResearchBearing session={currentSession} dossier={dossier} run={activeRun} onRename={() => currentSession && openRename(currentSession)} /><Badge variant="outline" className="hidden border-[hsl(var(--copper)/.35)] bg-card font-data text-[10px] text-[hsl(var(--copper-foreground))] lg:inline-flex">KeelTrader</Badge><Button asChild size="sm" variant="outline"><Link href="/agent/holders"><Radar className="mr-1.5 h-4 w-4" />股东雷达</Link></Button><ThemeMenu /><LanguageSwitcher className="hidden 2xl:block" /><Button size="icon" variant="ghost" aria-label="公司档案" onClick={() => desktopPanels ? (rightPanelRef.current?.isCollapsed() ? rightPanelRef.current.expand() : rightPanelRef.current?.collapse()) : setContextOpen(true)}>{rightCollapsed ? <PanelRightOpen className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}</Button><Button size="icon" variant="ghost" aria-label="退出登录" onClick={() => void logout()}><LogOut className="h-4 w-4" /></Button></header>
 
       <ScrollArea className="flex-1"><div className="mx-auto max-w-[840px] space-y-6 px-4 py-7 md:px-7">
         {!messages.length && !activeRun && <ResearchEmptyState companyName={watchlist.find(item => item.company_code === currentSession?.company_code)?.company_name} onPrompt={setInput} />}
@@ -294,6 +320,7 @@ export default function AgentWorkspacePage() {
     <ContextSheet open={contextOpen} onOpenChange={setContextOpen} session={currentSession} dossier={dossier} runs={runs} events={events} usage={usage} onPin={pinCurrent} onArchive={archiveCurrent} onDelete={() => setDeleteConfirmOpen(true)} />
     <SettingsSheet open={settingsOpen} onOpenChange={setSettingsOpen} models={models} agents={agents} memories={memories} mcp={mcp} schedules={schedules} usage={usage} defaultAgentId={defaultAgentId} modelForm={modelForm} setModelForm={setModelForm} mcpForm={mcpForm} setMcpForm={setMcpForm} scheduleForm={scheduleForm} setScheduleForm={setScheduleForm} submit={submitSetting} />
     <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>永久删除这个研究会话？</AlertDialogTitle><AlertDialogDescription>消息、运行步骤和研究产物会一并删除，此操作无法撤销。公司档案和长期记忆不会被删除。</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>取消</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => void deleteCurrent()}>永久删除</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    <Dialog open={Boolean(renameSession)} onOpenChange={open => { if (!open && !renaming) setRenameSession(null) }}><DialogContent className="sm:max-w-md"><form onSubmit={saveRename}><DialogHeader><DialogTitle className="font-display text-xl">重命名研究会话</DialogTitle><DialogDescription>名称会显示在会话列表中；未绑定公司时也会作为研究台标题。历史消息不会改变。</DialogDescription></DialogHeader><div className="py-5"><Input autoFocus maxLength={200} value={renameTitle} onChange={event => setRenameTitle(event.target.value)} placeholder="输入会话名称" aria-label="会话名称" /><div className="mt-2 text-right font-data text-[10px] text-muted-foreground">{renameTitle.length}/200</div></div><DialogFooter><Button type="button" variant="outline" disabled={renaming} onClick={() => setRenameSession(null)}>取消</Button><Button type="submit" disabled={renaming || !renameTitle.trim()}>{renaming ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}保存名称</Button></DialogFooter></form></DialogContent></Dialog>
   </div>
 }
 
@@ -303,11 +330,11 @@ function MessageBubble({ message }: { message: AgentMessage }) {
   return <div className="relative pl-6"><span className="evidence-rail absolute inset-y-1 left-1 w-px" /><span className="absolute left-[-3px] top-1 grid h-4 w-4 place-items-center rounded-full border bg-background"><Bot className="h-2.5 w-2.5 text-[hsl(var(--accent))]" /></span><article className="rounded-xl border bg-card/88 px-5 py-4 shadow-sm"><div className="prose prose-sm max-w-none leading-7 dark:prose-invert"><ReactMarkdown>{message.content}</ReactMarkdown></div><div className="font-data mt-3 text-[9px] text-muted-foreground">研究记录 · {new Date(message.created_at).toLocaleTimeString()}</div></article></div>
 }
 
-function ResearchBearing({ session, dossier, run }: { session?: AgentSession; dossier: CompanyDossier | null; run?: AgentRun }) {
+function ResearchBearing({ session, dossier, run, onRename }: { session?: AgentSession; dossier: CompanyDossier | null; run?: AgentRun; onRename: () => void }) {
   const company = String(dossier?.snapshot?.company?.name || session?.title || '未选择公司')
   const evidence = dossier?.snapshot?.evidence_status === 'sufficient' ? '证据充分' : dossier ? '证据待补' : '尚无档案'
   return <div className="min-w-0 flex-1 px-1 py-2">
-    <div className="flex min-w-0 items-center gap-2"><Compass className="h-4 w-4 shrink-0 text-[hsl(var(--copper-foreground))]" /><span className="truncate font-display text-base font-semibold">{company}</span>{session?.company_code && <span className="font-data hidden text-[10px] text-muted-foreground sm:inline">{session.company_code}</span>}</div>
+    <div className="group flex min-w-0 items-center gap-2"><Compass className="h-4 w-4 shrink-0 text-[hsl(var(--copper-foreground))]" /><span className="truncate font-display text-base font-semibold">{company}</span>{session && <button type="button" className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground opacity-60 transition hover:bg-secondary hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`重命名 ${session.title}`} onClick={onRename}><Pencil className="h-3.5 w-3.5" /></button>}{session?.company_code && <span className="font-data hidden max-w-52 truncate text-[10px] text-muted-foreground md:inline">{session.title} · {session.company_code}</span>}</div>
     <div className="mt-1 flex items-center gap-2 overflow-hidden text-[10px] text-muted-foreground sm:gap-3"><span className="font-data shrink-0 text-[hsl(var(--copper-foreground))]">/{session?.interaction_mode || 'ask'}</span><span className="flex shrink-0 items-center gap-1"><Database className="h-3 w-3" />{evidence}</span><span className="flex min-w-0 items-center gap-1"><Waves className="h-3 w-3 shrink-0" /><span className="truncate">{run ? statusLabel(run.status) : '研究台就绪'}</span></span><span className="hidden items-center gap-1 xl:flex"><ShieldCheck className="h-3 w-3" />只读，不执行交易</span></div>
   </div>
 }
