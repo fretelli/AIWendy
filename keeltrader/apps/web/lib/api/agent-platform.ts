@@ -34,6 +34,43 @@ export type MarketCapitalSnapshot = {
   flow_proxy: { available: boolean; as_of?: string; lag_days?: number; provider?: string; method?: string; warning?: string; values?: Record<string, number | string | null> }
   history: Array<{ trade_date: string; stock_count: number; turnover_cny: number; advances: number; declines: number; flat: number }>
 }
+export type RawMarketSeries = {
+  available: boolean; table: string; frequency: string; period_field?: string
+  start?: string; end?: string; points?: number; raw?: true; rows: Array<Record<string, string | number | null>>
+}
+export type MacroMarketSnapshot = {
+  available: boolean; series: Record<string, RawMarketSeries>
+  methodology: { raw: true; local_transforms: false; note: string }
+}
+export type FuturesProduct = {
+  product_code: string; trade_date: string; mapping_ts_code: string; name?: string; fut_code?: string
+  exchange?: string; close?: number; settle?: number; vol?: number; amount?: number; oi?: number
+}
+export type FuturesHistory = {
+  available: boolean; product_code: string
+  history: Array<{ trade_date: string; product_code: string; contract_code: string; open?: number; high?: number; low?: number; close?: number; settle?: number; vol?: number; amount?: number; oi?: number; oi_chg?: number }>
+  history_meta: { scope: 'all_available'; raw: true; start_date?: string; end_date?: string; points: number; adjusted: false; source: string }
+}
+export type FuturesCurve = {
+  available: boolean; product_code: string; fut_code?: string; trade_date?: string; raw: true
+  items: Array<{ trade_date: string; contract_code: string; name?: string; list_date?: string; delist_date?: string; close?: number; settle?: number; vol?: number; amount?: number; oi?: number }>
+}
+export type OptionSeries = {
+  opt_code: string; exchange?: string; opt_type?: string; list_date?: string; latest_maturity?: string; contracts: number; active_contracts: number
+}
+export type OptionsSeriesResponse = {
+  available: boolean; items: OptionSeries[]
+  history_meta: { scope: 'current_available'; raw: true; start_date?: string; end_date?: string; backfill_target: string; source: string }
+}
+export type OptionsHistory = {
+  available: boolean; opt_code: string
+  history: Array<{ trade_date: string; call_volume?: number; put_volume?: number; call_amount?: number; put_amount?: number; call_oi?: number; put_oi?: number; call_contracts?: number; put_contracts?: number }>
+  history_meta: { scope: 'current_available'; raw_aggregation: true; start_date?: string; end_date?: string; points: number; source: string }
+}
+export type OptionsChain = {
+  available: boolean; opt_code: string; trade_date?: string; maturity?: string; total: number; limit: number; offset: number; raw: true
+  items: Array<{ trade_date: string; ts_code: string; name?: string; exchange?: string; call_put?: 'C' | 'P'; exercise_price?: number; maturity_date?: string; open?: number; high?: number; low?: number; close?: number; settle?: number; vol?: number; amount?: number; oi?: number }>
+}
 
 const base = '/agent'
 export const agentPlatformApi = {
@@ -79,4 +116,19 @@ export const agentPlatformApi = {
   holderEvents: (unreadOnly = false) => apiJson<{ items: HolderInboxEvent[]; unread: number }>(`${base}/holder-events?unread_only=${unreadOnly}`),
   readHolderEvents: (eventIds: string[] = []) => apiJson<{ ok: boolean; updated: number }>(`${base}/holder-events/read`, { method: 'POST', body: { event_ids: eventIds } }),
   marketCapital: () => apiJson<MarketCapitalSnapshot>(`${base}/market-capital`),
+  macroMarket: () => apiJson<MacroMarketSnapshot>(`${base}/macro-market`),
+  futuresProducts: () => apiJson<{ available: boolean; as_of?: string; items: FuturesProduct[]; source: string; raw: true }>(`${base}/futures/products`),
+  futuresHistory: (productCode: string) => apiJson<FuturesHistory>(`${base}/futures/${encodeURIComponent(productCode)}/history`),
+  futuresCurve: (productCode: string, tradeDate?: string) => apiJson<FuturesCurve>(`${base}/futures/${encodeURIComponent(productCode)}/curve${tradeDate ? `?trade_date=${encodeURIComponent(tradeDate)}` : ''}`),
+  optionsSeries: () => apiJson<OptionsSeriesResponse>(`${base}/options/series`),
+  optionsHistory: (optCode: string) => apiJson<OptionsHistory>(`${base}/options/${encodeURIComponent(optCode)}/history`),
+  optionsChain: (optCode: string, params: { tradeDate?: string; maturity?: string; limit?: number; offset?: number } = {}) => {
+    const query = new URLSearchParams()
+    if (params.tradeDate) query.set('trade_date', params.tradeDate)
+    if (params.maturity) query.set('maturity', params.maturity)
+    if (params.limit !== undefined) query.set('limit', String(params.limit))
+    if (params.offset !== undefined) query.set('offset', String(params.offset))
+    const suffix = query.size ? `?${query.toString()}` : ''
+    return apiJson<OptionsChain>(`${base}/options/${encodeURIComponent(optCode)}/chain${suffix}`)
+  },
 }

@@ -13,6 +13,7 @@ import { KeelMark, ThemeMenu } from '@/components/keel-brand'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { agentPlatformApi, type MarketCapitalSnapshot } from '@/lib/api/agent-platform'
+import { MarketNavigation } from './_components/market-shell'
 
 type ChartMode = 'turnover' | 'breadth'
 type HistoryPoint = MarketCapitalSnapshot['history'][number]
@@ -46,6 +47,7 @@ export default function MarketCapitalPage() {
       <Button asChild size="sm" variant="outline"><Link href="/agent/holders"><Radar className="mr-1.5 h-4 w-4" /><span className="hidden md:inline">股东雷达</span></Link></Button>
       <Button asChild size="sm" variant="outline"><Link href="/agent"><ShipWheel className="mr-1.5 h-4 w-4" /><span className="hidden md:inline">研究台</span></Link></Button><ThemeMenu />
     </header>
+    <MarketNavigation pathname="/agent/capital" />
 
     <div className="mx-auto max-w-[1580px] space-y-5 p-4 md:p-7">
       {!data?.available && <Unavailable title="全市场基础行情不可用" />}
