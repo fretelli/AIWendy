@@ -46,3 +46,25 @@ def test_market_capital_uses_all_raw_history_without_average_indicators():
 def test_margin_detail_maps_beijing_exchange_before_summary_deduplication():
     service = (ROOT / "apps/api/services/agent_platform/tushare.py").read_text()
     assert "WHEN ts_code LIKE '%.BJ' THEN 'BSE'" in service
+
+
+def test_macro_futures_and_options_routes_keep_raw_source_contracts():
+    service = (ROOT / "apps/api/services/agent_platform/tushare.py").read_text()
+    router = (ROOT / "apps/api/routers/agent_platform.py").read_text()
+    for route in (
+        '/macro-market', '/futures/products', '/futures/{product_code}/history',
+        '/futures/{product_code}/curve', '/options/series',
+        '/options/{opt_code}/history', '/options/{opt_code}/chain',
+    ):
+        assert f'@router.get("{route}")' in router
+    assert '"local_transforms": False' in service
+    assert '"adjusted": False' in service
+    assert 'WHERE m.ts_code=:product_code ORDER BY m.trade_date DESC LIMIT 1' in service
+    assert service.count('chosen = date.fromisoformat(chosen)') >= 2
+    assert 'CAST(:maturity AS date)' in service
+    assert '"scope": "current_available"' in service
+    assert 'ORDER BY m.trade_date ASC' in service
+    assert 'ORDER BY d.trade_date ASC' in service
+    assert 'percentile_cont' not in service
+    assert 'moving_average' not in service
+    assert 'pcr' not in service.lower()
