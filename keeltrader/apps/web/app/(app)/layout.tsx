@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { ResearchOsShell } from '@/components/research-os-shell';
 
 export default function AppLayout({
   children,
@@ -28,6 +29,6 @@ export default function AppLayout({
   }
 
   return (
-    <main className="h-dvh min-h-0 overflow-hidden bg-background">{children}</main>
+    <main className="h-dvh min-h-0 overflow-hidden bg-background"><ResearchOsShell>{children}</ResearchOsShell></main>
   );
 }

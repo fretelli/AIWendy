@@ -27,8 +27,13 @@ if [ "$(readlink keeltrader/README.md 2>/dev/null || true)" != "../README.md" ];
   exit 1
 fi
 
-if ! grep -q "自进化基本面投资研究 Agent Platform" README.md; then
-  echo "[root-audit] canonical README is missing the Agent Platform description" >&2
+if ! grep -q "投资研究操作系统" README.md; then
+  echo "[root-audit] canonical README is missing the research operating system description" >&2
+  exit 1
+fi
+
+if grep -q "多 Agent 分析" README.md; then
+  echo "[root-audit] obsolete multi-agent product positioning found in canonical README" >&2
   exit 1
 fi
 

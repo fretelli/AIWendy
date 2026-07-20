@@ -34,11 +34,17 @@ def test_active_route_prefixes_are_mounted(client):
         "/api/v1/agent/holders/{watch_id}/positions",
         "/api/v1/agent/holder-events",
         "/api/v1/agent/holder-events/read",
+        "/api/v1/agent/context-snapshots",
         "/api/v1/agent/dossiers/{company_code}",
         "/api/v1/agent/dossiers/{company_code}/refresh",
         "/api/v1/research-cloud/connection",
         "/api/v1/research-cloud/search",
         "/api/v1/market-data/historical/{symbol}",
+        "/api/v1/markets/macro/series",
+        "/api/v1/markets/macro/series/{key}",
+        "/api/v1/markets/futures/{code}/underlying",
+        "/api/v1/markets/options/{code}/underlying",
+        "/api/v1/markets/underlyings/{relationship}/{code}/series",
     }
 
     assert expected_paths <= paths

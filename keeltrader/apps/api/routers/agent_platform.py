@@ -21,7 +21,7 @@ from core.encryption import get_encryption_service
 from domain.agent_platform.models import (
     AgentApproval, AgentArtifact, AgentBackgroundJob, AgentCompanyDossier, AgentCompanyDossierVersion, AgentCompanyEvidence,
     AgentCompanyWatchlist, AgentDefinition, AgentHolderEvent, AgentHolderWatchlist, AgentMCPServer, AgentMemory, AgentMemoryVersion,
-    AgentMessage, AgentModelProfile, AgentRun, AgentRunEvent, AgentRunStep, AgentSchedule, AgentSession,
+    AgentContextSnapshot, AgentMessage, AgentModelProfile, AgentRun, AgentRunEvent, AgentRunStep, AgentSchedule, AgentSession,
     AgentToolGrant, AgentUsageLedger,
 )
 from domain.file.models import UploadedFile
@@ -180,7 +180,19 @@ class SessionMessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=20000)
     agent_definition_id: UUID | None = None
     attachment_ids: list[UUID] = Field(default_factory=list, max_length=10)
+    context_snapshot_ids: list[UUID] = Field(default_factory=list, max_length=10)
     client_request_id: UUID
+
+
+class ContextSnapshotCreate(BaseModel):
+    resource_type: Literal["macro", "futures", "options", "underlying", "capital"]
+    resource_id: str = Field(min_length=1, max_length=120)
+    field: str | None = Field(default=None, max_length=80)
+    visible_start: str | None = Field(default=None, max_length=32)
+    visible_end: str | None = Field(default=None, max_length=32)
+    selected_point: dict[str, Any] | None = None
+    source: str = Field(min_length=1, max_length=240)
+    methodology: str = Field(min_length=1, max_length=2000)
 
 
 class WatchlistAdd(BaseModel):
@@ -846,6 +858,15 @@ async def delete_session(session_id: UUID, session: AsyncSession = Depends(get_s
     return {"ok": True}
 
 
+@router.post("/context-snapshots")
+async def create_context_snapshot(req: ContextSnapshotCreate, session: AsyncSession = Depends(get_session),
+                                  user: User = Depends(get_current_user)):
+    item = AgentContextSnapshot(user_id=user.id, **req.model_dump())
+    session.add(item)
+    await session.flush()
+    return dump(item)
+
+
 @router.post("/sessions/{session_id}/messages")
 async def create_session_message(session_id: UUID, req: SessionMessageCreate, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     item = await session.get(AgentSession, session_id)
@@ -863,6 +884,24 @@ async def create_session_message(session_id: UUID, req: SessionMessageCreate, se
         return {"run": dump(existing), "session": dump(item)}
     prompt = req.content
     attachment_meta = []
+    context_meta = []
+    if req.context_snapshot_ids:
+        snapshots = (await session.execute(select(AgentContextSnapshot).where(
+            AgentContextSnapshot.id.in_(req.context_snapshot_ids), AgentContextSnapshot.user_id == user.id,
+        ).order_by(AgentContextSnapshot.created_at))).scalars().all()
+        if len(snapshots) != len(set(req.context_snapshot_ids)):
+            raise HTTPException(400, "Invalid context snapshot")
+        context_meta = [dump(snapshot) for snapshot in snapshots]
+        context_lines = [
+            json.dumps({
+                "resource_type": snapshot.resource_type, "resource_id": snapshot.resource_id,
+                "field": snapshot.field, "visible_start": snapshot.visible_start,
+                "visible_end": snapshot.visible_end, "selected_point": snapshot.selected_point,
+                "source": snapshot.source, "methodology": snapshot.methodology,
+            }, ensure_ascii=False, default=str)
+            for snapshot in snapshots
+        ]
+        prompt += "\n\nUser-selected immutable market context (facts only; do not infer omitted history):\n" + "\n".join(context_lines)
     if req.attachment_ids:
         files = (await session.execute(select(UploadedFile).where(
             UploadedFile.id.in_(req.attachment_ids), UploadedFile.user_id == user.id,
@@ -886,12 +925,13 @@ async def create_session_message(session_id: UUID, req: SessionMessageCreate, se
             prompt = f"{req.content}\n\nUser attachments bound to {item.company_code or 'this session'}:\n" + "\n\n".join(sections)
     run = await enqueue_run(session, user.id, agent, prompt, item.id, item.interaction_mode,
                             idempotency_key=str(req.client_request_id))
-    if attachment_meta:
+    if attachment_meta or context_meta:
         message = (await session.execute(select(AgentMessage).where(
             AgentMessage.run_id == run.id, AgentMessage.role == "user"
         ))).scalar_one_or_none()
         if message:
-            message.metadata_json = {**(message.metadata_json or {}), "attachments": attachment_meta}
+            message.metadata_json = {**(message.metadata_json or {}), "attachments": attachment_meta,
+                                     "context_snapshots": context_meta}
     return {"run": dump(run), "session": dump(item)}
 
 
