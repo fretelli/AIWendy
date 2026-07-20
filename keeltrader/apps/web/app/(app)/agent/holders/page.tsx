@@ -242,7 +242,8 @@ export default function HolderRadarPage() {
 }
 
 function PositionRow({ row, history }: { row: HolderPosition | HolderHistoryEvent; history: boolean }) {
-  const event = history ? (row as HolderHistoryEvent).event_type : null
+  const historyRow = history ? row as HolderHistoryEvent : null
+  const event = historyRow?.event_type || null
   const exited = event === 'exited_top10'
   return <div className="group grid gap-3 rounded-xl border bg-card/82 p-4 shadow-sm transition hover:border-[hsl(var(--accent)/.42)] md:grid-cols-[minmax(170px,1.2fr)_110px_repeat(3,minmax(90px,.7fr))_auto] md:items-center">
     <div className="min-w-0"><div className="flex items-center gap-2"><span className="truncate font-semibold">{row.company_name || row.ts_code}</span>{event && <EventBadge event={event} />}</div><div className="font-data mt-1 text-[10px] text-muted-foreground">{row.ts_code}{row.industry ? ` · ${row.industry}` : ''}</div></div>
@@ -251,6 +252,32 @@ function PositionRow({ row, history }: { row: HolderPosition | HolderHistoryEven
     <Datum label="持股比例" value={exited ? '—' : formatPercent(row.hold_ratio)} />
     <Datum label="流通占比" value={exited ? '—' : formatPercent(row.hold_float_ratio)} />
     <div className="flex items-center justify-between gap-2 md:justify-end"><span className="font-data text-[9px] text-muted-foreground">公告 {formatDate(row.ann_date)}</span><Button size="sm" variant="ghost" aria-label={`将 ${row.company_name || row.ts_code} 加入公司自选`} onClick={() => void agentPlatformApi.addWatchlist(row.ts_code).then(() => toast.success('已加入公司自选')).catch(error => toast.error(error instanceof Error ? error.message : '加入自选失败'))}><Plus className="h-3.5 w-3.5" /><span className="sr-only">加入公司自选</span></Button></div>
+    {historyRow && <PriceWindow event={historyRow} />}
+  </div>
+}
+
+function PriceWindow({ event }: { event: HolderHistoryEvent }) {
+  if (event.event_type === 'unchanged') return null
+  const estimate = event.price_estimate
+  if (!estimate) return <div className="col-span-full border-t border-dashed pt-3 text-[10px] text-muted-foreground">
+    {event.event_type === 'first_seen' ? '首次进入数据可见范围，缺少上一报告期，无法可靠估算成交价格。' : '对应报告期之间缺少足够的复权行情，无法可靠估算成交价格。'}
+  </div>
+
+  const action = estimate.side === 'buy' ? '估算买入参考' : estimate.side === 'sell' ? '估算卖出参考' : '可能卖出价格窗口'
+  return <div className="col-span-full grid gap-3 border-t border-dashed pt-3 md:grid-cols-[minmax(190px,1.1fr)_minmax(180px,1fr)_minmax(180px,1fr)] md:items-center">
+    <div>
+      <div className="text-[9px] uppercase tracking-[.14em] text-[hsl(var(--copper-foreground))]">披露区间估算</div>
+      <div className="font-data mt-1 text-sm font-semibold">{action} {estimate.side === 'possible_sell' ? formatPriceRange(estimate.low, estimate.high) : formatPrice(estimate.volume_weighted_price)}</div>
+      {estimate.side !== 'possible_sell' && <div className="font-data mt-1 text-[10px] text-muted-foreground">价格窗口 {formatPriceRange(estimate.low, estimate.high)}</div>}
+    </div>
+    <div className="font-data text-[10px] text-muted-foreground">
+      <div>{formatDate(estimate.window_start)} → {formatDate(estimate.window_end)}</div>
+      <div className="mt-1">{estimate.trading_days} 个交易日 · 前复权收盘价成交量加权</div>
+    </div>
+    <div className="text-[10px] text-muted-foreground md:text-right">
+      {estimate.side !== 'possible_sell' && estimate.changed_shares != null && <div className="font-data text-foreground">变动约 {formatNumber(estimate.changed_shares)} 股{estimate.estimated_amount != null ? ` · 金额约 ${formatMoney(estimate.estimated_amount)}` : ''}</div>}
+      <div className="mt-1 leading-4">{estimate.disclaimer}</div>
+    </div>
   </div>
 }
 
@@ -289,4 +316,16 @@ function formatNumber(value?: number) {
 function formatPercent(value?: number) {
   if (value == null) return '—'
   return `${new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 3 }).format(value)}%`
+}
+
+function formatPrice(value: number) {
+  return `¥${new Intl.NumberFormat('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}`
+}
+
+function formatPriceRange(low: number, high: number) {
+  return `${formatPrice(low)}–${formatPrice(high)}`
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', notation: 'compact', maximumFractionDigits: 2 }).format(value)
 }

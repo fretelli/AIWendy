@@ -29,3 +29,14 @@ test('holder API client exposes search, watchlist, positions and inbox', () => {
   expect(api).toContain('holderPositions')
   expect(api).toContain('holderEvents')
 })
+
+test('historical holder events show restrained price-window estimates without claiming exact trades', () => {
+  expect(api).toContain('HolderPriceEstimate')
+  expect(api).toContain("side: 'buy' | 'sell' | 'possible_sell'")
+  expect(page).toContain('披露区间估算')
+  expect(page).toContain('可能卖出价格窗口')
+  expect(page).toContain('无法可靠估算成交价格')
+  expect(page).toContain('前复权收盘价成交量加权')
+  expect(page).not.toContain('实际买入价')
+  expect(page).not.toContain('实际卖出价')
+})
