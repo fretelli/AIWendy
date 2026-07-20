@@ -40,3 +40,14 @@ test('historical holder events show restrained price-window estimates without cl
   expect(page).not.toContain('实际买入价')
   expect(page).not.toContain('实际卖出价')
 })
+
+test('current holder positions show an estimated disclosure cost ledger with coverage', () => {
+  expect(api).toContain('HolderCostEstimate')
+  expect(api).toContain('qfq_disclosure_average_cost_ledger')
+  expect(page).toContain('披露成本账本')
+  expect(page).toContain('估算持仓成本')
+  expect(page).toContain('成本窗口')
+  expect(page).toContain('公开披露历史不足，无法可靠估算当前持仓成本')
+  expect(page).toContain('已覆盖部分成本')
+  expect(page).not.toContain('精确持仓成本')
+})

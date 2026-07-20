@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from services.agent_platform.holders import normalize_holder_name
+from services.agent_platform.tushare import _build_holder_cost_estimates
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -48,3 +49,49 @@ def test_holder_tools_do_not_add_scoring_or_sourcing():
     assert '"holder_positions"' in source
     assert '"holder_history"' in source
     assert '"source_by_holders"' not in source
+
+
+def test_current_holder_cost_ledger_preserves_unknown_basis_and_reduces_proportionally():
+    estimates = _build_holder_cost_estimates([
+        {"ts_code": "000001.SZ", "end_date": "20200331", "event_type": "first_seen", "hold_amount": 100},
+        {"ts_code": "000001.SZ", "end_date": "20200630", "event_type": "increased", "hold_amount": 150,
+         "previous_hold_amount": 100, "hold_change": 50, "estimate_low": 8, "estimate_high": 12,
+         "estimate_volume_weighted_price": 10},
+        {"ts_code": "000001.SZ", "end_date": "20200930", "event_type": "reduced", "hold_amount": 75,
+         "previous_hold_amount": 150, "hold_change": -75},
+    ])
+    estimate = estimates["000001.SZ"]
+    assert estimate["unit_cost"] == 10
+    assert estimate["unit_cost_low"] == 8
+    assert estimate["unit_cost_high"] == 12
+    assert estimate["covered_shares"] == 25
+    assert estimate["coverage_ratio"] == 1 / 3
+    assert estimate["estimated_position_cost"] is None
+
+
+def test_current_holder_cost_ledger_resets_after_observed_exit_and_reentry():
+    estimates = _build_holder_cost_estimates([
+        {"ts_code": "000001.SZ", "end_date": "20200331", "event_type": "first_seen", "hold_amount": 100},
+        {"ts_code": "000001.SZ", "end_date": "20200630", "event_type": "exited_top10", "hold_amount": None,
+         "previous_hold_amount": 100},
+        {"ts_code": "000001.SZ", "end_date": "20200930", "event_type": "new", "hold_amount": 80,
+         "estimate_low": 4, "estimate_high": 6, "estimate_volume_weighted_price": 5},
+    ])
+    estimate = estimates["000001.SZ"]
+    assert estimate["unit_cost"] == 5
+    assert estimate["covered_shares"] == 80
+    assert estimate["coverage_ratio"] == 1
+    assert estimate["estimated_position_cost"] == 400
+
+
+def test_current_holder_cost_ledger_preserves_qfq_unit_cost_across_share_adjustments():
+    estimates = _build_holder_cost_estimates([
+        {"ts_code": "000001.SZ", "end_date": "20200331", "event_type": "new", "hold_amount": 100,
+         "estimate_low": 4, "estimate_high": 6, "estimate_volume_weighted_price": 5},
+        {"ts_code": "000001.SZ", "end_date": "20200630", "event_type": "increased", "hold_amount": 200,
+         "previous_hold_amount": 100, "hold_change": 0},
+    ])
+    estimate = estimates["000001.SZ"]
+    assert estimate["unit_cost"] == 5
+    assert estimate["covered_shares"] == 200
+    assert estimate["estimated_position_cost"] == 1000
