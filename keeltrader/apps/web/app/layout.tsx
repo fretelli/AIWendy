@@ -56,13 +56,7 @@ export async function generateMetadata(): Promise<Metadata> {
         'max-snippet': -1,
       },
     },
-    icons: {
-      icon: [
-        { url: '/favicon.ico', sizes: 'any' },
-        { url: '/icon.svg', type: 'image/svg+xml' },
-      ],
-      apple: '/apple-touch-icon.png',
-    },
+    icons: { icon: [{ url: '/icon.svg', type: 'image/svg+xml', sizes: 'any' }] },
     manifest: '/site.webmanifest',
   };
 }
