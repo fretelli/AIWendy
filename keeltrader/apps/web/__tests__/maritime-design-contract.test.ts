@@ -13,6 +13,10 @@ describe('maritime research workspace design', () => {
     expect(css).toContain('prefers-reduced-motion')
     expect(layout).toContain('Newsreader')
     expect(layout).toContain('IBM_Plex_Mono')
+    expect(layout).toContain("'/icon.svg'")
+    expect(layout).not.toContain("'/favicon.ico'")
+    expect(fs.existsSync(path.join(root, 'public/icon.svg'))).toBe(true)
+    expect(fs.existsSync(path.join(root, 'public/site.webmanifest'))).toBe(true)
   })
 
   it('keeps one functional header and exposes theme and research state controls', () => {

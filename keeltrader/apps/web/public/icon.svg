@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="KeelTrader">
+  <rect width="64" height="64" rx="16" fill="#f7faf9"/>
+  <circle cx="32" cy="32" r="25" fill="none" stroke="#bf6b45" stroke-width="2"/>
+  <path d="M32 14v34M24 23h16M20 35c2 9 7 14 12 14s10-5 12-14M17 35h8M39 35h8" fill="none" stroke="#123e49" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="32" cy="17" r="3" fill="#f7faf9" stroke="#123e49" stroke-width="2"/>
+</svg>
