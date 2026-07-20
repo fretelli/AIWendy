@@ -1,23 +1,18 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
 import {
   Activity, AlertTriangle, ArrowDownRight, ArrowUpRight, Banknote, BookOpen,
   Database, Droplets, Gauge, Landmark, Loader2, Radar, RefreshCw, ShipWheel,
   SlidersHorizontal, Waves,
 } from 'lucide-react'
-import {
-  Area, Bar, Brush, CartesianGrid, ComposedChart, Line, ReferenceLine,
-  Tooltip as RechartsTooltip, XAxis, YAxis,
-} from 'recharts'
 import { toast } from 'sonner'
 
 import { KeelMark, ThemeMenu } from '@/components/keel-brand'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { agentPlatformApi, type MarketCapitalSnapshot } from '@/lib/api/agent-platform'
-import { firstTooltipEntry, type ChartTooltipProps } from '@/lib/charts/recharts-tooltip'
 
 type ChartMode = 'turnover' | 'breadth' | 'return'
 type HistoryPoint = MarketCapitalSnapshot['history'][number] & {
@@ -61,7 +56,7 @@ export default function MarketCapitalPage() {
     <div className="mx-auto max-w-[1580px] space-y-5 p-4 md:p-7">
       {!data?.available && <Unavailable title="全市场基础行情不可用" />}
       {data?.available && <>
-        <MarketTape data={data} window={window} onWindowChange={setWindow} refreshing={refreshing} />
+        <MarketTape key={`${data.window}-${data.as_of}`} data={data} window={window} onWindowChange={setWindow} refreshing={refreshing} />
         <MarketContext data={data} />
 
         <section className="grid gap-4 xl:grid-cols-[1.25fr_.75fr]">
@@ -103,6 +98,9 @@ function MarketTape({ data, window, onWindowChange, refreshing }: { data: Market
     const sample = rows.slice(Math.max(0, index - 19), index + 1)
     return { ...row, declines_negative: -row.declines, turnover_average_20d: sample.reduce((sum, item) => sum + Number(item.turnover_cny || 0), 0) / sample.length }
   }), [data.history])
+  const [rangeStart, setRangeStart] = useState(0)
+  const [rangeEnd, setRangeEnd] = useState(Math.max(0, chartData.length - 1))
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 
   useEffect(() => {
     const node = chartHost.current
@@ -123,30 +121,68 @@ function MarketTape({ data, window, onWindowChange, refreshing }: { data: Market
       <div className="flex flex-wrap gap-2 lg:ml-auto">{CHART_MODES.map(item => <Button key={item.value} size="sm" variant={mode === item.value ? 'default' : 'outline'} onClick={() => setMode(item.value)}>{item.label}</Button>)}</div>
       <div className="flex items-center gap-1 rounded-lg border bg-background/55 p-1">{WINDOWS.map(days => <button key={days} type="button" disabled={refreshing} onClick={() => onWindowChange(days)} className={`rounded-md px-2.5 py-1.5 font-data text-[10px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${window === days ? 'bg-[hsl(var(--copper))] text-[hsl(var(--copper-foreground))]' : 'text-muted-foreground hover:bg-secondary'}`}>{days}日</button>)}</div>
     </div>
-    <div className={`h-[320px] p-2 transition-opacity sm:h-[360px] md:h-[420px] md:p-5 ${refreshing ? 'opacity-55' : ''}`}>
-      <div ref={chartHost} data-chart-canvas="market-capital" className="h-full min-h-0 w-full min-w-0">
-      {chartSize.width > 0 && chartSize.height > 0 ? <ComposedChart width={chartSize.width} height={chartSize.height} key={`${mode}-${window}-${data.as_of}`} data={chartData} margin={{ top: 12, right: 10, left: 4, bottom: 8 }}>
-        <defs><linearGradient id="capital-turnover" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="hsl(var(--accent))" stopOpacity={.34}/><stop offset="95%" stopColor="hsl(var(--accent))" stopOpacity={0}/></linearGradient></defs>
-        <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 5" vertical={false} />
-        <XAxis dataKey="trade_date" tickFormatter={shortDate} tick={{ fontSize: 10 }} minTickGap={24} axisLine={false} tickLine={false} />
-        <YAxis tickFormatter={mode === 'turnover' ? compactMoney : mode === 'return' ? v => `${v}%` : compactCount} tick={{ fontSize: 10 }} width={58} axisLine={false} tickLine={false} />
-        <RechartsTooltip content={<CapitalTooltip mode={mode} />} cursor={{ stroke: 'hsl(var(--copper-foreground))', strokeDasharray: '3 3' }} />
-        {mode === 'turnover' && <><Area type="monotone" dataKey="turnover_cny" name="成交额" stroke="hsl(var(--accent))" fill="url(#capital-turnover)" strokeWidth={2.2} /><Line type="monotone" dataKey="turnover_average_20d" name="20日均额" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 5" dot={false} strokeWidth={1.3} /></>}
-        {mode === 'breadth' && <><ReferenceLine y={0} stroke="hsl(var(--border))" /><Bar dataKey="advances" name="上涨" fill="#e05a67" radius={[3,3,0,0]} /><Bar dataKey="declines_negative" name="下跌" fill="#24906f" radius={[0,0,3,3]} /></>}
-        {mode === 'return' && <><ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" /><Line type="monotone" dataKey="median_return_pct" name="中位涨跌幅" stroke="hsl(var(--copper-foreground))" dot={false} strokeWidth={2.2} /></>}
-        <Brush dataKey="trade_date" height={24} travellerWidth={8} tickFormatter={shortDate} stroke="hsl(var(--border))" fill="hsl(var(--secondary))" />
-      </ComposedChart> : <div className="grid h-full place-items-center text-xs text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />图表尺寸初始化中</div>}
+    <div className={`h-[350px] p-2 transition-opacity sm:h-[390px] md:h-[450px] md:p-5 ${refreshing ? 'opacity-55' : ''}`}>
+      <div ref={chartHost} data-chart-canvas="market-capital" className="relative h-[calc(100%-48px)] min-h-0 w-full min-w-0">
+        {chartSize.width > 0 && chartSize.height > 0 ? <NativeCapitalChart width={chartSize.width} height={chartSize.height} mode={mode} data={chartData.slice(rangeStart, rangeEnd + 1)} hoverIndex={hoverIndex} onHover={setHoverIndex} /> : <div className="grid h-full place-items-center text-xs text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />图表尺寸初始化中</div>}
+      </div>
+      <div className="grid h-12 grid-cols-[1fr_auto_1fr] items-center gap-3 border-t px-2 pt-2 text-[9px] text-muted-foreground">
+        <label className="flex items-center gap-2"><span className="shrink-0">起点</span><input aria-label="图表起点" className="w-full accent-[hsl(var(--copper-foreground))]" type="range" min={0} max={Math.max(0, chartData.length - 1)} value={rangeStart} onChange={event => { setRangeStart(Math.min(Number(event.target.value), Math.max(0, rangeEnd - 1))); setHoverIndex(null) }} /></label>
+        <span className="font-data">显示 {Math.max(0, rangeEnd - rangeStart + 1)} 日</span>
+        <label className="flex items-center gap-2"><input aria-label="图表终点" className="w-full accent-[hsl(var(--copper-foreground))]" type="range" min={0} max={Math.max(0, chartData.length - 1)} value={rangeEnd} onChange={event => { setRangeEnd(Math.max(Number(event.target.value), Math.min(chartData.length - 1, rangeStart + 1))); setHoverIndex(null) }} /><span className="shrink-0">终点</span></label>
       </div>
     </div>
     <div className="flex flex-wrap gap-x-5 gap-y-2 border-t bg-secondary/25 px-5 py-3 text-[10px] text-muted-foreground"><span>成交额：全 A 股日成交金额合计</span><span>上涨/下跌：按个股日涨跌幅正负计数</span><span>虚线：所选数据内滚动 20 日均额</span></div>
   </section>
 }
 
-function CapitalTooltip(props: ChartTooltipProps<HistoryPoint> & { mode: ChartMode }) {
-  const entry = firstTooltipEntry(props)
-  const row = entry?.payload
-  if (!row) return null
-  return <div className="min-w-48 rounded-xl border bg-popover/96 p-3 text-xs shadow-xl backdrop-blur"><p className="font-data font-semibold">{fmtDate(row.trade_date)}</p><div className="mt-2 space-y-1.5 text-muted-foreground"><TooltipRow label="成交额" value={money(row.turnover_cny)} /><TooltipRow label="20日均额" value={money(row.turnover_average_20d)} /><TooltipRow label="上涨 / 下跌 / 平盘" value={`${row.advances} / ${row.declines} / ${row.flat}`} /><TooltipRow label="中位涨跌幅" value={signedPct(row.median_return_pct)} /></div></div>
+function NativeCapitalChart({ width, height, mode, data, hoverIndex, onHover }: { width: number; height: number; mode: ChartMode; data: HistoryPoint[]; hoverIndex: number | null; onHover: (index: number | null) => void }) {
+  const margin = { left: width < 520 ? 48 : 62, right: 16, top: 18, bottom: 32 }
+  const plotWidth = Math.max(1, width - margin.left - margin.right)
+  const plotHeight = Math.max(1, height - margin.top - margin.bottom)
+  const values = mode === 'turnover'
+    ? data.flatMap(row => [row.turnover_cny, row.turnover_average_20d])
+    : mode === 'breadth' ? data.flatMap(row => [row.advances, -row.declines])
+      : data.map(row => Number(row.median_return_pct || 0))
+  const finite = values.filter(Number.isFinite)
+  let minimum = mode === 'turnover' ? 0 : Math.min(0, ...finite)
+  let maximum = Math.max(0, ...finite)
+  if (mode === 'breadth') { const bound = Math.max(Math.abs(minimum), Math.abs(maximum), 1); minimum = -bound; maximum = bound }
+  if (minimum === maximum) { minimum -= 1; maximum += 1 }
+  const padding = mode === 'turnover' ? maximum * .06 : (maximum - minimum) * .08
+  const yMin = mode === 'turnover' ? 0 : minimum - padding
+  const yMax = maximum + padding
+  const x = (index: number) => margin.left + (data.length <= 1 ? plotWidth / 2 : index / (data.length - 1) * plotWidth)
+  const y = (value: number) => margin.top + (yMax - value) / (yMax - yMin) * plotHeight
+  const linePath = (getter: (row: HistoryPoint) => number) => data.map((row, index) => `${index ? 'L' : 'M'}${x(index).toFixed(1)},${y(getter(row)).toFixed(1)}`).join(' ')
+  const turnoverPath = linePath(row => row.turnover_cny)
+  const areaPath = data.length ? `M${x(0)},${y(yMin)} ${data.map((row, index) => `L${x(index).toFixed(1)},${y(row.turnover_cny).toFixed(1)}`).join(' ')} L${x(data.length - 1)},${y(yMin)} Z` : ''
+  const yTicks = Array.from({ length: 5 }, (_, index) => yMin + (yMax - yMin) * index / 4)
+  const dateTickIndexes = Array.from(new Set(Array.from({ length: Math.min(5, data.length) }, (_, index) => Math.round(index * Math.max(0, data.length - 1) / Math.max(1, Math.min(5, data.length) - 1)))))
+  const hovered = hoverIndex === null ? null : data[hoverIndex]
+  const hoverX = hoverIndex === null ? 0 : x(hoverIndex)
+  const formatTick = mode === 'turnover' ? compactMoney : mode === 'return' ? (value: number) => `${value.toFixed(1)}%` : compactCount
+  const onPointerMove = (event: ReactPointerEvent<SVGRectElement>) => {
+    if (!data.length) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const localX = event.clientX - rect.left - margin.left
+    const index = Math.round(Math.max(0, Math.min(1, localX / plotWidth)) * Math.max(0, data.length - 1))
+    onHover(index)
+  }
+
+  return <>
+    <svg data-chart-series="market-capital" role="img" aria-label="全市场资金面历史图" width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="block overflow-visible">
+      <defs><linearGradient id="native-capital-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity=".32" /><stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity=".02" /></linearGradient></defs>
+      {yTicks.map(tick => <g key={tick}><line x1={margin.left} x2={width - margin.right} y1={y(tick)} y2={y(tick)} stroke="hsl(var(--border))" strokeDasharray="3 5" /><text x={margin.left - 8} y={y(tick) + 3} textAnchor="end" fontSize="9" fill="hsl(var(--muted-foreground))">{formatTick(tick)}</text></g>)}
+      {dateTickIndexes.map(index => <text key={index} x={x(index)} y={height - 7} textAnchor={index === 0 ? 'start' : index === data.length - 1 ? 'end' : 'middle'} fontSize="9" fill="hsl(var(--muted-foreground))">{shortDate(data[index]?.trade_date || '')}</text>)}
+      {mode !== 'turnover' && <line x1={margin.left} x2={width - margin.right} y1={y(0)} y2={y(0)} stroke="hsl(var(--muted-foreground))" strokeWidth="1" />}
+      {mode === 'turnover' && <><path d={areaPath} fill="url(#native-capital-area)" /><path d={turnoverPath} fill="none" stroke="hsl(var(--accent))" strokeWidth="2.5" strokeLinejoin="round" /><path d={linePath(row => row.turnover_average_20d)} fill="none" stroke="hsl(var(--muted-foreground))" strokeWidth="1.3" strokeDasharray="5 5" /></>}
+      {mode === 'breadth' && data.map((row, index) => { const barWidth = Math.max(1, Math.min(10, plotWidth / Math.max(1, data.length) * .72)); const zero = y(0); return <g key={row.trade_date}><rect x={x(index)-barWidth/2} y={y(row.advances)} width={barWidth} height={Math.max(1, zero-y(row.advances))} fill="#e05a67" rx="1" /><rect x={x(index)-barWidth/2} y={zero} width={barWidth} height={Math.max(1, y(-row.declines)-zero)} fill="#24906f" rx="1" /></g> })}
+      {mode === 'return' && <path d={linePath(row => Number(row.median_return_pct || 0))} fill="none" stroke="hsl(var(--copper-foreground))" strokeWidth="2.5" strokeLinejoin="round" />}
+      {hovered && <><line x1={hoverX} x2={hoverX} y1={margin.top} y2={height-margin.bottom} stroke="hsl(var(--copper-foreground))" strokeDasharray="3 3" /><circle cx={hoverX} cy={y(mode === 'turnover' ? hovered.turnover_cny : mode === 'breadth' ? hovered.advances : Number(hovered.median_return_pct || 0))} r="4" fill="hsl(var(--background))" stroke="hsl(var(--copper-foreground))" strokeWidth="2" /></>}
+      <rect x={margin.left} y={margin.top} width={plotWidth} height={plotHeight} fill="transparent" onPointerMove={onPointerMove} onPointerLeave={() => onHover(null)} />
+    </svg>
+    {hovered && <div className="pointer-events-none absolute top-2 z-10 min-w-48 rounded-xl border bg-popover/96 p-3 text-xs shadow-xl backdrop-blur" style={{ left: Math.max(4, Math.min(width - 205, hoverX + 10)) }}><p className="font-data font-semibold">{fmtDate(hovered.trade_date)}</p><div className="mt-2 space-y-1.5 text-muted-foreground"><TooltipRow label="成交额" value={money(hovered.turnover_cny)} /><TooltipRow label="20日均额" value={money(hovered.turnover_average_20d)} /><TooltipRow label="上涨 / 下跌 / 平盘" value={`${hovered.advances} / ${hovered.declines} / ${hovered.flat}`} /><TooltipRow label="中位涨跌幅" value={signedPct(hovered.median_return_pct)} /></div></div>}
+  </>
 }
 
 function TooltipRow({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between gap-5"><span>{label}</span><span className="font-data text-foreground">{value}</span></div> }

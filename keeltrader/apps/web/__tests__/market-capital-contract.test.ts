@@ -19,7 +19,8 @@ test('market capital page separates observable data from provider proxy', () => 
 test('market capital dashboard exposes interactive history and methodology', () => {
   expect(page).toContain('资金水位记录带')
   expect(page).toContain('数据口径中心')
-  expect(page).toContain('<Brush')
+  expect(page).toContain('aria-label="图表起点"')
+  expect(page).toContain('aria-label="图表终点"')
   expect(page).toContain("type ChartMode = 'turnover' | 'breadth' | 'return'")
   expect(page).toContain('const WINDOWS = [20, 60, 120, 250] as const')
   expect(page).toContain('完整交易日与时间范围')
@@ -32,12 +33,15 @@ test('interactive chart is the first dashboard content, not hidden below the con
   expect(page.indexOf('<MarketTape')).toBeLessThan(page.indexOf('<MarketContext'))
 })
 
-test('market chart uses measured dimensions instead of the incompatible responsive wrapper', () => {
+test('market chart uses native SVG instead of the incompatible Recharts runtime', () => {
   expect(page).toContain('data-chart-canvas="market-capital"')
+  expect(page).toContain('data-chart-series="market-capital"')
   expect(page).toContain('new ResizeObserver(measure)')
-  expect(page).toContain('width={chartSize.width}')
-  expect(page).toContain('height={chartSize.height}')
+  expect(page).toContain('<NativeCapitalChart')
+  expect(page).toContain('onPointerMove={onPointerMove}')
+  expect(page).toContain('aria-label="图表起点"')
   expect(page).not.toContain('<ResponsiveContainer')
+  expect(page).not.toContain("from 'recharts'")
 })
 
 test('capital route is exposed in API client and research desk', () => {
