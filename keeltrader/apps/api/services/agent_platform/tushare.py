@@ -698,7 +698,12 @@ class TushareReadService:
             return {"available": False, "as_of": None, "reason": "financing source unavailable"}
         detail_sql = f"""
             SELECT trade_date,
-                   CASE WHEN ts_code LIKE '%.SH' THEN 'SSE' WHEN ts_code LIKE '%.SZ' THEN 'SZSE' ELSE 'OTHER' END AS exchange,
+                   CASE
+                     WHEN ts_code LIKE '%.SH' THEN 'SSE'
+                     WHEN ts_code LIKE '%.SZ' THEN 'SZSE'
+                     WHEN ts_code LIKE '%.BJ' THEN 'BSE'
+                     ELSE 'OTHER'
+                   END AS exchange,
                    SUM(rzye) AS balance,SUM(rzmre) AS purchases,SUM(rzche) AS repayments
             FROM {self.schema}.margin_detail
             WHERE trade_date BETWEEN CAST(:as_of AS date) - INTERVAL '15 days' AND CAST(:as_of AS date)
