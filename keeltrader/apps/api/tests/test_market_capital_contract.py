@@ -25,3 +25,8 @@ def test_endpoint_and_tool_contracts_are_exposed():
     tools = (ROOT / "apps/api/services/agent_platform/tools.py").read_text()
     assert '@router.get("/market-capital")' in router
     assert '"market_capital_snapshot"' in tools
+
+
+def test_margin_detail_maps_beijing_exchange_before_summary_deduplication():
+    service = (ROOT / "apps/api/services/agent_platform/tushare.py").read_text()
+    assert "WHEN ts_code LIKE '%.BJ' THEN 'BSE'" in service
