@@ -69,9 +69,18 @@ def test_macro_futures_and_options_routes_keep_raw_source_contracts():
     assert 'ORDER BY m.trade_date ASC' in service
     assert 'FROM {self.schema}.opt_series_daily' in service
     assert 'WHERE opt_code=:opt_code ORDER BY trade_date ASC' in service
-    assert 'JOIN resolved_option_contracts b ON b.ts_code=d.ts_code' in service
+    assert 'WITH exact_scope AS MATERIALIZED' in service
+    assert 'missing_scope AS MATERIALIZED' in service
+    assert 'candidate_series AS MATERIALIZED' in service
+    assert 'SELECT DISTINCT contract_root FROM missing_scope' in service
+    assert 'if opt_code.upper().endswith(".ZCE")' in service
+    assert 'FROM {self.schema}.opt_series_daily' in service
+    assert 'WHERE opt_code=:opt_code' in service
     assert 'HAVING COUNT(DISTINCT candidate.opt_code)=1' in service
-    assert 'daily.trade_date=CAST(:trade_date AS date)' in service
+    assert 'trade_date=CAST(:trade_date AS date)' in service
+    assert '"OP000300.SH": ("index", "000300.SH"' in service
+    assert '"OP000016.SH": ("index", "000016.SH"' in service
+    assert '"OP000852.SH": ("index", "000852.SH"' in service
     assert '@router.get("/macro/series/{key}")' in markets_router
     assert '@router.get("/options/{code}/underlying")' in markets_router
     assert '@router.get("/underlyings/{relationship}/{code}/series")' in markets_router
