@@ -75,6 +75,58 @@ _market_domain_cache: dict[str, tuple[float, Any]] = {}
 _MARKET_DOMAIN_CACHE_SECONDS = 600
 
 
+def source_freshness_metadata(
+    as_of: date,
+    component_date: str | None,
+    available: bool,
+    trading_dates: set[date] | None = None,
+) -> dict[str, Any]:
+    """Describe source freshness without presenting lag as a positive change."""
+    if not available or not component_date:
+        return {
+            "available": False,
+            "as_of": component_date,
+            "lag_days": None,
+            "lag_calendar_days": None,
+            "lag_trading_days": None,
+            "freshness_state": "unavailable",
+        }
+    try:
+        component = date.fromisoformat(str(component_date))
+    except ValueError:
+        return {
+            "available": True,
+            "as_of": component_date,
+            "lag_days": None,
+            "lag_calendar_days": None,
+            "lag_trading_days": None,
+            "freshness_state": "invalid",
+        }
+    if component > as_of:
+        return {
+            "available": True,
+            "as_of": str(component),
+            "lag_days": None,
+            "lag_calendar_days": None,
+            "lag_trading_days": None,
+            "freshness_state": "invalid",
+        }
+    calendar_lag = (as_of - component).days
+    trading_lag = (
+        sum(1 for trading_day in trading_dates if component < trading_day <= as_of)
+        if trading_dates is not None else None
+    )
+    is_current = trading_lag == 0 if trading_lag is not None else calendar_lag == 0
+    return {
+        "available": True,
+        "as_of": str(component),
+        "lag_days": calendar_lag,
+        "lag_calendar_days": calendar_lag,
+        "lag_trading_days": trading_lag,
+        "freshness_state": "current" if is_current else "lagged",
+    }
+
+
 def _get_tushare_session_factory() -> async_sessionmaker[AsyncSession] | None:
     """Return a lazily initialized read-only Tushare DB session factory."""
     global _tushare_session_factory, _tushare_session_url
@@ -663,7 +715,10 @@ class TushareReadService:
         breadth = {"advances": latest["advances"], "declines": latest["declines"], "flat": latest["flat"],
                    "advance_ratio": latest["advances"] / latest["stock_count"] if latest["stock_count"] else None,
                    "limit_up": None, "limit_down": None, "limit_source_available": False}
-        sources: dict[str, Any] = {"stock_daily": {"available": True, "as_of": as_of, "row_count": complete[0]["row_count"]}}
+        sources: dict[str, Any] = {"stock_daily": {
+            **source_freshness_metadata(as_of_date, as_of, True, {as_of_date}),
+            "row_count": complete[0]["row_count"],
+        }}
         if await self.table_exists("stk_limit"):
             limits = await self._execute_mappings(text(f"""
                 SELECT COUNT(*) FILTER (WHERE d.close=l.up_limit)::int AS limit_up,
@@ -673,20 +728,42 @@ class TushareReadService:
             """), {"as_of": as_of_date})
             if limits and limits[0]["covered"]:
                 breadth.update(limit_up=limits[0]["limit_up"], limit_down=limits[0]["limit_down"], limit_source_available=True)
-                sources["stk_limit"] = {"available": True, "as_of": as_of, "row_count": limits[0]["covered"]}
+                sources["stk_limit"] = {
+                    **source_freshness_metadata(as_of_date, as_of, True, {as_of_date}),
+                    "row_count": limits[0]["covered"],
+                }
             else:
-                sources["stk_limit"] = {"available": False, "as_of": None}
+                sources["stk_limit"] = source_freshness_metadata(as_of_date, None, False)
         else:
-            sources["stk_limit"] = {"available": False, "as_of": None}
+            sources["stk_limit"] = source_freshness_metadata(as_of_date, None, False)
         leverage, etfs, rates, proxy = await asyncio.gather(
             self._market_leverage(as_of_date), self._market_etf_flows(as_of_date),
             self._market_funding_rates(as_of_date), self._market_flow_proxy(as_of_date),
         )
-        for key, value in (("leverage", leverage), ("etf_flows", etfs), ("shibor", rates), ("moneyflow_mkt_dc", proxy)):
-            component_date = value.get("as_of")
-            lag_days = (date.fromisoformat(as_of) - date.fromisoformat(component_date)).days if component_date else None
-            value["lag_days"] = lag_days
-            sources[key] = {"available": bool(value.get("available")), "as_of": component_date, "lag_days": lag_days}
+        component_values = (("leverage", leverage), ("etf_flows", etfs), ("shibor", rates), ("moneyflow_mkt_dc", proxy))
+        component_dates = []
+        for _, value in component_values:
+            try:
+                if value.get("as_of"):
+                    component_dates.append(date.fromisoformat(str(value["as_of"])))
+            except ValueError:
+                continue
+        trading_dates: set[date] | None = None
+        if component_dates and await self.table_exists("trade_cal"):
+            rows = await self._execute_mappings(text(f"""
+                SELECT cal_date FROM {self.schema}.trade_cal
+                WHERE exchange='SSE' AND is_open=1 AND cal_date>:start_date AND cal_date<=:as_of
+            """), {"start_date": min(component_dates), "as_of": as_of_date})
+            parsed_trading_dates = {
+                date.fromisoformat(str(row["cal_date"])) for row in rows if row.get("cal_date")
+            }
+            trading_dates = parsed_trading_dates or None
+        for key, value in component_values:
+            freshness = source_freshness_metadata(
+                as_of_date, value.get("as_of"), bool(value.get("available")), trading_dates,
+            )
+            value.update(freshness)
+            sources[key] = freshness.copy()
         result = {"available": True, "as_of": as_of, "window": "all", "sources": sources,
                   "liquidity": liquidity, "breadth": breadth, "leverage": leverage, "etf_flows": etfs,
                   "funding_rates": rates, "flow_proxy": proxy, "history": history,
