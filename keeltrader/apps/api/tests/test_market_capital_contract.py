@@ -71,6 +71,8 @@ def test_source_freshness_uses_trading_lag_for_current_state_when_available():
     assert metadata["lag_calendar_days"] == 1
     assert metadata["lag_trading_days"] == 0
     assert metadata["freshness_state"] == "current"
+    same_day = source_freshness_metadata(date(2026, 7, 20), "2026-07-20", True)
+    assert same_day["lag_trading_days"] == 0
 
 
 def test_macro_futures_and_options_routes_keep_raw_source_contracts():
