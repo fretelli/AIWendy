@@ -24,11 +24,11 @@ logger = get_logger(__name__)
 async def cached_json(key: str, loader: Callable[[], Awaitable[dict[str, Any]]], ttl: int = 600) -> Response:
     started = time.perf_counter()
     cache = get_cache_service()
-    payload = await cache.get_async(f"markets:v2:{key}")
+    payload = await cache.get_async(f"markets:v3:{key}")
     cache_state = "hit"
     if not isinstance(payload, dict):
         payload = await loader()
-        await cache.set_async(f"markets:v2:{key}", payload, ttl=ttl)
+        await cache.set_async(f"markets:v3:{key}", payload, ttl=ttl)
         cache_state = "miss"
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str).encode()
     etag = '"' + hashlib.sha256(body).hexdigest()[:24] + '"'
