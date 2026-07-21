@@ -21,17 +21,18 @@ export type HolderPosition = { ts_code: string; company_name?: string; industry?
 export type HolderPriceEstimate = { side: 'buy' | 'sell' | 'possible_sell'; window_start: string; window_end: string; first_trade_date?: string; last_trade_date?: string; low: number; high: number; volume_weighted_price: number; trading_days: number; changed_shares?: number; estimated_amount?: number; method: 'qfq_close_volume_weighted_reporting_window'; disclaimer: string }
 export type HolderHistoryEvent = HolderPosition & { event_type: 'first_seen' | 'new' | 'increased' | 'reduced' | 'unchanged' | 'exited_top10'; previous_end_date?: string; previous_hold_amount?: number; previous_hold_ratio?: number; previous_hold_float_ratio?: number; present: boolean; price_estimate?: HolderPriceEstimate | null }
 export type HolderInboxEvent = { id: string; watch_id: string; ts_code: string; company_name?: string; holder_name: string; holder_type: string; event_type: HolderHistoryEvent['event_type']; end_date: string; ann_date?: string; previous_end_date?: string; values: Record<string, unknown>; read_at?: string; detected_at: string }
+export type MarketSourceFreshness = { available: boolean; as_of?: string; lag_days?: number; lag_calendar_days?: number; lag_trading_days?: number; freshness_state?: 'current'|'lagged'|'unavailable'|'invalid'; row_count?: number }
 export type MarketCapitalSnapshot = {
   available: boolean; as_of?: string; window: 'all'; interpretations: string[]
   history_meta: { scope: 'all_available'; raw: true; start_date: string; end_date: string; points: number; source: string }
   methodology?: { scope?: string; complete_day_threshold?: number; flow_warning?: string }
-  sources: Record<string, { available: boolean; as_of?: string; lag_days?: number; row_count?: number }>
+  sources: Record<string, MarketSourceFreshness>
   liquidity: { turnover_cny: number; top20_turnover_share?: number; top50_turnover_share?: number; note: string }
   breadth: { advances: number; declines: number; flat: number; advance_ratio?: number; limit_up?: number; limit_down?: number; limit_source_available: boolean }
-  leverage: { available: boolean; as_of?: string; lag_days?: number; balance_cny?: number; purchases_cny?: number; repayments_cny?: number; daily_net_financing_cny?: number; five_day_net_financing_cny?: number; coverage_label?: string }
-  etf_flows: { available: boolean; as_of?: string; lag_days?: number; estimated_net_flow_cny?: number; groups?: Record<string, number>; fund_count?: number; flow_covered_funds?: number; coverage_ratio?: number; method?: string; note?: string }
-  funding_rates: { available: boolean; as_of?: string; lag_days?: number; overnight_pct?: number; seven_day_pct?: number; overnight_change_bp?: number; seven_day_change_bp?: number }
-  flow_proxy: { available: boolean; as_of?: string; lag_days?: number; provider?: string; method?: string; warning?: string; values?: Record<string, number | string | null> }
+  leverage: MarketSourceFreshness & { balance_cny?: number; purchases_cny?: number; repayments_cny?: number; daily_net_financing_cny?: number; five_day_net_financing_cny?: number; coverage_label?: string }
+  etf_flows: MarketSourceFreshness & { estimated_net_flow_cny?: number; groups?: Record<string, number>; fund_count?: number; flow_covered_funds?: number; coverage_ratio?: number; method?: string; note?: string }
+  funding_rates: MarketSourceFreshness & { overnight_pct?: number; seven_day_pct?: number; overnight_change_bp?: number; seven_day_change_bp?: number }
+  flow_proxy: MarketSourceFreshness & { provider?: string; method?: string; warning?: string; values?: Record<string, number | string | null> }
   history: Array<{ trade_date: string; stock_count: number; turnover_cny: number; advances: number; declines: number; flat: number }>
 }
 export type RawMarketSeries = {

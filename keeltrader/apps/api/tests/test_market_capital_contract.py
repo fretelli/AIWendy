@@ -1,8 +1,9 @@
 from pathlib import Path
 from decimal import Decimal
+from datetime import date
 
 from services.agent_platform.market_capital import etf_flow, factual_interpretations, financing_net, market_day
-from services.agent_platform.tushare import _json_safe
+from services.agent_platform.tushare import _json_safe, source_freshness_metadata
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -48,6 +49,28 @@ def test_market_capital_uses_all_raw_history_without_average_indicators():
 def test_margin_detail_maps_beijing_exchange_before_summary_deduplication():
     service = (ROOT / "apps/api/services/agent_platform/tushare.py").read_text()
     assert "WHEN ts_code LIKE '%.BJ' THEN 'BSE'" in service
+
+
+def test_source_freshness_distinguishes_trading_and_calendar_lag():
+    metadata = source_freshness_metadata(
+        date(2026, 7, 20), "2026-07-17", True, {date(2026, 7, 20)},
+    )
+    assert metadata["lag_days"] == 3
+    assert metadata["lag_calendar_days"] == 3
+    assert metadata["lag_trading_days"] == 1
+    assert metadata["freshness_state"] == "lagged"
+
+
+def test_source_freshness_rejects_future_dates_and_marks_unavailable():
+    assert source_freshness_metadata(date(2026, 7, 20), "2026-07-21", True)["freshness_state"] == "invalid"
+    assert source_freshness_metadata(date(2026, 7, 20), None, False)["freshness_state"] == "unavailable"
+
+
+def test_source_freshness_uses_trading_lag_for_current_state_when_available():
+    metadata = source_freshness_metadata(date(2026, 7, 20), "2026-07-19", True, set())
+    assert metadata["lag_calendar_days"] == 1
+    assert metadata["lag_trading_days"] == 0
+    assert metadata["freshness_state"] == "current"
 
 
 def test_macro_futures_and_options_routes_keep_raw_source_contracts():
