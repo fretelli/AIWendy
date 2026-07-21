@@ -69,6 +69,9 @@ def test_macro_futures_and_options_routes_keep_raw_source_contracts():
     assert 'ORDER BY m.trade_date ASC' in service
     assert 'FROM {self.schema}.opt_series_daily' in service
     assert 'WHERE opt_code=:opt_code ORDER BY trade_date ASC' in service
+    assert 'JOIN resolved_option_contracts b ON b.ts_code=d.ts_code' in service
+    assert 'HAVING COUNT(DISTINCT candidate.opt_code)=1' in service
+    assert 'daily.trade_date=CAST(:trade_date AS date)' in service
     assert '@router.get("/macro/series/{key}")' in markets_router
     assert '@router.get("/options/{code}/underlying")' in markets_router
     assert '@router.get("/underlyings/{relationship}/{code}/series")' in markets_router
