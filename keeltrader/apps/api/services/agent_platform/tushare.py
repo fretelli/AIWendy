@@ -1006,10 +1006,11 @@ class TushareReadService:
         params = {"opt_code": opt_code, "trade_date": chosen, "maturity": maturity,
                   "limit": limit, "offset": offset}
         rows = [] if chosen is None else await self._execute_mappings(text(f"""
+            WITH {self._option_contract_resolution_cte(restrict_to_trade_date=True)}
             SELECT d.trade_date,d.ts_code,b.name,b.exchange,b.call_put,b.exercise_price,b.maturity_date,
                    d.open,d.high,d.low,d.close,d.settle,d.vol,d.amount,d.oi,
                    COUNT(*) OVER()::int AS total
-            FROM {self.schema}.opt_daily d JOIN {self.schema}.opt_basic b ON b.ts_code=d.ts_code
+            FROM {self.schema}.opt_daily d JOIN resolved_option_contracts b ON b.ts_code=d.ts_code
             WHERE b.opt_code=:opt_code AND d.trade_date=:trade_date
               AND (CAST(:maturity AS date) IS NULL OR b.maturity_date=CAST(:maturity AS date))
             ORDER BY b.maturity_date,b.exercise_price,b.call_put LIMIT :limit OFFSET :offset
@@ -1020,6 +1021,50 @@ class TushareReadService:
         return {"available": bool(rows), "opt_code": opt_code, "trade_date": str(chosen) if chosen else None,
                 "maturity": str(maturity) if maturity else None, "items": rows, "total": total,
                 "limit": limit, "offset": offset, "raw": True}
+
+    def _option_contract_resolution_cte(self, restrict_to_trade_date: bool = False) -> str:
+        """Resolve source-lagged CZCE contracts only when one official sibling series exists."""
+        date_filter = "AND daily.trade_date=CAST(:trade_date AS date)" if restrict_to_trade_date else ""
+        return f"""
+            resolved_option_contracts AS (
+                SELECT ts_code,opt_code,exchange,name,underlying,call_put,
+                       exercise_price,maturity_date
+                FROM {self.schema}.opt_basic
+                WHERE opt_code IS NOT NULL AND opt_code <> ''
+                UNION ALL
+                SELECT
+                    missing.ts_code,
+                    sibling.opt_code,
+                    sibling.exchange,
+                    NULL::text AS name,
+                    sibling.underlying,
+                    CASE
+                        WHEN missing.ts_code ~ 'C[0-9]+[.]ZCE$' THEN 'C'
+                        WHEN missing.ts_code ~ 'P[0-9]+[.]ZCE$' THEN 'P'
+                    END AS call_put,
+                    substring(missing.ts_code FROM '[CP]([0-9]+)[.]ZCE$')::numeric,
+                    sibling.maturity_date
+                FROM (
+                    SELECT DISTINCT daily.ts_code
+                    FROM {self.schema}.opt_daily daily
+                    LEFT JOIN {self.schema}.opt_basic exact ON exact.ts_code=daily.ts_code
+                    WHERE exact.ts_code IS NULL
+                      {date_filter}
+                      AND daily.ts_code ~ '^[A-Z]+[0-9]+[CP][0-9]+[.]ZCE$'
+                ) missing
+                JOIN LATERAL (
+                    SELECT MIN(candidate.opt_code) AS opt_code,
+                           MIN(candidate.exchange) AS exchange,
+                           MIN(candidate.underlying) AS underlying,
+                           MIN(candidate.maturity_date) AS maturity_date
+                    FROM {self.schema}.opt_basic candidate
+                    WHERE regexp_replace(candidate.ts_code, '[CP][0-9]+[.]ZCE$', '') =
+                          regexp_replace(missing.ts_code, '[CP][0-9]+[.]ZCE$', '')
+                    HAVING COUNT(DISTINCT candidate.opt_code)=1
+                       AND COUNT(DISTINCT candidate.maturity_date)=1
+                ) sibling ON sibling.opt_code IS NOT NULL
+            )
+        """
 
     async def _market_leverage(self, as_of: date) -> dict[str, Any]:
         detail_exists, summary_exists = await asyncio.gather(
