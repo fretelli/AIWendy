@@ -31,6 +31,7 @@ from services.agent_platform.network import validate_external_https_url
 from services.agent_platform.runtime import TERMINAL, emit, enqueue_run, parse_mcp_tool, redact_sensitive
 from services.agent_platform.tools import execute_platform_tool
 from services.agent_platform.tushare import TushareReadService
+from services.agent_platform.opportunities import OpportunityService, profile_payload
 from services.agent_platform.dossier import enqueue_dossier_refresh
 from services.agent_platform.holders import enqueue_holder_scan, holder_names, normalize_holder_name
 from services.file_extractor import can_extract_text, extract_text
@@ -185,7 +186,7 @@ class SessionMessageCreate(BaseModel):
 
 
 class ContextSnapshotCreate(BaseModel):
-    resource_type: Literal["macro", "futures", "options", "underlying", "capital"]
+    resource_type: Literal["macro", "futures", "options", "underlying", "capital", "rates", "opportunity", "trade_plan"]
     resource_id: str = Field(min_length=1, max_length=120)
     field: str | None = Field(default=None, max_length=80)
     visible_start: str | None = Field(default=None, max_length=32)
@@ -211,6 +212,16 @@ class HolderWatchUpdate(BaseModel):
 
 class HolderEventsRead(BaseModel):
     event_ids: list[UUID] = Field(default_factory=list, max_length=500)
+
+
+class RiskProfileUpdate(BaseModel):
+    account_equity: float | None = Field(default=None, gt=0)
+    currency: str | None = Field(default=None, min_length=3, max_length=12)
+    risk_per_trade: float | None = Field(default=None, gt=0, le=0.05)
+    aggregate_open_risk: float | None = Field(default=None, gt=0, le=0.20)
+    single_instrument_notional: float | None = Field(default=None, gt=0, le=1)
+    derivative_premium_risk: float | None = Field(default=None, gt=0, le=0.05)
+    max_leverage: float | None = Field(default=None, gt=0, le=5)
 
 
 class ApprovalResolve(BaseModel):
@@ -865,6 +876,19 @@ async def create_context_snapshot(req: ContextSnapshotCreate, session: AsyncSess
     session.add(item)
     await session.flush()
     return dump(item)
+
+
+@router.get("/risk-profile")
+async def get_risk_profile(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    service = OpportunityService(session, TushareReadService(session), user.id)
+    return profile_payload(await service.risk_profile())
+
+
+@router.put("/risk-profile")
+async def put_risk_profile(req: RiskProfileUpdate, session: AsyncSession = Depends(get_session),
+                           user: User = Depends(get_current_user)):
+    service = OpportunityService(session, TushareReadService(session), user.id)
+    return profile_payload(await service.update_risk_profile(req.model_dump(exclude_unset=True)))
 
 
 @router.post("/sessions/{session_id}/messages")

@@ -39,6 +39,15 @@ const nextConfig = {
     ];
   },
 
+  async redirects() {
+    return [
+      { source: '/agent/capital', destination: '/agent/market/capital', permanent: true },
+      { source: '/agent/capital/macro', destination: '/agent/market/macro', permanent: true },
+      { source: '/agent/capital/futures', destination: '/agent/market/futures', permanent: true },
+      { source: '/agent/capital/options', destination: '/agent/market/options', permanent: true },
+    ];
+  },
+
 };
 
 module.exports = nextConfig;

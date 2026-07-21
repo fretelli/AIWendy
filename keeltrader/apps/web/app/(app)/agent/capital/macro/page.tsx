@@ -13,7 +13,7 @@ import { NativeSeriesChart } from '../_components/native-series-chart'
 export default function MacroMarketPage(){
   const router=useRouter(),params=useSearchParams(),[catalog,setCatalog]=useState<MacroCatalog|null>(null),[detail,setDetail]=useState<MacroSeriesDetail|null>(null),[loading,setLoading]=useState(true),[refreshing,setRefreshing]=useState(false)
   const key=params.get('series')||'',field=params.get('field')||''
-  const setSelection=useCallback((nextKey:string,nextField:string)=>{const query=new URLSearchParams(params.toString());query.set('series',nextKey);query.set('field',nextField);router.replace(`/agent/capital/macro?${query}`)},[params,router])
+  const setSelection=useCallback((nextKey:string,nextField:string)=>{const query=new URLSearchParams(params.toString());query.set('series',nextKey);query.set('field',nextField);router.replace(`/agent/market/macro?${query}`)},[params,router])
   const loadCatalog=useCallback(async(refresh=false)=>{refresh?setRefreshing(true):setLoading(true);try{const next=await marketsApi.macroCatalog();setCatalog(next);const selected=next.items.find(item=>item.key===key&&item.fields.includes(field))||next.items.find(item=>item.available&&item.fields.length);if(selected&&(!key||!field))setSelection(selected.key,selected.fields[0])}catch(error){toast.error(error instanceof Error?error.message:'宏观目录加载失败')}finally{setLoading(false);setRefreshing(false)}},[field,key,setSelection])
   useEffect(()=>{queueMicrotask(()=>void loadCatalog())},[loadCatalog])
   useEffect(()=>{if(!key||!field)return;let active=true;marketsApi.macroSeries(key,field).then(value=>{if(active)setDetail(value)}).catch(error=>toast.error(error instanceof Error?error.message:'宏观序列加载失败'));return()=>{active=false}},[key,field])

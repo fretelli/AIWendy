@@ -222,7 +222,7 @@ export default function HolderRadarPage() {
         <div className="flex items-center gap-2"><Radar className="h-4 w-4 text-[hsl(var(--copper-foreground))]" /><h1 className="font-display text-lg font-semibold">股东雷达</h1></div>
         <p className="truncate text-[10px] text-muted-foreground">按公开披露姓名反查前十大流通股东 · 不评分，不推荐</p>
       </div>
-      <Button asChild size="sm" variant="outline"><Link href="/agent/capital"><Waves className="mr-1.5 h-4 w-4" /><span className="hidden sm:inline">资金面</span></Link></Button>
+      <Button asChild size="sm" variant="outline"><Link href="/agent/market/capital"><Waves className="mr-1.5 h-4 w-4" /><span className="hidden sm:inline">市场</span></Link></Button>
       <Button asChild size="sm" variant="outline"><Link href="/agent"><ShipWheel className="mr-1.5 h-4 w-4" /><span className="hidden sm:inline">研究台</span></Link></Button>
       <ThemeMenu />
       <Button className="hidden xl:inline-flex" size="icon" variant="ghost" aria-label="折叠披露变化栏" onClick={() => rightPanelRef.current?.isCollapsed() ? rightPanelRef.current.expand() : rightPanelRef.current?.collapse()}>{rightCollapsed ? <PanelRightOpen className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}</Button>
