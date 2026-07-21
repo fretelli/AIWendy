@@ -65,6 +65,12 @@ ALLOWED_TABLES = {
     "sf_month",
     "us_tycr",
     "us_trycr",
+    "repo_daily",
+    "shibor_quote",
+    "cb_basic",
+    "cb_daily",
+    "option_underlying_map",
+    "option_analytics_daily",
 }
 
 _tushare_session_factory: async_sessionmaker[AsyncSession] | None = None
@@ -879,6 +885,91 @@ class TushareReadService:
                 "end": str(rows[-1]["period"]) if rows else None, "points": len(rows),
                 "raw": True, "rows": rows, "recent_source_rows": recent}
 
+    @staticmethod
+    def rates_definitions() -> dict[str, tuple[str, str, str, str]]:
+        return {
+            "shibor": ("shibor", "date", "daily", "SHIBOR"),
+            "shibor_quotes": ("shibor_quote", "date", "daily", "SHIBOR 报价行"),
+            "lpr": ("lpr", "date", "monthly", "LPR"),
+            "repo": ("repo_daily", "trade_date", "daily", "银行间质押式回购"),
+            "us_nominal": ("us_tycr", "date", "daily", "美国国债名义收益率"),
+            "us_real": ("us_trycr", "date", "daily", "美国国债实际收益率"),
+        }
+
+    async def rates_catalog(self) -> dict[str, Any]:
+        items = []
+        for key, (table, period, frequency, label) in self.rates_definitions().items():
+            if not await self.table_exists(table):
+                items.append({"key": key, "label": label, "table": table, "available": False, "fields": []})
+                continue
+            columns = await self._execute_mappings(text("""SELECT column_name,data_type FROM information_schema.columns
+                WHERE table_schema=:schema AND table_name=:table ORDER BY ordinal_position"""),
+                {"schema": self.schema, "table": table})
+            numeric = {"smallint", "integer", "bigint", "numeric", "real", "double precision"}
+            fields = [row["column_name"] for row in columns if row["data_type"] in numeric]
+            stats = await self._execute_mappings(text(f"SELECT MIN({period}) start,MAX({period}) end,COUNT(*)::int points FROM {self.schema}.{table}"), {})
+            meta = stats[0] if stats else {}
+            items.append({"key": key, "label": label, "table": table, "frequency": frequency,
+                          "period_field": period, "available": bool(meta.get("points")), "fields": fields,
+                          "start": str(meta.get("start")) if meta.get("start") else None,
+                          "end": str(meta.get("end")) if meta.get("end") else None,
+                          "points": int(meta.get("points") or 0), "source": f"{self.schema}.{table}"})
+        items.append({"key": "china_cash_treasury_curve", "label": "中国现券国债收益率曲线", "table": None,
+                      "available": False, "fields": [], "unavailable_reason": "当前数据源未接入 yc_cb；不使用国债期货或其他价格伪造现券收益率曲线。"})
+        return {"available": any(item["available"] for item in items), "items": items,
+                "methodology": {"raw_history": True, "synthetic_prices": False}}
+
+    async def rates_series(self, key: str, field: str, bank: str | None = None,
+                           maturity: str | None = None) -> dict[str, Any]:
+        definition = self.rates_definitions().get(key)
+        if not definition: raise ValueError("Unknown rates series")
+        table, period, frequency, label = definition
+        catalog = await self.rates_catalog(); meta = next(item for item in catalog["items"] if item["key"] == key)
+        if field not in meta["fields"]: raise ValueError("Unknown rates source field")
+        filters, params = [], {}
+        if table == "shibor_quote" and bank: filters.append("bank=:bank"); params["bank"] = bank
+        if table == "repo_daily" and maturity: filters.append("repo_maturity=:maturity"); params["maturity"] = maturity
+        where = " WHERE " + " AND ".join(filters) if filters else ""
+        dimensions = ",bank" if table == "shibor_quote" else (",repo_maturity" if table == "repo_daily" else "")
+        rows = await self._execute_mappings(text(f'SELECT {period} AS period,"{field}" AS value{dimensions} FROM {self.schema}.{table}{where} ORDER BY {period} ASC'), params)
+        return {"available": bool(rows), "key": key, "label": label, "field": field, "frequency": frequency,
+                "period_field": period, "source": f"{self.schema}.{table}", "start": str(rows[0]["period"]) if rows else None,
+                "end": str(rows[-1]["period"]) if rows else None, "points": len(rows), "raw": True, "rows": rows}
+
+    async def rates_curve(self, key: str, curve_date: date | None = None) -> dict[str, Any]:
+        definitions = {"shibor": ("shibor", "date"), "us_nominal": ("us_tycr", "date"), "us_real": ("us_trycr", "date")}
+        if key == "china_cash_treasury":
+            return {"available": False, "key": key, "unavailable_reason": "中国现券国债收益率曲线未接入；不进行替代推算。", "points": []}
+        if key not in definitions: raise ValueError("Unknown curve")
+        table, period = definitions[key]; chosen = curve_date
+        if chosen is None:
+            latest = await self._execute_mappings(text(f"SELECT MAX({period}) value FROM {self.schema}.{table}"), {})
+            chosen = latest[0].get("value") if latest else None
+        row = await self._execute_mappings(text(f"SELECT * FROM {self.schema}.{table} WHERE {period}=:chosen LIMIT 1"), {"chosen": chosen}) if chosen else []
+        points = [{"tenor": k, "value": v} for k, v in (row[0].items() if row else []) if k not in {period,"created_at","updated_at"} and v is not None]
+        return {"available": bool(points), "key": key, "date": str(chosen) if chosen else None,
+                "source": f"{self.schema}.{table}", "raw": True, "points": points}
+
+    async def treasury_futures(self) -> dict[str, Any]:
+        products = await self.futures_products()
+        items = [item for item in products.get("items", []) if str(item.get("fut_code") or item.get("product_code") or "").upper().split(".")[0] in {"T","TF","TS","TL"}]
+        return {"available": bool(items), "items": items, "source": products.get("source"), "raw": True,
+                "methodology": "国债期货对应可交割国债篮子，不代表单一现券收益率。"}
+
+    async def convertibles(self, code: str | None = None, limit: int = 200, offset: int = 0) -> dict[str, Any]:
+        if not all([await self.table_exists("cb_basic"), await self.table_exists("cb_daily")]):
+            return {"available": False, "items": [], "total": 0}
+        params = {"code": code, "limit": max(1, min(limit, 500)), "offset": max(0, offset)}
+        rows = await self._execute_mappings(text(f"""WITH latest AS (SELECT DISTINCT ON(ts_code) * FROM {self.schema}.cb_daily ORDER BY ts_code,trade_date DESC)
+            SELECT b.*,d.trade_date,d.close,d.vol,d.amount,d.bond_value,d.bond_over_rate,d.cb_value,d.cb_over_rate,
+            COUNT(*) OVER()::int total FROM {self.schema}.cb_basic b LEFT JOIN latest d ON d.ts_code=b.ts_code
+            WHERE (:code IS NULL OR b.ts_code=:code OR b.stk_code=:code) ORDER BY d.trade_date DESC NULLS LAST,b.ts_code
+            LIMIT :limit OFFSET :offset"""), params)
+        total = int(rows[0].get("total") or 0) if rows else 0
+        for row in rows: row.pop("total", None)
+        return {"available": bool(rows), "items": rows, "total": total, "limit": params["limit"], "offset": params["offset"],
+                "source": f"{self.schema}.cb_basic+cb_daily", "raw": True}
+
     async def futures_products(self) -> dict[str, Any]:
         cached = _market_domain_cache.get("futures_products")
         if cached and time.monotonic() - cached[0] < _MARKET_DOMAIN_CACHE_SECONDS:
@@ -1144,6 +1235,40 @@ class TushareReadService:
         return {"available": bool(rows), "opt_code": opt_code, "trade_date": str(chosen) if chosen else None,
                 "maturity": str(maturity) if maturity else None, "items": rows, "total": total,
                 "limit": limit, "offset": offset, "raw": True}
+
+    async def options_surface(self, opt_code: str, trade_date: date | None = None) -> dict[str, Any]:
+        if not await self.table_exists("option_analytics_daily"):
+            return {"available": False, "opt_code": opt_code, "items": [], "reason": "analytics table unavailable"}
+        chosen = trade_date
+        if chosen is None:
+            latest = await self._execute_mappings(text(f"SELECT MAX(trade_date) value FROM {self.schema}.option_analytics_daily WHERE opt_code=:code"), {"code": opt_code})
+            chosen = latest[0].get("value") if latest else None
+        rows = await self._execute_mappings(text(f"""SELECT a.trade_date,a.ts_code,b.call_put,b.exercise_price,b.maturity_date,
+            a.implied_volatility,a.delta,a.gamma,a.theta,a.vega,a.rho,a.convergence_status,a.unavailable_reason,
+            a.model_family,a.model_version,a.option_price_field,a.risk_free_rate,a.underlying_price
+            FROM {self.schema}.option_analytics_daily a JOIN {self.schema}.opt_basic b ON b.ts_code=a.ts_code
+            WHERE a.opt_code=:code AND a.trade_date=:chosen ORDER BY b.maturity_date,b.exercise_price,b.call_put"""),
+            {"code": opt_code, "chosen": chosen}) if chosen else []
+        return {"available": bool(rows), "opt_code": opt_code, "trade_date": str(chosen) if chosen else None,
+                "items": rows, "source": f"{self.schema}.option_analytics_daily",
+                "methodology": {"interpolation": False, "raw_contract_points": True}}
+
+    async def options_exposures(self, opt_code: str, trade_date: date | None = None) -> dict[str, Any]:
+        if not await self.table_exists("option_analytics_daily"):
+            return {"available": False, "opt_code": opt_code, "items": [], "reason": "analytics table unavailable"}
+        chosen = trade_date
+        if chosen is None:
+            latest = await self._execute_mappings(text(f"SELECT MAX(trade_date) value FROM {self.schema}.option_analytics_daily WHERE opt_code=:code"), {"code": opt_code})
+            chosen = latest[0].get("value") if latest else None
+        rows = await self._execute_mappings(text(f"""SELECT b.maturity_date,b.call_put,
+            SUM(a.gross_oi_delta) gross_oi_delta,SUM(a.gross_oi_gamma) gross_oi_gamma,SUM(a.gross_oi_vega) gross_oi_vega,
+            SUM(a.oi) gross_open_interest,COUNT(*) FILTER(WHERE a.convergence_status='converged')::int resolved_contracts,
+            COUNT(*)::int contracts FROM {self.schema}.option_analytics_daily a JOIN {self.schema}.opt_basic b ON b.ts_code=a.ts_code
+            WHERE a.opt_code=:code AND a.trade_date=:chosen GROUP BY b.maturity_date,b.call_put ORDER BY b.maturity_date,b.call_put"""),
+            {"code": opt_code, "chosen": chosen}) if chosen else []
+        return {"available": bool(rows), "opt_code": opt_code, "trade_date": str(chosen) if chosen else None,
+                "items": rows, "source": f"{self.schema}.option_analytics_daily",
+                "methodology": "gross OI-weighted sensitivity; not dealer net positioning"}
 
     def _option_contract_resolution_cte(self, restrict_to_trade_date: bool = False) -> str:
         """Resolve source-lagged CZCE contracts only when one official sibling series exists."""
