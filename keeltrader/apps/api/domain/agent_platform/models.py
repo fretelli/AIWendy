@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, JSON, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
 from core.database import Base
@@ -81,6 +81,77 @@ class AgentContextSnapshot(Base):
     methodology = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     __table_args__ = (Index("ix_agent_context_snapshots_user", "user_id", "created_at"),)
+
+
+class AgentRiskProfile(Base):
+    __tablename__ = "agent_risk_profiles"
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    account_equity = Column(Numeric(24, 6), nullable=True)
+    currency = Column(String(12), nullable=False, default="CNY")
+    risk_per_trade = Column(Numeric(12, 8), nullable=False, default=0.005)
+    aggregate_open_risk = Column(Numeric(12, 8), nullable=False, default=0.03)
+    single_instrument_notional = Column(Numeric(12, 8), nullable=False, default=0.20)
+    derivative_premium_risk = Column(Numeric(12, 8), nullable=False, default=0.005)
+    max_leverage = Column(Numeric(12, 8), nullable=False, default=1.0)
+    sizing_method = Column(String(40), nullable=False, default="fixed_risk")
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class MarketOpportunity(Base):
+    __tablename__ = "market_opportunities"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    fingerprint = Column(String(160), unique=True, nullable=False)
+    playbook_key = Column(String(80), nullable=False)
+    title = Column(String(240), nullable=False)
+    lifecycle_state = Column(String(30), nullable=False, default="observing")
+    hypothesis = Column(Text, nullable=False)
+    affected_assets = Column(JSON, nullable=False, default=list)
+    catalysts = Column(JSON, nullable=False, default=list)
+    falsifiers = Column(JSON, nullable=False, default=list)
+    source_dates = Column(JSON, nullable=False, default=dict)
+    first_seen_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    last_seen_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+
+class MarketOpportunityEvidence(Base):
+    __tablename__ = "market_opportunity_evidence"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    opportunity_id = Column(UUID(as_uuid=True), ForeignKey("market_opportunities.id", ondelete="CASCADE"), nullable=False)
+    stance = Column(String(20), nullable=False)
+    fact = Column(Text, nullable=False)
+    source = Column(String(240), nullable=False)
+    source_date = Column(String(32), nullable=True)
+    source_ref = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+
+
+class AgentOpportunityFollow(Base):
+    __tablename__ = "agent_opportunity_follows"
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    opportunity_id = Column(UUID(as_uuid=True), ForeignKey("market_opportunities.id", ondelete="CASCADE"), primary_key=True)
+    state = Column(String(20), nullable=False, default="following")
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class AgentTradePlanDraft(Base):
+    __tablename__ = "agent_trade_plan_drafts"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    opportunity_id = Column(UUID(as_uuid=True), ForeignKey("market_opportunities.id", ondelete="CASCADE"), nullable=False)
+    status = Column(String(30), nullable=False)
+    unavailable_reason = Column(Text, nullable=True)
+    direction = Column(String(20), nullable=True); instrument = Column(String(80), nullable=True)
+    entry_trigger = Column(Text, nullable=True); entry_price = Column(Numeric(24, 8), nullable=True)
+    stop_price = Column(Numeric(24, 8), nullable=True); target_price = Column(Numeric(24, 8), nullable=True)
+    horizon = Column(String(80), nullable=True); quantity = Column(Numeric(24, 8), nullable=True)
+    max_loss = Column(Numeric(24, 8), nullable=True); notional = Column(Numeric(24, 8), nullable=True)
+    checklist = Column(JSON, nullable=False, default=list); assumptions = Column(JSON, nullable=False, default=dict)
+    human_confirmation_required = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
 class AgentRun(Base):

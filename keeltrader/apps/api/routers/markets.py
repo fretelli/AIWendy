@@ -5,8 +5,10 @@ import json
 import time
 from datetime import date
 from typing import Any, Awaitable, Callable
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pydantic import BaseModel, Field
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +18,7 @@ from core.database import get_session
 from core.logging import get_logger
 from domain.user.models import User
 from services.agent_platform.tushare import TushareReadService
+from services.agent_platform.opportunities import OpportunityService, plan_payload
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -50,6 +53,44 @@ def service(session: AsyncSession) -> TushareReadService:
 async def macro_catalog(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     reader = service(session)
     return await cached_json("macro:catalog", reader.macro_catalog)
+
+
+@router.get("/rates/catalog")
+async def rates_catalog(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    return await cached_json("rates:catalog", service(session).rates_catalog)
+
+
+@router.get("/rates/series/{key}")
+async def rates_series(key: str, field: str = Query(...), bank: str | None = None, maturity: str | None = None,
+                       session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    reader = service(session)
+    try:
+        return await cached_json(f"rates:{key}:{field}:{bank or '-'}:{maturity or '-'}",
+                                 lambda: reader.rates_series(key, field, bank, maturity))
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.get("/rates/curve")
+async def rates_curve(key: str = Query(...), curve_date: date | None = None,
+                      session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    reader = service(session)
+    try:
+        return await cached_json(f"rates:curve:{key}:{curve_date or 'latest'}", lambda: reader.rates_curve(key, curve_date))
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.get("/bonds/futures")
+async def bond_futures(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    return await cached_json("bonds:futures", service(session).treasury_futures)
+
+
+@router.get("/bonds/convertibles")
+async def bond_convertibles(code: str | None = None, limit: int = Query(200, ge=1, le=500), offset: int = Query(0, ge=0),
+                            session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    return await cached_json(f"bonds:convertibles:{code or '-'}:{limit}:{offset}",
+                             lambda: service(session).convertibles(code, limit, offset))
 
 
 @router.get("/macro/series/{key}")
@@ -112,6 +153,51 @@ async def options_chain(code: str, trade_date: date | None = None, maturity: dat
 async def option_underlying(code: str, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     reader = service(session)
     return await cached_json(f"options:{code}:underlying", lambda: reader.option_underlying(code))
+
+
+@router.get("/options/{code}/surface")
+async def option_surface(code: str, trade_date: date | None = None, session: AsyncSession = Depends(get_session),
+                         user: User = Depends(get_current_user)):
+    return await cached_json(f"options:{code}:surface:{trade_date or 'latest'}",
+                             lambda: service(session).options_surface(code, trade_date), ttl=300)
+
+
+@router.get("/options/{code}/exposures")
+async def option_exposures(code: str, trade_date: date | None = None, session: AsyncSession = Depends(get_session),
+                           user: User = Depends(get_current_user)):
+    return await cached_json(f"options:{code}:exposures:{trade_date or 'latest'}",
+                             lambda: service(session).options_exposures(code, trade_date), ttl=300)
+
+
+class TradePlanRequest(BaseModel):
+    direction: str | None = None
+    instrument: str | None = None
+    entry_trigger: str | None = None
+    entry_price: float | None = None
+    stop_price: float | None = None
+    target_price: float | None = None
+    horizon: str | None = None
+    checklist: list[str] = Field(default_factory=list)
+
+
+@router.get("/opportunities")
+async def opportunities(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    return await OpportunityService(session, service(session), user.id).list()
+
+
+@router.get("/opportunities/{opportunity_id}")
+async def opportunity_detail(opportunity_id: UUID, session: AsyncSession = Depends(get_session),
+                             user: User = Depends(get_current_user)):
+    result = await OpportunityService(session, service(session), user.id).detail(opportunity_id)
+    if result is None: raise HTTPException(404, "Opportunity not found")
+    return result
+
+
+@router.post("/opportunities/{opportunity_id}/trade-plan")
+async def opportunity_trade_plan(opportunity_id: UUID, body: TradePlanRequest,
+                                 session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    plan = await OpportunityService(session, service(session), user.id).create_trade_plan(opportunity_id, body.model_dump())
+    return plan_payload(plan)
 
 
 @router.get("/underlyings/{relationship}/{code}/series")
