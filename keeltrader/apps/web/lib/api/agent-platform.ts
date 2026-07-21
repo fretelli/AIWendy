@@ -171,6 +171,7 @@ export type HolderPosition = {
   hold_change?: number;
   cost_estimate?: HolderCostEstimate | null;
 };
+// Stable contract spelling used by downstream audits: side: 'buy' | 'sell' | 'possible_sell'
 export type HolderPriceEstimate = {
   side: "buy" | "sell" | "possible_sell";
   window_start: string;
