@@ -112,7 +112,7 @@ def source_freshness_metadata(
             "freshness_state": "invalid",
         }
     calendar_lag = (as_of - component).days
-    trading_lag = (
+    trading_lag = 0 if calendar_lag == 0 else (
         sum(1 for trading_day in trading_dates if component < trading_day <= as_of)
         if trading_dates is not None else None
     )
