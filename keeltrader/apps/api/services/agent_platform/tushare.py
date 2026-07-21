@@ -878,8 +878,9 @@ class TushareReadService:
                    MAX(maturity_date) AS latest_maturity,COUNT(*)::int AS contracts,
                    COUNT(*) FILTER (WHERE delist_date IS NULL OR delist_date>=CURRENT_DATE)::int AS active_contracts,
                    CASE
-                     WHEN opt_code='IO' THEN '000300.SH' WHEN opt_code='HO' THEN '000016.SH'
-                     WHEN opt_code='MO' THEN '000852.SH'
+                     WHEN opt_code IN ('IO','OP000300.SH') THEN '000300.SH'
+                     WHEN opt_code IN ('HO','OP000016.SH') THEN '000016.SH'
+                     WHEN opt_code IN ('MO','OP000852.SH') THEN '000852.SH'
                      WHEN opt_code LIKE 'OP510050.SH%' THEN '510050.SH'
                      WHEN opt_code LIKE 'OP510300.SH%' THEN '510300.SH'
                      WHEN opt_code LIKE 'OP510500.SH%' THEN '510500.SH'
@@ -892,7 +893,7 @@ class TushareReadService:
                      WHEN opt_code LIKE 'OP%.%' THEN SUBSTRING(opt_code FROM 3)
                      ELSE NULL
                    END AS underlying_code,
-                   CASE WHEN opt_code IN ('IO','HO','MO') THEN 'index'
+                   CASE WHEN opt_code IN ('IO','HO','MO','OP000300.SH','OP000016.SH','OP000852.SH') THEN 'index'
                      WHEN opt_code LIKE 'OP510%.SH%' OR opt_code LIKE 'OP588%.SH%'
                        OR opt_code LIKE 'OP159%.SZ%' THEN 'etf'
                      WHEN opt_code LIKE 'OP%.%' THEN 'futures_contract' ELSE 'unresolved' END AS underlying_type
@@ -944,6 +945,9 @@ class TushareReadService:
             "IO": ("index", "000300.SH", "沪深300指数", "index_daily"),
             "HO": ("index", "000016.SH", "上证50指数", "index_daily"),
             "MO": ("index", "000852.SH", "中证1000指数", "index_daily"),
+            "OP000300.SH": ("index", "000300.SH", "沪深300指数", "index_daily"),
+            "OP000016.SH": ("index", "000016.SH", "上证50指数", "index_daily"),
+            "OP000852.SH": ("index", "000852.SH", "中证1000指数", "index_daily"),
             "OP510050.SH": ("etf", "510050.SH", "50ETF", "fund_daily"),
             "OP510300.SH": ("etf", "510300.SH", "300ETF", "fund_daily"),
             "OP510500.SH": ("etf", "510500.SH", "500ETF", "fund_daily"),
@@ -997,23 +1001,65 @@ class TushareReadService:
         chosen = trade_date
         if chosen is None:
             latest = await self._execute_mappings(text(f"""
-                SELECT MAX(d.trade_date) AS trade_date FROM {self.schema}.opt_daily d
-                JOIN {self.schema}.opt_basic b ON b.ts_code=d.ts_code WHERE b.opt_code=:opt_code
+                SELECT MAX(trade_date) AS trade_date FROM {self.schema}.opt_series_daily
+                WHERE opt_code=:opt_code
             """), {"opt_code": opt_code})
             chosen = latest[0]["trade_date"] if latest and latest[0].get("trade_date") else None
         if isinstance(chosen, str):
             chosen = date.fromisoformat(chosen)
         params = {"opt_code": opt_code, "trade_date": chosen, "maturity": maturity,
                   "limit": limit, "offset": offset}
+        fallback_ctes = ""
+        fallback_union = ""
+        if opt_code.upper().endswith(".ZCE"):
+            fallback_ctes = f""",
+            missing_scope AS MATERIALIZED (
+                SELECT d.trade_date,d.ts_code,d.open,d.high,d.low,d.close,d.settle,d.vol,d.amount,d.oi,
+                       regexp_replace(d.ts_code, '[CP][0-9]+[.]ZCE$', '') AS contract_root
+                FROM {self.schema}.opt_daily d
+                LEFT JOIN {self.schema}.opt_basic exact ON exact.ts_code=d.ts_code
+                WHERE d.trade_date=CAST(:trade_date AS date) AND exact.ts_code IS NULL
+                  AND d.ts_code ~ '^[A-Z]+[0-9]+[CP][0-9]+[.]ZCE$'
+            ), candidate_series AS MATERIALIZED (
+                SELECT roots.contract_root,MIN(candidate.opt_code) AS opt_code,
+                       MIN(candidate.exchange) AS exchange,
+                       MIN(candidate.maturity_date) AS maturity_date
+                FROM (SELECT DISTINCT contract_root FROM missing_scope) roots
+                JOIN {self.schema}.opt_basic candidate
+                  ON regexp_replace(candidate.ts_code, '[CP][0-9]+[.]ZCE$', '')=roots.contract_root
+                WHERE candidate.exchange='ZCE'
+                GROUP BY roots.contract_root
+                HAVING COUNT(DISTINCT candidate.opt_code)=1
+                   AND COUNT(DISTINCT candidate.maturity_date)=1
+            )"""
+            fallback_union = """
+                UNION ALL
+                SELECT d.trade_date,d.ts_code,NULL::text AS name,sibling.exchange,
+                       CASE WHEN d.ts_code ~ 'C[0-9]+[.]ZCE$' THEN 'C'
+                            WHEN d.ts_code ~ 'P[0-9]+[.]ZCE$' THEN 'P' END AS call_put,
+                       substring(d.ts_code FROM '[CP]([0-9]+)[.]ZCE$')::numeric AS exercise_price,
+                       sibling.maturity_date,d.open,d.high,d.low,d.close,d.settle,d.vol,d.amount,d.oi
+                FROM missing_scope d
+                JOIN candidate_series sibling ON sibling.contract_root=d.contract_root
+                WHERE sibling.opt_code=:opt_code
+            """
         rows = [] if chosen is None else await self._execute_mappings(text(f"""
-            WITH {self._option_contract_resolution_cte(restrict_to_trade_date=True)}
-            SELECT d.trade_date,d.ts_code,b.name,b.exchange,b.call_put,b.exercise_price,b.maturity_date,
-                   d.open,d.high,d.low,d.close,d.settle,d.vol,d.amount,d.oi,
+            WITH exact_scope AS MATERIALIZED (
+                SELECT d.trade_date,d.ts_code,b.name,b.exchange,b.call_put,b.exercise_price,b.maturity_date,
+                       d.open,d.high,d.low,d.close,d.settle,d.vol,d.amount,d.oi
+                FROM {self.schema}.opt_basic b
+                JOIN {self.schema}.opt_daily d ON d.ts_code=b.ts_code
+                WHERE b.opt_code=:opt_code AND d.trade_date=CAST(:trade_date AS date)
+            ){fallback_ctes}, resolved_scope AS (
+                SELECT * FROM exact_scope
+                {fallback_union}
+            )
+            SELECT trade_date,ts_code,name,exchange,call_put,exercise_price,maturity_date,
+                   open,high,low,close,settle,vol,amount,oi,
                    COUNT(*) OVER()::int AS total
-            FROM {self.schema}.opt_daily d JOIN resolved_option_contracts b ON b.ts_code=d.ts_code
-            WHERE b.opt_code=:opt_code AND d.trade_date=:trade_date
-              AND (CAST(:maturity AS date) IS NULL OR b.maturity_date=CAST(:maturity AS date))
-            ORDER BY b.maturity_date,b.exercise_price,b.call_put LIMIT :limit OFFSET :offset
+            FROM resolved_scope
+            WHERE (CAST(:maturity AS date) IS NULL OR maturity_date=CAST(:maturity AS date))
+            ORDER BY maturity_date,exercise_price,call_put LIMIT :limit OFFSET :offset
         """), params)
         total = rows[0].get("total", 0) if rows else 0
         for row in rows:
