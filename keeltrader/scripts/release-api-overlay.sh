@@ -300,6 +300,10 @@ main() {
   fi
 
   deploy_api
+  if [ "$DEPLOY" -eq 0 ]; then
+    log "Validation complete; deployment and runtime smoke skipped."
+    return
+  fi
   smoke
 
   log "Release complete."
