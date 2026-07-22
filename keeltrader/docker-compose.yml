@@ -48,8 +48,10 @@ services:
       - DATABASE_POOL_SIZE=8
       - DATABASE_MAX_OVERFLOW=2
       - DATABASE_APPLICATION_NAME=keeltrader-api
+      - MARKET_PUBLICATION_STATUS_PATH=/app/market-publication/publication-status.json
     volumes:
       - uploads_data:/app/uploads
+      - /opt/services/tushare/data/publication-status:/app/market-publication:ro
     labels:
       - "traefik.enable=false"
     command: sh scripts/docker_start.sh
