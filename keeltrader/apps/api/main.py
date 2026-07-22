@@ -144,6 +144,7 @@ _import_domain_models()
 
 from routers import auth, health
 from routers.agent_platform import router as agent_platform_router
+from routers.allocation import router as allocation_router
 from routers.markets import router as markets_router
 from routers.research_cloud import router as research_cloud_router
 from routers.users import router as users_router
@@ -159,6 +160,7 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(users_router, prefix="/api/v1/users", tags=["Users"])
 app.include_router(files_router, prefix="/api/v1/files", tags=["Files"])
 app.include_router(agent_platform_router, prefix="/api/v1/agent", tags=["Agent Platform"])
+app.include_router(allocation_router, prefix="/api/v1/agent", tags=["Asset Allocation"])
 app.include_router(markets_router, prefix="/api/v1/markets", tags=["Markets"])
 app.include_router(
     research_cloud_router,

@@ -188,7 +188,7 @@ class SessionMessageCreate(BaseModel):
 
 
 class ContextSnapshotCreate(BaseModel):
-    resource_type: Literal["macro", "futures", "options", "underlying", "capital", "rates", "opportunity", "trade_plan"]
+    resource_type: Literal["macro", "futures", "options", "underlying", "capital", "rates", "opportunity", "trade_plan", "allocation_policy"]
     resource_id: str = Field(min_length=1, max_length=120)
     field: str | None = Field(default=None, max_length=80)
     visible_start: str | None = Field(default=None, max_length=32)

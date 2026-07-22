@@ -21,6 +21,7 @@ from core.database import Base
 
 # Import model modules to register them with Base metadata.
 from domain.coach import models as coach_models  # noqa: F401
+from domain.agent_platform import models as agent_platform_models  # noqa: F401
 from domain.exchange import models as exchange_models  # noqa: F401
 from domain.journal import models as journal_models  # noqa: F401
 from domain.project import models as project_models  # noqa: F401

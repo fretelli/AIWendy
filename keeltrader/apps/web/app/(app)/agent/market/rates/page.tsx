@@ -3,7 +3,6 @@ import { Loader2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 import {
   agentPlatformApi,
   marketsApi,
@@ -16,6 +15,10 @@ import {
   MarketShell,
 } from "../../capital/_components/market-shell";
 import { NativeSeriesChart } from "../../capital/_components/native-series-chart";
+import { Button } from "@/components/ui/button";
+
+type ResourceKey = "catalog" | "series" | "curve" | "bonds";
+
 export default function RatesPage() {
   const router = useRouter(),
     params = useSearchParams(),
@@ -25,7 +28,12 @@ export default function RatesPage() {
     [series, setSeries] = useState<RatesSeries | null>(null),
     [curve, setCurve] = useState<RatesCurve | null>(null),
     [bonds, setBonds] = useState<Array<Record<string, unknown>>>([]),
-    [loading, setLoading] = useState(true);
+    [loading, setLoading] = useState(true),
+    [refreshing, setRefreshing] = useState(false),
+    [resourceErrors, setResourceErrors] = useState<
+      Partial<Record<ResourceKey, string>>
+    >({}),
+    [reloadToken, setReloadToken] = useState(0);
   const select = useCallback(
     (k: string, f: string) => {
       const q = new URLSearchParams(params.toString());
@@ -35,11 +43,13 @@ export default function RatesPage() {
     },
     [params, router],
   );
-  useEffect(() => {
-    marketsApi
-      .ratesCatalog()
-      .then((v) => {
+  const loadCatalog = useCallback(
+    async (refresh = false) => {
+      refresh ? setRefreshing(true) : setLoading(true);
+      try {
+        const v = await marketsApi.ratesCatalog();
         setCatalog(v);
+        setResourceErrors((current) => ({ ...current, catalog: undefined }));
         const c =
           v.items.find((i) => i.key === key && i.fields.includes(field)) ||
           v.items.find((i) => i.available && i.fields.length);
@@ -50,19 +60,40 @@ export default function RatesPage() {
               ? "weight"
               : c.fields[0],
           );
-      })
-      .catch((e) =>
-        toast.error(e instanceof Error ? e.message : "利率目录加载失败"),
-      )
-      .finally(() => setLoading(false));
-  }, [field, key, select]);
+      } catch (error) {
+        setResourceErrors((current) => ({
+          ...current,
+          catalog: errorText(error, "利率目录加载失败"),
+        }));
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [field, key, select],
+  );
+  useEffect(() => {
+    queueMicrotask(() => void loadCatalog());
+  }, [loadCatalog]);
   useEffect(() => {
     if (!key || !field) return;
     let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setSeries(null);
+      setCurve(null);
+      setBonds([]);
+      setResourceErrors((current) => ({
+        ...current,
+        series: undefined,
+        curve: undefined,
+        bonds: undefined,
+      }));
+    });
     const ck = ["shibor", "us_nominal", "us_real"].includes(key)
       ? key
       : "china_cash_treasury";
-    Promise.all([
+    Promise.allSettled([
       marketsApi.ratesSeries(
         key,
         field,
@@ -72,19 +103,20 @@ export default function RatesPage() {
       marketsApi.convertibles(),
     ])
       .then(([s, c, b]) => {
-        if (active) {
-          setSeries(s);
-          setCurve(c);
-          setBonds(b.items);
-        }
-      })
-      .catch((e) =>
-        toast.error(e instanceof Error ? e.message : "利率债券工作区加载失败"),
-      );
+        if (!active) return;
+        const nextErrors: Partial<Record<ResourceKey, string>> = {};
+        if (s.status === "fulfilled") setSeries(s.value);
+        else nextErrors.series = errorText(s.reason, "利率历史加载失败");
+        if (c.status === "fulfilled") setCurve(c.value);
+        else nextErrors.curve = errorText(c.reason, "曲线截面加载失败");
+        if (b.status === "fulfilled") setBonds(b.value.items);
+        else nextErrors.bonds = errorText(b.reason, "可转债数据加载失败");
+        setResourceErrors((current) => ({ ...current, ...nextErrors }));
+      });
     return () => {
       active = false;
     };
-  }, [field, key]);
+  }, [field, key, reloadToken]);
   const selected = catalog?.items.find((i) => i.key === key),
     dates = useMemo(
       () => series?.rows.map((r) => String(r.period)) || [],
@@ -115,6 +147,11 @@ export default function RatesPage() {
     <MarketShell
       title="利率与债券"
       subtitle="资金利率、海外曲线、国债期货与可转债源数据"
+      refreshing={refreshing}
+      onRefresh={() => {
+        void loadCatalog(true);
+        setReloadToken((value) => value + 1);
+      }}
       onResearch={series ? () => void bring() : undefined}
       trail={{
         object: series?.label || "利率债券",
@@ -124,6 +161,11 @@ export default function RatesPage() {
     >
       {loading ? (
         <Loading />
+      ) : resourceErrors.catalog && !catalog ? (
+        <ResourceError
+          message={resourceErrors.catalog}
+          onRetry={() => void loadCatalog()}
+        />
       ) : (
         <PanelGroup
           direction="horizontal"
@@ -163,6 +205,12 @@ export default function RatesPage() {
           <Handle />
           <Panel minSize={42}>
             <main className="h-full space-y-4 overflow-y-auto p-4">
+              {resourceErrors.series && (
+                <ResourceError
+                  message={resourceErrors.series}
+                  onRetry={() => setReloadToken((value) => value + 1)}
+                />
+              )}
               {series && (
                 <>
                   <DataLedger
@@ -195,7 +243,12 @@ export default function RatesPage() {
               )}
               <section>
                 <h2 className="font-display text-lg font-semibold">曲线截面</h2>
-                {curve?.available ? (
+                {resourceErrors.curve ? (
+                  <ResourceError
+                    message={resourceErrors.curve}
+                    onRetry={() => setReloadToken((value) => value + 1)}
+                  />
+                ) : curve?.available ? (
                   <div className="mt-3 grid gap-2 sm:grid-cols-3">
                     {curve.points.map((p) => (
                       <div
@@ -227,6 +280,12 @@ export default function RatesPage() {
                 国债期货对应可交割券篮子，不代表单一现券收益率。可转债保留源端转股价值与溢价率。
               </p>
               <div className="mt-4 space-y-2">
+                {resourceErrors.bonds && (
+                  <ResourceError
+                    message={resourceErrors.bonds}
+                    onRetry={() => setReloadToken((value) => value + 1)}
+                  />
+                )}
                 {bonds.slice(0, 30).map((r, n) => (
                   <div
                     key={String(r.ts_code || n)}
@@ -259,3 +318,24 @@ const Loading = () => (
     <Loader2 className="h-7 w-7 animate-spin" />
   </div>
 );
+function ResourceError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="my-3 rounded-xl border border-amber-500/40 bg-amber-500/[.06] p-3 text-[10px]">
+      <p className="leading-5 text-amber-800 dark:text-amber-200">{message}</p>
+      <Button className="mt-2" size="sm" variant="outline" onClick={onRetry}>
+        重新读取
+      </Button>
+    </div>
+  );
+}
+function errorText(error: unknown, fallback: string) {
+  return error instanceof Error && error.message
+    ? `${fallback}：${error.message}`
+    : fallback;
+}

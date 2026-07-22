@@ -87,6 +87,16 @@ def _sql_comment_targets(source: str) -> tuple[set[str], set[tuple[str, str]]]:
             re.I,
         )
     }
+    tree = ast.parse(textwrap.dedent(source))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name) or node.func.id != "_comments":
+            continue
+        if len(node.args) < 2 or not isinstance(node.args[0], ast.Constant) or not isinstance(node.args[1], ast.Dict):
+            continue
+        table = _plain_identifier(str(node.args[0].value))
+        for key in node.args[1].keys:
+            if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                columns.add((table, _plain_identifier(key.value)))
     return tables, columns
 
 
@@ -178,3 +188,14 @@ op.create_table("sample", sa.Column("id", sa.UUID(), comment="id"), sa.Column("n
 op.add_column("sample", sa.Column("extra", sa.Text()))
 '''
     assert comment_policy_violations(source) == ["column:sample.note", "column:sample.extra"]
+
+
+def test_comment_policy_accepts_explicit_comment_helper_dictionary():
+    source = '''
+from alembic import op
+def _comments(table, descriptions): pass
+op.execute("CREATE TABLE sample (id UUID, note TEXT)")
+op.execute("COMMENT ON TABLE sample IS 'sample'")
+_comments("sample", {"id": "identifier", "note": "body"})
+'''
+    assert comment_policy_violations(source) == []

@@ -10,6 +10,8 @@ import {
   BookOpen,
   Search,
   ShipWheel,
+  Route,
+  Menu,
   Waves,
   X,
 } from "lucide-react";
@@ -47,13 +49,25 @@ const destinations = [
     detail: "资金、利率债券、宏观、期货、期权与机会",
     icon: Waves,
   },
+  {
+    href: "/agent/allocation",
+    label: "配置",
+    detail: "资金约束、资本航路与不可变配置版本",
+    icon: Route,
+  },
 ];
+
+const mobilePrimary = ["/agent/today", "/agent", "/agent/allocation", "/agent/market/capital"]
+  .map((href) => destinations.find((item) => item.href === href)!)
+  .filter(Boolean);
+const mobileMore = destinations.filter((item) => !mobilePrimary.includes(item));
 
 export function ResearchOsShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname(),
     router = useRouter();
   const [open, setOpen] = useState(false),
-    [query, setQuery] = useState("");
+    [query, setQuery] = useState(""),
+    [moreOpen, setMoreOpen] = useState(false);
   const [researchResults, setResearchResults] = useState<GlobalSearchResult[]>([]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -120,7 +134,7 @@ export function ResearchOsShell({ children }: { children: React.ReactNode }) {
       </aside>
       <div className="min-w-0 flex-1 pb-14 lg:pb-0">{children}</div>
       <nav className="fixed inset-x-0 bottom-0 z-50 flex h-14 border-t bg-card/95 backdrop-blur lg:hidden">
-        {destinations.map(({ href, label, icon: Icon }) => {
+        {mobilePrimary.map(({ href, label, icon: Icon }) => {
           const active =
             href === "/agent" ? pathname === href : pathname.startsWith(href);
           return (
@@ -134,7 +148,11 @@ export function ResearchOsShell({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
+        <button type="button" onClick={() => setMoreOpen(true)} className="flex flex-1 flex-col items-center justify-center gap-1 text-[10px] text-muted-foreground">
+          <Menu className="h-4 w-4" />更多
+        </button>
       </nav>
+      {moreOpen && <div className="fixed inset-0 z-[75] bg-[hsl(var(--deep-sounding)/.45)] lg:hidden" onClick={() => setMoreOpen(false)}><section className="absolute inset-x-3 bottom-16 rounded-2xl border bg-popover p-2 shadow-2xl" onClick={(event) => event.stopPropagation()}>{mobileMore.map(({ href, label, detail, icon: Icon }) => <Link key={href} href={href} onClick={() => setMoreOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-secondary"><span className="grid h-9 w-9 place-items-center rounded-lg border bg-card"><Icon className="h-4 w-4" /></span><span><span className="block text-sm font-medium">{label}</span><span className="text-[10px] text-muted-foreground">{detail}</span></span></Link>)}<button type="button" onClick={() => { setMoreOpen(false); setOpen(true); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-secondary"><span className="grid h-9 w-9 place-items-center rounded-lg border bg-card"><Command className="h-4 w-4" /></span><span><span className="block text-sm font-medium">全局搜索</span><span className="text-[10px] text-muted-foreground">搜索会话、公司、股东、论点与配置</span></span></button></section></div>}
       {open && (
         <div
           className="fixed inset-0 z-[80] bg-[hsl(var(--deep-sounding)/.58)] p-4 pt-[12vh] backdrop-blur-sm"
