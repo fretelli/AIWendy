@@ -88,7 +88,7 @@ export default function AllocationPage() {
     setLoading(false);
   }, [loadVersions, syncDraft]);
 
-  useEffect(() => { void load().catch((error) => { setLoading(false); toast.error(error instanceof Error ? error.message : "资产配置加载失败"); }); }, [load]);
+  useEffect(() => { queueMicrotask(() => void load().catch((error) => { setLoading(false); toast.error(error instanceof Error ? error.message : "资产配置加载失败"); })); }, [load]);
 
   const choose = async (id: string) => {
     const account = accounts.find((item) => item.id === id); if (!account) return;

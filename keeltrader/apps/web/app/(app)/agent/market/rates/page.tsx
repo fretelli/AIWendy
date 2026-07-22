@@ -78,15 +78,18 @@ export default function RatesPage() {
   useEffect(() => {
     if (!key || !field) return;
     let active = true;
-    setSeries(null);
-    setCurve(null);
-    setBonds([]);
-    setResourceErrors((current) => ({
-      ...current,
-      series: undefined,
-      curve: undefined,
-      bonds: undefined,
-    }));
+    queueMicrotask(() => {
+      if (!active) return;
+      setSeries(null);
+      setCurve(null);
+      setBonds([]);
+      setResourceErrors((current) => ({
+        ...current,
+        series: undefined,
+        curve: undefined,
+        bonds: undefined,
+      }));
+    });
     const ck = ["shibor", "us_nominal", "us_real"].includes(key)
       ? key
       : "china_cash_treasury";

@@ -92,13 +92,16 @@ export default function OptionsMarketPage() {
   useEffect(() => {
     if (!code) return;
     let active = true;
-    setHistory(null);
-    setChain(null);
-    setSurface(null);
-    setExposures(null);
-    setUnderlying(null);
-    setUnderlyingSeries(null);
-    setResourceErrors({});
+    queueMicrotask(() => {
+      if (!active) return;
+      setHistory(null);
+      setChain(null);
+      setSurface(null);
+      setExposures(null);
+      setUnderlying(null);
+      setUnderlyingSeries(null);
+      setResourceErrors({});
+    });
     Promise.allSettled([
       marketsApi.optionsHistory(code),
       marketsApi.optionsChain(code, {
