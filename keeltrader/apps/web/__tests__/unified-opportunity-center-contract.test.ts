@@ -36,6 +36,9 @@ test("desktop workspace is resizable and mobile remains stacked", () => {
 
 test("production API release deploys the isolated opportunity worker", () => {
   const release = fs.readFileSync(path.join(root, "../../scripts/release-api-overlay.sh"), "utf8");
+  const compose = fs.readFileSync(path.join(root, "../../docker-compose.yml"), "utf8");
   expect(release).toContain("api agent-platform-worker opportunity-worker");
   expect(release).toContain("keeltrader:opportunity:heartbeat");
+  expect(compose).toContain("opportunity-worker:");
+  expect(compose).toContain("tasks/opportunity_worker.py");
 });

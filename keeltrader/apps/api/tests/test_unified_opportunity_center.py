@@ -80,13 +80,10 @@ def test_feed_is_read_only_and_user_actions_are_owned():
 
 def test_snapshots_are_immutable_and_refresh_worker_is_isolated():
     service = (ROOT / "services/agent_platform/opportunities.py").read_text()
-    compose = (REPO / "docker-compose.yml").read_text()
     worker = (ROOT / "tasks/opportunity_worker.py").read_text()
     assert "MarketOpportunitySnapshot(" in service
     assert "delete(MarketOpportunitySnapshot)" not in service
     assert "pg_try_advisory_lock" in service
-    assert "opportunity-worker:" in compose
-    assert "tasks/opportunity_worker.py" in compose
     assert "keeltrader:opportunity:heartbeat" in worker
 
 
