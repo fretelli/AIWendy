@@ -84,6 +84,8 @@ def test_snapshots_are_immutable_and_refresh_worker_is_isolated():
     assert "MarketOpportunitySnapshot(" in service
     assert "delete(MarketOpportunitySnapshot)" not in service
     assert "pg_try_advisory_lock" in service
+    assert "opportunity-advisory-lock-keepalive" in service
+    assert "OPPORTUNITY_LOCK_KEEPALIVE_SECONDS" in service
     assert "keeltrader:opportunity:heartbeat" in worker
 
 

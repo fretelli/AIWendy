@@ -547,6 +547,17 @@ async def _refresh_opportunities_unlocked() -> dict[str, int]:
     return totals
 
 
+async def _keep_advisory_lock_connection_alive(lock_session: AsyncSession,
+                                                stop: asyncio.Event) -> None:
+    """Prevent PgBouncer or PostgreSQL from retiring an idle lock connection."""
+    interval = max(5, int(os.environ.get("OPPORTUNITY_LOCK_KEEPALIVE_SECONDS", "30")))
+    while not stop.is_set():
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=interval)
+        except TimeoutError:
+            await lock_session.execute(text("SELECT 1"))
+
+
 async def refresh_opportunities_once() -> dict[str, int]:
     """Run one refresh under a PostgreSQL advisory lock across worker replicas."""
     async with async_session() as lock_session:
@@ -556,11 +567,30 @@ async def refresh_opportunities_once() -> dict[str, int]:
         if not acquired:
             logger.info("opportunity_refresh_skipped", reason="advisory_lock_busy")
             return {}
+        stop_keepalive = asyncio.Event()
+        keepalive = asyncio.create_task(
+            _keep_advisory_lock_connection_alive(lock_session, stop_keepalive),
+            name="opportunity-advisory-lock-keepalive",
+        )
         try:
             return await _refresh_opportunities_unlocked()
         finally:
-            await lock_session.execute(text("SELECT pg_advisory_unlock(:lock_key)"),
-                                       {"lock_key": OPPORTUNITY_REFRESH_LOCK})
+            stop_keepalive.set()
+            lock_connection_healthy = True
+            try:
+                await keepalive
+            except Exception as exc:
+                lock_connection_healthy = False
+                logger.error("opportunity_advisory_lock_keepalive_failed", error=str(exc))
+            if lock_connection_healthy:
+                try:
+                    await lock_session.execute(text("SELECT pg_advisory_unlock(:lock_key)"),
+                                               {"lock_key": OPPORTUNITY_REFRESH_LOCK})
+                except Exception as exc:
+                    # A closed PostgreSQL session releases session-level advisory locks
+                    # automatically. Do not turn a completed materialization into a false
+                    # refresh failure solely because the explicit unlock raced disconnect.
+                    logger.warning("opportunity_advisory_unlock_skipped", error=str(exc))
 
 
 async def opportunity_worker_loop() -> None:
