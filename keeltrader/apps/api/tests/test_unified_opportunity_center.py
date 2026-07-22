@@ -87,6 +87,9 @@ def test_snapshots_are_immutable_and_refresh_worker_is_isolated():
     assert "opportunity-advisory-lock-keepalive" in service
     assert "OPPORTUNITY_LOCK_KEEPALIVE_SECONDS" in service
     assert "keeltrader:opportunity:heartbeat" in worker
+    assert "existing_snapshot" in service
+    assert "MarketOpportunitySnapshot.snapshot_fingerprint == snapshot_fingerprint" in service
+    assert "desc(MarketOpportunitySnapshot.id)" in service
 
 
 def test_opportunity_detector_has_no_rank_percentile_or_execution_path():
