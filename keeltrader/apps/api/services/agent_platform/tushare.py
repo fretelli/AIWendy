@@ -240,7 +240,7 @@ class TushareReadService:
         rows = await self._execute_mappings(text(f"""
             SELECT series_id,sleeve_key,name,asset_class,currency,return_type,source_name,source_license,
                    underlying_key,required,enabled,quality_state,quality_reason,first_month,last_month,
-                   observation_months,unexplained_gap_months,methodology
+                   observation_months,unexplained_gap_months,methodology,currency_exposure
             FROM {self.schema}.allocation_series_catalog ORDER BY required DESC,sleeve_key,series_id
         """), {})
         missing = sorted({key for key in required_keys if not any(
