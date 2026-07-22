@@ -71,6 +71,9 @@ ALLOWED_TABLES = {
     "cb_daily",
     "option_underlying_map",
     "option_analytics_daily",
+    "allocation_series_catalog",
+    "allocation_series_monthly",
+    "allocation_instrument_catalog",
 }
 
 _tushare_session_factory: async_sessionmaker[AsyncSession] | None = None
@@ -214,6 +217,75 @@ class TushareReadService:
                     await session.rollback()
                     return []
                 raise
+
+    async def allocation_catalog(self) -> dict[str, Any]:
+        """Return allocation data readiness without triggering source ingestion."""
+        required_keys = ["cny_cash", "china_equity", "global_equity", "china_bond", "global_bond", "gold"]
+        labels = {
+            "cny_cash": "人民币流动性", "china_equity": "中国股票", "global_equity": "全球股票",
+            "china_bond": "中国债券", "global_bond": "全球债券", "gold": "黄金",
+            "broad_commodity": "广义商品",
+        }
+        if not await self.table_exists("allocation_series_catalog"):
+            return {
+                "available": False,
+                "formal_ready": False,
+                "minimum_months": 120,
+                "series": [{"sleeve_key": key, "name": labels[key], "required": True,
+                            "quality_state": "unavailable", "quality_reason": "资产配置数据目录尚未部署"}
+                           for key in required_keys],
+                "missing_required": required_keys,
+                "methodology": "只接受人民币总回报或直接可投资净值；不使用价格指数、合成曲线或期货拼接代理。",
+            }
+        rows = await self._execute_mappings(text(f"""
+            SELECT series_id,sleeve_key,name,asset_class,currency,return_type,source_name,source_license,
+                   underlying_key,required,enabled,quality_state,quality_reason,first_month,last_month,
+                   observation_months,unexplained_gap_months,methodology
+            FROM {self.schema}.allocation_series_catalog ORDER BY required DESC,sleeve_key,series_id
+        """), {})
+        missing = sorted({key for key in required_keys if not any(
+            row.get("sleeve_key") == key and row.get("enabled") and row.get("quality_state") == "ready"
+            for row in rows
+        )})
+        return {
+            "available": bool(rows), "formal_ready": not missing, "minimum_months": 120,
+            "series": rows, "missing_required": missing,
+            "methodology": "完整共同月度人民币总回报历史；至少120个月、零无法解释缺口并覆盖最近完整月。",
+        }
+
+    async def allocation_monthly(self, series_ids: list[str]) -> list[dict[str, Any]]:
+        if not series_ids or not await self.table_exists("allocation_series_monthly"):
+            return []
+        return await self._execute_mappings(text(f"""
+            SELECT series_id,month_end,monthly_return,cny_total_return_index,source_date,content_hash
+            FROM {self.schema}.allocation_series_monthly
+            WHERE series_id = ANY(:series_ids) AND completeness='complete'
+            ORDER BY month_end,series_id
+        """), {"series_ids": series_ids})
+
+    async def allocation_series_history(self, series_id: str) -> dict[str, Any]:
+        if not await self.table_exists("allocation_series_monthly"):
+            return {"series_id": series_id, "points": [], "available": False}
+        rows = await self._execute_mappings(text(f"""
+            SELECT month_end,monthly_return,cny_total_return_index,source_date,source_ref,content_hash
+            FROM {self.schema}.allocation_series_monthly
+            WHERE series_id=:series_id AND completeness='complete' ORDER BY month_end
+        """), {"series_id": series_id})
+        return {"series_id": series_id, "points": rows, "available": bool(rows),
+                "full_history": True, "downsampled": False,
+                "methodology": "返回数据库当前全部月度人民币总回报物化结果；不生成均线、百分位或代理序列。"}
+
+    async def allocation_instruments(self, sleeve_keys: list[str] | None = None) -> list[dict[str, Any]]:
+        if not await self.table_exists("allocation_instrument_catalog"):
+            return []
+        clauses = "AND sleeve_key = ANY(:sleeve_keys)" if sleeve_keys else ""
+        return await self._execute_mappings(text(f"""
+            SELECT instrument_id,sleeve_key,instrument_type,code,name,market,currency,underlying_key,
+                   source_table,metadata_json
+            FROM {self.schema}.allocation_instrument_catalog
+            WHERE enabled=true {clauses}
+            ORDER BY sleeve_key,instrument_type,code
+        """), {"sleeve_keys": sleeve_keys or []})
 
     async def stock_profile(self, symbol: str) -> dict[str, Any] | None:
         """Return stock_basic row for a ts_code or name fragment."""

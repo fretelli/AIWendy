@@ -98,6 +98,107 @@ class AgentRiskProfile(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
+class AllocationAccount(Base):
+    """Private research capital pool; it is not a broker or holdings account."""
+    __tablename__ = "allocation_accounts"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(160), nullable=False)
+    base_currency = Column(String(12), nullable=False, default="CNY")
+    capital = Column(Numeric(24, 6), nullable=False)
+    horizon_months = Column(Integer, nullable=False)
+    liquidity_reserve = Column(Numeric(24, 6), nullable=False, default=0)
+    max_drawdown = Column(Numeric(12, 8), nullable=False)
+    max_leverage = Column(Numeric(12, 8), nullable=False, default=1)
+    future_cash_needs = Column(JSON, nullable=False, default=list)
+    allowed_markets = Column(JSON, nullable=False, default=list)
+    allowed_instruments = Column(JSON, nullable=False, default=list)
+    hard_restrictions = Column(JSON, nullable=False, default=list)
+    status = Column(String(30), nullable=False, default="active")
+    current_policy_version_id = Column(UUID(as_uuid=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("ix_allocation_accounts_user", "user_id", "status", "updated_at"),)
+
+
+class AllocationPolicyVersion(Base):
+    """Immutable allocation calculation and its source/method snapshots."""
+    __tablename__ = "allocation_policy_versions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id = Column(UUID(as_uuid=True), ForeignKey("allocation_accounts.id", ondelete="CASCADE"), nullable=False)
+    version = Column(Integer, nullable=False)
+    feasibility_status = Column(String(30), nullable=False)
+    quality_status = Column(String(30), nullable=False)
+    constraint_snapshot = Column(JSON, nullable=False)
+    methodology_snapshot = Column(JSON, nullable=False)
+    data_snapshot = Column(JSON, nullable=False)
+    risk_summary = Column(JSON, nullable=False, default=dict)
+    stress_results = Column(JSON, nullable=False, default=list)
+    infeasible_reasons = Column(JSON, nullable=False, default=list)
+    content_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        Index("uq_allocation_policy_account_version", "account_id", "version", unique=True),
+        Index("ix_allocation_policy_account_created", "account_id", "created_at"),
+    )
+
+
+class AllocationPolicySleeve(Base):
+    __tablename__ = "allocation_policy_sleeves"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    policy_version_id = Column(UUID(as_uuid=True), ForeignKey("allocation_policy_versions.id", ondelete="CASCADE"), nullable=False)
+    sleeve_key = Column(String(40), nullable=False)
+    label = Column(String(120), nullable=False)
+    target_weight = Column(Numeric(12, 8), nullable=False)
+    min_weight = Column(Numeric(12, 8), nullable=False)
+    max_weight = Column(Numeric(12, 8), nullable=False)
+    amount_cny = Column(Numeric(24, 6), nullable=False)
+    risk_contribution = Column(Numeric(12, 8), nullable=False)
+    currency_exposure = Column(JSON, nullable=False, default=dict)
+    source_series_id = Column(String(80), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("uq_allocation_policy_sleeve", "policy_version_id", "sleeve_key", unique=True),)
+
+
+class AllocationPolicyImplementation(Base):
+    __tablename__ = "allocation_policy_implementations"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    policy_version_id = Column(UUID(as_uuid=True), ForeignKey("allocation_policy_versions.id", ondelete="CASCADE"), nullable=False)
+    sleeve_key = Column(String(40), nullable=False)
+    instrument_type = Column(String(30), nullable=False)
+    instrument_code = Column(String(80), nullable=False)
+    instrument_name = Column(String(160), nullable=False)
+    target_weight = Column(Numeric(12, 8), nullable=False, default=0)
+    amount_cny = Column(Numeric(24, 6), nullable=False, default=0)
+    underlying_key = Column(String(120), nullable=False)
+    margin_cash = Column(Numeric(24, 6), nullable=True)
+    premium_cash = Column(Numeric(24, 6), nullable=True)
+    delta_equivalent = Column(Numeric(24, 6), nullable=True)
+    gross_notional = Column(Numeric(24, 6), nullable=True)
+    net_notional = Column(Numeric(24, 6), nullable=True)
+    max_loss = Column(Numeric(24, 6), nullable=True)
+    gamma = Column(Numeric(24, 10), nullable=True)
+    vega = Column(Numeric(24, 10), nullable=True)
+    metadata_json = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("ix_allocation_implementation_policy", "policy_version_id", "sleeve_key"),)
+
+
+class AllocationPolicyThesisLink(Base):
+    __tablename__ = "allocation_policy_thesis_links"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    policy_version_id = Column(UUID(as_uuid=True), ForeignKey("allocation_policy_versions.id", ondelete="CASCADE"), nullable=False)
+    thesis_id = Column(UUID(as_uuid=True), ForeignKey("research_theses.id", ondelete="CASCADE"), nullable=False)
+    thesis_version_id = Column(UUID(as_uuid=True), ForeignKey("research_thesis_versions.id", ondelete="CASCADE"), nullable=False)
+    sleeve_key = Column(String(40), nullable=False)
+    weight_delta = Column(Numeric(12, 8), nullable=False)
+    review_at = Column(DateTime(timezone=True), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    evidence_snapshot = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("ix_allocation_thesis_policy", "policy_version_id", "sleeve_key"),)
+
+
 class ResearchThesis(Base):
     __tablename__ = "research_theses"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

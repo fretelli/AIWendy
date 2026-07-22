@@ -683,6 +683,30 @@ export type ResearchEvent = { id: string; category: string; event_type: string; 
 export type ResearchCalendarItem = { kind: string; date: string; title: string; resource_type: string; resource_id: string; source_type: string; source_ref?: unknown };
 export type GlobalSearchResult = { type: string; id: string; title: string; subtitle?: string; href: string; navigation_only?: boolean };
 export type DataStatus = { macro: MacroCatalog; rates: RatesCatalog; opportunity_refresh: Array<{ domain: string; status: string; last_succeeded_at?: string; last_error?: string; duration_ms?: number; candidates_seen: number }>; read_only: true; request_time_refresh: false; scoring: false; methodology: string };
+export type AllocationAccount = {
+  id: string; name: string; base_currency: "CNY"; capital: number; horizon_months: number;
+  liquidity_reserve: number; max_drawdown: number; max_leverage: number;
+  future_cash_needs: Array<{ date: string; amount: number; note?: string }>;
+  allowed_markets: string[]; allowed_instruments: string[]; hard_restrictions: string[];
+  status: "active" | "archived"; current_policy_version_id?: string; created_at: string; updated_at: string;
+};
+export type AllocationSeriesStatus = {
+  series_id?: string; sleeve_key: string; name: string; required: boolean; enabled?: boolean;
+  quality_state: "unavailable" | "insufficient" | "stale" | "gapped" | "ready" | string;
+  quality_reason?: string; first_month?: string; last_month?: string; observation_months?: number;
+  unexplained_gap_months?: number; source_name?: string; return_type?: string; methodology?: string;
+};
+export type AllocationDataStatus = { available: boolean; formal_ready: boolean; minimum_months: number; series: AllocationSeriesStatus[]; missing_required: string[]; methodology: string };
+export type AllocationSeriesHistory = { series_id: string; available: boolean; full_history: true; downsampled: false; methodology: string; points: Array<{ month_end: string; monthly_return?: number; cny_total_return_index: number; source_date: string; content_hash: string }> };
+export type AllocationSleeve = { id: string; sleeve_key: string; label: string; target_weight: number; min_weight: number; max_weight: number; amount_cny: number; risk_contribution: number; currency_exposure: Record<string, number>; source_series_id?: string };
+export type AllocationImplementation = { id: string; sleeve_key: string; instrument_type: string; instrument_code: string; instrument_name: string; target_weight: number; amount_cny: number; underlying_key: string; margin_cash?: number; premium_cash?: number; delta_equivalent?: number; gross_notional?: number; net_notional?: number; max_loss?: number; gamma?: number; vega?: number; metadata: Record<string, unknown> };
+export type AllocationPolicyVersion = {
+  id: string; account_id: string; version: number; feasibility_status: "feasible" | "infeasible" | "unavailable" | string;
+  quality_status: string; content_hash: string; confirmed: boolean; created_at: string;
+  account?: AllocationAccount; constraint_snapshot?: Record<string, unknown>; methodology_snapshot?: Record<string, unknown>;
+  data_snapshot?: Record<string, unknown>; risk_summary?: Record<string, number>; stress_results?: Array<{ scenario: string; return: number }>;
+  infeasible_reasons?: string[]; sleeves?: AllocationSleeve[]; implementations?: AllocationImplementation[];
+};
 
 const base = "/agent";
 export const agentPlatformApi = {
@@ -755,7 +779,8 @@ export const agentPlatformApi = {
       | "capital"
       | "rates"
       | "opportunity"
-      | "trade_plan";
+      | "trade_plan"
+      | "allocation_policy";
     resource_id: string;
     field?: string;
     visible_start?: string;
@@ -771,6 +796,19 @@ export const agentPlatformApi = {
   riskProfile: () => apiJson<RiskProfile>(`${base}/risk-profile`),
   updateRiskProfile: (body: Partial<RiskProfile>) =>
     apiJson<RiskProfile>(`${base}/risk-profile`, { method: "PUT", body }),
+  allocationDataStatus: () => apiJson<AllocationDataStatus>(`${base}/allocation/data-status`),
+  allocationUniverse: () => apiJson<{ catalog: AllocationDataStatus; instruments: AllocationImplementation[]; scoring: false }>(`${base}/allocation/universe`),
+  allocationSeriesHistory: (seriesId: string) => apiJson<AllocationSeriesHistory>(`${base}/allocation/series/${encodeURIComponent(seriesId)}`),
+  allocationAccounts: () => apiJson<{ items: AllocationAccount[] }>(`${base}/allocation-accounts`),
+  createAllocationAccount: (body: Omit<AllocationAccount, "id" | "status" | "current_policy_version_id" | "created_at" | "updated_at">) =>
+    apiJson<AllocationAccount>(`${base}/allocation-accounts`, { method: "POST", body }),
+  updateAllocationAccount: (id: string, body: Partial<AllocationAccount>) =>
+    apiJson<AllocationAccount>(`${base}/allocation-accounts/${id}`, { method: "PATCH", body }),
+  deleteAllocationAccount: (id: string) => apiJson<{ ok: true }>(`${base}/allocation-accounts/${id}`, { method: "DELETE" }),
+  allocationPolicyVersions: (accountId: string) => apiJson<{ items: AllocationPolicyVersion[]; current_policy_version_id?: string }>(`${base}/allocation-accounts/${accountId}/policy-versions`),
+  allocationPolicyVersion: (id: string) => apiJson<AllocationPolicyVersion>(`${base}/allocation-policy-versions/${id}`),
+  generateAllocationPolicy: (accountId: string) => apiJson<AllocationPolicyVersion>(`${base}/allocation-accounts/${accountId}/policy-versions`, { method: "POST", body: { tactical_tilts: [] } }),
+  confirmAllocationPolicy: (accountId: string, versionId: string) => apiJson<AllocationPolicyVersion>(`${base}/allocation-accounts/${accountId}/policy-versions/${versionId}/confirm`, { method: "POST" }),
   uploadAttachment: (file: File) => {
     const form = new FormData();
     form.append("file", file);
