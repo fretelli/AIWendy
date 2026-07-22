@@ -23,6 +23,7 @@ from domain.agent_platform.models import (
     AgentHolderWatchlist,
 )
 from services.agent_platform.tushare import TushareReadService
+from services.agent_platform.research_loop import record_research_event, stable_event_key
 
 logger = get_logger(__name__)
 
@@ -133,6 +134,22 @@ async def scan_holder_watch(
                 },
             )
             await session.execute(statement)
+            if not initial and row["event_type"] != "unchanged":
+                await record_research_event(
+                    session, user_id=watch.user_id,
+                    event_key=stable_event_key("holder", watch.id, row["ts_code"], row["end_date"], row["event_type"]),
+                    category="holder", event_type=f"holder_{row['event_type']}",
+                    title=f"股东变化 · {watch.holder_name} · {row.get('company_name') or row['ts_code']}",
+                    summary="十大流通股东披露出现新增或持仓变化；退出前十不等于确认清仓。",
+                    resource_type="holder_watch", resource_id=str(watch.id),
+                    source_date=row.get("ann_date") or row["end_date"],
+                    before_state={"end_date": row.get("previous_end_date"),
+                                  "hold_amount": row.get("previous_hold_amount"),
+                                  "hold_ratio": row.get("previous_hold_ratio")},
+                    after_state={"end_date": row["end_date"], "event_type": row["event_type"], **values},
+                    metadata={"ts_code": row["ts_code"], "company_name": row.get("company_name"),
+                              "reporting_period": row["end_date"]},
+                )
             inserted += 1
         offset += len(rows)
         if not rows or offset >= int(result["total"]):

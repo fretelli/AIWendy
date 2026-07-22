@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import asyncio
 import json
 import time
 from datetime import date
@@ -11,12 +12,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from core.auth import get_current_user
 from core.cache_service import get_cache_service
 from core.database import get_session
 from core.logging import get_logger
 from domain.user.models import User
+from domain.agent_platform.models import MarketOpportunityRefreshState
 from services.agent_platform.tushare import TushareReadService
 from services.agent_platform.opportunities import OpportunityService, plan_payload
 
@@ -47,6 +50,29 @@ async def cached_json(key: str, loader: Callable[[], Awaitable[dict[str, Any]]],
 
 def service(session: AsyncSession) -> TushareReadService:
     return TushareReadService(session)
+
+
+@router.get("/data-status")
+async def data_status(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    """Read source coverage and background refresh state without triggering ingestion."""
+    reader = service(session)
+    macro, rates = await asyncio.gather(reader.macro_catalog(), reader.rates_catalog())
+    refresh_rows = (await session.execute(select(MarketOpportunityRefreshState).order_by(
+        MarketOpportunityRefreshState.domain))).scalars().all()
+    return {
+        "macro": macro,
+        "rates": rates,
+        "opportunity_refresh": [{
+            "domain": row.domain, "status": row.status,
+            "last_started_at": row.last_started_at, "last_succeeded_at": row.last_succeeded_at,
+            "last_error": row.last_error, "duration_ms": row.duration_ms,
+            "candidates_seen": row.candidates_seen, "source_watermark": row.source_watermark,
+        } for row in refresh_rows],
+        "read_only": True,
+        "request_time_refresh": False,
+        "scoring": False,
+        "methodology": "展示源表全量覆盖区间、源日期与后台刷新结果；缺失来源明确标记，不合成替代。",
+    }
 
 
 @router.get("/macro/series")

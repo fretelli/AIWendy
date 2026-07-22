@@ -676,6 +676,13 @@ export type ContextSnapshot = {
   methodology: string;
   created_at: string;
 };
+export type ThesisEvidence = { id?: string; stance: "supporting" | "challenging" | "invalidating"; source_type: string; source_id: string; citation: Record<string, unknown>; created_at?: string };
+export type ThesisVersion = { id: string; version: number; snapshot: Record<string, unknown>; diff: Record<string, unknown>; created_at: string };
+export type ResearchThesis = { id: string; title: string; subject_type: string; subject_key: string; status: "draft" | "active" | "challenged" | "invalidated" | "closed"; thesis: string; catalysts: Array<string | Record<string, unknown>>; falsifiers: string[]; review_at?: string; origin_resource_type?: string; origin_resource_id?: string; current_version: number; created_at: string; updated_at: string; versions?: ThesisVersion[]; evidence?: ThesisEvidence[] };
+export type ResearchEvent = { id: string; category: string; event_type: string; title: string; summary: string; resource_type: string; resource_id: string; source_date?: string; before_state: Record<string, unknown>; after_state: Record<string, unknown>; metadata: Record<string, unknown>; read_at?: string; detected_at: string };
+export type ResearchCalendarItem = { kind: string; date: string; title: string; resource_type: string; resource_id: string; source_type: string; source_ref?: unknown };
+export type GlobalSearchResult = { type: string; id: string; title: string; subtitle?: string; href: string; navigation_only?: boolean };
+export type DataStatus = { macro: MacroCatalog; rates: RatesCatalog; opportunity_refresh: Array<{ domain: string; status: string; last_succeeded_at?: string; last_error?: string; duration_ms?: number; candidates_seen: number }>; read_only: true; request_time_refresh: false; scoring: false; methodology: string };
 
 const base = "/agent";
 export const agentPlatformApi = {
@@ -802,6 +809,15 @@ export const agentPlatformApi = {
   createSchedule: (body: object) =>
     apiJson<AgentSchedule>(`${base}/schedules`, { method: "POST", body }),
   usage: () => apiJson<Usage>(`${base}/usage`),
+  theses: (status?: string) => apiJson<{ items: ResearchThesis[]; total: number; scoring: false }>(`${base}/theses${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  thesis: (id: string) => apiJson<ResearchThesis>(`${base}/theses/${id}`),
+  createThesis: (body: Record<string, unknown>) => apiJson<ResearchThesis>(`${base}/theses`, { method: "POST", body }),
+  updateThesis: (id: string, body: Partial<ResearchThesis>) => apiJson<ResearchThesis>(`${base}/theses/${id}`, { method: "PATCH", body }),
+  addThesisEvidence: (id: string, body: ThesisEvidence) => apiJson<ResearchThesis>(`${base}/theses/${id}/evidence`, { method: "POST", body }),
+  researchEvents: (unread = false) => apiJson<{ items: ResearchEvent[]; unread: number; scoring: false }>(`${base}/events?unread=${unread}`),
+  readResearchEvents: (eventIds: string[] = []) => apiJson<{ ok: boolean; updated: number }>(`${base}/events/read`, { method: "POST", body: { event_ids: eventIds } }),
+  researchCalendar: () => apiJson<{ items: ResearchCalendarItem[]; synthetic_dates: false }>(`${base}/calendar`),
+  globalSearch: (query: string) => apiJson<{ items: GlobalSearchResult[]; scoring: false }>(`${base}/search?q=${encodeURIComponent(query)}`),
   companies: (query: string) =>
     apiJson<{ items: CompanySearchItem[] }>(
       `${base}/companies?query=${encodeURIComponent(query)}`,
@@ -923,6 +939,7 @@ export const agentPlatformApi = {
 
 const marketsBase = "/markets";
 export const marketsApi = {
+  dataStatus: () => apiJson<DataStatus>(`${marketsBase}/data-status`),
   macroCatalog: () => apiJson<MacroCatalog>(`${marketsBase}/macro/series`),
   macroSeries: (key: string, field: string) =>
     apiJson<MacroSeriesDetail>(

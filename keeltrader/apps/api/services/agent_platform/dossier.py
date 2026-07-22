@@ -24,6 +24,7 @@ from domain.agent_platform.models import (
     AgentCompanyWatchlist,
 )
 from services.agent_platform.report_kb import ReportKBService
+from services.agent_platform.research_loop import record_research_event, stable_event_key
 from services.agent_platform.tushare import TushareReadService
 
 logger = get_logger(__name__)
@@ -414,6 +415,18 @@ async def refresh_dossier(session: AsyncSession, user_id, company_code: str, *, 
         calculation_errors=calculation_errors)
     session.add(version)
     await session.flush()
+    if previous is not None:
+        await record_research_event(
+            session, user_id=user_id,
+            event_key=stable_event_key("dossier", dossier.id, version.source_fingerprint),
+            category="company", event_type="company_dossier_changed",
+            title=f"公司档案变化 · {dossier.company_name}",
+            summary="公司档案生成了新版本；变化来自结构化财务数据或可定位的研报正文证据。",
+            resource_type="dossier", resource_id=str(dossier.id), source_date=latest_period or None,
+            before_state=previous.snapshot, after_state=snapshot,
+            metadata={"dossier_version_id": str(version.id), "version": version_number,
+                      "diff": version.diff, "financial_as_of": latest_period or None},
+        )
     for table, rows in raw.items():
         for row in rows[:2]:
             session.add(AgentCompanyEvidence(dossier_version_id=version.id, source_type="financial",
