@@ -59,6 +59,11 @@ def stable_hash(payload: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(_json(payload), sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()).hexdigest()
 
 
+def scaled_currency_exposure(exposure: dict[str, Any] | None, weight: float) -> dict[str, float]:
+    """Scale audited unit currency exposure to its portfolio weight."""
+    return {code: float(portion) * weight for code, portion in (exposure or {}).items()}
+
+
 def constrained_risk_parity(returns: np.ndarray, lower: np.ndarray | None = None,
                             upper: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Solve equal-risk contribution with Ledoit-Wolf covariance and transparent bounds."""
@@ -332,14 +337,19 @@ class AllocationService:
         await self.session.flush()
         if result.get("status") == "feasible":
             selected_by_sleeve = {item["sleeve_key"]: item for item in selected}
+            for item in catalog.get("series") or []:
+                if item.get("sleeve_key") == "cny_cash" and item.get("quality_state") == "ready":
+                    selected_by_sleeve["cny_cash"] = item
             for sleeve_key, weight in result["weights"].items():
                 band = max(0.02, weight * 0.20)
+                definition = selected_by_sleeve.get(sleeve_key) or {}
+                exposure = scaled_currency_exposure(definition.get("currency_exposure"), weight)
                 self.session.add(AllocationPolicySleeve(policy_version_id=row.id, sleeve_key=sleeve_key,
                     label=SLEEVE_LABELS[sleeve_key], target_weight=weight, min_weight=max(0, weight-band),
                     max_weight=min(1, weight+band), amount_cny=weight*float(account.capital),
                     risk_contribution=(result["risk_contributions"].get(sleeve_key) or 0),
-                    currency_exposure={"CNY": weight} if sleeve_key in {"cny_cash", "china_equity", "china_bond", "gold"} else {},
-                    source_series_id=(selected_by_sleeve.get(sleeve_key) or {}).get("series_id")))
+                    currency_exposure=exposure,
+                    source_series_id=definition.get("series_id")))
             instruments = [item for item in await self.reader.allocation_instruments(list(result["weights"]))
                            if item.get("instrument_type") in (account.allowed_instruments or [])
                            and self._market_allowed(item.get("market"), account.allowed_markets or [])]

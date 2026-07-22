@@ -1,6 +1,12 @@
 import numpy as np
 
-from services.agent_platform.allocation import apply_tactical_tilts, constrained_risk_parity, policy_from_returns, stable_hash
+from services.agent_platform.allocation import (
+    apply_tactical_tilts,
+    constrained_risk_parity,
+    policy_from_returns,
+    scaled_currency_exposure,
+    stable_hash,
+)
 
 
 def sample_returns(months: int = 180) -> np.ndarray:
@@ -51,6 +57,12 @@ def test_policy_reports_infeasible_cash_needs_without_relaxing_them():
 
 def test_content_hash_ignores_dictionary_order():
     assert stable_hash({"a": 1, "b": [2]}) == stable_hash({"b": [2], "a": 1})
+
+
+def test_currency_exposure_is_scaled_by_portfolio_weight():
+    assert scaled_currency_exposure({"USD": 1}, 0.25) == {"USD": 0.25}
+    assert scaled_currency_exposure({"USD": 0.6, "JPY": 0.4}, 0.5) == {"USD": 0.3, "JPY": 0.2}
+    assert scaled_currency_exposure(None, 0.5) == {}
 
 
 def test_tactical_tilts_must_be_self_financing_and_keep_risk_limits():
