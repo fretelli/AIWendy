@@ -131,6 +131,33 @@ services:
         condition: service_started
     command: python tasks/agent_platform_worker.py
 
+  opportunity-worker:
+    image: keeltrader-api:latest
+    container_name: keeltrader-opportunity-worker
+    restart: unless-stopped
+    mem_limit: 320m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,size=50M
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - TUSHARE_DATABASE_URL=${TUSHARE_DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENVIRONMENT=production
+      - OPPORTUNITY_REFRESH_SECONDS=${OPPORTUNITY_REFRESH_SECONDS:-300}
+      - DATABASE_POOL_SIZE=3
+      - DATABASE_MAX_OVERFLOW=1
+      - DATABASE_APPLICATION_NAME=keeltrader-opportunity-worker
+    depends_on:
+      api:
+        condition: service_started
+    command: python tasks/opportunity_worker.py
+
 volumes:
   uploads_data:
 

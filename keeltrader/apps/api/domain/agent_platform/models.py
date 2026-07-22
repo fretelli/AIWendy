@@ -102,6 +102,11 @@ class MarketOpportunity(Base):
     __tablename__ = "market_opportunities"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     fingerprint = Column(String(160), unique=True, nullable=False)
+    scope = Column(String(20), nullable=False, default="global")
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    domain = Column(String(40), nullable=False, default="market")
+    subject_type = Column(String(40), nullable=False, default="market")
+    subject_key = Column(String(160), nullable=False, default="market")
     playbook_key = Column(String(80), nullable=False)
     title = Column(String(240), nullable=False)
     lifecycle_state = Column(String(30), nullable=False, default="observing")
@@ -110,8 +115,55 @@ class MarketOpportunity(Base):
     catalysts = Column(JSON, nullable=False, default=list)
     falsifiers = Column(JSON, nullable=False, default=list)
     source_dates = Column(JSON, nullable=False, default=dict)
+    state = Column(String(30), nullable=False, default="new")
+    trigger = Column(Text, nullable=False, default="")
+    as_of = Column(String(32), nullable=True)
+    freshness = Column(JSON, nullable=False, default=dict)
+    latest_snapshot_id = Column(UUID(as_uuid=True), ForeignKey("market_opportunity_snapshots.id", ondelete="SET NULL"), nullable=True)
+    consecutive_misses = Column(Integer, nullable=False, default=0)
+    closed_at = Column(DateTime(timezone=True), nullable=True)
     first_seen_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     last_seen_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        Index("ix_market_opportunities_feed", "scope", "user_id", "domain", "state", "as_of"),
+        Index("ix_market_opportunities_subject", "subject_type", "subject_key"),
+    )
+
+
+class MarketOpportunitySnapshot(Base):
+    __tablename__ = "market_opportunity_snapshots"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    opportunity_id = Column(UUID(as_uuid=True), ForeignKey("market_opportunities.id", ondelete="CASCADE"), nullable=False)
+    snapshot_fingerprint = Column(String(160), nullable=False)
+    state = Column(String(30), nullable=False)
+    as_of = Column(String(32), nullable=True)
+    trigger = Column(Text, nullable=False)
+    hypothesis = Column(Text, nullable=False)
+    affected_assets = Column(JSON, nullable=False, default=list)
+    catalysts = Column(JSON, nullable=False, default=list)
+    falsifiers = Column(JSON, nullable=False, default=list)
+    source_dates = Column(JSON, nullable=False, default=dict)
+    freshness = Column(JSON, nullable=False, default=dict)
+    evidence = Column(JSON, nullable=False, default=list)
+    chart_refs = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        Index("uq_market_opportunity_snapshot", "opportunity_id", "snapshot_fingerprint", unique=True),
+        Index("ix_market_opportunity_snapshots_history", "opportunity_id", "created_at"),
+    )
+
+
+class MarketOpportunityRefreshState(Base):
+    __tablename__ = "market_opportunity_refresh_state"
+    domain = Column(String(40), primary_key=True)
+    source_watermark = Column(JSON, nullable=False, default=dict)
+    status = Column(String(30), nullable=False, default="idle")
+    last_started_at = Column(DateTime(timezone=True), nullable=True)
+    last_succeeded_at = Column(DateTime(timezone=True), nullable=True)
+    last_error = Column(Text, nullable=True)
+    candidates_seen = Column(Integer, nullable=False, default=0)
+    duration_ms = Column(Integer, nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
 class MarketOpportunityEvidence(Base):

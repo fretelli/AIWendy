@@ -132,7 +132,7 @@ deploy_api() {
   fi
 
   run docker tag keeltrader-api:test-overlay keeltrader-api:latest
-  run docker compose up -d api agent-platform-worker
+  run docker compose up -d api agent-platform-worker opportunity-worker
 }
 
 container_http_code() {
@@ -202,7 +202,8 @@ expect_compose_service_running() {
 }
 
 heartbeat_present() {
-  docker compose exec -T api python - <<'PY'
+  local key="$1"
+  docker compose exec -T api python - "$key" <<'PY'
 import asyncio
 import os
 import sys
@@ -213,7 +214,7 @@ import redis.asyncio as redis
 async def main() -> int:
     client = redis.from_url(os.environ["REDIS_URL"])
     try:
-        raw = await client.get("keeltrader:agent-platform:heartbeat")
+        raw = await client.get(sys.argv[1])
     finally:
         await client.aclose()
 
@@ -231,7 +232,7 @@ expect_agent_platform_heartbeat() {
   local attempt
 
   for attempt in $(seq 1 "$SMOKE_ATTEMPTS"); do
-    if heartbeat_present >/dev/null 2>&1; then
+    if heartbeat_present "keeltrader:agent-platform:heartbeat" >/dev/null 2>&1; then
       log "smoke ok: agent-platform-worker heartbeat"
       return
     fi
@@ -245,18 +246,37 @@ expect_agent_platform_heartbeat() {
   die "Smoke failed: agent-platform-worker heartbeat missing"
 }
 
+expect_opportunity_heartbeat() {
+  local attempt
+
+  for attempt in $(seq 1 "$SMOKE_ATTEMPTS"); do
+    if heartbeat_present "keeltrader:opportunity:heartbeat" >/dev/null 2>&1; then
+      log "smoke ok: opportunity-worker heartbeat"
+      return
+    fi
+    if [ "$attempt" -lt "$SMOKE_ATTEMPTS" ]; then
+      log "smoke waiting: opportunity-worker heartbeat (attempt $attempt/$SMOKE_ATTEMPTS)"
+      sleep "$SMOKE_DELAY_SECONDS"
+    fi
+  done
+  die "Smoke failed: opportunity-worker heartbeat missing"
+}
+
 smoke() {
   log "Running smoke checks against local Docker Compose stack"
 
   expect_compose_service_running api
   expect_compose_service_running agent-platform-worker
+  expect_compose_service_running opportunity-worker
   expect_container_code "api health" "200" "/api/health"
   expect_container_code "api liveness" "200" "/api/health/live"
   expect_container_code "agent platform health" "200" "/api/v1/agent/health"
   expect_agent_platform_heartbeat
+  expect_opportunity_heartbeat
   if [ "$DEPLOY" -eq 1 ] && [ "$SMOKE_ONLY" -eq 0 ]; then
     expect_service_revision api "$GIT_SHA"
     expect_service_revision agent-platform-worker "$GIT_SHA"
+    expect_service_revision opportunity-worker "$GIT_SHA"
   fi
 }
 
