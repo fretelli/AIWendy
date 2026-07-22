@@ -12,6 +12,12 @@ test("allocation workbench keeps formal data gate and immutable research handoff
   expect(page).toContain("不使用代理替代");
   expect(page).toContain("全量 · 未降采样");
   expect(page).toContain("人民币总回报全量月度历史");
+  expect(page).toContain("币种暴露");
+  expect(page).toContain("不提供换汇换算");
+  expect(page).toContain("等待回填");
+  expect(page).toContain("历史不足");
+  expect(page).toContain("存在缺口");
+  expect(page).toContain("已就绪");
 });
 
 test("derivatives are implementation tools instead of allocation sleeves", () => {
@@ -22,6 +28,7 @@ test("derivatives are implementation tools instead of allocation sleeves", () =>
 
 test("mobile navigation adds allocation without six cramped equal items", () => {
   expect(shell).toContain('href: "/agent/allocation"');
+  expect(shell).toContain('label: "资产配置"');
   expect(shell).toContain("mobilePrimary");
   expect(shell).toContain("mobileMore");
   expect(shell).toContain("更多");

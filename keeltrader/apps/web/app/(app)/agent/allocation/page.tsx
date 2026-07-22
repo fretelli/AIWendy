@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Anchor,
   Check,
+  Coins,
   Database,
   Loader2,
   Route,
@@ -36,6 +37,13 @@ import {
 const LAST_ACCOUNT = "keeltrader:allocation:last-account";
 const money = new Intl.NumberFormat("zh-CN", { style: "currency", currency: "CNY", maximumFractionDigits: 0 });
 const pct = (value?: number) => value === undefined ? "—" : `${(value * 100).toFixed(1)}%`;
+const gateLabel = (state?: string) => ({
+  ready: "已就绪",
+  insufficient: "历史不足",
+  gapped: "存在缺口",
+  stale: "等待更新",
+  unavailable: "等待回填",
+}[state || ""] || state || "等待回填");
 
 type Draft = {
   name: string; capital: number; horizon_months: number; liquidity_reserve: number;
@@ -176,8 +184,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function ToggleGroup({ label, values, selected, onToggle }: { label: string; values: string[]; selected: string[]; onToggle: (value: string) => void }) { return <div className="mt-4"><p className="mb-2 text-[10px] text-muted-foreground">{label}</p><div className="flex flex-wrap gap-1.5">{values.map((value) => <button type="button" key={value} onClick={() => onToggle(value)} className={`rounded-lg border px-2.5 py-1.5 font-data text-[9px] ${selected.includes(value) ? "border-[hsl(var(--copper))] bg-[hsl(var(--accent)/.12)] text-foreground" : "text-muted-foreground"}`}>{value}</button>)}</div></div>; }
 
 function RoutePanel({ account, draft, status, policy, versions, onSelectVersion, onGenerate, generating }: { account?: AllocationAccount; draft: Draft; status?: AllocationDataStatus; policy?: AllocationPolicyVersion; versions: AllocationPolicyVersion[]; onSelectVersion: (id: string) => Promise<void>; onGenerate: () => Promise<void>; generating: boolean }) {
+  const required = (status?.series || []).filter((item) => item.required);
   return <section className="h-full overflow-y-auto p-4 md:p-6"><div className="flex flex-wrap items-end justify-between gap-3"><div><p className="font-data text-[9px] uppercase tracking-[.22em] text-[hsl(var(--copper-foreground))]">Capital routing chart</p><h2 className="mt-2 font-display text-2xl font-semibold">资本航路</h2><p className="mt-1 text-[10px] text-muted-foreground">资本金额与底层风险分层显示；衍生品只沿底层航线实施。</p></div><div className="flex items-center gap-2">{versions.length > 0 && <select value={policy?.id || ""} onChange={(event) => void onSelectVersion(event.target.value)} className="h-9 rounded-lg border bg-background px-2 font-data text-[10px]">{versions.map((item) => <option key={item.id} value={item.id}>v{item.version} · {item.feasibility_status}</option>)}</select>}<Button size="sm" disabled={!account || !status?.formal_ready || generating} onClick={() => void onGenerate()}>{generating ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}生成新版本</Button></div></div>
-    {!status?.formal_ready && <div className="mt-5 flex gap-3 rounded-xl border border-amber-500/40 bg-amber-500/[.05] p-4"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" /><div><p className="text-xs font-medium">正式配置暂未开放</p><p className="mt-1 text-[10px] leading-5 text-muted-foreground">{status?.missing_required?.length ? `缺少：${status.missing_required.map((key) => status.series.find((item) => item.sleeve_key === key)?.name || key).join("、")}` : "数据目录尚未就绪"}。可以先保存资金约束，系统不会用价格指数、国债期货或合成曲线替代。</p></div></div>}
+    {!status?.formal_ready ? <div className="mt-5 flex gap-3 rounded-xl border border-amber-500/40 bg-amber-500/[.05] p-4"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" /><div className="min-w-0 flex-1"><p className="text-xs font-medium">正式配置暂未开放</p><p className="mt-1 text-[10px] leading-5 text-muted-foreground">六类真实可投资序列必须同时具备至少 {status?.minimum_months || 120} 个完整共同月、零无法解释缺口并覆盖最近完整月。可以先保存资金约束，系统不会用价格指数、国债期货或合成曲线替代。</p><div className="mt-3 grid gap-1.5 sm:grid-cols-2">{required.map((item) => <div key={item.series_id || item.sleeve_key} className="flex items-center justify-between rounded-lg border bg-background/55 px-2.5 py-2 text-[9px]"><span>{item.name}</span><span className={item.quality_state === "ready" ? "text-emerald-600" : "text-amber-600"}>{gateLabel(item.quality_state)}</span></div>)}</div></div></div> : <div className="mt-5 rounded-xl border border-emerald-500/35 bg-emerald-500/[.05] p-4"><p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">正式配置已开放</p><p className="mt-1 text-[10px] leading-5 text-muted-foreground">六类核心资产已通过共同历史门禁，可以生成新的不可变配置版本。</p></div>}
     <CapitalRouteChart capital={draft.capital} reserve={draft.liquidity_reserve + draft.future_cash_needs.reduce((sum, item) => sum + item.amount, 0)} status={status} sleeves={policy?.sleeves} />
     <div className="mt-5 grid gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-4"><Ledger label="共同历史" value={String((policy?.data_snapshot?.common_history as { months?: number } | undefined)?.months || "未通过门禁")} /><Ledger label="方法" value="等风险贡献" /><Ledger label="预期收益" value="不使用" /><Ledger label="自动调仓" value="关闭" /></div>
   </section>;
@@ -197,12 +206,21 @@ function Ledger({ label, value }: { label: string; value: string }) { return <di
 
 function RiskPanel({ status, policy, onConfirm }: { status?: AllocationDataStatus; policy?: AllocationPolicyVersion; onConfirm: () => Promise<void> }) {
   const series = useMemo(() => status?.series || [], [status]);
+  const currencyExposure = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const sleeve of policy?.sleeves || []) {
+      for (const [currency, weight] of Object.entries(sleeve.currency_exposure || {})) totals[currency] = (totals[currency] || 0) + weight;
+    }
+    return Object.entries(totals).sort((left, right) => right[1] - left[1]);
+  }, [policy]);
+  const mappedExposure = currencyExposure.reduce((sum, [, weight]) => sum + weight, 0);
   const [history, setHistory] = useState<AllocationSeriesHistory>();
   const [historyLoading, setHistoryLoading] = useState(false);
   const selectSeries = async (item: AllocationSeriesStatus) => { if (!item.series_id) return; setHistoryLoading(true); try { setHistory(await agentPlatformApi.allocationSeriesHistory(item.series_id)); } catch (error) { toast.error(error instanceof Error ? error.message : "历史序列加载失败"); } finally { setHistoryLoading(false); } };
   return <aside className="h-full overflow-y-auto p-4"><div className="flex items-center gap-2"><Database className="h-4 w-4 text-[hsl(var(--copper-foreground))]" /><h2 className="font-display text-xl font-semibold">风险与证据</h2></div>
     {policy?.risk_summary && <section className="mt-4 rounded-xl border bg-background/60 p-3"><p className="text-[10px] font-medium">组合风险</p><div className="mt-3 space-y-2"><RiskLine label="年化波动" value={pct(policy.risk_summary.annualized_volatility)} /><RiskLine label="最差固定压力" value={pct(policy.risk_summary.worst_stress_return)} /><RiskLine label="底层总敞口" value={pct(policy.risk_summary.gross_underlying_exposure)} /></div></section>}
     {policy?.stress_results?.length ? <section className="mt-4"><p className="text-[10px] font-medium">固定压力情景</p><div className="mt-2 space-y-2">{policy.stress_results.map((row) => <div key={row.scenario}><div className="flex justify-between font-data text-[9px]"><span>{row.scenario}</span><span>{pct(row.return)}</span></div><div className="mt-1 h-1.5 overflow-hidden rounded-full bg-secondary"><div className="h-full bg-[hsl(var(--copper))]" style={{ width: `${Math.min(100, Math.abs(row.return) * 300)}%` }} /></div></div>)}</div></section> : null}
+    <section className="mt-5 rounded-xl border bg-background/60 p-3"><div className="flex items-center gap-2"><Coins className="h-3.5 w-3.5 text-[hsl(var(--copper-foreground))]" /><p className="text-[10px] font-medium">币种暴露</p></div>{currencyExposure.length ? <div className="mt-3 space-y-2">{currencyExposure.map(([currency, weight]) => <RiskLine key={currency} label={currency} value={pct(weight)} />)}{mappedExposure < 0.999 && <RiskLine label="非货币/未穿透" value={pct(Math.max(0, 1 - mappedExposure))} />}</div> : <p className="mt-2 text-[9px] leading-4 text-muted-foreground">生成配置版本后，按战略资产权重汇总底层币种；黄金等实物风险不会伪装成美元现金。</p>}<p className="mt-3 border-t pt-2 text-[8px] leading-4 text-muted-foreground">这里只披露风险敞口，不提供换汇换算。外汇市场仍沿用现有 Tushare fx_daily / FXCM 数据。</p></section>
     <section className="mt-5"><p className="text-[10px] font-medium">源数据门禁</p><div className="mt-2 space-y-2">{series.map((item) => <SourceRow key={item.series_id || item.sleeve_key} item={item} onSelect={selectSeries} />)}</div>{historyLoading && <div className="mt-3 grid h-24 place-items-center"><Loader2 className="h-4 w-4 animate-spin" /></div>}{history && <SourceHistoryChart history={history} />}</section>
     {policy?.feasibility_status === "feasible" && !policy.confirmed && <Button className="mt-5 w-full" onClick={() => void onConfirm()}><Check className="mr-2 h-4 w-4" />确认当前版本</Button>}
     {policy?.confirmed && <div className="mt-5 rounded-xl border border-emerald-500/35 bg-emerald-500/[.05] p-3 text-[10px] text-emerald-700 dark:text-emerald-300"><Check className="mr-1 inline h-3.5 w-3.5" />这是账户当前确认版本；历史内容不可覆盖。</div>}
@@ -210,7 +228,7 @@ function RiskPanel({ status, policy, onConfirm }: { status?: AllocationDataStatu
 }
 
 function RiskLine({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between text-[10px]"><span className="text-muted-foreground">{label}</span><span className="font-data">{value}</span></div>; }
-function SourceRow({ item, onSelect }: { item: AllocationSeriesStatus; onSelect: (item: AllocationSeriesStatus) => Promise<void> }) { return <button type="button" onClick={() => void onSelect(item)} disabled={!item.series_id} className="w-full rounded-lg border bg-background/55 p-2.5 text-left hover:border-[hsl(var(--copper)/.5)] disabled:pointer-events-none"><div className="flex items-center justify-between gap-2"><span className="text-[10px] font-medium">{item.name}</span><span className={`font-data text-[8px] ${item.quality_state === "ready" ? "text-emerald-600" : "text-amber-600"}`}>{item.quality_state}</span></div><p className="mt-1 text-[9px] leading-4 text-muted-foreground">{item.observation_months || 0}个月 · {item.first_month || "—"}—{item.last_month || "—"}</p><p className="mt-1 text-[9px] leading-4 text-muted-foreground">{item.quality_reason}</p></button>; }
+function SourceRow({ item, onSelect }: { item: AllocationSeriesStatus; onSelect: (item: AllocationSeriesStatus) => Promise<void> }) { const currencies = Object.keys(item.currency_exposure || {}); return <button type="button" onClick={() => void onSelect(item)} disabled={!item.series_id} className="w-full rounded-lg border bg-background/55 p-2.5 text-left hover:border-[hsl(var(--copper)/.5)] disabled:pointer-events-none"><div className="flex items-center justify-between gap-2"><span className="text-[10px] font-medium">{item.name}</span><span className={`font-data text-[8px] ${item.quality_state === "ready" ? "text-emerald-600" : "text-amber-600"}`}>{gateLabel(item.quality_state)}</span></div><p className="mt-1 text-[9px] leading-4 text-muted-foreground">{item.observation_months || 0}个月 · {item.first_month || "—"}—{item.last_month || "—"}</p><p className="mt-1 text-[9px] leading-4 text-muted-foreground">{item.quality_reason}</p><p className="mt-1 font-data text-[8px] text-muted-foreground">底层币种 {currencies.length ? currencies.join(" / ") : "非货币或未穿透"}</p></button>; }
 
 function SourceHistoryChart({ history }: { history: AllocationSeriesHistory }) {
   const [hover, setHover] = useState<{ index: number; x: number; y: number }>();
