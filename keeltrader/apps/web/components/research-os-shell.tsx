@@ -51,8 +51,8 @@ const destinations = [
   },
   {
     href: "/agent/allocation",
-    label: "配置",
-    detail: "资金约束、资本航路与不可变配置版本",
+    label: "资产配置",
+    detail: "资金约束、币种暴露与不可变配置版本",
     icon: Route,
   },
 ];

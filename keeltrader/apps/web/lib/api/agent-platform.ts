@@ -697,6 +697,7 @@ export type AllocationSeriesStatus = {
   quality_state: "unavailable" | "insufficient" | "stale" | "gapped" | "ready" | string;
   quality_reason?: string; first_month?: string; last_month?: string; observation_months?: number;
   unexplained_gap_months?: number; source_name?: string; return_type?: string; methodology?: string;
+  currency_exposure?: Record<string, number>;
 };
 export type AllocationDataStatus = { available: boolean; formal_ready: boolean; minimum_months: number; series: AllocationSeriesStatus[]; missing_required: string[]; methodology: string };
 export type AllocationSeriesHistory = { series_id: string; available: boolean; full_history: true; downsampled: false; methodology: string; points: Array<{ month_end: string; monthly_return?: number; cny_total_return_index: number; source_date: string; content_hash: string }> };
