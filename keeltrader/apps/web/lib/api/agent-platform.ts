@@ -682,7 +682,9 @@ export type ResearchThesis = { id: string; title: string; subject_type: string; 
 export type ResearchEvent = { id: string; category: string; event_type: string; title: string; summary: string; resource_type: string; resource_id: string; source_date?: string; before_state: Record<string, unknown>; after_state: Record<string, unknown>; metadata: Record<string, unknown>; read_at?: string; detected_at: string };
 export type ResearchCalendarItem = { kind: string; date: string; title: string; resource_type: string; resource_id: string; source_type: string; source_ref?: unknown };
 export type GlobalSearchResult = { type: string; id: string; title: string; subtitle?: string; href: string; navigation_only?: boolean };
-export type DataStatus = { macro: MacroCatalog; rates: RatesCatalog; opportunity_refresh: Array<{ domain: string; status: string; last_succeeded_at?: string; last_error?: string; duration_ms?: number; candidates_seen: number }>; read_only: true; request_time_refresh: false; scoring: false; methodology: string };
+export type PublicationDataset = { key: string; table?: string; frequency: string; actual_as_of?: string; expected_as_of?: string; history_start?: string; points: number; state: "current" | "delayed" | "missing" | "unavailable" | string; last_attempt_at?: string; last_success_at?: string; deferred_reason?: string; next_expected_update: string; unavailable_reason?: string };
+export type PublicationStatus = { available: boolean; version: string; generated_at?: string; datasets: PublicationDataset[]; unavailable_reason?: string; read_only?: true; synthetic_substitution?: false };
+export type DataStatus = { publication: PublicationStatus; opportunity_refresh: Array<{ domain: string; status: string; last_succeeded_at?: string; last_error?: string; duration_ms?: number; candidates_seen: number }>; read_only: true; request_time_refresh: false; scoring: false; methodology: string };
 export type AllocationAccount = {
   id: string; name: string; base_currency: "CNY"; capital: number; horizon_months: number;
   liquidity_reserve: number; max_drawdown: number; max_leverage: number;
@@ -978,6 +980,7 @@ export const agentPlatformApi = {
 const marketsBase = "/markets";
 export const marketsApi = {
   dataStatus: () => apiJson<DataStatus>(`${marketsBase}/data-status`),
+  capital: () => apiJson<MarketCapitalSnapshot>(`${marketsBase}/capital`),
   macroCatalog: () => apiJson<MacroCatalog>(`${marketsBase}/macro/series`),
   macroSeries: (key: string, field: string) =>
     apiJson<MacroSeriesDetail>(

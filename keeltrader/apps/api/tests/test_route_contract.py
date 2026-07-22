@@ -49,6 +49,7 @@ def test_active_route_prefixes_are_mounted(client):
         "/api/v1/market-data/historical/{symbol}",
         "/api/v1/markets/macro/series",
         "/api/v1/markets/data-status",
+        "/api/v1/markets/capital",
         "/api/v1/markets/macro/series/{key}",
         "/api/v1/markets/futures/{code}/underlying",
         "/api/v1/markets/options/{code}/underlying",

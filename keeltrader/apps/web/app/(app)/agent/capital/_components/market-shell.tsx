@@ -13,10 +13,11 @@ import {
   ShipWheel,
   Waves,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { KeelMark, ThemeMenu } from "@/components/keel-brand";
 import { Button } from "@/components/ui/button";
+import { marketsApi, type PublicationStatus } from "@/lib/api/agent-platform";
 
 const sections = [
   { href: "/agent/market/capital", label: "A股资金", icon: Waves },
@@ -92,6 +93,7 @@ export function MarketShell({
           <ThemeMenu />
         </div>
         <MarketNavigation pathname={pathname} />
+        <DataBeacon />
         {trail && (
           <div className="evidence-rail flex min-h-8 items-center gap-3 overflow-x-auto border-t px-4 text-[9px] text-muted-foreground">
             <span className="shrink-0 font-semibold uppercase tracking-[.18em] text-[hsl(var(--copper-foreground))]">
@@ -111,6 +113,65 @@ export function MarketShell({
       <main className="mx-auto max-w-[1580px] space-y-5 p-4 md:p-7">
         {children}
       </main>
+    </div>
+  );
+}
+
+export function DataBeacon() {
+  const [publication, setPublication] = useState<PublicationStatus | null>(null);
+  useEffect(() => {
+    let active = true;
+    const load = () =>
+      marketsApi
+        .dataStatus()
+        .then((value) => {
+          if (active) setPublication(value.publication);
+        })
+        .catch(() => {
+          if (active)
+            setPublication({
+              available: false,
+              version: "unavailable",
+              datasets: [],
+              unavailable_reason: "数据发布状态暂时不可读",
+            });
+        });
+    void load();
+    const timer = window.setInterval(load, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+  if (!publication) return null;
+  const delayed = publication.datasets.filter(
+    (item) => item.state === "delayed",
+  ).length;
+  const missing = publication.datasets.filter(
+    (item) => item.state === "missing",
+  ).length;
+  const unavailable = publication.datasets.filter(
+    (item) => item.state === "unavailable",
+  ).length;
+  const state =
+    !publication.available || missing ? "异常" : delayed ? "延迟" : "已发布";
+  return (
+    <div
+      className="flex min-h-8 items-center gap-3 overflow-x-auto border-t bg-[hsl(var(--navy)/.035)] px-4 text-[9px] text-muted-foreground"
+      title={publication.unavailable_reason || `发布版本 ${publication.version}`}
+    >
+      <span className="shrink-0 font-semibold uppercase tracking-[.18em] text-[hsl(var(--copper-foreground))]">
+        数据航标
+      </span>
+      <span className="shrink-0 text-foreground">{state}</span>
+      <span className="shrink-0">延迟 {delayed}</span>
+      <span className="shrink-0">缺失 {missing}</span>
+      <span className="shrink-0">明确不可用 {unavailable}</span>
+      <span className="ml-auto shrink-0 font-data">
+        {publication.generated_at
+          ? new Date(publication.generated_at).toLocaleString("zh-CN")
+          : "尚无发布快照"}
+      </span>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import asyncio
 import json
 import time
 from datetime import date
@@ -22,6 +21,7 @@ from domain.user.models import User
 from domain.agent_platform.models import MarketOpportunityRefreshState
 from services.agent_platform.tushare import TushareReadService
 from services.agent_platform.opportunities import OpportunityService, plan_payload
+from services.agent_platform.publication_status import publication_version, read_publication_status
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -30,11 +30,13 @@ logger = get_logger(__name__)
 async def cached_json(key: str, loader: Callable[[], Awaitable[dict[str, Any]]], ttl: int = 600) -> Response:
     started = time.perf_counter()
     cache = get_cache_service()
-    payload = await cache.get_async(f"markets:v3:{key}")
+    version = publication_version()
+    cache_key = f"markets:v4:{version}:{key}"
+    payload = await cache.get_async(cache_key)
     cache_state = "hit"
     if not isinstance(payload, dict):
         payload = await loader()
-        await cache.set_async(f"markets:v3:{key}", payload, ttl=ttl)
+        await cache.set_async(cache_key, payload, ttl=ttl)
         cache_state = "miss"
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str).encode()
     etag = '"' + hashlib.sha256(body).hexdigest()[:24] + '"'
@@ -43,7 +45,8 @@ async def cached_json(key: str, loader: Callable[[], Awaitable[dict[str, Any]]],
                 payload_bytes=len(body))
     return Response(content=body, media_type="application/json", headers={
         "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
-        "ETag": etag, "X-Market-Cache": cache_state, "X-Payload-Bytes": str(len(body)),
+        "ETag": etag, "X-Market-Cache": cache_state, "X-Market-Publication": version,
+        "X-Payload-Bytes": str(len(body)),
         "Server-Timing": f'market;dur={elapsed_ms:.1f};desc="{cache_state}"',
     })
 
@@ -55,13 +58,10 @@ def service(session: AsyncSession) -> TushareReadService:
 @router.get("/data-status")
 async def data_status(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     """Read source coverage and background refresh state without triggering ingestion."""
-    reader = service(session)
-    macro, rates = await asyncio.gather(reader.macro_catalog(), reader.rates_catalog())
     refresh_rows = (await session.execute(select(MarketOpportunityRefreshState).order_by(
         MarketOpportunityRefreshState.domain))).scalars().all()
     return {
-        "macro": macro,
-        "rates": rates,
+        "publication": read_publication_status(),
         "opportunity_refresh": [{
             "domain": row.domain, "status": row.status,
             "last_started_at": row.last_started_at, "last_succeeded_at": row.last_succeeded_at,
@@ -71,8 +71,13 @@ async def data_status(session: AsyncSession = Depends(get_session), user: User =
         "read_only": True,
         "request_time_refresh": False,
         "scoring": False,
-        "methodology": "展示源表全量覆盖区间、源日期与后台刷新结果；缺失来源明确标记，不合成替代。",
+        "methodology": "读取后台原子发布的数据覆盖快照，不在请求时扫描源表；缺失或延迟来源明确标记，不合成替代。",
     }
+
+
+@router.get("/capital")
+async def market_capital(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    return await cached_json("capital:all-raw-history", service(session).market_capital_snapshot)
 
 
 @router.get("/macro/series")

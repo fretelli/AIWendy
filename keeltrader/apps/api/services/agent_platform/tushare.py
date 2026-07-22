@@ -1017,6 +1017,8 @@ class TushareReadService:
         if chosen is None:
             latest = await self._execute_mappings(text(f"SELECT MAX({period}) value FROM {self.schema}.{table}"), {})
             chosen = latest[0].get("value") if latest else None
+        if isinstance(chosen, str):
+            chosen = date.fromisoformat(chosen)
         row = await self._execute_mappings(text(f"SELECT * FROM {self.schema}.{table} WHERE {period}=:chosen LIMIT 1"), {"chosen": chosen}) if chosen else []
         points = [{"tenor": k, "value": v} for k, v in (row[0].items() if row else []) if k not in {period,"created_at","updated_at"} and v is not None]
         return {"available": bool(points), "key": key, "date": str(chosen) if chosen else None,
@@ -1031,11 +1033,15 @@ class TushareReadService:
     async def convertibles(self, code: str | None = None, limit: int = 200, offset: int = 0) -> dict[str, Any]:
         if not all([await self.table_exists("cb_basic"), await self.table_exists("cb_daily")]):
             return {"available": False, "items": [], "total": 0}
-        params = {"code": code, "limit": max(1, min(limit, 500)), "offset": max(0, offset)}
+        params = {"limit": max(1, min(limit, 500)), "offset": max(0, offset)}
+        where = ""
+        if code:
+            params["code"] = code
+            where = "WHERE b.ts_code=:code OR b.stk_code=:code"
         rows = await self._execute_mappings(text(f"""WITH latest AS (SELECT DISTINCT ON(ts_code) * FROM {self.schema}.cb_daily ORDER BY ts_code,trade_date DESC)
             SELECT b.*,d.trade_date,d.close,d.vol,d.amount,d.bond_value,d.bond_over_rate,d.cb_value,d.cb_over_rate,
             COUNT(*) OVER()::int total FROM {self.schema}.cb_basic b LEFT JOIN latest d ON d.ts_code=b.ts_code
-            WHERE (:code IS NULL OR b.ts_code=:code OR b.stk_code=:code) ORDER BY d.trade_date DESC NULLS LAST,b.ts_code
+            {where} ORDER BY d.trade_date DESC NULLS LAST,b.ts_code
             LIMIT :limit OFFSET :offset"""), params)
         total = int(rows[0].get("total") or 0) if rows else 0
         for row in rows: row.pop("total", None)
@@ -1315,6 +1321,8 @@ class TushareReadService:
         if chosen is None:
             latest = await self._execute_mappings(text(f"SELECT MAX(trade_date) value FROM {self.schema}.option_analytics_daily WHERE opt_code=:code"), {"code": opt_code})
             chosen = latest[0].get("value") if latest else None
+        if isinstance(chosen, str):
+            chosen = date.fromisoformat(chosen)
         rows = await self._execute_mappings(text(f"""SELECT a.trade_date,a.ts_code,b.call_put,b.exercise_price,b.maturity_date,
             a.implied_volatility,a.delta,a.gamma,a.theta,a.vega,a.rho,a.convergence_status,a.unavailable_reason,
             a.model_family,a.model_version,a.option_price_field,a.risk_free_rate,a.underlying_price
@@ -1332,6 +1340,8 @@ class TushareReadService:
         if chosen is None:
             latest = await self._execute_mappings(text(f"SELECT MAX(trade_date) value FROM {self.schema}.option_analytics_daily WHERE opt_code=:code"), {"code": opt_code})
             chosen = latest[0].get("value") if latest else None
+        if isinstance(chosen, str):
+            chosen = date.fromisoformat(chosen)
         rows = await self._execute_mappings(text(f"""SELECT b.maturity_date,b.call_put,
             SUM(a.gross_oi_delta) gross_oi_delta,SUM(a.gross_oi_gamma) gross_oi_gamma,SUM(a.gross_oi_vega) gross_oi_vega,
             SUM(a.oi) gross_open_interest,COUNT(*) FILTER(WHERE a.convergence_status='converged')::int resolved_contracts,

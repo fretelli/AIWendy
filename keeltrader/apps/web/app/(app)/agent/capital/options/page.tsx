@@ -23,6 +23,13 @@ import { DataLedger, MarketShell } from "../_components/market-shell";
 import { NativeSeriesChart } from "../_components/native-series-chart";
 
 type Field = "volume" | "amount" | "oi" | "contracts";
+type ResourceKey =
+  | "history"
+  | "chain"
+  | "underlying"
+  | "underlyingSeries"
+  | "surface"
+  | "exposures";
 const fieldNames: Record<Field, string> = {
   volume: "成交量",
   amount: "成交额",
@@ -46,7 +53,11 @@ export default function OptionsMarketPage() {
     ),
     [loading, setLoading] = useState(true),
     [refreshing, setRefreshing] = useState(false),
-    [query, setQuery] = useState("");
+    [query, setQuery] = useState(""),
+    [resourceErrors, setResourceErrors] = useState<
+      Partial<Record<ResourceKey, string>>
+    >({}),
+    [reloadToken, setReloadToken] = useState(0);
   const select = useCallback(
     (nextCode: string, nextField: Field = field, nextMaturity = "") => {
       const q = new URLSearchParams(params.toString());
@@ -81,7 +92,14 @@ export default function OptionsMarketPage() {
   useEffect(() => {
     if (!code) return;
     let active = true;
-    Promise.all([
+    setHistory(null);
+    setChain(null);
+    setSurface(null);
+    setExposures(null);
+    setUnderlying(null);
+    setUnderlyingSeries(null);
+    setResourceErrors({});
+    Promise.allSettled([
       marketsApi.optionsHistory(code),
       marketsApi.optionsChain(code, {
         maturity: maturity || undefined,
@@ -93,28 +111,45 @@ export default function OptionsMarketPage() {
     ])
       .then(async ([h, c, u, s, e]) => {
         if (!active) return;
-        setHistory(h);
-        setChain(c);
-        setSurface(s);
-        setExposures(e);
-        setUnderlying(u);
-        setUnderlyingSeries(
-          u.series_available &&
-            u.code &&
-            ["index", "etf", "futures_contract"].includes(u.relationship)
-            ? await marketsApi.underlyingSeries(u.relationship, u.code)
-            : null,
-        );
-      })
-      .catch((error) =>
-        toast.error(
-          error instanceof Error ? error.message : "期权工作区加载失败",
-        ),
-      );
+        const nextErrors: Partial<Record<ResourceKey, string>> = {};
+        if (h.status === "fulfilled") setHistory(h.value);
+        else nextErrors.history = errorText(h.reason, "期权历史加载失败");
+        if (c.status === "fulfilled") setChain(c.value);
+        else nextErrors.chain = errorText(c.reason, "期权链加载失败");
+        if (s.status === "fulfilled") setSurface(s.value);
+        else nextErrors.surface = errorText(s.reason, "IV 与 Greeks 加载失败");
+        if (e.status === "fulfilled") setExposures(e.value);
+        else nextErrors.exposures = errorText(e.reason, "敏感度敞口加载失败");
+        if (u.status === "fulfilled") {
+          setUnderlying(u.value);
+          if (
+            u.value.series_available &&
+            u.value.code &&
+            ["index", "etf", "futures_contract"].includes(u.value.relationship)
+          ) {
+            try {
+              setUnderlyingSeries(
+                await marketsApi.underlyingSeries(
+                  u.value.relationship,
+                  u.value.code,
+                ),
+              );
+            } catch (error) {
+              nextErrors.underlyingSeries = errorText(
+                error,
+                "底层标的历史加载失败",
+              );
+            }
+          }
+        } else {
+          nextErrors.underlying = errorText(u.reason, "底层关系加载失败");
+        }
+        if (active) setResourceErrors(nextErrors);
+      });
     return () => {
       active = false;
     };
-  }, [code, maturity]);
+  }, [code, maturity, reloadToken]);
   const rows = history?.history || [],
     selected = catalog?.items.find((item) => item.opt_code === code),
     visible = useMemo(() => {
@@ -160,7 +195,10 @@ export default function OptionsMarketPage() {
       title="期权市场"
       subtitle="底层标的 → 到期日 → 原始期权链"
       refreshing={refreshing}
-      onRefresh={() => void loadCatalog(true)}
+      onRefresh={() => {
+        void loadCatalog(true);
+        setReloadToken((value) => value + 1);
+      }}
       onResearch={history ? () => void bring() : undefined}
       trail={{
         object: code || "期权序列",
@@ -218,28 +256,35 @@ export default function OptionsMarketPage() {
                 points={history?.history_meta.points}
                 scope="当前已同步的全部原始历史"
               />
-              <NativeSeriesChart
-                key={`${code}-${field}`}
-                dates={rows.map((row) => row.trade_date)}
-                series={[
-                  {
-                    key: `call_${field}`,
-                    label: "看涨",
-                    color: "#d95d6f",
-                    values: rows.map((row) =>
-                      numberOrNull(row[`call_${field}` as keyof typeof row]),
-                    ),
-                  },
-                  {
-                    key: `put_${field}`,
-                    label: "看跌",
-                    color: "#238d72",
-                    values: rows.map((row) =>
-                      numberOrNull(row[`put_${field}` as keyof typeof row]),
-                    ),
-                  },
-                ]}
-              />
+              {resourceErrors.history ? (
+                <ResourceError
+                  message={resourceErrors.history}
+                  onRetry={() => setReloadToken((value) => value + 1)}
+                />
+              ) : (
+                <NativeSeriesChart
+                  key={`${code}-${field}`}
+                  dates={rows.map((row) => row.trade_date)}
+                  series={[
+                    {
+                      key: `call_${field}`,
+                      label: "看涨",
+                      color: "#d95d6f",
+                      values: rows.map((row) =>
+                        numberOrNull(row[`call_${field}` as keyof typeof row]),
+                      ),
+                    },
+                    {
+                      key: `put_${field}`,
+                      label: "看跌",
+                      color: "#238d72",
+                      values: rows.map((row) =>
+                        numberOrNull(row[`put_${field}` as keyof typeof row]),
+                      ),
+                    },
+                  ]}
+                />
+              )}
               {underlyingSeries && (
                 <section>
                   <h2 className="mb-2 font-display text-lg font-semibold">
@@ -261,6 +306,12 @@ export default function OptionsMarketPage() {
                   />
                 </section>
               )}
+              {resourceErrors.underlyingSeries && (
+                <ResourceError
+                  message={resourceErrors.underlyingSeries}
+                  onRetry={() => setReloadToken((value) => value + 1)}
+                />
+              )}
               <section>
                 <h2 className="mb-2 font-display text-lg font-semibold">
                   IV 与 Greeks · {surface?.trade_date || "不可用"}
@@ -268,14 +319,61 @@ export default function OptionsMarketPage() {
                 <p className="mb-3 text-[10px] text-muted-foreground">
                   逐合约源点，不做曲面插值。欧式现货 BSM、欧式期货 Black–76、美式期货 CRR；结算价优先，收盘价仅作标记回退。
                 </p>
-                <div className="max-h-72 overflow-auto rounded-xl border">
-                  <table className="w-full text-left text-[9px]">
-                    <thead className="sticky top-0 bg-card"><tr><th className="p-2">合约</th><th>行权价</th><th>IV</th><th>Delta</th><th>Gamma</th><th>Vega</th><th>状态</th></tr></thead>
-                    <tbody>{surface?.items.filter(item=>!maturity||item.maturity_date===maturity).map(item=><tr key={item.ts_code} className="border-t"><td className="p-2 font-data">{item.ts_code}</td><td>{fmt(item.exercise_price)}</td><td>{fmt(item.implied_volatility)}</td><td>{fmt(item.delta)}</td><td>{fmt(item.gamma)}</td><td>{fmt(item.vega)}</td><td title={item.unavailable_reason}>{item.convergence_status}</td></tr>)}</tbody>
-                  </table>
-                </div>
-                <h3 className="mt-4 text-xs font-semibold">Gross OI-weighted sensitivity</h3>
-                <p className="mt-1 text-[9px] text-muted-foreground">{exposures?.methodology}</p>
+                {resourceErrors.surface ? (
+                  <ResourceError
+                    message={resourceErrors.surface}
+                    onRetry={() => setReloadToken((value) => value + 1)}
+                  />
+                ) : (
+                  <div className="max-h-72 overflow-auto rounded-xl border">
+                    <table className="w-full text-left text-[9px]">
+                      <thead className="sticky top-0 bg-card">
+                        <tr>
+                          <th className="p-2">合约</th>
+                          <th>行权价</th>
+                          <th>IV</th>
+                          <th>Delta</th>
+                          <th>Gamma</th>
+                          <th>Vega</th>
+                          <th>状态</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {surface?.items
+                          .filter(
+                            (item) =>
+                              !maturity || item.maturity_date === maturity,
+                          )
+                          .map((item) => (
+                            <tr key={item.ts_code} className="border-t">
+                              <td className="p-2 font-data">{item.ts_code}</td>
+                              <td>{fmt(item.exercise_price)}</td>
+                              <td>{fmt(item.implied_volatility)}</td>
+                              <td>{fmt(item.delta)}</td>
+                              <td>{fmt(item.gamma)}</td>
+                              <td>{fmt(item.vega)}</td>
+                              <td title={item.unavailable_reason}>
+                                {item.convergence_status}
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <h3 className="mt-4 text-xs font-semibold">
+                  Gross OI-weighted sensitivity
+                </h3>
+                {resourceErrors.exposures ? (
+                  <ResourceError
+                    message={resourceErrors.exposures}
+                    onRetry={() => setReloadToken((value) => value + 1)}
+                  />
+                ) : (
+                  <p className="mt-1 text-[9px] text-muted-foreground">
+                    {exposures?.methodology}
+                  </p>
+                )}
               </section>
             </main>
           </Panel>
@@ -283,6 +381,12 @@ export default function OptionsMarketPage() {
           <Panel defaultSize={27} minSize={20} maxSize={38}>
             <aside className="h-full overflow-y-auto border-l p-4">
               <h2 className="font-display text-lg font-semibold">底层关系与模型</h2>
+              {resourceErrors.underlying && (
+                <ResourceError
+                  message={resourceErrors.underlying}
+                  onRetry={() => setReloadToken((value) => value + 1)}
+                />
+              )}
               <div className="mt-3 rounded-xl border bg-background/60 p-3 text-xs">
                 <p className="font-medium">{underlying?.name || "未解析"}</p>
                 <p className="mt-1 font-data text-[9px] text-muted-foreground">
@@ -310,6 +414,12 @@ export default function OptionsMarketPage() {
               <h3 className="mt-5 text-xs font-semibold">
                 原始期权链 · {chain?.trade_date} · {chain?.total || 0}条
               </h3>
+              {resourceErrors.chain && (
+                <ResourceError
+                  message={resourceErrors.chain}
+                  onRetry={() => setReloadToken((value) => value + 1)}
+                />
+              )}
               <div className="mt-2 max-h-[48vh] overflow-auto">
                 <table className="w-full text-left text-[9px]">
                   <thead className="sticky top-0 bg-card">
@@ -340,6 +450,25 @@ export default function OptionsMarketPage() {
       )}
     </MarketShell>
   );
+}
+function ResourceError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="my-3 rounded-xl border border-amber-500/40 bg-amber-500/[.06] p-3 text-[10px]">
+      <p className="leading-5 text-amber-800 dark:text-amber-200">{message}</p>
+      <Button className="mt-2" size="sm" variant="outline" onClick={onRetry}>
+        重新读取
+      </Button>
+    </div>
+  );
+}
+function errorText(error: unknown, fallback: string) {
+  return error instanceof Error && error.message ? `${fallback}：${error.message}` : fallback;
 }
 function SeriesButton({
   item,

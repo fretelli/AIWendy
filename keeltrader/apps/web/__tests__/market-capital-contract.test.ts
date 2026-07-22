@@ -67,7 +67,7 @@ test('market chart uses native SVG instead of the incompatible Recharts runtime'
 test('capital route is exposed in API client and research desk', () => {
   expect(api).toContain('marketCapital')
   expect(api).toContain('`${base}/market-capital`')
-  expect(desk).toContain('href="/agent/capital"')
+  expect(desk).toContain('href="/agent/market/capital"')
 })
 
 test('macro futures and options routes expose raw full-range workstations', () => {
