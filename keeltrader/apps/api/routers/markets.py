@@ -4,7 +4,7 @@ import hashlib
 import json
 import time
 from datetime import date
-from typing import Any, Awaitable, Callable
+from typing import Any, Awaitable, Callable, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
@@ -180,9 +180,20 @@ class TradePlanRequest(BaseModel):
     checklist: list[str] = Field(default_factory=list)
 
 
+class OpportunityFollowRequest(BaseModel):
+    state: Literal["following", "watching", "paused"] = "following"
+    notes: str | None = Field(default=None, max_length=4000)
+
+
 @router.get("/opportunities")
-async def opportunities(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
-    return await OpportunityService(session, service(session), user.id).list()
+async def opportunities(scope: Literal["all", "global", "private"] = "all",
+                        domain: str | None = Query(default=None, max_length=40),
+                        state: str | None = Query(default=None, max_length=30),
+                        followed: bool = False, limit: int = Query(100, ge=1, le=300),
+                        offset: int = Query(0, ge=0), session: AsyncSession = Depends(get_session),
+                        user: User = Depends(get_current_user)):
+    return await OpportunityService(session, service(session), user.id).list(
+        scope=scope, domain=domain, state=state, followed=followed, limit=limit, offset=offset)
 
 
 @router.get("/opportunities/{opportunity_id}")
@@ -193,10 +204,41 @@ async def opportunity_detail(opportunity_id: UUID, session: AsyncSession = Depen
     return result
 
 
+@router.post("/opportunities/{opportunity_id}/follow")
+async def opportunity_follow(opportunity_id: UUID, body: OpportunityFollowRequest,
+                             session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    try:
+        return await OpportunityService(session, service(session), user.id).follow(
+            opportunity_id, state=body.state, notes=body.notes)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.patch("/opportunities/{opportunity_id}/follow")
+async def opportunity_follow_update(opportunity_id: UUID, body: OpportunityFollowRequest,
+                                    session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    try:
+        return await OpportunityService(session, service(session), user.id).follow(
+            opportunity_id, state=body.state, notes=body.notes)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+
+@router.delete("/opportunities/{opportunity_id}/follow")
+async def opportunity_unfollow(opportunity_id: UUID, session: AsyncSession = Depends(get_session),
+                               user: User = Depends(get_current_user)):
+    await OpportunityService(session, service(session), user.id).unfollow(opportunity_id)
+    return {"ok": True}
+
+
 @router.post("/opportunities/{opportunity_id}/trade-plan")
 async def opportunity_trade_plan(opportunity_id: UUID, body: TradePlanRequest,
                                  session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
-    plan = await OpportunityService(session, service(session), user.id).create_trade_plan(opportunity_id, body.model_dump())
+    try:
+        plan = await OpportunityService(session, service(session), user.id).create_trade_plan(
+            opportunity_id, body.model_dump())
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
     return plan_payload(plan)
 
 

@@ -586,21 +586,56 @@ export type OptionExposures = {
 };
 export type Opportunity = {
   id: string;
+  scope: "global" | "private";
+  domain: "macro" | "rates" | "capital" | "futures" | "options" | "company" | "holder";
+  subject_type: string;
+  subject_key: string;
   playbook_key: string;
   title: string;
+  state: "new" | "active" | "changed" | "challenged" | "invalidated" | "stale" | "closed";
   lifecycle_state: string;
+  trigger: string;
+  as_of?: string;
   hypothesis: string;
   affected_assets: string[];
   catalysts: string[];
   falsifiers: string[];
   source_dates: Record<string, string>;
+  freshness: Record<string, { available?: boolean; as_of?: string; [key: string]: unknown }>;
+  first_seen_at: string;
+  last_seen_at: string;
+  closed_at?: string;
+  followed: boolean;
+  follow?: { state: string; notes?: string } | null;
   evidence?: Array<{
-    stance: string;
+    stance: "supporting" | "challenging" | "invalidating" | string;
     fact: string;
     source: string;
     source_date?: string;
     source_ref: Record<string, unknown>;
   }>;
+  chart_refs?: Array<Record<string, unknown>>;
+  snapshots?: Array<{
+    id: string;
+    state: string;
+    as_of?: string;
+    trigger: string;
+    hypothesis: string;
+    source_dates: Record<string, string>;
+    freshness: Record<string, unknown>;
+    evidence: Opportunity["evidence"];
+    chart_refs: Array<Record<string, unknown>>;
+    created_at: string;
+  }>;
+};
+export type OpportunityFeed = {
+  items: Opportunity[];
+  groups: Record<string, Record<string, number>>;
+  source_status: Record<string, { status: string; last_succeeded_at?: string; last_error?: string; duration_ms?: number }>;
+  ordering: "domain_state_source_date";
+  scoring: false;
+  limit: number;
+  offset: number;
 };
 export type RiskProfile = {
   account_equity?: number;
@@ -983,12 +1018,34 @@ export const marketsApi = {
       total: number;
       source: string;
     }>(`${marketsBase}/bonds/convertibles`),
-  opportunities: () =>
-    apiJson<{ items: Opportunity[]; ordering: string; scoring: false }>(
-      `${marketsBase}/opportunities`,
-    ),
+  opportunities: (params: {
+    scope?: "all" | "global" | "private";
+    domain?: string;
+    state?: string;
+    followed?: boolean;
+    limit?: number;
+    offset?: number;
+  } = {}) => {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== "") query.set(key, String(value));
+    });
+    return apiJson<OpportunityFeed>(`${marketsBase}/opportunities${query.size ? `?${query}` : ""}`);
+  },
   opportunity: (id: string) =>
     apiJson<Opportunity>(`${marketsBase}/opportunities/${id}`),
+  followOpportunity: (id: string, body: { state?: "following" | "watching" | "paused"; notes?: string }) =>
+    apiJson<{ followed: true; state: string; notes?: string }>(`${marketsBase}/opportunities/${id}/follow`, {
+      method: "POST",
+      body,
+    }),
+  updateOpportunityFollow: (id: string, body: { state?: "following" | "watching" | "paused"; notes?: string }) =>
+    apiJson<{ followed: true; state: string; notes?: string }>(`${marketsBase}/opportunities/${id}/follow`, {
+      method: "PATCH",
+      body,
+    }),
+  unfollowOpportunity: (id: string) =>
+    apiJson<{ ok: true }>(`${marketsBase}/opportunities/${id}/follow`, { method: "DELETE" }),
   createTradePlan: (id: string, body: Record<string, unknown>) =>
     apiJson<TradePlan>(`${marketsBase}/opportunities/${id}/trade-plan`, {
       method: "POST",
