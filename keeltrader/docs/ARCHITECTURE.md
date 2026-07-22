@@ -115,3 +115,10 @@ FastAPI (apps/api)                │
 1. Web/API submits query, company filters, and top_k
 2. API calls report-kb for semantic search
 3. Structured hits are returned to AgentOS for research memos, briefs, or human review
+# Research event loop
+
+KeelTrader 将机会、公司档案、股东披露和人工论点统一为用户隔离的研究事件闭环：后台任务只在不可变源快照发生真实变化时写入事件；首版档案、首次股东扫描和既有机会基线不生成未读洪水。全局机会只向明确关注且未暂停的用户发出站内事件。
+
+`research_theses` 保存当前人工确认状态，`research_thesis_versions` 永久保存每次字段级变化，`research_thesis_evidence_links` 关联不可变证据。研报证据必须同时具备正文摘录与页码或章节定位；仅标题命中只用于导航。市场数据只有在用户显式创建上下文快照后才能进入 AI。
+
+`GET /api/v1/markets/data-status` 只读展示宏观、利率和机会后台任务的源覆盖、起止日期、点数、最近成功、错误和耗时，不触发请求时刷新。中国现券国债曲线在授权来源缺失时明确不可用，不以期货或其他价格合成替代。
