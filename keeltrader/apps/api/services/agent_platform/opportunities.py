@@ -37,6 +37,7 @@ from domain.agent_platform.models import (
     MarketOpportunitySnapshot,
 )
 from services.agent_platform.tushare import TushareReadService
+from services.agent_platform.research_loop import record_research_event, stable_event_key
 
 logger = get_logger(__name__)
 GLOBAL_DOMAINS = ("macro", "rates", "capital", "futures", "options")
@@ -462,6 +463,28 @@ async def _materialize_domain(session: AsyncSession, domain: str, candidates: li
                 source_dates=card["source_dates"], freshness=card["freshness"], evidence=card["evidence"],
                 chart_refs=card["chart_refs"])
             session.add(snapshot); await session.flush(); row.latest_snapshot_id = snapshot.id
+            if latest is not None:
+                if scope == "private" and user_id is not None:
+                    recipients = [user_id]
+                else:
+                    recipients = list((await session.execute(select(AgentOpportunityFollow.user_id).where(
+                        AgentOpportunityFollow.opportunity_id == row.id,
+                        AgentOpportunityFollow.state != "paused",
+                    ))).scalars().all())
+                before = {key: _jsonable(getattr(latest, key)) for key in (
+                    "state", "as_of", "trigger", "hypothesis", "affected_assets", "catalysts",
+                    "falsifiers", "source_dates", "freshness", "evidence", "chart_refs")}
+                for recipient in recipients:
+                    await record_research_event(
+                        session, user_id=recipient,
+                        event_key=stable_event_key("opportunity", row.id, snapshot.snapshot_fingerprint),
+                        category="opportunity", event_type="opportunity_changed",
+                        title=f"机会变化 · {row.title}",
+                        summary="底层源数据形成了新的不可变机会快照，请复核触发事实、反例与证伪条件。",
+                        resource_type="opportunity", resource_id=str(row.id), source_date=card["as_of"],
+                        before_state=before, after_state=snapshot_data,
+                        metadata={"snapshot_id": str(snapshot.id), "domain": domain, "scope": scope},
+                    )
             # Legacy evidence rows are retained for historical compatibility.
             # All new evidence lives in immutable snapshots and is never deleted.
         seen.add(row.id)

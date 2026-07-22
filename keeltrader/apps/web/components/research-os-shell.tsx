@@ -6,14 +6,29 @@ import {
   BarChart3,
   Command,
   Radar,
+  BellRing,
+  BookOpen,
   Search,
   ShipWheel,
   Waves,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { agentPlatformApi, type GlobalSearchResult } from "@/lib/api/agent-platform";
 
 const destinations = [
+  {
+    href: "/agent/today",
+    label: "今日",
+    detail: "变化、复核与数据源值守",
+    icon: BellRing,
+  },
+  {
+    href: "/agent/theses",
+    label: "论点",
+    detail: "证据、版本与证伪日志",
+    icon: BookOpen,
+  },
   {
     href: "/agent",
     label: "研究台",
@@ -39,6 +54,7 @@ export function ResearchOsShell({ children }: { children: React.ReactNode }) {
     router = useRouter();
   const [open, setOpen] = useState(false),
     [query, setQuery] = useState("");
+  const [researchResults, setResearchResults] = useState<GlobalSearchResult[]>([]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
@@ -50,6 +66,13 @@ export function ResearchOsShell({ children }: { children: React.ReactNode }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+  useEffect(() => {
+    if (!open || query.trim().length < 2) return;
+    const timer = window.setTimeout(() => {
+      agentPlatformApi.globalSearch(query.trim()).then((result) => setResearchResults(result.items)).catch(() => setResearchResults([]));
+    }, 240);
+    return () => window.clearTimeout(timer);
+  }, [open, query]);
   const matches = useMemo(
     () =>
       destinations.filter((item) =>
@@ -127,7 +150,7 @@ export function ResearchOsShell({ children }: { children: React.ReactNode }) {
                 autoFocus
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="前往研究、股东或市场工作区…"
+                placeholder="搜索会话、公司、股东、论点、机会与研报…"
                 className="h-14 flex-1 bg-transparent text-sm outline-none"
               />
               <button onClick={() => setOpen(false)}>
@@ -157,6 +180,7 @@ export function ResearchOsShell({ children }: { children: React.ReactNode }) {
                   <BarChart3 className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
                 </button>
               ))}
+              {query.trim().length >= 2 && researchResults.length > 0 && <div className="mt-2 border-t pt-2"><p className="px-3 py-2 text-[9px] font-semibold uppercase tracking-[.16em] text-muted-foreground">研究对象</p>{researchResults.map((item) => <button key={`${item.type}-${item.id}`} className="flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-secondary" onClick={() => { router.push(item.href); setOpen(false); setQuery(""); }}><span className="mt-1 rounded border px-1.5 py-0.5 font-data text-[8px] uppercase text-muted-foreground">{item.type}</span><span className="min-w-0"><span className="block truncate text-xs font-medium">{item.title}</span><span className="mt-1 block text-[10px] text-muted-foreground">{item.navigation_only ? "仅用于导航，不构成公司研报证据" : item.subtitle}</span></span></button>)}</div>}
             </div>
           </section>
         </div>

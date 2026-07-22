@@ -98,6 +98,80 @@ class AgentRiskProfile(Base):
     updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
 
+class ResearchThesis(Base):
+    __tablename__ = "research_theses"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    title = Column(String(240), nullable=False)
+    subject_type = Column(String(40), nullable=False)
+    subject_key = Column(String(160), nullable=False)
+    status = Column(String(30), nullable=False, default="draft")
+    thesis = Column(Text, nullable=False)
+    catalysts = Column(JSON, nullable=False, default=list)
+    falsifiers = Column(JSON, nullable=False, default=list)
+    review_at = Column(DateTime(timezone=True), nullable=True)
+    origin_resource_type = Column(String(40), nullable=True)
+    origin_resource_id = Column(String(160), nullable=True)
+    current_version = Column(Integer, nullable=False, default=1)
+    closed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        Index("ix_research_theses_user_status", "user_id", "status", "updated_at"),
+        Index("ix_research_theses_subject", "user_id", "subject_type", "subject_key"),
+    )
+
+
+class ResearchThesisVersion(Base):
+    __tablename__ = "research_thesis_versions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    thesis_id = Column(UUID(as_uuid=True), ForeignKey("research_theses.id", ondelete="CASCADE"), nullable=False)
+    version = Column(Integer, nullable=False)
+    snapshot = Column(JSON, nullable=False)
+    diff = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("uq_research_thesis_version", "thesis_id", "version", unique=True),)
+
+
+class ResearchThesisEvidenceLink(Base):
+    __tablename__ = "research_thesis_evidence_links"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    thesis_id = Column(UUID(as_uuid=True), ForeignKey("research_theses.id", ondelete="CASCADE"), nullable=False)
+    stance = Column(String(20), nullable=False)
+    source_type = Column(String(40), nullable=False)
+    source_id = Column(String(160), nullable=False)
+    citation = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        Index("uq_research_thesis_evidence", "thesis_id", "stance", "source_type", "source_id", unique=True),
+    )
+
+
+class ResearchEvent(Base):
+    __tablename__ = "research_events"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    event_key = Column(String(96), nullable=False)
+    category = Column(String(40), nullable=False)
+    event_type = Column(String(60), nullable=False)
+    title = Column(String(240), nullable=False)
+    summary = Column(Text, nullable=False)
+    resource_type = Column(String(40), nullable=False)
+    resource_id = Column(String(160), nullable=False)
+    source_date = Column(String(32), nullable=True)
+    before_state = Column(JSON, nullable=False, default=dict)
+    after_state = Column(JSON, nullable=False, default=dict)
+    metadata_json = Column(JSON, nullable=False, default=dict)
+    read_at = Column(DateTime(timezone=True), nullable=True)
+    archived_at = Column(DateTime(timezone=True), nullable=True)
+    detected_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        Index("uq_research_events_user_key", "user_id", "event_key", unique=True),
+        Index("ix_research_events_inbox", "user_id", "archived_at", "read_at", "detected_at"),
+    )
+
+
 class MarketOpportunity(Base):
     __tablename__ = "market_opportunities"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

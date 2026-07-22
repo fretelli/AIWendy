@@ -9,7 +9,11 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from domain.agent_platform.models import AgentArtifact
+from domain.agent_platform.models import (
+    AgentArtifact, AgentCompanyDossier, AgentCompanyDossierVersion, AgentCompanyEvidence,
+    MarketOpportunity, MarketOpportunitySnapshot, ResearchEvent, ResearchThesis,
+    ResearchThesisEvidenceLink, ResearchThesisVersion,
+)
 from services.agent_platform.report_kb import ReportKBService
 from services.agent_platform.tushare import TushareReadService
 
@@ -24,6 +28,14 @@ TOOL_DEFINITIONS = [
      "parameters": {"type": "object", "properties": {"watchlist": {"type": "array", "items": {"type": "string"}}}}},
     {"name": "deep_research", "description": "Build a structured company research memo",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "market": {"type": "string"}}, "required": ["symbol"]}},
+    {"name": "get_research_thesis", "description": "Read one user-owned thesis with immutable versions and evidence",
+     "parameters": {"type": "object", "properties": {"thesis_id": {"type": "string"}}, "required": ["thesis_id"]}},
+    {"name": "get_opportunity_snapshot", "description": "Read an immutable opportunity snapshot visible to the user",
+     "parameters": {"type": "object", "properties": {"opportunity_id": {"type": "string"}, "snapshot_id": {"type": "string"}}, "required": ["opportunity_id"]}},
+    {"name": "get_company_dossier_version", "description": "Read a user-owned company dossier version and its locatable evidence",
+     "parameters": {"type": "object", "properties": {"company_code": {"type": "string"}, "version": {"type": "integer"}}, "required": ["company_code"]}},
+    {"name": "get_research_events", "description": "Read the user's chronological research event inbox",
+     "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "default": 20}, "unread": {"type": "boolean", "default": False}}}},
     {"name": "record_investment_decision", "description": "Create a human-approved research decision log",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "action": {"type": "string"}, "thesis": {"type": "string"}, "confidence": {"type": "number"}, "falsifiers": {"type": "array", "items": {}}, "risk_plan": {"type": "object"}}, "required": ["symbol", "action", "thesis"]}},
     {"name": "run_weekly_review", "description": "Review approved decision-log artifacts from the last seven days",
@@ -70,19 +82,106 @@ async def _brief(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> 
 
 
 async def _deep_research(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
-    del user_id
     symbol = args["symbol"]
     tushare = TushareReadService(session)
     profile = await tushare.stock_profile(symbol)
     financials = await tushare.financial_indicators(symbol, limit=4)
     price = await tushare.daily_bars(symbol, limit=1, adjusted=False)
-    hits = await ReportKBService().search_reports(" ".join(filter(None, [profile.get("name") if profile else None, symbol, "基本面 风险"])), top_k=8)
+    dossier = (await session.execute(select(AgentCompanyDossier).where(
+        AgentCompanyDossier.user_id == user_id, AgentCompanyDossier.company_code == symbol))).scalar_one_or_none()
+    owned_version = None
+    evidence = []
+    if dossier and dossier.current_version:
+        owned_version = (await session.execute(select(AgentCompanyDossierVersion).where(
+            AgentCompanyDossierVersion.dossier_id == dossier.id,
+            AgentCompanyDossierVersion.version == dossier.current_version))).scalar_one_or_none()
+        if owned_version:
+            evidence = (await session.execute(select(AgentCompanyEvidence).where(
+                AgentCompanyEvidence.dossier_version_id == owned_version.id))).scalars().all()
+    raw_hits = await ReportKBService().search_reports(" ".join(filter(None, [profile.get("name") if profile else None, symbol, "基本面 风险"])), top_k=8)
+    hits = [hit for hit in raw_hits if str(hit.get("excerpt") or "").strip()
+            and (hit.get("section_id") or hit.get("page_number") is not None)]
     return {"symbol": symbol, "market": args.get("market") or "cn_equity", "profile": profile,
             "financials": financials, "latest_price_context": price[:1], "reports": hits,
+            "owned_dossier": ({"version_id": str(owned_version.id), "version": owned_version.version,
+                               "snapshot": owned_version.snapshot, "diff": owned_version.diff,
+                               "evidence": [{"source_type": item.source_type, "citation": item.citation}
+                                            for item in evidence]} if owned_version else None),
             "bull_case": "Requires durable earnings, cash generation, governance, and valuation support.",
             "bear_case": "Includes deteriorating fundamentals, stale data, governance, and valuation risk.",
             "falsifiers": ["New evidence contradicts the thesis", "Financial data is stale or restated"],
             "recommendation": "research_only"}
+
+
+async def _get_thesis(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
+    thesis_id = UUID(str(args["thesis_id"]))
+    row = (await session.execute(select(ResearchThesis).where(
+        ResearchThesis.id == thesis_id, ResearchThesis.user_id == user_id))).scalar_one_or_none()
+    if row is None:
+        return {"error": "Thesis not found"}
+    versions = (await session.execute(select(ResearchThesisVersion).where(
+        ResearchThesisVersion.thesis_id == row.id).order_by(ResearchThesisVersion.version.desc()))).scalars().all()
+    evidence = (await session.execute(select(ResearchThesisEvidenceLink).where(
+        ResearchThesisEvidenceLink.thesis_id == row.id))).scalars().all()
+    return {"id": str(row.id), "title": row.title, "status": row.status, "thesis": row.thesis,
+            "catalysts": row.catalysts, "falsifiers": row.falsifiers,
+            "versions": [{"version": item.version, "snapshot": item.snapshot, "diff": item.diff} for item in versions],
+            "evidence": [{"stance": item.stance, "source_type": item.source_type,
+                          "source_id": item.source_id, "citation": item.citation} for item in evidence],
+            "scoring": False}
+
+
+async def _get_opportunity_snapshot(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
+    opportunity_id = UUID(str(args["opportunity_id"]))
+    row = (await session.execute(select(MarketOpportunity).where(
+        MarketOpportunity.id == opportunity_id,
+        (MarketOpportunity.scope == "global") | (MarketOpportunity.user_id == user_id)))).scalar_one_or_none()
+    if row is None:
+        return {"error": "Opportunity not found"}
+    query = select(MarketOpportunitySnapshot).where(MarketOpportunitySnapshot.opportunity_id == row.id)
+    if args.get("snapshot_id"):
+        query = query.where(MarketOpportunitySnapshot.id == UUID(str(args["snapshot_id"])))
+    else:
+        query = query.order_by(MarketOpportunitySnapshot.created_at.desc()).limit(1)
+    snapshot = (await session.execute(query)).scalar_one_or_none()
+    if snapshot is None:
+        return {"error": "Opportunity snapshot not found"}
+    return {"opportunity_id": str(row.id), "snapshot_id": str(snapshot.id), "title": row.title,
+            "as_of": snapshot.as_of, "source_dates": snapshot.source_dates, "trigger": snapshot.trigger,
+            "hypothesis": snapshot.hypothesis, "catalysts": snapshot.catalysts,
+            "falsifiers": snapshot.falsifiers, "evidence": snapshot.evidence, "scoring": False}
+
+
+async def _get_dossier_version(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
+    dossier = (await session.execute(select(AgentCompanyDossier).where(
+        AgentCompanyDossier.user_id == user_id,
+        AgentCompanyDossier.company_code == str(args["company_code"])))).scalar_one_or_none()
+    if dossier is None:
+        return {"error": "Company dossier not found"}
+    version_number = int(args.get("version") or dossier.current_version)
+    version = (await session.execute(select(AgentCompanyDossierVersion).where(
+        AgentCompanyDossierVersion.dossier_id == dossier.id,
+        AgentCompanyDossierVersion.version == version_number))).scalar_one_or_none()
+    if version is None:
+        return {"error": "Company dossier version not found"}
+    evidence = (await session.execute(select(AgentCompanyEvidence).where(
+        AgentCompanyEvidence.dossier_version_id == version.id))).scalars().all()
+    return {"dossier_id": str(dossier.id), "version_id": str(version.id), "version": version.version,
+            "financial_as_of": version.financial_as_of, "snapshot": version.snapshot, "diff": version.diff,
+            "evidence": [{"source_type": item.source_type, "citation": item.citation} for item in evidence],
+            "scoring": False}
+
+
+async def _get_events(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
+    query = select(ResearchEvent).where(ResearchEvent.user_id == user_id, ResearchEvent.archived_at.is_(None))
+    if args.get("unread"):
+        query = query.where(ResearchEvent.read_at.is_(None))
+    rows = (await session.execute(query.order_by(ResearchEvent.detected_at.desc()).limit(
+        min(max(int(args.get("limit", 20)), 1), 100)))).scalars().all()
+    return {"items": [{"id": str(row.id), "category": row.category, "event_type": row.event_type,
+                       "title": row.title, "summary": row.summary, "source_date": row.source_date,
+                       "detected_at": row.detected_at, "resource_type": row.resource_type,
+                       "resource_id": row.resource_id} for row in rows], "scoring": False}
 
 
 async def _decision(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
@@ -158,6 +257,10 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "holder_positions": _holder_positions,
     "holder_history": _holder_history,
     "market_capital_snapshot": _market_capital,
+    "get_research_thesis": _get_thesis,
+    "get_opportunity_snapshot": _get_opportunity_snapshot,
+    "get_company_dossier_version": _get_dossier_version,
+    "get_research_events": _get_events,
 }
 
 
