@@ -446,7 +446,11 @@ async def _materialize_domain(session: AsyncSession, domain: str, candidates: li
             "catalysts", "falsifiers", "source_dates", "freshness", "evidence", "chart_refs")}
         snapshot_fingerprint = _stable_hash(snapshot_data, 64)
         latest = (await session.execute(select(MarketOpportunitySnapshot).where(
-            MarketOpportunitySnapshot.opportunity_id == row.id).order_by(desc(MarketOpportunitySnapshot.created_at)).limit(1))).scalar_one_or_none()
+            MarketOpportunitySnapshot.opportunity_id == row.id).order_by(
+                desc(MarketOpportunitySnapshot.created_at), desc(MarketOpportunitySnapshot.id)).limit(1))).scalar_one_or_none()
+        existing_snapshot = (await session.execute(select(MarketOpportunitySnapshot).where(
+            MarketOpportunitySnapshot.opportunity_id == row.id,
+            MarketOpportunitySnapshot.snapshot_fingerprint == snapshot_fingerprint).limit(1))).scalar_one_or_none()
         changed = latest is None or latest.snapshot_fingerprint != snapshot_fingerprint
         state = "new" if created else card["state"] if card["state"] in {"challenged", "invalidated", "stale"} else "changed" if changed else "active"
         row.scope, row.user_id, row.domain = scope, user_id, domain
@@ -457,12 +461,16 @@ async def _materialize_domain(session: AsyncSession, domain: str, candidates: li
         row.source_dates, row.as_of, row.freshness = card["source_dates"], card["as_of"], card["freshness"]
         row.last_seen_at, row.consecutive_misses, row.closed_at = now, 0, None
         if changed:
-            snapshot = MarketOpportunitySnapshot(opportunity_id=row.id, snapshot_fingerprint=snapshot_fingerprint,
-                state=state, as_of=card["as_of"], trigger=card["trigger"], hypothesis=card["hypothesis"],
-                affected_assets=card["affected_assets"], catalysts=card["catalysts"], falsifiers=card["falsifiers"],
-                source_dates=card["source_dates"], freshness=card["freshness"], evidence=card["evidence"],
-                chart_refs=card["chart_refs"])
-            session.add(snapshot); await session.flush(); row.latest_snapshot_id = snapshot.id
+            snapshot = existing_snapshot
+            if snapshot is None:
+                snapshot = MarketOpportunitySnapshot(opportunity_id=row.id, snapshot_fingerprint=snapshot_fingerprint,
+                    state=state, as_of=card["as_of"], trigger=card["trigger"], hypothesis=card["hypothesis"],
+                    affected_assets=card["affected_assets"], catalysts=card["catalysts"], falsifiers=card["falsifiers"],
+                    source_dates=card["source_dates"], freshness=card["freshness"], evidence=card["evidence"],
+                    chart_refs=card["chart_refs"])
+                session.add(snapshot)
+                await session.flush()
+            row.latest_snapshot_id = snapshot.id
             if latest is not None:
                 if scope == "private" and user_id is not None:
                     recipients = [user_id]
