@@ -32,7 +32,7 @@ from services.agent_platform.runtime import TERMINAL, emit, enqueue_run, parse_m
 from services.agent_platform.tools import execute_platform_tool
 from services.agent_platform.tushare import TushareReadService
 from services.agent_platform.opportunities import OpportunityService, profile_payload
-from services.agent_platform.research_loop import EventService, ThesisService, global_search
+from services.agent_platform.search import global_search
 from services.agent_platform.dossier import enqueue_dossier_refresh
 from services.agent_platform.holders import enqueue_holder_scan, holder_names, normalize_holder_name
 from services.file_extractor import can_extract_text, extract_text
@@ -45,7 +45,7 @@ BUILTIN_TOOLS = {
     "run_daily_brief", "deep_research", "record_investment_decision", "run_weekly_review",
     "query_tushare_data", "query_research_reports", "record_fundamental_validation",
     "search_holder", "holder_positions", "holder_history", "market_capital_snapshot",
-    "get_research_thesis", "get_opportunity_snapshot", "get_company_dossier_version", "get_research_events",
+    "get_opportunity_snapshot", "get_company_dossier_version",
 }
 
 DEFAULT_AGENT_TOOLS = sorted(BUILTIN_TOOLS - {"record_investment_decision"})
@@ -224,42 +224,6 @@ class RiskProfileUpdate(BaseModel):
     single_instrument_notional: float | None = Field(default=None, gt=0, le=1)
     derivative_premium_risk: float | None = Field(default=None, gt=0, le=0.05)
     max_leverage: float | None = Field(default=None, gt=0, le=5)
-
-
-class ThesisEvidenceCreate(BaseModel):
-    stance: Literal["supporting", "challenging", "invalidating"]
-    source_type: Literal["opportunity_snapshot", "dossier_version", "report", "context_snapshot", "manual"]
-    source_id: str = Field(min_length=1, max_length=160)
-    citation: dict[str, Any] = Field(default_factory=dict)
-
-
-class ThesisCreate(BaseModel):
-    title: str = Field(min_length=1, max_length=240)
-    subject_type: str = Field(min_length=1, max_length=40)
-    subject_key: str = Field(min_length=1, max_length=160)
-    status: Literal["draft", "active", "challenged", "invalidated", "closed"] = "draft"
-    thesis: str = Field(min_length=1, max_length=20000)
-    catalysts: list[Any] = Field(default_factory=list, max_length=100)
-    falsifiers: list[str] = Field(default_factory=list, max_length=100)
-    review_at: datetime | None = None
-    origin_resource_type: str | None = Field(default=None, max_length=40)
-    origin_resource_id: str | None = Field(default=None, max_length=160)
-    evidence: list[ThesisEvidenceCreate] = Field(default_factory=list, max_length=100)
-
-
-class ThesisUpdate(BaseModel):
-    title: str | None = Field(default=None, min_length=1, max_length=240)
-    subject_type: str | None = Field(default=None, min_length=1, max_length=40)
-    subject_key: str | None = Field(default=None, min_length=1, max_length=160)
-    status: Literal["draft", "active", "challenged", "invalidated", "closed"] | None = None
-    thesis: str | None = Field(default=None, min_length=1, max_length=20000)
-    catalysts: list[Any] | None = Field(default=None, max_length=100)
-    falsifiers: list[str] | None = Field(default=None, max_length=100)
-    review_at: datetime | None = None
-
-
-class ResearchEventsRead(BaseModel):
-    event_ids: list[UUID] = Field(default_factory=list, max_length=500)
 
 
 class ApprovalResolve(BaseModel):
@@ -927,66 +891,6 @@ async def put_risk_profile(req: RiskProfileUpdate, session: AsyncSession = Depen
                            user: User = Depends(get_current_user)):
     service = OpportunityService(session, TushareReadService(session), user.id)
     return profile_payload(await service.update_risk_profile(req.model_dump(exclude_unset=True)))
-
-
-@router.get("/theses")
-async def list_theses(status: str | None = Query(default=None, max_length=30),
-                      limit: int = Query(100, ge=1, le=300), offset: int = Query(0, ge=0),
-                      session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
-    return await ThesisService(session, user.id).list(status=status, limit=limit, offset=offset)
-
-
-@router.post("/theses")
-async def create_thesis(req: ThesisCreate, session: AsyncSession = Depends(get_session),
-                        user: User = Depends(get_current_user)):
-    return await ThesisService(session, user.id).create(req.model_dump())
-
-
-@router.get("/theses/{thesis_id}")
-async def thesis_detail(thesis_id: UUID, session: AsyncSession = Depends(get_session),
-                        user: User = Depends(get_current_user)):
-    result = await ThesisService(session, user.id).detail(thesis_id)
-    if result is None:
-        raise HTTPException(404, "Thesis not found")
-    return result
-
-
-@router.patch("/theses/{thesis_id}")
-async def update_thesis(thesis_id: UUID, req: ThesisUpdate, session: AsyncSession = Depends(get_session),
-                        user: User = Depends(get_current_user)):
-    try:
-        return await ThesisService(session, user.id).update(thesis_id, req.model_dump(exclude_unset=True))
-    except ValueError as exc:
-        raise HTTPException(404 if "not found" in str(exc).lower() else 400, str(exc)) from exc
-
-
-@router.post("/theses/{thesis_id}/evidence")
-async def add_thesis_evidence(thesis_id: UUID, req: ThesisEvidenceCreate,
-                              session: AsyncSession = Depends(get_session),
-                              user: User = Depends(get_current_user)):
-    try:
-        return await ThesisService(session, user.id).add_evidence(thesis_id, req.model_dump())
-    except ValueError as exc:
-        raise HTTPException(404 if "not found" in str(exc).lower() else 400, str(exc)) from exc
-
-
-@router.get("/events")
-async def research_events(category: str | None = Query(default=None, max_length=40), unread: bool = False,
-                          limit: int = Query(100, ge=1, le=300), offset: int = Query(0, ge=0),
-                          session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
-    return await EventService(session, user.id).list(category=category, unread=unread, limit=limit, offset=offset)
-
-
-@router.post("/events/read")
-async def read_research_events(req: ResearchEventsRead, session: AsyncSession = Depends(get_session),
-                               user: User = Depends(get_current_user)):
-    count = await EventService(session, user.id).mark_read(req.event_ids or None)
-    return {"ok": True, "updated": count}
-
-
-@router.get("/calendar")
-async def research_calendar(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
-    return await ThesisService(session, user.id).calendar()
 
 
 @router.get("/search")

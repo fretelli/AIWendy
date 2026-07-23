@@ -257,8 +257,22 @@ smoke() {
     die "Smoke failed: removed settings API expected 404, got $code"
   fi
 
+  local retired_path
+  for retired_path in \
+    /agent/today \
+    /agent/theses \
+    /api/proxy/v1/agent/theses \
+    /api/proxy/v1/agent/events \
+    /api/proxy/v1/agent/calendar; do
+    code="$(curl -ksS -b "$cookies" -o "$body" -w '%{http_code}' "$BASE_URL$retired_path")"
+    if [ "$code" != "404" ]; then
+      rm -f "$cookies" "$body"
+      die "Smoke failed: retired $retired_path expected 404, got $code"
+    fi
+  done
+
   rm -f "$cookies" "$body"
-  log "smoke ok: logged-in Agent Platform and removed trading settings"
+  log "smoke ok: logged-in Agent Platform; removed trading settings, Today, and Thesis surfaces"
 }
 
 main() {

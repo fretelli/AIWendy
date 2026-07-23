@@ -1,7 +1,6 @@
 import numpy as np
 
 from services.agent_platform.allocation import (
-    apply_tactical_tilts,
     constrained_risk_parity,
     policy_from_returns,
     scaled_currency_exposure,
@@ -63,16 +62,3 @@ def test_currency_exposure_is_scaled_by_portfolio_weight():
     assert scaled_currency_exposure({"USD": 1}, 0.25) == {"USD": 0.25}
     assert scaled_currency_exposure({"USD": 0.6, "JPY": 0.4}, 0.5) == {"USD": 0.3, "JPY": 0.2}
     assert scaled_currency_exposure(None, 0.5) == {}
-
-
-def test_tactical_tilts_must_be_self_financing_and_keep_risk_limits():
-    returns = sample_returns()
-    base = policy_from_returns(capital=1_000_000, reserve=300_000, max_drawdown=0.2,
-        sleeves=["china_equity", "global_equity", "china_bond", "global_bond", "gold"], returns=returns)
-    tilted = apply_tactical_tilts(base, [
-        {"sleeve_key": "china_equity", "weight_delta": 0.01},
-        {"sleeve_key": "cny_cash", "weight_delta": -0.01},
-    ], returns=returns, sleeves=["china_equity", "global_equity", "china_bond", "global_bond", "gold"],
-        max_drawdown=0.2, max_leverage=1)
-    assert np.isclose(sum(tilted["weights"].values()), 1)
-    assert tilted["risk_summary"]["tactical_tilt_count"] == 2

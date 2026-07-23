@@ -12,7 +12,6 @@ KeelTrader 是一个面向个人或小团队的投资研究操作系统。产品
 - 统一研究工作台：持久化会话、BYOK、用户 MCP、工具审批、预算、可回滚记忆与定时研究。
 - 市场工作区：A 股资金、宏观、利率、期货和期权的全量原始历史；原生图表提示跟随并约束在鼠标附近，来源新鲜度区分交易日与自然日滞后；期货/期权与底层标的分开展示，期权提供可审计的 IV、Greeks 与持仓敏感度，不使用均线、百分位或合成补齐。
 - 资产配置工作区：保存用户私有人民币研究资金池，优先锁定流动性与未来现金需求，再用六类审核基金/ETF的完整共同月度复权净值做受约束等风险贡献；配置版本不可覆盖，外汇只披露为底层币种敞口，继续读取既有 Tushare `fx_daily`，不新增换汇抓取或交叉盘换算；期货和期权只作为实施与对冲工具。核心来源不足120个月或存在缺口时明确拒绝生成，不使用代理数据补齐。
-- 研究事件闭环：今日页按“源日期 / 系统发现时间”展示变化，论点中心保存人工确认的不可变版本、支持/冲突/证伪证据与复核计划。
 - 显式证据带入：市场数据默认不进入 AI 上下文；只在用户点击“带入研究”后创建不可变快照。
 - 研报知识库：接入 report-kb，支持研报语义搜索和结构化命中结果。
 - 结构化数据读取：接入 Tushare 数据库读服务，不要求在应用内配置 Tushare token。
@@ -73,7 +72,7 @@ KeelTrader 不构成投资建议，也不保证跑赢市场。LLM 可能产生�
 <a id="en"></a>
 ## English
 
-KeelTrader is a self-evolving fundamental investment research Agent Platform for individual investors and small teams. It provides multi-agent research assistance, report-KB search, structured decision journals, weekly reviews, and fundamental thesis validation records.
+KeelTrader is a self-evolving fundamental investment research Agent Platform for individual investors and small teams. It provides multi-agent research assistance, report-KB search, structured decision journals, and weekly reviews.
 
 Its role is a research assistant and discipline engine, not an automatic money-making system. Production deployments require authentication by default and keep humans in the loop: AI can retrieve, analyze, debate, record, and review, while final trading decisions remain human decisions.
 

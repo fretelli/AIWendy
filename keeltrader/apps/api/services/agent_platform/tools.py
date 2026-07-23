@@ -11,8 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.agent_platform.models import (
     AgentArtifact, AgentCompanyDossier, AgentCompanyDossierVersion, AgentCompanyEvidence,
-    MarketOpportunity, MarketOpportunitySnapshot, ResearchEvent, ResearchThesis,
-    ResearchThesisEvidenceLink, ResearchThesisVersion,
+    MarketOpportunity, MarketOpportunitySnapshot,
 )
 from services.agent_platform.report_kb import ReportKBService
 from services.agent_platform.tushare import TushareReadService
@@ -28,14 +27,10 @@ TOOL_DEFINITIONS = [
      "parameters": {"type": "object", "properties": {"watchlist": {"type": "array", "items": {"type": "string"}}}}},
     {"name": "deep_research", "description": "Build a structured company research memo",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "market": {"type": "string"}}, "required": ["symbol"]}},
-    {"name": "get_research_thesis", "description": "Read one user-owned thesis with immutable versions and evidence",
-     "parameters": {"type": "object", "properties": {"thesis_id": {"type": "string"}}, "required": ["thesis_id"]}},
     {"name": "get_opportunity_snapshot", "description": "Read an immutable opportunity snapshot visible to the user",
      "parameters": {"type": "object", "properties": {"opportunity_id": {"type": "string"}, "snapshot_id": {"type": "string"}}, "required": ["opportunity_id"]}},
     {"name": "get_company_dossier_version", "description": "Read a user-owned company dossier version and its locatable evidence",
      "parameters": {"type": "object", "properties": {"company_code": {"type": "string"}, "version": {"type": "integer"}}, "required": ["company_code"]}},
-    {"name": "get_research_events", "description": "Read the user's chronological research event inbox",
-     "parameters": {"type": "object", "properties": {"limit": {"type": "integer", "default": 20}, "unread": {"type": "boolean", "default": False}}}},
     {"name": "record_investment_decision", "description": "Create a human-approved research decision log",
      "parameters": {"type": "object", "properties": {"symbol": {"type": "string"}, "action": {"type": "string"}, "thesis": {"type": "string"}, "confidence": {"type": "number"}, "falsifiers": {"type": "array", "items": {}}, "risk_plan": {"type": "object"}}, "required": ["symbol", "action", "thesis"]}},
     {"name": "run_weekly_review", "description": "Review approved decision-log artifacts from the last seven days",
@@ -113,24 +108,6 @@ async def _deep_research(session: AsyncSession, user_id: UUID, args: dict[str, A
             "recommendation": "research_only"}
 
 
-async def _get_thesis(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
-    thesis_id = UUID(str(args["thesis_id"]))
-    row = (await session.execute(select(ResearchThesis).where(
-        ResearchThesis.id == thesis_id, ResearchThesis.user_id == user_id))).scalar_one_or_none()
-    if row is None:
-        return {"error": "Thesis not found"}
-    versions = (await session.execute(select(ResearchThesisVersion).where(
-        ResearchThesisVersion.thesis_id == row.id).order_by(ResearchThesisVersion.version.desc()))).scalars().all()
-    evidence = (await session.execute(select(ResearchThesisEvidenceLink).where(
-        ResearchThesisEvidenceLink.thesis_id == row.id))).scalars().all()
-    return {"id": str(row.id), "title": row.title, "status": row.status, "thesis": row.thesis,
-            "catalysts": row.catalysts, "falsifiers": row.falsifiers,
-            "versions": [{"version": item.version, "snapshot": item.snapshot, "diff": item.diff} for item in versions],
-            "evidence": [{"stance": item.stance, "source_type": item.source_type,
-                          "source_id": item.source_id, "citation": item.citation} for item in evidence],
-            "scoring": False}
-
-
 async def _get_opportunity_snapshot(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
     opportunity_id = UUID(str(args["opportunity_id"]))
     row = (await session.execute(select(MarketOpportunity).where(
@@ -170,18 +147,6 @@ async def _get_dossier_version(session: AsyncSession, user_id: UUID, args: dict[
             "financial_as_of": version.financial_as_of, "snapshot": version.snapshot, "diff": version.diff,
             "evidence": [{"source_type": item.source_type, "citation": item.citation} for item in evidence],
             "scoring": False}
-
-
-async def _get_events(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
-    query = select(ResearchEvent).where(ResearchEvent.user_id == user_id, ResearchEvent.archived_at.is_(None))
-    if args.get("unread"):
-        query = query.where(ResearchEvent.read_at.is_(None))
-    rows = (await session.execute(query.order_by(ResearchEvent.detected_at.desc()).limit(
-        min(max(int(args.get("limit", 20)), 1), 100)))).scalars().all()
-    return {"items": [{"id": str(row.id), "category": row.category, "event_type": row.event_type,
-                       "title": row.title, "summary": row.summary, "source_date": row.source_date,
-                       "detected_at": row.detected_at, "resource_type": row.resource_type,
-                       "resource_id": row.resource_id} for row in rows], "scoring": False}
 
 
 async def _decision(session: AsyncSession, user_id: UUID, args: dict[str, Any]) -> dict[str, Any]:
@@ -257,10 +222,8 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "holder_positions": _holder_positions,
     "holder_history": _holder_history,
     "market_capital_snapshot": _market_capital,
-    "get_research_thesis": _get_thesis,
     "get_opportunity_snapshot": _get_opportunity_snapshot,
     "get_company_dossier_version": _get_dossier_version,
-    "get_research_events": _get_events,
 }
 
 
