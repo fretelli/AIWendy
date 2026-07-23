@@ -189,7 +189,25 @@ function RoutePanel({ account, draft, status, policy, versions, onSelectVersion,
     {!status?.formal_ready ? <div className="mt-5 flex gap-3 rounded-xl border border-amber-500/40 bg-amber-500/[.05] p-4"><AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" /><div className="min-w-0 flex-1"><p className="text-xs font-medium">正式配置暂未开放</p><p className="mt-1 text-[10px] leading-5 text-muted-foreground">六类真实可投资序列必须同时具备至少 {status?.minimum_months || 120} 个完整共同月、零无法解释缺口并覆盖最近完整月。可以先保存资金约束，系统不会用价格指数、国债期货或合成曲线替代。</p><div className="mt-3 grid gap-1.5 sm:grid-cols-2">{required.map((item) => <div key={item.series_id || item.sleeve_key} className="flex items-center justify-between rounded-lg border bg-background/55 px-2.5 py-2 text-[9px]"><span>{item.name}</span><span className={item.quality_state === "ready" ? "text-emerald-600" : "text-amber-600"}>{gateLabel(item.quality_state)}</span></div>)}</div></div></div> : <div className="mt-5 rounded-xl border border-emerald-500/35 bg-emerald-500/[.05] p-4"><p className="text-xs font-medium text-emerald-700 dark:text-emerald-300">正式配置已开放</p><p className="mt-1 text-[10px] leading-5 text-muted-foreground">六类核心资产已通过共同历史门禁，可以生成新的不可变配置版本。</p></div>}
     <CapitalRouteChart capital={draft.capital} reserve={draft.liquidity_reserve + draft.future_cash_needs.reduce((sum, item) => sum + item.amount, 0)} status={status} sleeves={policy?.sleeves} />
     <div className="mt-5 grid gap-px overflow-hidden rounded-xl border bg-border sm:grid-cols-4"><Ledger label="共同历史" value={String((policy?.data_snapshot?.common_history as { months?: number } | undefined)?.months || "未通过门禁")} /><Ledger label="方法" value="等风险贡献" /><Ledger label="预期收益" value="不使用" /><Ledger label="自动调仓" value="关闭" /></div>
+    <AllocationMethodology snapshot={policy?.methodology_snapshot} fallback={status?.methodology} />
   </section>;
+}
+
+function AllocationMethodology({ snapshot, fallback }: { snapshot?: Record<string, unknown>; fallback?: string }) {
+  const minimumMonths = typeof snapshot?.minimum_common_months === "number" ? snapshot.minimum_common_months : 120;
+  const stressLibrary = snapshot?.stress_library && typeof snapshot.stress_library === "object"
+    ? Object.keys(snapshot.stress_library as Record<string, unknown>)
+    : [];
+  const stressNames: Record<string, string> = { global_growth: "全球增长冲击", inflation_rates: "通胀与利率冲击", china_risk: "中国风险冲击", liquidity: "流动性冲击" };
+  const rows = [
+    ["配置方法", "受约束等风险贡献：让各战略资产承担接近的组合风险，并服从权重与杠杆上限"],
+    ["风险估计", "Ledoit–Wolf 月度协方差，降低有限样本下协方差矩阵不稳定造成的权重漂移"],
+    ["数据门槛", `至少 ${minimumMonths} 个完整共同月；${snapshot?.forward_fill === true ? "允许前向填充" : "不前向填充缺失值"}`],
+    ["收益假设", snapshot?.expected_returns === true ? "使用预期收益" : "不使用预期收益或主观评分"],
+    ["压力测试", stressLibrary.length ? `${stressLibrary.length} 组固定情景：${stressLibrary.map((key) => stressNames[key] || key).join(" / ")}` : "固定全球增长、通胀利率、中国风险与流动性冲击情景"],
+    ["执行边界", snapshot?.automatic_reallocation === true ? "允许自动调仓" : "只生成研究版本，不连接券商或自动调仓"],
+  ];
+  return <section className="mt-5 rounded-2xl border bg-background/55 p-4"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="font-data text-[9px] uppercase tracking-[.2em] text-[hsl(var(--copper-foreground))]">Allocation methodology</p><h3 className="mt-1 font-display text-lg font-semibold">资产配置方法论</h3></div><Badge variant="outline" className="font-data text-[9px]">版本内固化 · 可审计</Badge></div><p className="mt-2 max-w-3xl text-[10px] leading-5 text-muted-foreground">{fallback || "人民币总回报共同历史上的确定性风险预算；现金需求优先，数据不足时拒绝生成，不使用替代序列。"}</p><div className="mt-4 grid gap-2 sm:grid-cols-2">{rows.map(([label, value]) => <div key={label} className="rounded-xl border bg-card/70 p-3"><p className="text-[9px] text-muted-foreground">{label}</p><p className="mt-1 text-[10px] leading-5 text-foreground/90">{value}</p></div>)}</div><p className="mt-3 border-t pt-3 text-[9px] leading-5 text-muted-foreground">期货和期权只作为底层资产的实施工具，不新增资产类别；方法参数随不可变配置版本保存，历史版本不会被后续调整覆盖。</p></section>;
 }
 
 function CapitalRouteChart({ capital, reserve, status, sleeves }: { capital: number; reserve: number; status?: AllocationDataStatus; sleeves?: AllocationSleeve[] }) {
