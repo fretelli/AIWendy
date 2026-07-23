@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import datetime
 import time
 from typing import Literal
 from uuid import UUID
@@ -52,19 +51,6 @@ class AllocationAccountUpdate(BaseModel):
     allowed_instruments: list[str] | None = Field(default=None, max_length=20)
     hard_restrictions: list[str] | None = Field(default=None, max_length=30)
     status: Literal["active", "archived"] | None = None
-
-
-class TacticalTilt(BaseModel):
-    sleeve_key: str = Field(min_length=1, max_length=40)
-    weight_delta: float = Field(gt=-1, lt=1)
-    thesis_id: UUID
-    thesis_version_id: UUID
-    review_at: datetime
-    expires_at: datetime
-
-
-class GeneratePolicyRequest(BaseModel):
-    tactical_tilts: list[TacticalTilt] = Field(default_factory=list, max_length=20)
 
 
 def service(session: AsyncSession, user: User) -> AllocationService:
@@ -133,11 +119,11 @@ async def list_versions(account_id: UUID, session: AsyncSession = Depends(get_se
 
 
 @router.post("/allocation-accounts/{account_id}/policy-versions")
-async def generate_version(account_id: UUID, body: GeneratePolicyRequest,
-                           session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+async def generate_version(account_id: UUID, session: AsyncSession = Depends(get_session),
+                           user: User = Depends(get_current_user)):
     started = time.perf_counter()
     try:
-        result = await service(session, user).generate_version(account_id, [item.model_dump() for item in body.tactical_tilts])
+        result = await service(session, user).generate_version(account_id)
         logger.info("allocation_policy_generation", account_id=str(account_id), user_id=str(user.id),
                     status=result.get("feasibility_status"), quality_status=result.get("quality_status"),
                     duration_ms=round((time.perf_counter() - started) * 1000, 1))

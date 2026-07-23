@@ -35,12 +35,6 @@ def test_active_route_prefixes_are_mounted(client):
         "/api/v1/agent/holder-events",
         "/api/v1/agent/holder-events/read",
         "/api/v1/agent/context-snapshots",
-        "/api/v1/agent/theses",
-        "/api/v1/agent/theses/{thesis_id}",
-        "/api/v1/agent/theses/{thesis_id}/evidence",
-        "/api/v1/agent/events",
-        "/api/v1/agent/events/read",
-        "/api/v1/agent/calendar",
         "/api/v1/agent/search",
         "/api/v1/agent/dossiers/{company_code}",
         "/api/v1/agent/dossiers/{company_code}/refresh",
@@ -83,6 +77,12 @@ def test_legacy_routers_are_not_accidentally_exposed(client):
         "/api/v1/chat/send",
         "/api/v1/webhook/confirm",
         "/api/v1/agentos/health",
+        "/api/v1/agent/theses",
+        "/api/v1/agent/theses/{thesis_id}",
+        "/api/v1/agent/theses/{thesis_id}/evidence",
+        "/api/v1/agent/events",
+        "/api/v1/agent/events/read",
+        "/api/v1/agent/calendar",
     }
 
     assert paths.isdisjoint(legacy_paths)

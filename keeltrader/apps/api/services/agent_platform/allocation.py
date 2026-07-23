@@ -19,10 +19,7 @@ from domain.agent_platform.models import (
     AllocationAccount,
     AllocationPolicyImplementation,
     AllocationPolicySleeve,
-    AllocationPolicyThesisLink,
     AllocationPolicyVersion,
-    ResearchThesis,
-    ResearchThesisVersion,
 )
 from services.agent_platform.tushare import TushareReadService
 
@@ -131,43 +128,6 @@ def policy_from_returns(*, capital: float, reserve: float, max_drawdown: float,
     }
 
 
-def apply_tactical_tilts(result: dict[str, Any], tilts: list[dict[str, Any]], *, returns: np.ndarray,
-                         sleeves: list[str], max_drawdown: float, max_leverage: float) -> dict[str, Any]:
-    """Apply only self-financing, thesis-linked tilts and recompute all reported risk."""
-    if not tilts:
-        return result
-    if abs(sum(float(item["weight_delta"]) for item in tilts)) > 1e-8:
-        raise ValueError("Tactical tilt deltas must sum to zero; no automatic normalization is allowed")
-    weights = dict(result["weights"])
-    for item in tilts:
-        key = str(item["sleeve_key"])
-        if key not in weights:
-            raise ValueError(f"Unknown tactical sleeve: {key}")
-        weights[key] = float(weights[key]) + float(item["weight_delta"])
-    if any(value < -1e-10 or value > 1 + 1e-10 for value in weights.values()) or abs(sum(weights.values()) - 1) > 1e-8:
-        raise ValueError("Tactical tilt would create invalid portfolio weights")
-    risky = np.asarray([weights[key] for key in sleeves], dtype=float)
-    gross = float(np.abs(risky).sum())
-    if gross > max_leverage + 1e-8:
-        raise ValueError("Tactical tilt exceeds the account leverage limit")
-    covariance = LedoitWolf().fit(returns).covariance_
-    variance = float(risky @ covariance @ risky)
-    contributions = risky * (covariance @ risky) / variance if variance > 0 else np.zeros_like(risky)
-    stresses = [{"scenario": name, "return": float(sum(weights.get(key, 0) * shock for key, shock in shocks.items()))}
-                for name, shocks in STRESS_LIBRARY.items()]
-    worst = min((item["return"] for item in stresses), default=0)
-    if worst < -max_drawdown - 1e-8:
-        raise ValueError("Tactical tilt exceeds the account maximum stress drawdown")
-    result = dict(result)
-    result["weights"] = weights
-    result["risk_contributions"] = {key: float(contributions[index]) for index, key in enumerate(sleeves)}
-    result["stress_results"] = stresses
-    result["risk_summary"] = {**result["risk_summary"], "annualized_volatility": float(np.sqrt(max(0, variance) * 12)),
-                              "worst_stress_return": worst, "gross_underlying_exposure": gross,
-                              "cash_weight": float(weights.get("cny_cash", 0)), "tactical_tilt_count": len(tilts)}
-    return result
-
-
 class AllocationService:
     def __init__(self, session: AsyncSession, reader: TushareReadService, user_id: UUID):
         self.session = session
@@ -244,17 +204,14 @@ class AllocationService:
         implementations = (await self.session.execute(select(AllocationPolicyImplementation).where(
             AllocationPolicyImplementation.policy_version_id == version.id).order_by(
             AllocationPolicyImplementation.sleeve_key, AllocationPolicyImplementation.instrument_code))).scalars().all()
-        links = (await self.session.execute(select(AllocationPolicyThesisLink).where(
-            AllocationPolicyThesisLink.policy_version_id == version.id))).scalars().all()
         return {**self._version_summary(version, account), "account": self._account(account),
                 "constraint_snapshot": version.constraint_snapshot, "methodology_snapshot": version.methodology_snapshot,
                 "data_snapshot": version.data_snapshot, "risk_summary": version.risk_summary,
                 "stress_results": version.stress_results, "infeasible_reasons": version.infeasible_reasons,
                 "sleeves": [self._sleeve(row) for row in sleeves],
-                "implementations": [self._implementation(row) for row in implementations],
-                "tactical_tilts": [self._thesis_link(row) for row in links]}
+                "implementations": [self._implementation(row) for row in implementations]}
 
-    async def generate_version(self, account_id: UUID, tactical_tilts: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    async def generate_version(self, account_id: UUID) -> dict[str, Any]:
         account = await self._owned_account(account_id, lock=True)
         if account is None:
             raise ValueError("Allocation account not found")
@@ -263,17 +220,17 @@ class AllocationService:
         reserve = float(account.liquidity_reserve) + sum(float(item.get("amount") or 0) for item in account.future_cash_needs or [])
         if reserve > float(account.capital):
             result = {"status": "infeasible", "reasons": ["流动性储备与未来现金需求超过总资金"]}
-            return await self._persist(account, constraints, catalog, result, [], tactical_tilts or [])
+            return await self._persist(account, constraints, catalog, result, [])
         if not catalog.get("formal_ready"):
             reasons = [f"{SLEEVE_LABELS.get(key, key)}：数据门禁未通过" for key in catalog.get("missing_required") or []]
             result = {"status": "unavailable", "reasons": reasons or ["资产配置数据不可用"]}
-            return await self._persist(account, constraints, catalog, result, [], tactical_tilts or [])
+            return await self._persist(account, constraints, catalog, result, [])
         selected = []
         for sleeve in RISK_SLEEVES:
             candidates = [row for row in catalog["series"] if row.get("sleeve_key") == sleeve and row.get("enabled") and row.get("quality_state") == "ready"]
             if not candidates:
                 result = {"status": "unavailable", "reasons": [f"{SLEEVE_LABELS[sleeve]}没有通过门禁的总回报序列"]}
-                return await self._persist(account, constraints, catalog, result, [], tactical_tilts or [])
+                return await self._persist(account, constraints, catalog, result, [])
             selected.append(sorted(candidates, key=lambda row: row["series_id"])[0])
         monthly = await self.reader.allocation_monthly([row["series_id"] for row in selected])
         dates = sorted(set.intersection(*[
@@ -282,18 +239,14 @@ class AllocationService:
         ])) if monthly else []
         if len(dates) < 120:
             result = {"status": "unavailable", "reasons": [f"共同完整历史只有 {len(dates)} 个月，至少需要120个月"]}
-            return await self._persist(account, constraints, catalog, result, selected, tactical_tilts or [])
+            return await self._persist(account, constraints, catalog, result, selected)
         lookup = {(row["series_id"], str(row["month_end"])): float(row["monthly_return"]) for row in monthly if row.get("monthly_return") is not None}
         matrix = np.asarray([[lookup[(series["series_id"], month)] for series in selected] for month in dates], dtype=float)
         result = policy_from_returns(capital=float(account.capital), reserve=reserve,
                                      max_drawdown=float(account.max_drawdown), max_leverage=float(account.max_leverage),
                                      sleeves=RISK_SLEEVES, returns=matrix)
-        if tactical_tilts:
-            await self._validate_tactical_tilts(tactical_tilts)
-            result = apply_tactical_tilts(result, tactical_tilts, returns=matrix, sleeves=RISK_SLEEVES,
-                                           max_drawdown=float(account.max_drawdown), max_leverage=float(account.max_leverage))
         result["common_history"] = {"start": dates[0], "end": dates[-1], "months": len(dates)}
-        return await self._persist(account, constraints, catalog, result, selected, tactical_tilts or [])
+        return await self._persist(account, constraints, catalog, result, selected)
 
     async def confirm_version(self, account_id: UUID, version_id: UUID) -> dict[str, Any]:
         account = await self._owned_account(account_id, lock=True)
@@ -308,7 +261,7 @@ class AllocationService:
         return (await self.version_detail(version.id)) or {}
 
     async def _persist(self, account: AllocationAccount, constraints: dict[str, Any], catalog: dict[str, Any],
-                       result: dict[str, Any], selected: list[dict[str, Any]], tactical_tilts: list[dict[str, Any]]) -> dict[str, Any]:
+                       result: dict[str, Any], selected: list[dict[str, Any]]) -> dict[str, Any]:
         methodology = {
             "allocation_method": "constrained_equal_risk_contribution", "covariance": "ledoit_wolf_monthly",
             "expected_returns": False, "minimum_common_months": 120, "forward_fill": False,
@@ -317,8 +270,7 @@ class AllocationService:
         }
         data_snapshot = {"formal_ready": catalog.get("formal_ready", False), "series": selected or catalog.get("series") or [],
                          "common_history": result.get("common_history")}
-        content = {"constraints": constraints, "methodology": methodology, "data": data_snapshot, "result": result,
-                   "tactical_tilts": tactical_tilts}
+        content = {"constraints": constraints, "methodology": methodology, "data": data_snapshot, "result": result}
         content_hash = stable_hash(content)
         existing = (await self.session.execute(select(AllocationPolicyVersion).where(
             AllocationPolicyVersion.account_id == account.id,
@@ -360,34 +312,8 @@ class AllocationService:
                     amount_cny=0, underlying_key=item["underlying_key"], metadata_json={
                         **(item.get("metadata_json") or {}), "selection_required": True,
                     }))
-            await self._persist_tactical_links(row, tactical_tilts)
         await self.session.commit()
         return (await self.version_detail(row.id)) or {}
-
-    async def _persist_tactical_links(self, policy: AllocationPolicyVersion, tilts: list[dict[str, Any]]) -> None:
-        now = datetime.now(UTC)
-        for tilt in tilts:
-            thesis = await self.session.get(ResearchThesis, UUID(str(tilt["thesis_id"])))
-            version = await self.session.get(ResearchThesisVersion, UUID(str(tilt["thesis_version_id"])))
-            if thesis is None or thesis.user_id != self.user_id or thesis.status != "active" or version is None or version.thesis_id != thesis.id:
-                raise ValueError("Tactical tilt requires an owned active thesis and immutable version")
-            review_at, expires_at = tilt["review_at"], tilt["expires_at"]
-            if review_at <= now or expires_at <= review_at:
-                raise ValueError("Tactical tilt review and expiry dates are invalid")
-            self.session.add(AllocationPolicyThesisLink(policy_version_id=policy.id, thesis_id=thesis.id,
-                thesis_version_id=version.id, sleeve_key=tilt["sleeve_key"], weight_delta=tilt["weight_delta"],
-                review_at=review_at, expires_at=expires_at, evidence_snapshot=version.snapshot))
-
-    async def _validate_tactical_tilts(self, tilts: list[dict[str, Any]]) -> None:
-        now = datetime.now(UTC)
-        for tilt in tilts:
-            thesis = await self.session.get(ResearchThesis, UUID(str(tilt["thesis_id"])))
-            version = await self.session.get(ResearchThesisVersion, UUID(str(tilt["thesis_version_id"])))
-            review_at, expires_at = tilt["review_at"], tilt["expires_at"]
-            if thesis is None or thesis.user_id != self.user_id or thesis.status != "active" or version is None or version.thesis_id != thesis.id:
-                raise ValueError("Tactical tilt requires an owned active thesis and immutable version")
-            if review_at.tzinfo is None or expires_at.tzinfo is None or review_at <= now or expires_at <= review_at:
-                raise ValueError("Tactical tilt review and expiry dates are invalid")
 
     async def _owned_account(self, account_id: UUID, *, lock: bool = False) -> AllocationAccount | None:
         query = select(AllocationAccount).where(AllocationAccount.id == account_id,
@@ -464,9 +390,3 @@ class AllocationService:
                 "max_loss": float(row.max_loss) if row.max_loss is not None else None,
                 "gamma": float(row.gamma) if row.gamma is not None else None, "vega": float(row.vega) if row.vega is not None else None,
                 "metadata": row.metadata_json}
-
-    @staticmethod
-    def _thesis_link(row: AllocationPolicyThesisLink) -> dict[str, Any]:
-        return {"id": str(row.id), "thesis_id": str(row.thesis_id), "thesis_version_id": str(row.thesis_version_id),
-                "sleeve_key": row.sleeve_key, "weight_delta": float(row.weight_delta),
-                "review_at": row.review_at, "expires_at": row.expires_at, "evidence_snapshot": row.evidence_snapshot}
