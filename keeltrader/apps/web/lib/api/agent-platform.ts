@@ -676,11 +676,6 @@ export type ContextSnapshot = {
   methodology: string;
   created_at: string;
 };
-export type ThesisEvidence = { id?: string; stance: "supporting" | "challenging" | "invalidating"; source_type: string; source_id: string; citation: Record<string, unknown>; created_at?: string };
-export type ThesisVersion = { id: string; version: number; snapshot: Record<string, unknown>; diff: Record<string, unknown>; created_at: string };
-export type ResearchThesis = { id: string; title: string; subject_type: string; subject_key: string; status: "draft" | "active" | "challenged" | "invalidated" | "closed"; thesis: string; catalysts: Array<string | Record<string, unknown>>; falsifiers: string[]; review_at?: string; origin_resource_type?: string; origin_resource_id?: string; current_version: number; created_at: string; updated_at: string; versions?: ThesisVersion[]; evidence?: ThesisEvidence[] };
-export type ResearchEvent = { id: string; category: string; event_type: string; title: string; summary: string; resource_type: string; resource_id: string; source_date?: string; before_state: Record<string, unknown>; after_state: Record<string, unknown>; metadata: Record<string, unknown>; read_at?: string; detected_at: string };
-export type ResearchCalendarItem = { kind: string; date: string; title: string; resource_type: string; resource_id: string; source_type: string; source_ref?: unknown };
 export type GlobalSearchResult = { type: string; id: string; title: string; subtitle?: string; href: string; navigation_only?: boolean };
 export type PublicationDataset = { key: string; table?: string; frequency: string; actual_as_of?: string; expected_as_of?: string; history_start?: string; points: number; state: "current" | "delayed" | "missing" | "unavailable" | string; last_attempt_at?: string; last_success_at?: string; deferred_reason?: string; next_expected_update: string; unavailable_reason?: string };
 export type PublicationStatus = { available: boolean; version: string; generated_at?: string; datasets: PublicationDataset[]; unavailable_reason?: string; read_only?: true; synthetic_substitution?: false };
@@ -810,7 +805,7 @@ export const agentPlatformApi = {
   deleteAllocationAccount: (id: string) => apiJson<{ ok: true }>(`${base}/allocation-accounts/${id}`, { method: "DELETE" }),
   allocationPolicyVersions: (accountId: string) => apiJson<{ items: AllocationPolicyVersion[]; current_policy_version_id?: string }>(`${base}/allocation-accounts/${accountId}/policy-versions`),
   allocationPolicyVersion: (id: string) => apiJson<AllocationPolicyVersion>(`${base}/allocation-policy-versions/${id}`),
-  generateAllocationPolicy: (accountId: string) => apiJson<AllocationPolicyVersion>(`${base}/allocation-accounts/${accountId}/policy-versions`, { method: "POST", body: { tactical_tilts: [] } }),
+  generateAllocationPolicy: (accountId: string) => apiJson<AllocationPolicyVersion>(`${base}/allocation-accounts/${accountId}/policy-versions`, { method: "POST" }),
   confirmAllocationPolicy: (accountId: string, versionId: string) => apiJson<AllocationPolicyVersion>(`${base}/allocation-accounts/${accountId}/policy-versions/${versionId}/confirm`, { method: "POST" }),
   uploadAttachment: (file: File) => {
     const form = new FormData();
@@ -850,14 +845,6 @@ export const agentPlatformApi = {
   createSchedule: (body: object) =>
     apiJson<AgentSchedule>(`${base}/schedules`, { method: "POST", body }),
   usage: () => apiJson<Usage>(`${base}/usage`),
-  theses: (status?: string) => apiJson<{ items: ResearchThesis[]; total: number; scoring: false }>(`${base}/theses${status ? `?status=${encodeURIComponent(status)}` : ""}`),
-  thesis: (id: string) => apiJson<ResearchThesis>(`${base}/theses/${id}`),
-  createThesis: (body: Record<string, unknown>) => apiJson<ResearchThesis>(`${base}/theses`, { method: "POST", body }),
-  updateThesis: (id: string, body: Partial<ResearchThesis>) => apiJson<ResearchThesis>(`${base}/theses/${id}`, { method: "PATCH", body }),
-  addThesisEvidence: (id: string, body: ThesisEvidence) => apiJson<ResearchThesis>(`${base}/theses/${id}/evidence`, { method: "POST", body }),
-  researchEvents: (unread = false) => apiJson<{ items: ResearchEvent[]; unread: number; scoring: false }>(`${base}/events?unread=${unread}`),
-  readResearchEvents: (eventIds: string[] = []) => apiJson<{ ok: boolean; updated: number }>(`${base}/events/read`, { method: "POST", body: { event_ids: eventIds } }),
-  researchCalendar: () => apiJson<{ items: ResearchCalendarItem[]; synthetic_dates: false }>(`${base}/calendar`),
   globalSearch: (query: string) => apiJson<{ items: GlobalSearchResult[]; scoring: false }>(`${base}/search?q=${encodeURIComponent(query)}`),
   companies: (query: string) =>
     apiJson<{ items: CompanySearchItem[] }>(

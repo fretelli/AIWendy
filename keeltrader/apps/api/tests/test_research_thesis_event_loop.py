@@ -4,42 +4,25 @@ ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
 
 
-def test_thesis_and_event_models_are_user_scoped_and_unscored():
+def test_today_and_thesis_backend_surfaces_are_retired():
     models = (ROOT / "domain/agent_platform/models.py").read_text(encoding="utf-8")
-    service = (ROOT / "services/agent_platform/research_loop.py").read_text(encoding="utf-8")
-    assert "class ResearchThesis" in models and "class ResearchEvent" in models
-    assert "ResearchThesis.user_id == self.user_id" in service
-    assert "ResearchEvent.user_id == self.user_id" in service
-    assert '"scoring": False' in service
-    assert "percentile" not in service.lower()
-    assert "ranking" not in service.lower()
+    router = (ROOT / "routers/agent_platform.py").read_text(encoding="utf-8")
+    tools = (ROOT / "services/agent_platform/tools.py").read_text(encoding="utf-8")
+    assert "class ResearchThesis" not in models
+    assert "class ResearchEvent" not in models
+    assert '@router.get("/theses")' not in router
+    assert '@router.get("/events")' not in router
+    assert '@router.get("/calendar")' not in router
+    assert "get_research_thesis" not in tools
+    assert "get_research_events" not in tools
 
 
-def test_report_title_only_is_rejected_as_thesis_evidence():
-    service = (ROOT / "services/agent_platform/research_loop.py").read_text(encoding="utf-8")
-    assert 'citation.get("excerpt")' in service
-    assert 'citation.get("section_id") or citation.get("page_number") is not None' in service
-    assert "Report evidence requires a body excerpt and page or section location" in service
-
-
-def test_event_producers_are_idempotent_and_do_not_flood_baselines():
-    opportunities = (ROOT / "services/agent_platform/opportunities.py").read_text(encoding="utf-8")
-    dossier = (ROOT / "services/agent_platform/dossier.py").read_text(encoding="utf-8")
-    holders = (ROOT / "services/agent_platform/holders.py").read_text(encoding="utf-8")
-    loop = (ROOT / "services/agent_platform/research_loop.py").read_text(encoding="utf-8")
-    assert "on_conflict_do_nothing" in loop
-    assert "if latest is not None" in opportunities
-    assert 'AgentOpportunityFollow.state != "paused"' in opportunities
-    assert "if previous is not None" in dossier
-    assert 'if not initial and row["event_type"] != "unchanged"' in holders
-
-
-def test_migration_is_additive_and_every_new_object_has_comments():
-    migration = (REPO / "migrations/versions/035_research_thesis_event_loop.py").read_text(encoding="utf-8")
-    for table in ("research_theses", "research_thesis_versions", "research_thesis_evidence_links", "research_events"):
-        assert f"COMMENT ON TABLE {table}" in migration
-    assert 'down_revision = "034"' in migration
-    assert "intentionally non-reversible" in migration
+def test_retirement_migration_deletes_feature_tables_and_allocation_links():
+    migration = (REPO / "migrations/versions/037_retire_today_theses.py").read_text(encoding="utf-8")
+    for table in ("allocation_policy_thesis_links", "research_thesis_evidence_links",
+                  "research_thesis_versions", "research_theses", "research_events"):
+        assert f"DROP TABLE IF EXISTS {table}" in migration
+    assert 'down_revision = "036"' in migration
 
 
 def test_data_status_is_read_only_and_china_curve_is_not_synthetic():
