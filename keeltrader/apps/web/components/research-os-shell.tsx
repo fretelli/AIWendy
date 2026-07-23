@@ -6,8 +6,6 @@ import {
   BarChart3,
   Command,
   Radar,
-  BellRing,
-  BookOpen,
   Search,
   ShipWheel,
   Route,
@@ -19,18 +17,6 @@ import { useEffect, useMemo, useState } from "react";
 import { agentPlatformApi, type GlobalSearchResult } from "@/lib/api/agent-platform";
 
 const destinations = [
-  {
-    href: "/agent/today",
-    label: "今日",
-    detail: "变化、复核与数据源值守",
-    icon: BellRing,
-  },
-  {
-    href: "/agent/theses",
-    label: "论点",
-    detail: "证据、版本与证伪日志",
-    icon: BookOpen,
-  },
   {
     href: "/agent",
     label: "研究台",
@@ -52,12 +38,12 @@ const destinations = [
   {
     href: "/agent/allocation",
     label: "资产配置",
-    detail: "资金约束、币种暴露与不可变配置版本",
+    detail: "资金约束、配置方法论与不可变版本",
     icon: Route,
   },
 ];
 
-const mobilePrimary = ["/agent/today", "/agent", "/agent/allocation", "/agent/market/capital"]
+const mobilePrimary = ["/agent", "/agent/allocation", "/agent/market/capital"]
   .map((href) => destinations.find((item) => item.href === href)!)
   .filter(Boolean);
 const mobileMore = destinations.filter((item) => !mobilePrimary.includes(item));

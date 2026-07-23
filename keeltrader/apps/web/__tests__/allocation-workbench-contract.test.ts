@@ -29,7 +29,17 @@ test("derivatives are implementation tools instead of allocation sleeves", () =>
 test("mobile navigation adds allocation without six cramped equal items", () => {
   expect(shell).toContain('href: "/agent/allocation"');
   expect(shell).toContain('label: "资产配置"');
+  expect(shell).not.toContain('label: "今日"');
+  expect(shell).not.toContain('label: "论点"');
   expect(shell).toContain("mobilePrimary");
   expect(shell).toContain("mobileMore");
   expect(shell).toContain("更多");
+});
+
+test("allocation page exposes the versioned methodology", () => {
+  expect(page).toContain("资产配置方法论");
+  expect(page).toContain("methodology_snapshot");
+  expect(page).toContain("Ledoit–Wolf 月度协方差");
+  expect(page).toContain("不前向填充缺失值");
+  expect(page).toContain("版本内固化 · 可审计");
 });
