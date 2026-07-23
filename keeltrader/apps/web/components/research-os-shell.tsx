@@ -138,7 +138,7 @@ export function ResearchOsShell({ children }: { children: React.ReactNode }) {
           <Menu className="h-4 w-4" />更多
         </button>
       </nav>
-      {moreOpen && <div className="fixed inset-0 z-[75] bg-[hsl(var(--deep-sounding)/.45)] lg:hidden" onClick={() => setMoreOpen(false)}><section className="absolute inset-x-3 bottom-16 rounded-2xl border bg-popover p-2 shadow-2xl" onClick={(event) => event.stopPropagation()}>{mobileMore.map(({ href, label, detail, icon: Icon }) => <Link key={href} href={href} onClick={() => setMoreOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-secondary"><span className="grid h-9 w-9 place-items-center rounded-lg border bg-card"><Icon className="h-4 w-4" /></span><span><span className="block text-sm font-medium">{label}</span><span className="text-[10px] text-muted-foreground">{detail}</span></span></Link>)}<button type="button" onClick={() => { setMoreOpen(false); setOpen(true); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-secondary"><span className="grid h-9 w-9 place-items-center rounded-lg border bg-card"><Command className="h-4 w-4" /></span><span><span className="block text-sm font-medium">全局搜索</span><span className="text-[10px] text-muted-foreground">搜索会话、公司、股东、论点与配置</span></span></button></section></div>}
+      {moreOpen && <div className="fixed inset-0 z-[75] bg-[hsl(var(--deep-sounding)/.45)] lg:hidden" onClick={() => setMoreOpen(false)}><section className="absolute inset-x-3 bottom-16 rounded-2xl border bg-popover p-2 shadow-2xl" onClick={(event) => event.stopPropagation()}>{mobileMore.map(({ href, label, detail, icon: Icon }) => <Link key={href} href={href} onClick={() => setMoreOpen(false)} className="flex items-center gap-3 rounded-xl px-3 py-3 hover:bg-secondary"><span className="grid h-9 w-9 place-items-center rounded-lg border bg-card"><Icon className="h-4 w-4" /></span><span><span className="block text-sm font-medium">{label}</span><span className="text-[10px] text-muted-foreground">{detail}</span></span></Link>)}<button type="button" onClick={() => { setMoreOpen(false); setOpen(true); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left hover:bg-secondary"><span className="grid h-9 w-9 place-items-center rounded-lg border bg-card"><Command className="h-4 w-4" /></span><span><span className="block text-sm font-medium">全局搜索</span><span className="text-[10px] text-muted-foreground">搜索会话、公司、股东、机会与研报</span></span></button></section></div>}
       {open && (
         <div
           className="fixed inset-0 z-[80] bg-[hsl(var(--deep-sounding)/.58)] p-4 pt-[12vh] backdrop-blur-sm"
@@ -154,7 +154,7 @@ export function ResearchOsShell({ children }: { children: React.ReactNode }) {
                 autoFocus
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="搜索会话、公司、股东、论点、机会与研报…"
+                placeholder="搜索会话、公司、股东、机会与研报…"
                 className="h-14 flex-1 bg-transparent text-sm outline-none"
               />
               <button onClick={() => setOpen(false)}>
