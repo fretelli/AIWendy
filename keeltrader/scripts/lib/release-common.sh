@@ -140,6 +140,14 @@ expect_services_same_image() {
   log "smoke ok: services share immutable image $expected_id ($*)"
 }
 
+ensure_compose_api_image_env() {
+  if [ -z "${KEELTRADER_API_IMAGE:-}" ]; then
+    KEELTRADER_API_IMAGE="$(docker inspect -f '{{.Config.Image}}' keeltrader-api 2>/dev/null || true)"
+  fi
+  [ -n "${KEELTRADER_API_IMAGE:-}" ] || die "KEELTRADER_API_IMAGE is required and no running API image could be resolved"
+  export KEELTRADER_API_IMAGE
+}
+
 expect_image_revision() {
   local image="$1"
   local expected="$2"
