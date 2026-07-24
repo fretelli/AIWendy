@@ -10,6 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import delete, desc, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.agent_platform.models import (
@@ -91,9 +92,13 @@ class WealthService:
             query = query.with_for_update()
         row = (await self.session.execute(query)).scalar_one_or_none()
         if row is None and create:
-            row = WealthProfile(user_id=self.user_id)
-            self.session.add(row)
-            await self.session.flush()
+            await self.session.execute(
+                pg_insert(WealthProfile)
+                .values(user_id=self.user_id)
+                .on_conflict_do_nothing(index_elements=[WealthProfile.user_id])
+            )
+            await self.session.commit()
+            row = (await self.session.execute(query)).scalar_one()
         return row
 
     async def get_profile(self) -> dict[str, Any]:
