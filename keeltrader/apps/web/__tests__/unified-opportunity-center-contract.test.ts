@@ -41,4 +41,9 @@ test("production API release deploys the isolated opportunity worker", () => {
   expect(release).toContain("keeltrader:opportunity:heartbeat");
   expect(compose).toContain("opportunity-worker:");
   expect(compose).toContain("tasks/opportunity_worker.py");
+  expect(compose.match(/image: \$\{KEELTRADER_API_IMAGE:/g)).toHaveLength(3);
+  expect(compose).not.toContain("keeltrader-api:latest");
+  expect(release).toContain('RELEASE_IMAGE="keeltrader-api:${GIT_SHA}"');
+  expect(release).toContain("expect_services_same_image api agent-platform-worker opportunity-worker");
+  expect(release).not.toContain("docker tag keeltrader-api:test-overlay keeltrader-api:latest");
 });
