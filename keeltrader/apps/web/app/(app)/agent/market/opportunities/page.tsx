@@ -125,7 +125,8 @@ export default function OpportunitiesPage() {
     router.push(`/agent?context_snapshot=${snapshot.id}&context_label=${encodeURIComponent(selected.title)}`);
   };
   return (
-    <MarketShell title="统一机会中心" subtitle="全市场事实变化 + 我的公司与股东证据；按领域、生命周期和源日期组织，不评分"
+    <MarketShell title="机会中心" subtitle="全市场事实变化 + 我的公司与股东证据；按领域、生命周期和源日期组织，不评分"
+      showNavigation={false}
       onResearch={selected ? () => void bringToResearch() : undefined}
       trail={{ object: selected?.title || "机会航图", asOf: selected?.as_of, source: "确定性规则 · 不使用模型检测" }}>
       <OpportunityMap groups={feed?.groups || {}} activeDomain={domain} activeState={state} onChoose={chooseCell} />
@@ -186,7 +187,7 @@ function OpportunityDetail({ item, onChanged, onResearch }: { item: Opportunity 
     <div className="mt-6 grid gap-4 lg:grid-cols-2"><Freshness freshness={item.freshness} /><Timeline snapshots={item.snapshots || []} /></div>
     <RawLinks item={item} />
     <details className="mt-7 rounded-2xl border bg-secondary/25"><summary className="flex cursor-pointer list-none items-center gap-2 p-4 text-sm font-semibold"><ChevronDown className="h-4 w-4" />操作舱 <span className="text-[10px] font-normal text-muted-foreground">默认收起 · 仅人工操作</span></summary><div className="grid gap-6 border-t p-4 xl:grid-cols-2">
-      <section><div className="flex flex-wrap gap-2"><Button variant={item.followed ? "outline" : "default"} onClick={() => void toggleFollow()}>{item.followed ? "取消关注" : "关注机会"}</Button><Button variant="outline" onClick={() => void onResearch()}>带入研究</Button></div><Textarea className="mt-3" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="我的私有关注笔记" /><Button className="mt-2" size="sm" variant="outline" onClick={() => void saveNotes()}>保存笔记</Button></section>
+      <section><div className="flex flex-wrap gap-2"><Button variant={item.followed ? "outline" : "default"} onClick={() => void toggleFollow()}>{item.followed ? "取消关注" : "关注机会"}</Button><Button variant="outline" onClick={() => void onResearch()}>带入研究</Button><Button asChild variant="outline"><Link href={`/agent/allocation/framework?opportunity_snapshot=${item.snapshots?.[0]?.id || ""}`}>创建 TAA 草案</Link></Button></div><Textarea className="mt-3" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="我的私有关注笔记" /><Button className="mt-2" size="sm" variant="outline" onClick={() => void saveNotes()}>保存笔记</Button></section>
       <section><p className="text-xs font-semibold">人工交易计划草案</p><div className="mt-3 grid gap-2 sm:grid-cols-2">{(Object.keys(labels) as Array<keyof typeof labels>).map((key) => <Input key={key} placeholder={labels[key]} type={key.includes("price") ? "number" : "text"} value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} />)}</div><Button className="mt-3" onClick={() => void draft()}>生成待人工确认草案</Button>{risk && <p className="mt-2 text-[9px] text-muted-foreground">固定风险法 · 单笔风险 {risk.risk_per_trade * 100}% · 不连接券商执行</p>}{plan && <div className="mt-3 rounded-xl border bg-background/70 p-3 text-xs"><p className="font-semibold">{plan.status === "unavailable" ? "交易计划不可用" : "待人工确认，未连接券商执行"}</p><p className="mt-2 text-muted-foreground">{plan.unavailable_reason || `数量 ${plan.quantity} · 最大损失 ${plan.max_loss} · 名义金额 ${plan.notional}`}</p></div>}</section>
     </div></details>
   </main>;
