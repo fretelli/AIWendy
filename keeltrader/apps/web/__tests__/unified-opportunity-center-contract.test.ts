@@ -36,6 +36,7 @@ test("desktop workspace is resizable and mobile remains stacked", () => {
 
 test("production API release deploys the isolated opportunity worker", () => {
   const release = fs.readFileSync(path.join(root, "../../scripts/release-api-overlay.sh"), "utf8");
+  const webRelease = fs.readFileSync(path.join(root, "../../scripts/release-web-overlay.sh"), "utf8");
   const compose = fs.readFileSync(path.join(root, "../../docker-compose.yml"), "utf8");
   expect(release).toContain("api agent-platform-worker opportunity-worker");
   expect(release).toContain("keeltrader:opportunity:heartbeat");
@@ -46,4 +47,5 @@ test("production API release deploys the isolated opportunity worker", () => {
   expect(release).toContain('RELEASE_IMAGE="keeltrader-api:${GIT_SHA}"');
   expect(release).toContain("expect_services_same_image api agent-platform-worker opportunity-worker");
   expect(release).not.toContain("docker tag keeltrader-api:test-overlay keeltrader-api:latest");
+  expect(webRelease).toContain("ensure_compose_api_image_env");
 });

@@ -281,6 +281,7 @@ main() {
   require_command docker
   require_command curl
   require_command mktemp
+  ensure_compose_api_image_env
 
   cd "$ROOT_DIR"
   if [ "$SMOKE_ONLY" -eq 1 ]; then
