@@ -16,6 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { toast } from "sonner";
@@ -145,7 +146,7 @@ export default function AllocationPage() {
   return <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
     <header className="research-bearing border-b bg-card/95 shadow-sm">
       <div className="flex min-h-16 items-center gap-3 px-3 sm:px-5"><div className="hidden border-r pr-4 sm:block"><KeelMark /></div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><Route className="h-4 w-4 text-[hsl(var(--copper-foreground))]" /><h1 className="font-display text-lg font-semibold">资产配置</h1></div><p className="truncate text-[10px] text-muted-foreground">把人民币资金沿约束、战略资产与实施工具形成可审计航路</p></div>
-        <Badge variant="outline" className={status?.formal_ready ? "border-emerald-500/45 text-emerald-700 dark:text-emerald-300" : "border-amber-500/45 text-amber-700 dark:text-amber-300"}>{status?.formal_ready ? "数据门禁通过" : "正式配置未开放"}</Badge>
+        <Button asChild size="sm" variant="outline"><Link href="/agent/allocation/framework"><Route className="mr-1.5 h-3.5 w-3.5" />家庭财富框架</Link></Button><Badge variant="outline" className={status?.formal_ready ? "border-emerald-500/45 text-emerald-700 dark:text-emerald-300" : "border-amber-500/45 text-amber-700 dark:text-amber-300"}>{status?.formal_ready ? "数据门禁通过" : "正式配置未开放"}</Badge>
         <Button size="sm" variant="outline" disabled={!policy} onClick={() => void bring()}><Send className="mr-1.5 h-3.5 w-3.5" />带入研究</Button><ThemeMenu />
       </div>
       <div className="evidence-rail flex min-h-8 items-center gap-3 overflow-x-auto border-t px-4 text-[9px] text-muted-foreground"><span className="font-semibold uppercase tracking-[.18em] text-[hsl(var(--copper-foreground))]">配置航迹</span><span>{selected?.name || "尚未建立资金池"}</span><span>基础币种 CNY</span><span>不连接券商 · 不自动调仓</span><span className="ml-auto">数据不足时拒绝生成，不使用代理替代</span></div>
