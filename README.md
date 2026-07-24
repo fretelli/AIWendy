@@ -78,6 +78,8 @@ KeelTrader is a self-evolving fundamental investment research Agent Platform for
 
 Its role is a research assistant and discipline engine, not an automatic money-making system. Production deployments require authentication by default and keep humans in the loop: AI can retrieve, analyze, debate, record, and review, while final trading decisions remain human decisions.
 
+Production API releases use the full Git SHA as an immutable image tag. `KEELTRADER_API_IMAGE` is mandatory for Compose so the API and both workers cannot silently drift to `latest` or run different revisions.
+
 ## Core Capabilities
 
 - Unified Agent workspace: durable research runs, declarative custom agents, BYOK, user MCP, approvals, budgets, reversible memory, and scheduled research.
