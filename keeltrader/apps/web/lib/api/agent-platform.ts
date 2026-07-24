@@ -706,6 +706,42 @@ export type AllocationPolicyVersion = {
   infeasible_reasons?: string[]; sleeves?: AllocationSleeve[]; implementations?: AllocationImplementation[];
 };
 
+export type WealthProfile = {
+  id: string; name: string; base_currency: "CNY"; annual_essential_spending: number;
+  short_bucket_months: number; medium_bucket_months: number; aspirational_cap: number;
+  satellite_cap: number; settings_json: Record<string, unknown>;
+};
+export type HouseholdMember = {
+  id: string; name: string; role: "self" | "partner" | "dependent" | "parent" | "other";
+  birth_date: string; age: number; retirement_age?: number; dependency_end_date?: string;
+  annual_income: number; income_type?: string; income_stability?: "stable" | "variable" | "uncertain";
+  is_primary: boolean; notes?: string; life_stage: "accumulation" | "transition" | "retired" | "unspecified";
+};
+export type WealthAsset = {
+  id: string; name: string; category: string; value_cny: number; original_currency?: string;
+  original_value?: number; liquidity: "liquid" | "limited" | "illiquid"; allocatable: boolean;
+  owner_member_id?: string; notes?: string;
+};
+export type WealthLiability = { id: string; name: string; category: string; balance_cny: number; monthly_payment_cny: number; due_date?: string; owner_member_id?: string; notes?: string };
+export type WealthGoal = {
+  id: string; name: string; member_id?: string; target_amount_cny: number; target_date: string;
+  priority: "essential" | "important" | "aspirational"; flexibility: "fixed" | "flexible";
+  prepared_amount_cny: number; funding_gap_cny: number; coverage_ratio: number; bucket: "short" | "medium" | "long"; notes?: string;
+};
+export type WealthAssignment = { id?: string; asset_id: string; goal_id?: string; layer?: "safety" | "market" | "aspirational"; amount_cny: number; notes?: string };
+export type WealthSummary = {
+  total_assets_cny: number; total_liabilities_cny: number; net_wealth_cny: number; liquid_wealth_cny: number;
+  allocatable_wealth_cny: number; annual_household_income_cny: number; essential_spending_coverage_months?: number;
+  safety_required_cny: number; market_available_cny: number; aspirational_limit_cny: number;
+  core_budget_cny: number; satellite_budget_cny: number; layer_assignments_cny: Record<string, number>;
+  goal_funding_gap_cny: number;
+};
+export type WealthAggregate = { profile: WealthProfile; members: HouseholdMember[]; assets: WealthAsset[]; liabilities: WealthLiability[]; goals: WealthGoal[]; assignments: WealthAssignment[]; framework: { summary: WealthSummary; conflicts: string[]; ready: boolean } };
+export type WealthFrameworkVersion = { id: string; profile_id: string; version: number; snapshot: Record<string, unknown>; summary: WealthSummary; conflicts: string[]; content_hash: string; created_at: string };
+export type SaaTarget = { key: string; label: string; layer: "safety" | "market" | "aspirational"; target_weight: number; min_weight: number; max_weight: number };
+export type SaaPolicyVersion = { id: string; profile_id: string; framework_version_id: string; source_allocation_policy_version_id?: string; version: number; name: string; effective_date: string; review_date: string; targets: SaaTarget[]; constraints_snapshot: Record<string, unknown>; source_type: "manual" | "allocation_policy"; status: "draft" | "confirmed" | "superseded"; content_hash: string; created_at: string };
+export type TaaOverlay = { id: string; profile_id: string; saa_version_id: string; opportunity_snapshot_id?: string; title: string; deltas: Record<string, number>; rationale: string; evidence: Array<Record<string, unknown>>; falsifiers: string[]; starts_at: string; review_at: string; expires_at: string; status: "draft" | "confirmed" | "closed" | "expired"; content_hash: string; created_at: string; updated_at: string };
+
 const base = "/agent";
 export const agentPlatformApi = {
   health: () => apiJson<{ status: string; mode: string }>(`${base}/health`),
@@ -807,6 +843,29 @@ export const agentPlatformApi = {
   allocationPolicyVersion: (id: string) => apiJson<AllocationPolicyVersion>(`${base}/allocation-policy-versions/${id}`),
   generateAllocationPolicy: (accountId: string) => apiJson<AllocationPolicyVersion>(`${base}/allocation-accounts/${accountId}/policy-versions`, { method: "POST" }),
   confirmAllocationPolicy: (accountId: string, versionId: string) => apiJson<AllocationPolicyVersion>(`${base}/allocation-accounts/${accountId}/policy-versions/${versionId}/confirm`, { method: "POST" }),
+  wealthProfile: () => apiJson<WealthAggregate>(`${base}/wealth-profile`),
+  updateWealthProfile: (body: Partial<WealthProfile>) => apiJson<WealthAggregate>(`${base}/wealth-profile`, { method: "PUT", body }),
+  createWealthMember: (body: Omit<HouseholdMember, "id" | "age" | "life_stage">) => apiJson<HouseholdMember>(`${base}/wealth-profile/members`, { method: "POST", body }),
+  updateWealthMember: (id: string, body: Omit<HouseholdMember, "id" | "age" | "life_stage">) => apiJson<HouseholdMember>(`${base}/wealth-profile/members/${id}`, { method: "PUT", body }),
+  deleteWealthMember: (id: string) => apiJson<{ ok: true }>(`${base}/wealth-profile/members/${id}`, { method: "DELETE" }),
+  createWealthAsset: (body: Omit<WealthAsset, "id">) => apiJson<WealthAsset>(`${base}/wealth-profile/assets`, { method: "POST", body }),
+  updateWealthAsset: (id: string, body: Omit<WealthAsset, "id">) => apiJson<WealthAsset>(`${base}/wealth-profile/assets/${id}`, { method: "PUT", body }),
+  deleteWealthAsset: (id: string) => apiJson<{ ok: true }>(`${base}/wealth-profile/assets/${id}`, { method: "DELETE" }),
+  createWealthLiability: (body: Omit<WealthLiability, "id">) => apiJson<WealthLiability>(`${base}/wealth-profile/liabilities`, { method: "POST", body }),
+  deleteWealthLiability: (id: string) => apiJson<{ ok: true }>(`${base}/wealth-profile/liabilities/${id}`, { method: "DELETE" }),
+  createWealthGoal: (body: Omit<WealthGoal, "id" | "prepared_amount_cny" | "funding_gap_cny" | "coverage_ratio" | "bucket">) => apiJson<WealthGoal>(`${base}/wealth-profile/goals`, { method: "POST", body }),
+  deleteWealthGoal: (id: string) => apiJson<{ ok: true }>(`${base}/wealth-profile/goals/${id}`, { method: "DELETE" }),
+  replaceWealthAssignments: (body: WealthAssignment[]) => apiJson<WealthAggregate>(`${base}/wealth-profile/assignments`, { method: "PUT", body }),
+  wealthFrameworkPreview: () => apiJson<{ preview: true; write_performed: false; summary: WealthSummary; conflicts: string[]; ready: boolean }>(`${base}/wealth-profile/framework-preview`, { method: "POST" }),
+  wealthFrameworkVersions: () => apiJson<{ items: WealthFrameworkVersion[] }>(`${base}/wealth-profile/framework-versions`),
+  createWealthFrameworkVersion: () => apiJson<WealthFrameworkVersion>(`${base}/wealth-profile/framework-versions`, { method: "POST" }),
+  saaPolicyVersions: () => apiJson<{ items: SaaPolicyVersion[] }>(`${base}/saa-policy-versions`),
+  createSaaPolicyVersion: (body: { framework_version_id: string; source_allocation_policy_version_id?: string; name: string; effective_date: string; review_date: string; targets: SaaTarget[] }) => apiJson<SaaPolicyVersion>(`${base}/saa-policy-versions`, { method: "POST", body }),
+  confirmSaaPolicyVersion: (id: string) => apiJson<SaaPolicyVersion>(`${base}/saa-policy-versions/${id}/confirm`, { method: "POST" }),
+  taaOverlays: () => apiJson<{ items: TaaOverlay[] }>(`${base}/taa-overlays`),
+  createTaaOverlay: (body: { saa_version_id: string; opportunity_snapshot_id?: string; title: string; deltas: Record<string, number>; rationale: string; evidence?: Array<Record<string, unknown>>; falsifiers?: string[]; starts_at: string; review_at: string; expires_at: string }) => apiJson<TaaOverlay>(`${base}/taa-overlays`, { method: "POST", body }),
+  confirmTaaOverlay: (id: string) => apiJson<TaaOverlay>(`${base}/taa-overlays/${id}/confirm`, { method: "POST" }),
+  closeTaaOverlay: (id: string) => apiJson<TaaOverlay>(`${base}/taa-overlays/${id}/close`, { method: "POST" }),
   uploadAttachment: (file: File) => {
     const form = new FormData();
     form.append("file", file);

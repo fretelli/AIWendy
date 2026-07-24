@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, JSON, Numeric, String, Text
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, Numeric, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 
 from core.database import Base
@@ -182,6 +182,168 @@ class AllocationPolicyImplementation(Base):
     metadata_json = Column(JSON, nullable=False, default=dict)
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
     __table_args__ = (Index("ix_allocation_implementation_policy", "policy_version_id", "sleeve_key"),)
+
+
+class WealthProfile(Base):
+    """Private household wealth-planning profile; a household may contain one person."""
+    __tablename__ = "wealth_profiles"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    name = Column(String(160), nullable=False, default="我的家庭财富")
+    base_currency = Column(String(12), nullable=False, default="CNY")
+    annual_essential_spending = Column(Numeric(24, 6), nullable=False, default=0)
+    short_bucket_months = Column(Integer, nullable=False, default=24)
+    medium_bucket_months = Column(Integer, nullable=False, default=60)
+    aspirational_cap = Column(Numeric(12, 8), nullable=False, default=0.10)
+    satellite_cap = Column(Numeric(12, 8), nullable=False, default=0.20)
+    settings_json = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class HouseholdMember(Base):
+    __tablename__ = "household_members"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("wealth_profiles.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(120), nullable=False)
+    role = Column(String(30), nullable=False, default="self")
+    birth_date = Column(Date, nullable=False)
+    retirement_age = Column(Integer, nullable=True)
+    dependency_end_date = Column(Date, nullable=True)
+    annual_income = Column(Numeric(24, 6), nullable=False, default=0)
+    income_type = Column(String(40), nullable=True)
+    income_stability = Column(String(30), nullable=True)
+    is_primary = Column(Boolean, nullable=False, default=False)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        Index("ix_household_members_profile", "profile_id", "role", "birth_date"),
+        Index("uq_household_members_one_self", "profile_id", unique=True,
+              postgresql_where=text("role = 'self'")),
+    )
+
+
+class WealthAsset(Base):
+    __tablename__ = "wealth_assets"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("wealth_profiles.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(160), nullable=False)
+    category = Column(String(40), nullable=False)
+    value_cny = Column(Numeric(24, 6), nullable=False)
+    original_currency = Column(String(12), nullable=True)
+    original_value = Column(Numeric(24, 6), nullable=True)
+    liquidity = Column(String(30), nullable=False, default="liquid")
+    allocatable = Column(Boolean, nullable=False, default=True)
+    owner_member_id = Column(UUID(as_uuid=True), ForeignKey("household_members.id", ondelete="SET NULL"), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("ix_wealth_assets_profile", "profile_id", "category", "liquidity"),)
+
+
+class WealthLiability(Base):
+    __tablename__ = "wealth_liabilities"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("wealth_profiles.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(160), nullable=False)
+    category = Column(String(40), nullable=False)
+    balance_cny = Column(Numeric(24, 6), nullable=False)
+    monthly_payment_cny = Column(Numeric(24, 6), nullable=False, default=0)
+    due_date = Column(Date, nullable=True)
+    owner_member_id = Column(UUID(as_uuid=True), ForeignKey("household_members.id", ondelete="SET NULL"), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("ix_wealth_liabilities_profile", "profile_id", "category", "due_date"),)
+
+
+class WealthGoal(Base):
+    __tablename__ = "wealth_goals"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("wealth_profiles.id", ondelete="CASCADE"), nullable=False)
+    member_id = Column(UUID(as_uuid=True), ForeignKey("household_members.id", ondelete="SET NULL"), nullable=True)
+    name = Column(String(160), nullable=False)
+    target_amount_cny = Column(Numeric(24, 6), nullable=False)
+    target_date = Column(Date, nullable=False)
+    priority = Column(String(30), nullable=False, default="important")
+    flexibility = Column(String(30), nullable=False, default="flexible")
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("ix_wealth_goals_profile", "profile_id", "priority", "target_date"),)
+
+
+class WealthAssignment(Base):
+    __tablename__ = "wealth_assignments"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("wealth_profiles.id", ondelete="CASCADE"), nullable=False)
+    asset_id = Column(UUID(as_uuid=True), ForeignKey("wealth_assets.id", ondelete="CASCADE"), nullable=False)
+    goal_id = Column(UUID(as_uuid=True), ForeignKey("wealth_goals.id", ondelete="CASCADE"), nullable=True)
+    layer = Column(String(30), nullable=True)
+    amount_cny = Column(Numeric(24, 6), nullable=False)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("ix_wealth_assignments_profile", "profile_id", "asset_id", "goal_id"),)
+
+
+class WealthFrameworkVersion(Base):
+    __tablename__ = "wealth_framework_versions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("wealth_profiles.id", ondelete="CASCADE"), nullable=False)
+    version = Column(Integer, nullable=False)
+    snapshot = Column(JSON, nullable=False)
+    summary = Column(JSON, nullable=False)
+    conflicts = Column(JSON, nullable=False, default=list)
+    content_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        Index("uq_wealth_framework_profile_version", "profile_id", "version", unique=True),
+        Index("ix_wealth_framework_profile_created", "profile_id", "created_at"),
+    )
+
+
+class SaaPolicyVersion(Base):
+    __tablename__ = "saa_policy_versions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("wealth_profiles.id", ondelete="CASCADE"), nullable=False)
+    framework_version_id = Column(UUID(as_uuid=True), ForeignKey("wealth_framework_versions.id", ondelete="RESTRICT"), nullable=False)
+    source_allocation_policy_version_id = Column(UUID(as_uuid=True), ForeignKey("allocation_policy_versions.id", ondelete="SET NULL"), nullable=True)
+    version = Column(Integer, nullable=False)
+    name = Column(String(160), nullable=False)
+    effective_date = Column(Date, nullable=False)
+    review_date = Column(Date, nullable=False)
+    targets = Column(JSON, nullable=False)
+    constraints_snapshot = Column(JSON, nullable=False)
+    source_type = Column(String(30), nullable=False, default="manual")
+    status = Column(String(30), nullable=False, default="draft")
+    content_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (
+        Index("uq_saa_policy_profile_version", "profile_id", "version", unique=True),
+        Index("ix_saa_policy_profile_status", "profile_id", "status", "created_at"),
+    )
+
+
+class TaaOverlay(Base):
+    __tablename__ = "taa_overlays"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    profile_id = Column(UUID(as_uuid=True), ForeignKey("wealth_profiles.id", ondelete="CASCADE"), nullable=False)
+    saa_version_id = Column(UUID(as_uuid=True), ForeignKey("saa_policy_versions.id", ondelete="CASCADE"), nullable=False)
+    opportunity_snapshot_id = Column(UUID(as_uuid=True), ForeignKey("market_opportunity_snapshots.id", ondelete="SET NULL"), nullable=True)
+    title = Column(String(200), nullable=False)
+    deltas = Column(JSON, nullable=False)
+    rationale = Column(Text, nullable=False)
+    evidence = Column(JSON, nullable=False, default=list)
+    falsifiers = Column(JSON, nullable=False, default=list)
+    starts_at = Column(Date, nullable=False)
+    review_at = Column(Date, nullable=False)
+    expires_at = Column(Date, nullable=False)
+    status = Column(String(30), nullable=False, default="draft")
+    content_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("ix_taa_overlays_profile_status", "profile_id", "status", "review_at", "expires_at"),)
 
 
 class MarketOpportunity(Base):
