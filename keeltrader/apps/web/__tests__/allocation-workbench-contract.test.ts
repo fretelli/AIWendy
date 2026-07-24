@@ -26,8 +26,8 @@ test("derivatives are implementation tools instead of allocation sleeves", () =>
   expect(page).not.toContain('sleeve_key: "futures"');
 });
 
-test("mobile navigation adds allocation without six cramped equal items", () => {
-  expect(shell).toContain('href: "/agent/allocation"');
+test("mobile navigation opens the framework first without hiding the existing engine", () => {
+  expect(shell).toContain('href: "/agent/allocation/framework"');
   expect(shell).toContain('label: "资产配置"');
   expect(shell).not.toContain('label: "今日"');
   expect(shell).not.toContain('label: "论点"');

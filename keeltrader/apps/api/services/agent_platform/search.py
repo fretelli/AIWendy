@@ -32,7 +32,7 @@ async def global_search(session: AsyncSession, user_id: UUID, query: str, limit:
         *[{"type": "holder", "id": str(row.id), "title": row.holder_name,
            "subtitle": row.holder_type, "href": f"/agent/holders?watch={row.id}"} for row in holders],
         *[{"type": "opportunity", "id": str(row.id), "title": row.title,
-           "subtitle": row.trigger[:160], "href": f"/agent/market/opportunities?opportunity={row.id}"}
+           "subtitle": row.trigger[:160], "href": f"/agent/opportunities?opportunity={row.id}"}
           for row in opportunities],
         *[{"type": "artifact", "id": str(row.id), "title": row.title,
            "subtitle": row.artifact_type, "href": f"/agent?run={row.run_id}"} for row in artifacts],

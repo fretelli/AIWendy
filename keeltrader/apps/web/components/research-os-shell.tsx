@@ -7,6 +7,7 @@ import {
   Command,
   Radar,
   Search,
+  Telescope,
   ShipWheel,
   Route,
   Menu,
@@ -24,6 +25,12 @@ const destinations = [
     icon: ShipWheel,
   },
   {
+    href: "/agent/opportunities",
+    label: "机会中心",
+    detail: "市场、公司与股东证据汇合",
+    icon: Telescope,
+  },
+  {
     href: "/agent/holders",
     label: "股东雷达",
     detail: "关注股东与持仓变化",
@@ -32,18 +39,18 @@ const destinations = [
   {
     href: "/agent/market/capital",
     label: "市场",
-    detail: "资金、利率债券、宏观、期货、期权与机会",
+    detail: "资金、利率债券、宏观、期货与期权",
     icon: Waves,
   },
   {
-    href: "/agent/allocation",
+    href: "/agent/allocation/framework",
     label: "资产配置",
     detail: "资金约束、配置方法论与不可变版本",
     icon: Route,
   },
 ];
 
-const mobilePrimary = ["/agent", "/agent/allocation", "/agent/market/capital"]
+const mobilePrimary = ["/agent", "/agent/opportunities", "/agent/market/capital", "/agent/allocation/framework"]
   .map((href) => destinations.find((item) => item.href === href)!)
   .filter(Boolean);
 const mobileMore = destinations.filter((item) => !mobilePrimary.includes(item));

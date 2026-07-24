@@ -8,7 +8,6 @@ import {
   Landmark,
   Radar,
   RefreshCw,
-  Search,
   Send,
   ShipWheel,
   Waves,
@@ -25,7 +24,6 @@ const sections = [
   { href: "/agent/market/macro", label: "宏观", icon: Landmark },
   { href: "/agent/market/futures", label: "期货", icon: BarChart3 },
   { href: "/agent/market/options", label: "期权", icon: CircleDollarSign },
-  { href: "/agent/market/opportunities", label: "机会", icon: Search },
 ];
 
 export function MarketShell({
@@ -35,6 +33,7 @@ export function MarketShell({
   onRefresh,
   onResearch,
   trail,
+  showNavigation = true,
   children,
 }: {
   title: string;
@@ -43,6 +42,7 @@ export function MarketShell({
   onRefresh?: () => void;
   onResearch?: () => void;
   trail?: { object: string; asOf?: string; source?: string };
+  showNavigation?: boolean;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -92,7 +92,7 @@ export function MarketShell({
           </Button>
           <ThemeMenu />
         </div>
-        <MarketNavigation pathname={pathname} />
+        {showNavigation && <MarketNavigation pathname={pathname} />}
         <DataBeacon />
         {trail && (
           <div className="evidence-rail flex min-h-8 items-center gap-3 overflow-x-auto border-t px-4 text-[9px] text-muted-foreground">
