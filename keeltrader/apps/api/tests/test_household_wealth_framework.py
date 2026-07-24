@@ -1,9 +1,12 @@
 from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
+from sqlalchemy.dialects import postgresql
 
+from domain.agent_platform.models import WealthProfile
 from services.agent_platform.wealth import WealthService, age_on, horizon_bucket
 
 
@@ -70,6 +73,27 @@ def test_framework_versions_are_immutable_and_preview_is_read_only():
     assert '@router.post("/wealth-profile/framework-versions")' in router
     assert '@router.put("/wealth-profile/framework-versions' not in router
     assert '@router.delete("/wealth-profile/framework-versions' not in router
+
+
+def test_first_profile_creation_uses_postgres_conflict_safe_insert():
+    statement = (
+        postgresql.insert(WealthProfile)
+        .values(user_id=uuid4())
+        .on_conflict_do_nothing(index_elements=[WealthProfile.user_id])
+    )
+    sql = str(statement.compile(dialect=postgresql.dialect()))
+    service = (ROOT / "services/agent_platform/wealth.py").read_text()
+
+    assert "ON CONFLICT (user_id) DO NOTHING" in sql
+    assert "pg_insert(WealthProfile)" in service
+    assert ".on_conflict_do_nothing(index_elements=[WealthProfile.user_id])" in service
+    commit_position = service.index(
+        "await self.session.commit()", service.index("pg_insert(WealthProfile)")
+    )
+    requery_position = service.index(
+        "row = (await self.session.execute(query)).scalar_one()"
+    )
+    assert commit_position < requery_position
 
 
 def test_assignment_and_taa_ownership_hard_boundaries_are_explicit():
