@@ -11,7 +11,7 @@ services:
       dockerfile: apps/api/Dockerfile
       args:
         PIP_INDEX_URL: ${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}
-    image: keeltrader-api:latest
+    image: ${KEELTRADER_API_IMAGE:?KEELTRADER_API_IMAGE must be an immutable release tag}
     container_name: keeltrader-api
     restart: unless-stopped
     mem_limit: 512m
@@ -101,7 +101,7 @@ services:
       - "traefik.http.middlewares.keeltrader-compress.compress=true"
 
   agent-platform-worker:
-    image: keeltrader-api:latest
+    image: ${KEELTRADER_API_IMAGE:?KEELTRADER_API_IMAGE must be an immutable release tag}
     container_name: keeltrader-agent-platform-worker
     restart: unless-stopped
     mem_limit: 256m
@@ -134,7 +134,7 @@ services:
     command: python tasks/agent_platform_worker.py
 
   opportunity-worker:
-    image: keeltrader-api:latest
+    image: ${KEELTRADER_API_IMAGE:?KEELTRADER_API_IMAGE must be an immutable release tag}
     container_name: keeltrader-opportunity-worker
     restart: unless-stopped
     mem_limit: 320m

@@ -94,7 +94,7 @@ resolve_overlay_base_image() {
     return
   fi
 
-  if docker image inspect "$fallback_image" >/dev/null 2>&1; then
+  if [ -n "$fallback_image" ] && docker image inspect "$fallback_image" >/dev/null 2>&1; then
     fallback_build_type="$(image_build_type "$fallback_image" 2>/dev/null || true)"
     if [ "$fallback_build_type" = "overlay" ]; then
       OVERLAY_BASE_IMAGE="$default_image"
@@ -111,6 +111,33 @@ resolve_overlay_base_image() {
   OVERLAY_BASE_IMAGE="$default_image"
   log "No reusable overlay base image found; bootstrapping $OVERLAY_BASE_IMAGE without pulling base images."
   "$build_base_image_func" "$OVERLAY_BASE_IMAGE"
+}
+
+service_image_id() {
+  local service="$1"
+  local cid
+
+  cid="$(docker compose ps -q "$service")"
+  [ -n "$cid" ] || return 1
+  docker inspect -f '{{.Image}}' "$cid"
+}
+
+expect_services_same_image() {
+  local expected_id=""
+  local service
+  local actual_id
+
+  for service in "$@"; do
+    actual_id="$(service_image_id "$service" 2>/dev/null || true)"
+    [ -n "$actual_id" ] || die "Running service has no image ID: $service"
+    if [ -z "$expected_id" ]; then
+      expected_id="$actual_id"
+    elif [ "$actual_id" != "$expected_id" ]; then
+      die "Running service image mismatch: $service uses $actual_id, expected $expected_id"
+    fi
+  done
+
+  log "smoke ok: services share immutable image $expected_id ($*)"
 }
 
 expect_image_revision() {

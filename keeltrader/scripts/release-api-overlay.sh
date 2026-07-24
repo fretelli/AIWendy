@@ -10,7 +10,8 @@ init_release_metadata "$ROOT_DIR"
 API_DIR="$ROOT_DIR/apps/api"
 OVERLAY_BASE_IMAGE="${KEELTRADER_API_OVERLAY_BASE_IMAGE:-}"
 DEFAULT_BASE_IMAGE="keeltrader-api:base"
-FALLBACK_BASE_IMAGE="keeltrader-api:latest"
+FALLBACK_BASE_IMAGE=""
+RELEASE_IMAGE="keeltrader-api:${GIT_SHA}"
 RUN_TESTS=1
 DEPLOY=1
 FULL_BUILD=0
@@ -30,14 +31,14 @@ overlay image path.
 Options:
   --skip-tests   Skip pytest, but still build the production overlay and smoke.
   --test-only    Build the production overlay and one-shot test image, then run pytest without deploy or smoke.
-  --no-deploy    Build and validate the image without tagging latest or restarting services.
+  --no-deploy    Build and validate the immutable image without restarting services.
   --full-build   Build keeltrader-api:base from apps/api/Dockerfile before overlay.
   --smoke-only   Run smoke checks only against the current Compose stack.
   -h, --help     Show this help.
 
 Environment:
   KEELTRADER_RELEASE_ENV_FILE        Optional env file for release-only secrets/settings. Default: .env.release.local when present.
-  KEELTRADER_API_OVERLAY_BASE_IMAGE  Explicit base image for overlay builds. Default: use keeltrader-api:base, fall back to keeltrader-api:latest.
+  KEELTRADER_API_OVERLAY_BASE_IMAGE  Explicit base image for overlay builds. Default: use or rebuild keeltrader-api:base.
   KEELTRADER_API_SMOKE_ATTEMPTS      Smoke attempts per check. Default: 12
   KEELTRADER_API_SMOKE_DELAY_SECONDS Delay between smoke attempts. Default: 5
   PIP_INDEX_URL                       Python package index for base/test image builds. Default: Aliyun PyPI mirror.
@@ -102,10 +103,10 @@ build_images() {
     --build-arg GIT_SHA="$GIT_SHA" \
     --build-arg BUILD_TIME="$BUILD_TIME" \
     --build-arg BUILD_TYPE="$BUILD_TYPE" \
-    -t keeltrader-api:test-overlay \
+    -t "$RELEASE_IMAGE" \
     "$ROOT_DIR"
 
-  expect_image_revision keeltrader-api:test-overlay "$GIT_SHA"
+  expect_image_revision "$RELEASE_IMAGE" "$GIT_SHA"
 }
 
 run_quality_checks() {
@@ -117,7 +118,7 @@ run_quality_checks() {
   log "Building one-shot API test image"
   docker build --pull=false \
     -f "$API_DIR/Dockerfile.test" \
-    --build-arg API_UNDER_TEST_IMAGE=keeltrader-api:test-overlay \
+    --build-arg API_UNDER_TEST_IMAGE="$RELEASE_IMAGE" \
     --build-arg PIP_INDEX_URL="$PIP_INDEX_URL" \
     -t keeltrader-api:test-runner \
     "$ROOT_DIR"
@@ -131,8 +132,20 @@ deploy_api() {
     return
   fi
 
-  run docker tag keeltrader-api:test-overlay keeltrader-api:latest
-  run docker compose up -d api agent-platform-worker opportunity-worker
+  export KEELTRADER_API_IMAGE="$RELEASE_IMAGE"
+  log "docker compose up -d api agent-platform-worker opportunity-worker (KEELTRADER_API_IMAGE=$KEELTRADER_API_IMAGE)"
+  docker compose up -d api agent-platform-worker opportunity-worker
+}
+
+ensure_smoke_image_env() {
+  if [ -n "${KEELTRADER_API_IMAGE:-}" ]; then
+    export KEELTRADER_API_IMAGE
+    return
+  fi
+
+  KEELTRADER_API_IMAGE="$(docker inspect -f '{{.Config.Image}}' keeltrader-api 2>/dev/null || true)"
+  [ -n "$KEELTRADER_API_IMAGE" ] || die "KEELTRADER_API_IMAGE is required and no running API image could be resolved"
+  export KEELTRADER_API_IMAGE
 }
 
 container_http_code() {
@@ -277,6 +290,7 @@ smoke() {
     expect_service_revision api "$GIT_SHA"
     expect_service_revision agent-platform-worker "$GIT_SHA"
     expect_service_revision opportunity-worker "$GIT_SHA"
+    expect_services_same_image api agent-platform-worker opportunity-worker
   fi
 }
 
@@ -286,6 +300,7 @@ main() {
 
   cd "$ROOT_DIR"
   if [ "$SMOKE_ONLY" -eq 1 ]; then
+    ensure_smoke_image_env
     smoke
     log "Smoke complete."
     return
