@@ -1,6 +1,6 @@
 # KeelTrader Makefile
 
-PIP_AUDIT_IMAGE ?= keeltrader-api:base
+PIP_AUDIT_IMAGE ?= keeltrader-api:test-base
 PIP_AUDIT_DOCKER_TIMEOUT ?= 600
 PIP_AUDIT_TIMEOUT ?= 120
 PIP_AUDIT_INDEX_URL ?= https://pypi.org/simple/
