@@ -28,7 +28,7 @@ import {
   agentPlatformApi, type AgentApproval, type AgentDefinition, type AgentMemory,
   type GlobalLearningMemory,
   type AgentMessage, type AgentModelProfile, type AgentRun, type AgentSchedule,
-  type AgentSession, type CompanyDossier, type CompanySearchItem, type InteractionMode, type MCPServer, type Usage, type WatchlistItem,
+  type AgentSession, type CompanyDossier, type CompanySearchItem, type InteractionMode, type MCPServer, type Usage, type WatchlistItem, type WorkspaceScope,
 } from '@/lib/api/agent-platform'
 import { apiFetch } from '@/lib/api/client'
 
@@ -177,7 +177,7 @@ export default function AgentWorkspacePage() {
     if (!defaultAgentId) { setSettingsOpen(true); toast.error('请先配置 KeelTrader 模型'); return null }
     const company = watchlist.find(item => item.company_code === companyCode)
     const item = await agentPlatformApi.createSession({ agent_definition_id: defaultAgentId,
-      title: company ? `${company.company_name}研究` : '新会话', interaction_mode: 'ask', company_code: companyCode || null })
+      title: company ? `${company.company_name}研究` : '新会话', interaction_mode: 'ask', workspace_scope: companyCode ? 'research' : 'general', company_code: companyCode || null })
     setSessions(previous => [item, ...previous]); setCurrentId(item.id); setMessages([]); setRuns([]); setEvents([]); setNotice(null)
     return item
   }
@@ -190,6 +190,16 @@ export default function AgentWorkspacePage() {
     setSessions(previous => previous.map(item => item.id === sessionId ? updated : item))
     setNotice(`已切换到 /${mode} 模式。`)
     return true
+  }
+
+  const switchWorkspace = async (workspace_scope: WorkspaceScope) => {
+    let sessionId = currentId
+    if (!sessionId) sessionId = (await createSession())?.id || null
+    if (!sessionId) return
+    const updated = await agentPlatformApi.updateSession(sessionId, { workspace_scope })
+    setSessions(previous => previous.map(item => item.id === sessionId ? updated : item))
+    if (workspace_scope !== 'research') setDossier(null)
+    setNotice(`已切换到${workspaceLabel(workspace_scope)}；工作区不会授予发布、主机执行、改密钥或交易权限。`)
   }
 
   const runCommand = async (raw: string): Promise<string | null> => {
@@ -245,7 +255,7 @@ export default function AgentWorkspacePage() {
     let sessionId = currentId
     if (!sessionId) sessionId = (await createSession(companyCode))?.id || null
     if (!sessionId) return
-    const updated = await agentPlatformApi.updateSession(sessionId, { company_code: companyCode })
+    const updated = await agentPlatformApi.updateSession(sessionId, { company_code: companyCode, workspace_scope: 'research' })
     setSessions(previous => previous.map(item => item.id === sessionId ? updated : item))
     const company = watchlist.find(item => item.company_code === companyCode)
     setNotice(company ? `当前研究公司：${company.company_name}（${company.company_code}）` : `当前研究公司：${companyCode}`)
@@ -301,7 +311,7 @@ export default function AgentWorkspacePage() {
   }
 
   const sidebar = <div className="chart-surface flex h-full flex-col">
-    <div className="flex items-center gap-2 border-b border-border/70 p-3"><Button className="flex-1 justify-start shadow-sm" onClick={() => void createSession()}><MessageSquarePlus className="mr-2 h-4 w-4" />新建研究</Button><Button size="icon" variant="outline" aria-label="打开设置" onClick={() => setSettingsOpen(true)}><Settings2 className="h-4 w-4" /></Button></div>
+    <div className="flex items-center gap-2 border-b border-border/70 p-3"><Button className="flex-1 justify-start shadow-sm" onClick={() => void createSession()}><MessageSquarePlus className="mr-2 h-4 w-4" />新建会话</Button><Button size="icon" variant="outline" aria-label="打开设置" onClick={() => setSettingsOpen(true)}><Settings2 className="h-4 w-4" /></Button></div>
     <div className="border-b border-border/70 p-3"><div className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground"><span className="flex items-center gap-2"><Building2 className="h-3.5 w-3.5" />我的自选</span><span className="font-data tracking-normal">{watchlist.length}</span></div><div className="relative"><Input value={companyQuery} onChange={e => { setCompanyQuery(e.target.value); if (!e.target.value) setCompanyResults([]) }} placeholder="搜索 A 股代码或名称" className="h-9 bg-card/90 text-xs" />{companyResults.length > 0 && <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border bg-popover p-1 shadow-xl">{companyResults.map(company => <button key={company.ts_code} className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs hover:bg-secondary" onClick={() => void addCompany(company)}><Plus className="h-3 w-3 text-[hsl(var(--copper-foreground))]" /><span className="truncate">{company.name}</span><span className="ml-auto font-data text-muted-foreground">{company.ts_code}</span></button>)}</div>}</div><div className="mt-2 space-y-1">{watchlist.map(company => <div key={company.company_code} className={`group flex items-center rounded-lg border border-transparent transition-colors ${currentSession?.company_code === company.company_code ? 'border-[hsl(var(--accent)/.35)] bg-[hsl(var(--accent)/.09)]' : 'hover:bg-secondary/70'}`}><button className="min-w-0 flex-1 px-2.5 py-2 text-left text-xs" onClick={() => void selectCompany(company.company_code)}><span className="block truncate font-semibold">{company.company_name}</span><span className="font-data text-[10px] text-muted-foreground">{company.company_code}{company.industry ? ` · ${company.industry}` : ''}</span></button><Button className="mr-1 h-7 w-7 opacity-0 focus-visible:opacity-100 group-hover:opacity-100" aria-label={`移除 ${company.company_name}`} size="icon" variant="ghost" onClick={() => void removeCompany(company.company_code)}><X className="h-3 w-3" /></Button></div>)}</div></div>
     <div className="p-3"><div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">研究记录</div><div className="relative"><Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" /><Input className="h-9 bg-card/80 pl-8 text-xs" placeholder="搜索研究记录" value={search} onChange={e => setSearch(e.target.value)} /></div></div>
     <ScrollArea className="flex-1 px-2"><div className="space-y-1 pb-4">{filteredSessions.map(item => <div key={item.id} className={`group flex items-start rounded-lg transition-colors ${currentId === item.id ? 'bg-secondary shadow-sm' : 'hover:bg-secondary/60'}`}><button onClick={() => { setCurrentId(item.id); setSidebarOpen(false); setEvents([]) }} className="flex min-w-0 flex-1 items-start gap-2 px-3 py-2.5 text-left text-sm"><Compass className={`mt-0.5 h-4 w-4 shrink-0 ${currentId === item.id ? 'text-[hsl(var(--copper-foreground))]' : 'text-muted-foreground'}`} /><span className="min-w-0 flex-1"><span className="block truncate font-semibold">{item.title}</span><span className="font-data block text-[10px] text-muted-foreground">{new Date(item.last_message_at || item.created_at).toLocaleString()}</span></span>{item.is_pinned && <Pin className="h-3 w-3 shrink-0 text-[hsl(var(--copper-foreground))]" />}</button><Button size="icon" variant="ghost" className="mr-1 mt-1 h-8 w-8 shrink-0 opacity-70 xl:opacity-0 xl:group-hover:opacity-100 focus-visible:opacity-100" aria-label={`重命名 ${item.title}`} onClick={() => openRename(item)}><Pencil className="h-3.5 w-3.5" /></Button></div>)}</div></ScrollArea>
@@ -309,10 +319,10 @@ export default function AgentWorkspacePage() {
   </div>
 
   const mainPanel = <main className="flex h-full min-w-0 flex-1 flex-col bg-background/80 backdrop-blur-[2px]">
-      <header className="research-bearing flex min-h-16 shrink-0 items-center gap-2 border-b bg-card/92 px-3 shadow-[0_1px_0_hsl(var(--border)/.45)]"><Button className="xl:hidden" size="icon" variant="ghost" aria-label="打开自选与会话" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></Button><Button className="hidden xl:inline-flex" size="icon" variant="ghost" aria-label="折叠左栏" onClick={() => leftPanelRef.current?.isCollapsed() ? leftPanelRef.current.expand() : leftPanelRef.current?.collapse()}>{leftCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}</Button><div className="hidden border-r pr-4 md:block"><KeelMark /></div><ResearchBearing session={currentSession} dossier={dossier} run={activeRun} onRename={() => currentSession && openRename(currentSession)} /><Badge variant="outline" className="hidden border-[hsl(var(--copper)/.35)] bg-card font-data text-[10px] text-[hsl(var(--copper-foreground))] lg:inline-flex">KeelTrader</Badge><Button asChild size="sm" variant="outline"><Link href="/agent/holders"><Radar className="mr-1.5 h-4 w-4" />股东雷达</Link></Button><ThemeMenu /><LanguageSwitcher className="hidden 2xl:block" /><Button size="icon" variant="ghost" aria-label="公司档案" onClick={() => desktopPanels ? (rightPanelRef.current?.isCollapsed() ? rightPanelRef.current.expand() : rightPanelRef.current?.collapse()) : setContextOpen(true)}>{rightCollapsed ? <PanelRightOpen className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}</Button><Button size="icon" variant="ghost" aria-label="退出登录" onClick={() => void logout()}><LogOut className="h-4 w-4" /></Button></header>
+      <header className="research-bearing flex min-h-16 shrink-0 items-center gap-2 border-b bg-card/92 px-3 shadow-[0_1px_0_hsl(var(--border)/.45)]"><Button className="xl:hidden" size="icon" variant="ghost" aria-label="打开自选与会话" onClick={() => setSidebarOpen(true)}><Menu className="h-5 w-5" /></Button><Button className="hidden xl:inline-flex" size="icon" variant="ghost" aria-label="折叠左栏" onClick={() => leftPanelRef.current?.isCollapsed() ? leftPanelRef.current.expand() : leftPanelRef.current?.collapse()}>{leftCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}</Button><div className="hidden border-r pr-4 md:block"><KeelMark /></div><ResearchBearing session={currentSession} dossier={dossier} run={activeRun} onRename={() => currentSession && openRename(currentSession)} /><select aria-label="工作区" className="h-9 rounded-lg border bg-card px-2 text-xs font-medium" value={currentSession?.workspace_scope || 'general'} onChange={event => void switchWorkspace(event.target.value as WorkspaceScope)}><option value="general">通用</option><option value="research">研究</option><option value="content">内容</option><option value="ops">运维</option></select><Badge variant="outline" className="hidden border-[hsl(var(--copper)/.35)] bg-card font-data text-[10px] text-[hsl(var(--copper-foreground))] lg:inline-flex">KeelTrader</Badge>{currentSession?.workspace_scope === 'research' && <Button asChild size="sm" variant="outline"><Link href="/agent/holders"><Radar className="mr-1.5 h-4 w-4" />股东雷达</Link></Button>}<ThemeMenu /><LanguageSwitcher className="hidden 2xl:block" /><Button size="icon" variant="ghost" aria-label="公司档案" onClick={() => desktopPanels ? (rightPanelRef.current?.isCollapsed() ? rightPanelRef.current.expand() : rightPanelRef.current?.collapse()) : setContextOpen(true)}>{rightCollapsed ? <PanelRightOpen className="h-5 w-5" /> : <PanelRightClose className="h-5 w-5" />}</Button><Button size="icon" variant="ghost" aria-label="退出登录" onClick={() => void logout()}><LogOut className="h-4 w-4" /></Button></header>
 
       <ScrollArea className="flex-1"><div className="mx-auto max-w-[840px] space-y-6 px-4 py-7 md:px-7">
-        {!messages.length && !activeRun && <ResearchEmptyState companyName={watchlist.find(item => item.company_code === currentSession?.company_code)?.company_name} onPrompt={setInput} />}
+        {!messages.length && !activeRun && <ResearchEmptyState scope={currentSession?.workspace_scope || 'general'} companyName={watchlist.find(item => item.company_code === currentSession?.company_code)?.company_name} onPrompt={setInput} />}
         {messages.map(message => <MessageBubble key={message.id} message={message} />)}
         {streamedText && <div className="relative pl-6"><span className="evidence-rail absolute inset-y-1 left-1 w-px" /><span className="absolute left-[-1px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-[hsl(var(--accent))]" /><div className="prose prose-sm max-w-none rounded-xl border bg-card/90 p-5 shadow-sm dark:prose-invert"><ReactMarkdown>{streamedText}</ReactMarkdown></div></div>}{events.filter(event => event.type !== 'message.delta').map(event => <EventCard key={`${event.id}-${event.type}`} event={event} />)}
         {activeRun && <div className="flex items-center gap-2 rounded-full border bg-card/75 px-3 py-2 text-xs text-muted-foreground shadow-sm"><Loader2 className="h-3.5 w-3.5 animate-spin text-[hsl(var(--accent))]" /><span>{statusLabel(activeRun.status)} · 航段 {activeRun.current_step} · <span className="font-data">{activeRun.tokens_used} tokens</span></span></div>}
@@ -360,20 +370,27 @@ function MessageBubble({ message }: { message: AgentMessage }) {
 }
 
 function ResearchBearing({ session, dossier, run, onRename }: { session?: AgentSession; dossier: CompanyDossier | null; run?: AgentRun; onRename: () => void }) {
-  const company = String(dossier?.snapshot?.company?.name || session?.title || '未选择公司')
+  const research = session?.workspace_scope === 'research'
+  const company = String(research ? (dossier?.snapshot?.company?.name || session?.title || '未选择公司') : (session?.title || workspaceLabel(session?.workspace_scope || 'general')))
   const evidence = dossier?.snapshot?.evidence_status === 'sufficient' ? '证据充分' : dossier ? '证据待补' : '尚无档案'
   return <div className="min-w-0 flex-1 px-1 py-2">
     <div className="group flex min-w-0 items-center gap-2"><Compass className="h-4 w-4 shrink-0 text-[hsl(var(--copper-foreground))]" /><span className="truncate font-display text-base font-semibold">{company}</span>{session && <button type="button" className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground opacity-60 transition hover:bg-secondary hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`重命名 ${session.title}`} onClick={onRename}><Pencil className="h-3.5 w-3.5" /></button>}{session?.company_code && <span className="font-data hidden max-w-52 truncate text-[10px] text-muted-foreground md:inline">{session.title} · {session.company_code}</span>}</div>
-    <div className="mt-1 flex items-center gap-2 overflow-hidden text-[10px] text-muted-foreground sm:gap-3"><span className="font-data shrink-0 text-[hsl(var(--copper-foreground))]">/{session?.interaction_mode || 'ask'}</span><Link href="/agent/market/capital" className="flex shrink-0 items-center gap-1 text-[hsl(var(--copper-foreground))] hover:underline"><Waves className="h-3 w-3" />资金面</Link><span className="flex shrink-0 items-center gap-1"><Database className="h-3 w-3" />{evidence}</span><span className="flex min-w-0 items-center gap-1"><Waves className="h-3 w-3 shrink-0" /><span className="truncate">{run ? statusLabel(run.status) : '研究台就绪'}</span></span><span className="hidden items-center gap-1 xl:flex"><ShieldCheck className="h-3 w-3" />只读，不执行交易</span></div>
+    <div className="mt-1 flex items-center gap-2 overflow-hidden text-[10px] text-muted-foreground sm:gap-3"><span className="font-data shrink-0 text-[hsl(var(--copper-foreground))]">/{session?.interaction_mode || 'ask'}</span>{research && <Link href="/agent/market/capital" className="flex shrink-0 items-center gap-1 text-[hsl(var(--copper-foreground))] hover:underline"><Waves className="h-3 w-3" />资金面</Link>}{research && <span className="flex shrink-0 items-center gap-1"><Database className="h-3 w-3" />{evidence}</span>}<span className="flex min-w-0 items-center gap-1"><Waves className="h-3 w-3 shrink-0" /><span className="truncate">{run ? statusLabel(run.status) : `${workspaceLabel(session?.workspace_scope || 'general')}就绪`}</span></span><span className="hidden items-center gap-1 xl:flex"><ShieldCheck className="h-3 w-3" />需人工批准外部动作</span></div>
   </div>
 }
 
-function ResearchEmptyState({ companyName, onPrompt }: { companyName?: string; onPrompt: (value: string) => void }) {
+function ResearchEmptyState({ scope, companyName, onPrompt }: { scope: WorkspaceScope; companyName?: string; onPrompt: (value: string) => void }) {
+  if (scope !== 'research') {
+    const copy = { general: ['把问题变成清晰判断。', '讨论方案、梳理信息或形成下一步，不会擅自调用工具。'], content: ['从材料到可审阅草稿。', '协助选题、写作和修改，但不会替你发布。'], ops: ['先诊断，再给出可审核步骤。', '协助分析系统问题，但不会执行命令、部署、重启或改密钥。'] }[scope]
+    return <div className="flex min-h-[52vh] flex-col justify-center py-10"><div className="max-w-xl"><div className="mb-5 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-[hsl(var(--copper-foreground))]"><span className="h-px w-10 bg-[hsl(var(--copper)/.6)]" />{workspaceLabel(scope)}</div><h1 className="font-display text-4xl font-medium leading-[1.08] tracking-[-0.035em] md:text-5xl">{copy[0]}</h1><p className="mt-4 max-w-lg text-sm leading-6 text-muted-foreground">{copy[1]}</p></div></div>
+  }
   const prompts = companyName
     ? [['商业模式', `解释${companyName}的商业模式与护城河`], ['投资假设', `梳理${companyName}当前投资假设`], ['风险证伪', `列出${companyName}的关键风险和证伪条件`], ['估值现金流', `分析${companyName}的估值与现金流质量`]]
     : [['商业模式', '解释一家公司的商业模式与护城河'], ['投资假设', '梳理一个可证伪的投资假设'], ['风险证伪', '列出关键风险和证伪条件'], ['标的比较', '比较两个标的的核心差异']]
   return <div className="flex min-h-[52vh] flex-col justify-center py-10"><div className="max-w-xl"><div className="mb-5 flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-[hsl(var(--copper-foreground))]"><span className="h-px w-10 bg-[hsl(var(--copper)/.6)]" />Fundamental research desk</div><h1 className="font-display text-4xl font-medium leading-[1.08] tracking-[-0.035em] md:text-5xl">{companyName ? `从 ${companyName} 的事实开始。` : '选择一家公司，建立可验证的判断。'}</h1><p className="mt-4 max-w-lg text-sm leading-6 text-muted-foreground">结论沿着财务数据、研报证据与证伪条件逐步形成。KeelTrader 只做研究，不替你交易。</p></div><div className="mt-8 grid max-w-2xl gap-2 sm:grid-cols-2">{prompts.map(([label, text]) => <button key={text} className="group flex min-h-14 items-center gap-3 rounded-xl border bg-card/75 px-4 py-3 text-left text-sm shadow-sm transition hover:-translate-y-0.5 hover:border-[hsl(var(--accent)/.5)] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => onPrompt(text)}><span className="font-data min-w-16 text-[9px] uppercase tracking-wide text-[hsl(var(--copper-foreground))]">{label}</span><span>{text}</span></button>)}</div></div>
 }
+
+function workspaceLabel(scope: WorkspaceScope) { return ({ general: '通用工作区', research: '研究工作区', content: '内容工作区', ops: '运维工作区' } as Record<WorkspaceScope, string>)[scope] }
 
 function EventCard({ event }: { event: LiveEvent }) {
   if (event.type === 'step.started') return <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />{String(event.payload.role || 'Agent')} {event.payload.tool ? `正在调用 ${event.payload.tool}` : '正在分析'}</div>

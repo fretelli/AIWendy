@@ -51,11 +51,11 @@ BUILTIN_TOOLS = {
 
 DEFAULT_AGENT_TOOLS = sorted(BUILTIN_TOOLS - {"record_investment_decision"})
 DEFAULT_AGENT_NAME = "KeelTrader"
-DEFAULT_AGENT_DESCRIPTION = "统一的只读投资研究助手"
-DEFAULT_AGENT_ROLE = "research_assistant"
+DEFAULT_AGENT_DESCRIPTION = "统一的通用、研究、内容与运维协作助手"
+DEFAULT_AGENT_ROLE = "workspace_assistant"
 DEFAULT_AGENT_PROMPT = (
-    "你是 KeelTrader，只读投资研究助手。所有结论必须区分事实、推断和不确定性，"
-    "引用可核验证据，主动寻找反例与证伪条件，禁止执行交易。"
+    "你是 KeelTrader，统一协作助手。区分事实、推断和不确定性；研究时引用可核验证据并寻找反例。"
+    "网页工作区不得执行 shell、发布、部署、重启、修改密钥、远程写入或交易。"
 )
 
 
@@ -169,6 +169,7 @@ class SessionCreate(BaseModel):
     agent_definition_id: UUID
     title: str = Field(default="新会话", min_length=1, max_length=200)
     interaction_mode: Literal["ask", "research", "plan"] = "ask"
+    workspace_scope: Literal["general", "research", "content", "ops"] = "general"
     company_code: str | None = Field(default=None, max_length=20)
 
 
@@ -177,6 +178,7 @@ class SessionUpdate(BaseModel):
     is_pinned: bool | None = None
     archived: bool | None = None
     interaction_mode: Literal["ask", "research", "plan"] | None = None
+    workspace_scope: Literal["general", "research", "content", "ops"] | None = None
     company_code: str | None = Field(default=None, max_length=20)
 
 
@@ -830,7 +832,8 @@ async def create_session(req: SessionCreate, session: AsyncSession = Depends(get
     if not agent or agent.user_id != user.id or not agent.is_active:
         raise HTTPException(404, "Agent not found")
     item = AgentSession(user_id=user.id, agent_definition_id=agent.id, title=req.title,
-                        interaction_mode=req.interaction_mode, company_code=req.company_code)
+                        interaction_mode=req.interaction_mode, workspace_scope=req.workspace_scope,
+                        company_code=req.company_code if req.workspace_scope == "research" else None)
     session.add(item)
     await session.flush()
     # FastAPI may finalize yield-based dependencies after the response is sent.
@@ -854,8 +857,12 @@ async def update_session(session_id: UUID, req: SessionUpdate, session: AsyncSes
         item.status = "archived" if req.archived else "active"
     if req.interaction_mode is not None:
         item.interaction_mode = req.interaction_mode
+    if req.workspace_scope is not None:
+        item.workspace_scope = req.workspace_scope
     if "company_code" in req.model_fields_set:
         item.company_code = req.company_code
+    if item.workspace_scope != "research":
+        item.company_code = None
     item.updated_at = datetime.now(UTC)
     return dump(item)
 

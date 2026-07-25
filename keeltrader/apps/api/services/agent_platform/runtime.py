@@ -75,7 +75,7 @@ async def enqueue_run(session: AsyncSession, user_id: UUID, agent: AgentDefiniti
             raise ValueError("Session not found")
     if chat is None:
         chat = AgentSession(user_id=user_id, agent_definition_id=agent.id, title=prompt[:120],
-                            interaction_mode=interaction_mode or "ask")
+                            interaction_mode=interaction_mode or "ask", workspace_scope="general")
         session.add(chat)
         await session.flush()
     mode = interaction_mode or chat.interaction_mode or "ask"
@@ -267,7 +267,8 @@ async def execute_claimed_run(session: AsyncSession, run: AgentRun) -> None:
         run.lease_expires_at = None
         await session.commit()
         return
-    if run.interaction_mode in {"ask", "plan"}:
+    chat = await session.get(AgentSession, run.session_id)
+    if run.interaction_mode in {"ask", "plan"} or (chat and chat.workspace_scope != "research"):
         await _execute_direct_mode(session, run, agent, profile)
         return
     if not run.plan:
@@ -484,28 +485,34 @@ async def _execute_direct_mode(session: AsyncSession, run: AgentRun, agent: Agen
     )).scalars().all()
     conversation = "\n".join(f"{item.role}: {item.content}" for item in reversed(recent_messages))
     chat = await session.get(AgentSession, run.session_id)
+    workspace_scope = chat.workspace_scope if chat else "general"
     company_context = chat.company_code if chat and chat.company_code else "none"
     memory_context = await _company_memory_context(session, run.user_id, chat.company_code if chat else None)
+    scope_instructions = {
+        "general": "Act as a general reasoning assistant.",
+        "research": "Act as a read-only investment research assistant.",
+        "content": "Help draft and review content, but do not publish it.",
+        "ops": "Help diagnose and plan operations, but do not execute shell commands, deployments, restarts, secret changes, or remote writes.",
+    }
     if run.interaction_mode == "plan":
         instruction = (
             agent.system_prompt
-            + "\nCreate a concise, executable investment research plan only. Do not call tools, "
-              "claim that research was performed, or provide a final investment conclusion. "
-              "State the questions, evidence needed, sequence, and completion criteria. Never place trades."
+            + f"\n{scope_instructions.get(workspace_scope, scope_instructions['general'])} Create a concise plan only. Do not call tools, "
+              "claim that actions were performed, or execute external changes. State questions, evidence, sequence, and completion criteria. Never place trades."
         )
         artifact_type = "plan"
     else:
         instruction = (
             agent.system_prompt
-            + "\nAnswer directly from the supplied conversation only. Do not call or imply use of tools, "
+            + f"\n{scope_instructions.get(workspace_scope, scope_instructions['general'])} Answer directly from the supplied conversation only. Do not call or imply use of tools, "
               "external research, private data, or live market data. State uncertainty when context is insufficient. "
-              "Never place trades."
+              "Never publish, change systems or secrets, run code, or place trades."
         )
         artifact_type = "answer"
     await emit(session, run.id, "run.planned", {"steps": 0, "mode": run.interaction_mode})
     await session.commit()
     text, input_tokens, output_tokens = await _model_text(
-        profile, instruction, [{"role": "user", "content": f"Company context: {company_context}\nCompany memory:\n{memory_context}\n\nConversation:\n{conversation}\n\nCurrent request: {run.prompt}"}],
+        profile, instruction, [{"role": "user", "content": f"Workspace: {workspace_scope}\nCompany context: {company_context}\nCompany memory:\n{memory_context}\n\nConversation:\n{conversation}\n\nCurrent request: {run.prompt}"}],
     )
     await session.refresh(run)
     if run.status == "cancelled":

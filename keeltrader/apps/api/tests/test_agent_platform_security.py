@@ -27,7 +27,7 @@ def test_keeltrader_is_the_single_product_level_agent():
     router = Path(__file__).resolve().parents[1] / "routers/agent_platform.py"
     source = router.read_text(encoding="utf-8")
     assert DEFAULT_AGENT_NAME == "KeelTrader"
-    assert DEFAULT_AGENT_ROLE == "research_assistant"
+    assert DEFAULT_AGENT_ROLE == "workspace_assistant"
     assert "AgentDefinition.is_default.is_(True)" in source
     assert "_ensure_default_agent(session, user, preferred_profile=item)" in source
     assert 'name="基本面研究员"' not in source
@@ -126,6 +126,16 @@ def test_interaction_mode_migration_is_additive_and_research_safe():
     assert 'down_revision = "023"' in source
     assert "interaction_mode" in source
     assert "'ask', 'research', 'plan'" in source
+
+
+def test_workspace_scope_is_additive_and_cannot_grant_execution():
+    migration = Path(__file__).resolve().parents[3] / "migrations/versions/039_agent_workspace_scope.py"
+    source = migration.read_text(encoding="utf-8")
+    runtime = (Path(__file__).resolve().parents[1] / "services/agent_platform/runtime.py").read_text(encoding="utf-8")
+    assert 'revision = "039"' in source and 'down_revision = "038"' in source
+    assert "'general','research','content','ops'" in source
+    assert 'chat.workspace_scope != "research"' in runtime
+    assert "do not execute shell commands, deployments, restarts, secret changes, or remote writes" in runtime
 
 
 def test_ask_and_plan_modes_use_the_no_tool_runtime_path():

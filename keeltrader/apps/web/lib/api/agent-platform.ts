@@ -25,12 +25,14 @@ export type AgentRun = {
   created_at: string;
 };
 export type InteractionMode = "ask" | "research" | "plan";
+export type WorkspaceScope = "general" | "research" | "content" | "ops";
 export type AgentSession = {
   id: string;
   agent_definition_id?: string;
   title: string;
   status: string;
   interaction_mode: InteractionMode;
+  workspace_scope: WorkspaceScope;
   company_code?: string;
   summary?: string;
   context_tokens: number;
@@ -778,6 +780,7 @@ export const agentPlatformApi = {
     agent_definition_id: string;
     title?: string;
     interaction_mode?: InteractionMode;
+    workspace_scope?: WorkspaceScope;
     company_code?: string | null;
   }) => apiJson<AgentSession>(`${base}/sessions`, { method: "POST", body }),
   updateSession: (
@@ -787,6 +790,7 @@ export const agentPlatformApi = {
       is_pinned?: boolean;
       archived?: boolean;
       interaction_mode?: InteractionMode;
+      workspace_scope?: WorkspaceScope;
       company_code?: string | null;
     },
   ) =>
