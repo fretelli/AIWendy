@@ -36,6 +36,7 @@ from services.agent_platform.search import global_search
 from services.agent_platform.dossier import enqueue_dossier_refresh
 from services.agent_platform.holders import enqueue_holder_scan, holder_names, normalize_holder_name
 from services.agent_platform.learning import LearningBridge
+from services.agent_platform.knowledge import search_snapshot
 from services.file_extractor import can_extract_text, extract_text
 from services.storage_service import get_storage_provider
 
@@ -912,6 +913,13 @@ async def search_research(q: str = Query(..., min_length=1, max_length=200),
                           limit: int = Query(30, ge=1, le=100),
                           session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     return await global_search(session, user.id, q, limit)
+
+
+@router.get("/knowledge/search")
+async def search_general_knowledge(q: str = Query(..., min_length=1, max_length=300),
+                                   limit: int = Query(5, ge=1, le=20),
+                                   user: User = Depends(get_current_user)):
+    return search_snapshot(get_settings().agent_knowledge_snapshot_path, q, limit)
 
 
 @router.post("/sessions/{session_id}/messages")

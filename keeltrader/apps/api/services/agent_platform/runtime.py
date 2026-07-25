@@ -21,6 +21,7 @@ from domain.agent_platform.models import (
 )
 from services.agent_platform.mcp import call_tool
 from services.agent_platform.tools import TOOL_DEFINITIONS, execute_platform_tool
+from services.agent_platform.knowledge import prompt_context
 
 TERMINAL = {"completed", "failed", "cancelled"}
 RUNNABLE = {"queued", "running"}
@@ -488,6 +489,7 @@ async def _execute_direct_mode(session: AsyncSession, run: AgentRun, agent: Agen
     workspace_scope = chat.workspace_scope if chat else "general"
     company_context = chat.company_code if chat and chat.company_code else "none"
     memory_context = await _company_memory_context(session, run.user_id, chat.company_code if chat else None)
+    knowledge_context = prompt_context(get_settings().agent_knowledge_snapshot_path, run.prompt)
     scope_instructions = {
         "general": "Act as a general reasoning assistant.",
         "research": "Act as a read-only investment research assistant.",
@@ -512,7 +514,7 @@ async def _execute_direct_mode(session: AsyncSession, run: AgentRun, agent: Agen
     await emit(session, run.id, "run.planned", {"steps": 0, "mode": run.interaction_mode})
     await session.commit()
     text, input_tokens, output_tokens = await _model_text(
-        profile, instruction, [{"role": "user", "content": f"Workspace: {workspace_scope}\nCompany context: {company_context}\nCompany memory:\n{memory_context}\n\nConversation:\n{conversation}\n\nCurrent request: {run.prompt}"}],
+        profile, instruction, [{"role": "user", "content": f"Workspace: {workspace_scope}\nCompany context: {company_context}\nCompany memory:\n{memory_context}\nGeneral knowledge excerpts:\n{knowledge_context or 'none'}\n\nConversation:\n{conversation}\n\nCurrent request: {run.prompt}"}],
     )
     await session.refresh(run)
     if run.status == "cancelled":

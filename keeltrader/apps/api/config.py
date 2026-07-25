@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     report_kb_timeout_seconds: float = 6.0
     market_publication_status_path: str = "/app/market-publication/publication-status.json"
     agent_learning_bridge_path: str = "/app/agent-os-bridge"
+    agent_knowledge_snapshot_path: str = "/app/agent-os-bridge/knowledge-snapshot.json"
 
     # Optional Research Cloud connection. Self-hosted deployments are offline
     # unless this is explicitly enabled by the administrator and then linked

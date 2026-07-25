@@ -36,6 +36,7 @@ def test_active_route_prefixes_are_mounted(client):
         "/api/v1/agent/holder-events/read",
         "/api/v1/agent/context-snapshots",
         "/api/v1/agent/search",
+        "/api/v1/agent/knowledge/search",
         "/api/v1/agent/dossiers/{company_code}",
         "/api/v1/agent/dossiers/{company_code}/refresh",
         "/api/v1/research-cloud/connection",

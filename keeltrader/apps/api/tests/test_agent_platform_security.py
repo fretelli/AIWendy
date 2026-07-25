@@ -9,6 +9,7 @@ from routers.agent_platform import BUILTIN_TOOLS, DEFAULT_AGENT_NAME, DEFAULT_AG
 from services.agent_platform import network
 from services.agent_platform.runtime import default_plan, redact_sensitive
 from services.agent_platform.learning import LearningBridge
+from services.agent_platform.knowledge import search_snapshot
 
 
 def test_agent_platform_exposes_no_execution_or_trading_tools():
@@ -97,6 +98,16 @@ def test_learning_bridge_uses_sanitized_snapshot_and_one_file_per_feedback(tmp_p
     assert result["accepted"] is True
     assert event["entry_type"] == "keeltrader"
     assert "assistant_content" not in event
+
+
+def test_general_knowledge_search_is_read_only_and_source_bounded(tmp_path):
+    snapshot = tmp_path / "knowledge.json"
+    snapshot.write_text(json.dumps({"document_count": 1, "chunks": [{
+        "title": "服务入口", "source": "docs/services.md", "content": "KeelTrader 通过 Traefik 提供网页入口。",
+    }]}), encoding="utf-8")
+    result = search_snapshot(snapshot, "KeelTrader 网页入口")
+    assert result["items"][0]["source"] == "docs/services.md"
+    assert set(result["items"][0]) == {"title", "source", "content", "score"}
 
 
 def test_agent_platform_migration_splits_asyncpg_ddl_commands():
