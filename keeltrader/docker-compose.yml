@@ -49,9 +49,11 @@ services:
       - DATABASE_MAX_OVERFLOW=2
       - DATABASE_APPLICATION_NAME=keeltrader-api
       - MARKET_PUBLICATION_STATUS_PATH=/app/market-publication/publication-status.json
+      - AGENT_LEARNING_BRIDGE_PATH=/app/agent-os-bridge
     volumes:
       - uploads_data:/app/uploads
       - /opt/services/tushare/data/publication-status:/app/market-publication:ro
+      - /opt/services/keeltrader/runtime/agent-os-bridge:/app/agent-os-bridge
     labels:
       - "traefik.enable=false"
     command: sh scripts/docker_start.sh

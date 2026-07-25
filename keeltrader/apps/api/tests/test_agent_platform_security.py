@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -7,6 +8,8 @@ from fastapi import HTTPException
 from routers.agent_platform import BUILTIN_TOOLS, DEFAULT_AGENT_NAME, DEFAULT_AGENT_ROLE, dump
 from services.agent_platform import network
 from services.agent_platform.runtime import default_plan, redact_sensitive
+from services.agent_platform.learning import LearningBridge
+from services.agent_platform.knowledge import search_snapshot
 
 
 def test_agent_platform_exposes_no_execution_or_trading_tools():
@@ -25,7 +28,7 @@ def test_keeltrader_is_the_single_product_level_agent():
     router = Path(__file__).resolve().parents[1] / "routers/agent_platform.py"
     source = router.read_text(encoding="utf-8")
     assert DEFAULT_AGENT_NAME == "KeelTrader"
-    assert DEFAULT_AGENT_ROLE == "research_assistant"
+    assert DEFAULT_AGENT_ROLE == "workspace_assistant"
     assert "AgentDefinition.is_default.is_(True)" in source
     assert "_ensure_default_agent(session, user, preferred_profile=item)" in source
     assert 'name="基本面研究员"' not in source
@@ -77,6 +80,36 @@ def test_sensitive_tool_results_are_redacted_before_persistence():
     }
 
 
+def test_learning_bridge_uses_sanitized_snapshot_and_one_file_per_feedback(tmp_path):
+    bridge = LearningBridge(tmp_path)
+    assert bridge.snapshot()["state"] == "not_configured"
+    (tmp_path / "snapshot.json").write_text(
+        '{"generated_at":"2026-07-25T00:00:00Z","memories":[{"memory_id":"m1","content":"偏好具体证据"}]}',
+        encoding="utf-8",
+    )
+    snapshot = bridge.snapshot()
+    assert snapshot["available"] is True
+    assert snapshot["memories"][0]["content"] == "偏好具体证据"
+    result = bridge.record_feedback({
+        "event_type": "preference", "summary": "以后都给出反例", "conversation_id": "c1",
+        "task_id": "r1", "message_id": "m1", "user_id": "u1",
+    })
+    event = json.loads(next((tmp_path / "inbox").glob("*.json")).read_text(encoding="utf-8"))
+    assert result["accepted"] is True
+    assert event["entry_type"] == "keeltrader"
+    assert "assistant_content" not in event
+
+
+def test_general_knowledge_search_is_read_only_and_source_bounded(tmp_path):
+    snapshot = tmp_path / "knowledge.json"
+    snapshot.write_text(json.dumps({"document_count": 1, "chunks": [{
+        "title": "服务入口", "source": "docs/services.md", "content": "KeelTrader 通过 Traefik 提供网页入口。",
+    }]}), encoding="utf-8")
+    result = search_snapshot(snapshot, "KeelTrader 网页入口")
+    assert result["items"][0]["source"] == "docs/services.md"
+    assert set(result["items"][0]) == {"title", "source", "content", "score"}
+
+
 def test_agent_platform_migration_splits_asyncpg_ddl_commands():
     migration = Path(__file__).resolve().parents[3] / "migrations/versions/020_agent_platform.py"
     source = migration.read_text(encoding="utf-8")
@@ -104,6 +137,16 @@ def test_interaction_mode_migration_is_additive_and_research_safe():
     assert 'down_revision = "023"' in source
     assert "interaction_mode" in source
     assert "'ask', 'research', 'plan'" in source
+
+
+def test_workspace_scope_is_additive_and_cannot_grant_execution():
+    migration = Path(__file__).resolve().parents[3] / "migrations/versions/039_agent_workspace_scope.py"
+    source = migration.read_text(encoding="utf-8")
+    runtime = (Path(__file__).resolve().parents[1] / "services/agent_platform/runtime.py").read_text(encoding="utf-8")
+    assert 'revision = "039"' in source and 'down_revision = "038"' in source
+    assert "'general','research','content','ops'" in source
+    assert 'chat.workspace_scope != "research"' in runtime
+    assert "do not execute shell commands, deployments, restarts, secret changes, or remote writes" in runtime
 
 
 def test_ask_and_plan_modes_use_the_no_tool_runtime_path():

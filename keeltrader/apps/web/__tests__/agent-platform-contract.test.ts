@@ -15,7 +15,7 @@ describe('Agent Platform contract', () => {
 
   it('uses a conversation-first workspace instead of the legacy tab console', () => {
     const page = fs.readFileSync(path.join(root, 'app/(app)/agent/page.tsx'), 'utf8')
-    expect(page).toContain('新建研究')
+    expect(page).toContain('新建会话')
     expect(page).toContain('EventSource')
     expect(page).toContain("'/compact'")
     expect(page).toContain('需要你的批准')
@@ -49,6 +49,13 @@ describe('Agent Platform contract', () => {
     expect(page).toContain('重命名研究会话')
     expect(page).toContain('agentPlatformApi.updateSession(renameSession.id, { title })')
     expect(page).toContain('aria-label={`重命名 ${item.title}`}')
+    expect(page).toContain('教会 KeelTrader')
+    expect(page).toContain('以后都这样')
+    expect(page).toContain('跨入口全局学习')
+    expect(page).toContain('agentPlatformApi.learningFeedback')
+    expect(page).toContain('workspace_scope')
+    expect(page).toContain('通用工作区')
+    expect(page).toContain('不会执行命令、部署、重启或改密钥')
   })
 
   it('does not expose trade execution controls in the Agent workspace', () => {

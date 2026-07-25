@@ -40,6 +40,7 @@ class AgentSession(Base):
     title = Column(String(200), nullable=False)
     status = Column(String(30), nullable=False, default="active")
     interaction_mode = Column(String(20), nullable=False, default="ask")
+    workspace_scope = Column(String(20), nullable=False, default="research")
     company_code = Column(String(20), nullable=True)
     summary = Column(Text, nullable=True)
     context_tokens = Column(Integer, nullable=False, default=0)

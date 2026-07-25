@@ -25,12 +25,14 @@ export type AgentRun = {
   created_at: string;
 };
 export type InteractionMode = "ask" | "research" | "plan";
+export type WorkspaceScope = "general" | "research" | "content" | "ops";
 export type AgentSession = {
   id: string;
   agent_definition_id?: string;
   title: string;
   status: string;
   interaction_mode: InteractionMode;
+  workspace_scope: WorkspaceScope;
   company_code?: string;
   summary?: string;
   context_tokens: number;
@@ -103,6 +105,15 @@ export type AgentMemory = {
   confidence: number;
   version: number;
   is_deleted: boolean;
+};
+export type GlobalLearningMemory = {
+  memory_id: string;
+  scope: string;
+  kind: string;
+  content: string;
+  importance: number;
+  status: string;
+  created_at: string;
 };
 export type MCPServer = {
   id: string;
@@ -769,6 +780,7 @@ export const agentPlatformApi = {
     agent_definition_id: string;
     title?: string;
     interaction_mode?: InteractionMode;
+    workspace_scope?: WorkspaceScope;
     company_code?: string | null;
   }) => apiJson<AgentSession>(`${base}/sessions`, { method: "POST", body }),
   updateSession: (
@@ -778,6 +790,7 @@ export const agentPlatformApi = {
       is_pinned?: boolean;
       archived?: boolean;
       interaction_mode?: InteractionMode;
+      workspace_scope?: WorkspaceScope;
       company_code?: string | null;
     },
   ) =>
@@ -893,6 +906,10 @@ export const agentPlatformApi = {
     apiJson<{ items: AgentMemory[] }>(
       `${base}/memories?include_deleted=${includeDeleted}`,
     ),
+  learningMemories: () =>
+    apiJson<{ available: boolean; state: string; generated_at?: string; memory_count?: number; memories: GlobalLearningMemory[] }>(`${base}/learning/memories`),
+  learningFeedback: (body: { message_id: string; feedback: "adopted" | "rejected" | "correction" | "preference"; comment?: string }) =>
+    apiJson<{ accepted: boolean; event_id: string }>(`${base}/learning/feedback`, { method: "POST", body }),
   deleteMemory: (id: string) =>
     apiJson(`${base}/memories/${id}`, { method: "DELETE" }),
   restoreMemory: (id: string) =>
