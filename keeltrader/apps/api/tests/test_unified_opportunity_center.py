@@ -29,7 +29,7 @@ class FakeOptionReader:
     schema = "tushare"
 
     async def table_exists(self, table):
-        return table in {"option_analytics_daily", "opt_basic"}
+        return table in {"option_analytics_daily", "opt_basic", "opt_series_daily"}
 
     async def _execute_mappings(self, statement, params):
         self.sql = str(statement)
@@ -46,6 +46,17 @@ async def test_convergence_count_alone_does_not_generate_option_opportunity():
     reader = FakeOptionReader()
     assert await _options_candidates(reader) == []
     assert "convergence_status='converged'" in reader.sql
+    assert "opt_series_daily" in reader.sql
+    assert "o.trade_date>=c.min_date" in reader.sql
+    assert "a.opt_code=d.opt_code AND a.trade_date=d.trade_date" in reader.sql
+
+
+def test_holder_watermark_uses_indexed_source_dates():
+    source = (ROOT / "services/agent_platform/tushare.py").read_text()
+    block = source.split("async def holder_source_watermark", 1)[1].split("async def search_holders", 1)[0]
+    assert "MAX(ann_date)" in block
+    assert "MAX(end_date)" in block
+    assert "MAX(updated_at)" not in block
 
 
 class MissingSourceReader:

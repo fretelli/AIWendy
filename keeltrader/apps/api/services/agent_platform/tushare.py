@@ -393,10 +393,18 @@ class TushareReadService:
         """Return a cheap watermark for change detection by the holder inbox worker."""
         if not await self.table_exists("top10_floatholders"):
             return None
-        q = text(f"SELECT MAX(updated_at) FROM {self.schema}.top10_floatholders")
+        # ann_date and end_date are indexed in the managed Tushare schema.
+        # Aggregating the unindexed update timestamp forces a full history scan
+        # and can exceed the read-only statement timeout as the table grows.
+        q = text(
+            f"SELECT MAX(ann_date) AS ann_date, MAX(end_date) AS end_date "
+            f"FROM {self.schema}.top10_floatholders"
+        )
         async with self._session_scope() as session:
-            value = (await session.execute(q)).scalar()
-        return _json_safe(value) if value else None
+            row = (await session.execute(q)).mappings().one()
+        ann_date = _json_safe(row.get("ann_date"))
+        end_date = _json_safe(row.get("end_date"))
+        return f"{ann_date or ''}|{end_date or ''}" if ann_date or end_date else None
 
     async def search_holders(self, query: str, limit: int = 30) -> list[dict[str, Any]]:
         """Search raw shareholder names and return coverage metadata without filtering types."""

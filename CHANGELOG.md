@@ -9,6 +9,13 @@
 
 - 暂无。
 
+## 0.2.1 - 2026-07-25
+
+### 修复
+
+- 股东扫描 watermark 改用已索引的公告日与报告期，避免大表全量扫描超时。
+- 期权机会刷新只读取最近仍活跃系列的两个最新交易日，并复用现有系列日期复合索引。
+
 ## 0.2.0 - 2026-07-25
 
 ### 变更
@@ -41,6 +48,13 @@ This file records only notable changes that can be verified from the current rep
 ## Unreleased
 
 - None.
+
+## 0.2.1 - 2026-07-25
+
+### Fixed
+
+- Use indexed announcement and reporting dates for the holder scan watermark instead of a full-table update timestamp aggregate.
+- Limit option opportunity refreshes to the two latest dates of recently active series and reuse the existing series-date indexes.
 
 ## 0.2.0 - 2026-07-25
 
