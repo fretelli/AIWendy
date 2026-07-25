@@ -104,6 +104,15 @@ export type AgentMemory = {
   version: number;
   is_deleted: boolean;
 };
+export type GlobalLearningMemory = {
+  memory_id: string;
+  scope: string;
+  kind: string;
+  content: string;
+  importance: number;
+  status: string;
+  created_at: string;
+};
 export type MCPServer = {
   id: string;
   name: string;
@@ -893,6 +902,10 @@ export const agentPlatformApi = {
     apiJson<{ items: AgentMemory[] }>(
       `${base}/memories?include_deleted=${includeDeleted}`,
     ),
+  learningMemories: () =>
+    apiJson<{ available: boolean; state: string; generated_at?: string; memory_count?: number; memories: GlobalLearningMemory[] }>(`${base}/learning/memories`),
+  learningFeedback: (body: { message_id: string; feedback: "adopted" | "rejected" | "correction" | "preference"; comment?: string }) =>
+    apiJson<{ accepted: boolean; event_id: string }>(`${base}/learning/feedback`, { method: "POST", body }),
   deleteMemory: (id: string) =>
     apiJson(`${base}/memories/${id}`, { method: "DELETE" }),
   restoreMemory: (id: string) =>

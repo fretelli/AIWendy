@@ -49,6 +49,10 @@ describe('Agent Platform contract', () => {
     expect(page).toContain('重命名研究会话')
     expect(page).toContain('agentPlatformApi.updateSession(renameSession.id, { title })')
     expect(page).toContain('aria-label={`重命名 ${item.title}`}')
+    expect(page).toContain('教会 KeelTrader')
+    expect(page).toContain('以后都这样')
+    expect(page).toContain('跨入口全局学习')
+    expect(page).toContain('agentPlatformApi.learningFeedback')
   })
 
   it('does not expose trade execution controls in the Agent workspace', () => {

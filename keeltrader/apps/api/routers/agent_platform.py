@@ -35,6 +35,7 @@ from services.agent_platform.opportunities import OpportunityService, profile_pa
 from services.agent_platform.search import global_search
 from services.agent_platform.dossier import enqueue_dossier_refresh
 from services.agent_platform.holders import enqueue_holder_scan, holder_names, normalize_holder_name
+from services.agent_platform.learning import LearningBridge
 from services.file_extractor import can_extract_text, extract_text
 from services.storage_service import get_storage_provider
 
@@ -241,6 +242,12 @@ class MemoryUpdate(BaseModel):
     value: Any
     evidence: list[dict[str, Any]] = Field(default_factory=list, max_length=100)
     confidence: float = Field(default=.5, ge=0, le=1)
+
+
+class LearningFeedbackCreate(BaseModel):
+    message_id: UUID
+    feedback: Literal["adopted", "rejected", "correction", "preference"]
+    comment: str | None = Field(default=None, max_length=1000)
 
 
 class MCPCreate(BaseModel):
@@ -1065,6 +1072,46 @@ async def memories(include_deleted: bool = False, session: AsyncSession = Depend
         stmt = stmt.where(AgentMemory.is_deleted.is_(False))
     items = (await session.execute(stmt.order_by(desc(AgentMemory.updated_at)).limit(200))).scalars().all()
     return {"items": [dump(item) for item in items]}
+
+
+@router.get("/learning/status")
+async def learning_status(user: User = Depends(get_current_user)):
+    snapshot = LearningBridge(get_settings().agent_learning_bridge_path).snapshot()
+    return {key: value for key, value in snapshot.items() if key != "memories"}
+
+
+@router.get("/learning/memories")
+async def learning_memories(user: User = Depends(get_current_user)):
+    return LearningBridge(get_settings().agent_learning_bridge_path).snapshot()
+
+
+@router.post("/learning/feedback")
+async def learning_feedback(req: LearningFeedbackCreate, session: AsyncSession = Depends(get_session),
+                            user: User = Depends(get_current_user)):
+    message = await session.get(AgentMessage, req.message_id)
+    if not message or message.role != "assistant":
+        raise HTTPException(404, "Assistant message not found")
+    chat = await session.get(AgentSession, message.session_id)
+    if not chat or chat.user_id != user.id:
+        raise HTTPException(404, "Assistant message not found")
+    comment = (req.comment or "").strip()
+    if req.feedback in {"correction", "preference"} and not comment:
+        raise HTTPException(400, "Correction or preference text is required")
+    event_type = {
+        "adopted": "result_feedback",
+        "rejected": "feedback",
+        "correction": "correction",
+        "preference": "preference",
+    }[req.feedback]
+    label = {"adopted": "采用了这次回答", "rejected": "拒绝了这次回答"}.get(req.feedback, comment)
+    summary = label if not comment or req.feedback in {"correction", "preference"} else f"{label}：{comment}"
+    try:
+        return LearningBridge(get_settings().agent_learning_bridge_path).record_feedback({
+            "event_type": event_type, "summary": summary, "conversation_id": str(chat.id),
+            "task_id": str(message.run_id or ""), "message_id": str(message.id), "user_id": str(user.id),
+        })
+    except (OSError, ValueError) as exc:
+        raise HTTPException(503, "Learning feedback bridge is unavailable") from exc
 
 
 @router.delete("/memories/{memory_id}")

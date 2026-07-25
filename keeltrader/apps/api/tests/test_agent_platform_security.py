@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -7,6 +8,7 @@ from fastapi import HTTPException
 from routers.agent_platform import BUILTIN_TOOLS, DEFAULT_AGENT_NAME, DEFAULT_AGENT_ROLE, dump
 from services.agent_platform import network
 from services.agent_platform.runtime import default_plan, redact_sensitive
+from services.agent_platform.learning import LearningBridge
 
 
 def test_agent_platform_exposes_no_execution_or_trading_tools():
@@ -75,6 +77,26 @@ def test_sensitive_tool_results_are_redacted_before_persistence():
     assert redact_sensitive({"api_key": "secret", "nested": {"Authorization": "Bearer x"}, "ok": 1}) == {
         "api_key": "<redacted>", "nested": {"Authorization": "<redacted>"}, "ok": 1,
     }
+
+
+def test_learning_bridge_uses_sanitized_snapshot_and_one_file_per_feedback(tmp_path):
+    bridge = LearningBridge(tmp_path)
+    assert bridge.snapshot()["state"] == "not_configured"
+    (tmp_path / "snapshot.json").write_text(
+        '{"generated_at":"2026-07-25T00:00:00Z","memories":[{"memory_id":"m1","content":"偏好具体证据"}]}',
+        encoding="utf-8",
+    )
+    snapshot = bridge.snapshot()
+    assert snapshot["available"] is True
+    assert snapshot["memories"][0]["content"] == "偏好具体证据"
+    result = bridge.record_feedback({
+        "event_type": "preference", "summary": "以后都给出反例", "conversation_id": "c1",
+        "task_id": "r1", "message_id": "m1", "user_id": "u1",
+    })
+    event = json.loads(next((tmp_path / "inbox").glob("*.json")).read_text(encoding="utf-8"))
+    assert result["accepted"] is True
+    assert event["entry_type"] == "keeltrader"
+    assert "assistant_content" not in event
 
 
 def test_agent_platform_migration_splits_asyncpg_ddl_commands():
