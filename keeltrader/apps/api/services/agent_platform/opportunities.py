@@ -277,13 +277,26 @@ async def _futures_candidates(reader: TushareReadService) -> list[dict[str, Any]
 
 
 async def _options_candidates(reader: TushareReadService) -> list[dict[str, Any]]:
-    if not all([await reader.table_exists("option_analytics_daily"), await reader.table_exists("opt_basic")]):
+    if not all([
+        await reader.table_exists("option_analytics_daily"),
+        await reader.table_exists("opt_basic"),
+        await reader.table_exists("opt_series_daily"),
+    ]):
         return []
-    rows = await reader._execute_mappings(text(f"""WITH dates AS (
-        SELECT trade_date,DENSE_RANK() OVER(ORDER BY trade_date DESC) rn
-        FROM {reader.schema}.option_analytics_daily GROUP BY trade_date), scoped AS (
-        SELECT a.*,b.call_put,b.maturity_date FROM {reader.schema}.option_analytics_daily a
-        JOIN dates d ON d.trade_date=a.trade_date AND d.rn<=2
+    rows = await reader._execute_mappings(text(f"""WITH cutoff AS MATERIALIZED (
+        SELECT MAX(trade_date) - 14 AS min_date FROM {reader.schema}.opt_series_daily
+    ), series_dates AS MATERIALIZED (
+        SELECT s.opt_code,d.trade_date FROM (
+          SELECT DISTINCT o.opt_code FROM {reader.schema}.opt_series_daily o,cutoff c
+          WHERE o.trade_date>=c.min_date
+        ) s CROSS JOIN LATERAL (
+          SELECT trade_date FROM {reader.schema}.opt_series_daily d
+          WHERE d.opt_code=s.opt_code ORDER BY trade_date DESC LIMIT 2
+        ) d
+    ), scoped AS MATERIALIZED (
+        SELECT a.*,b.call_put,b.maturity_date FROM series_dates d
+        JOIN {reader.schema}.option_analytics_daily a
+          ON a.opt_code=d.opt_code AND a.trade_date=d.trade_date
         JOIN {reader.schema}.opt_basic b ON b.ts_code=a.ts_code
         WHERE a.convergence_status='converged'), nearest AS (
         SELECT *,MIN(maturity_date) OVER(PARTITION BY opt_code,trade_date) nearest_maturity FROM scoped)
