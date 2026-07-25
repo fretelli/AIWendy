@@ -1,1 +1,0 @@
-"""Analysis domain module."""

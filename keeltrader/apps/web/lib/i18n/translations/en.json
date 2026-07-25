@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "KeelTrader",
-    "tagline": "Investment Research AgentOS",
+    "tagline": "Investment Research OS",
     "loading": "Loading...",
     "error": "Error",
     "success": "Success",
@@ -1004,7 +1004,7 @@
       "zhShort": "中文"
     },
     "hero": {
-      "title": "Investment Research AgentOS",
+      "title": "Investment Research OS",
       "subtitle": "Research support, decision discipline, report-KB search, and guarded strategy experiments.",
       "cta": {
         "startFree": "Start free",
@@ -1077,7 +1077,7 @@
         "noAccount": "Don't have an account? Sign up",
         "error": "Failed to sign in. Please try again.",
         "checking": "Checking account status...",
-        "alreadySignedIn": "You are already signed in. Submit to enter AgentOS or return to the requested page.",
+        "alreadySignedIn": "You are already signed in. Submit to enter the Research OS or return to the requested page.",
         "protectedNotice": "Sign in to access the Agent workspace and settings."
       },
       "register": {
@@ -1284,10 +1284,10 @@
     }
   },
   "meta": {
-    "title": "KeelTrader - Investment Research AgentOS",
-    "description": "KeelTrader is a self-evolving investment research AgentOS for human-in-the-loop fundamental briefs, report-KB search, decision journals, reviews, and thesis validation workflows.",
-    "keywords": "investment research,AgentOS,financial AI,fundamental analysis,decision journal,report search,multi-agent,human in the loop",
-    "ogTitle": "KeelTrader - Investment Research AgentOS",
+    "title": "KeelTrader - Investment Research OS",
+    "description": "KeelTrader is a self-hosted investment Research OS with a focused Research Agent, market evidence, report search, allocation, and thesis validation.",
+    "keywords": "investment research,research agent,financial AI,fundamental analysis,report search,asset allocation,human in the loop",
+    "ogTitle": "KeelTrader - Investment Research OS",
     "ogDescription": "Research support, decision discipline, report-KB search, and guarded strategy experiments."
   }
 }

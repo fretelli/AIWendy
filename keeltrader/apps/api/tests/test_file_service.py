@@ -27,7 +27,7 @@ def make_upload(filename: str, content: bytes, content_type: str = "text/plain")
 
 @pytest.mark.asyncio
 async def test_upload_user_file_persists_metadata_and_response_shape():
-    user = SimpleNamespace(id=uuid4(), is_admin=False)
+    user = SimpleNamespace(id=uuid4())
     session = _FakeSession()
     storage = _FakeStorage()
 
@@ -65,7 +65,7 @@ async def test_resolve_download_rejects_unowned_path(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         await resolve_download_file(
             storage_path="2026/01/private.txt",
-            current_user=SimpleNamespace(id=uuid4(), is_admin=False),
+            current_user=SimpleNamespace(id=uuid4()),
             storage=_FakeStorage(),
             session=_FakeSession(),
             locale="en",
@@ -90,7 +90,7 @@ async def test_delete_user_file_deletes_storage_and_marks_metadata(monkeypatch):
     storage = _FakeStorage()
     response = await delete_user_file(
         storage_path="2026/01/fake-memo.txt",
-        current_user=SimpleNamespace(id=uuid4(), is_admin=False),
+        current_user=SimpleNamespace(id=uuid4()),
         storage=storage,
         session=_FakeSession(),
         locale="en",
@@ -139,7 +139,7 @@ async def test_transcribe_audio_without_openai_key_returns_503(monkeypatch):
     with pytest.raises(HTTPException) as exc:
         await transcribe_audio_payload(
             file=make_upload("clip.mp3", b"audio", "audio/mpeg"),
-            current_user=SimpleNamespace(id=uuid4(), is_admin=False),
+            current_user=SimpleNamespace(id=uuid4()),
             locale="en",
         )
 
@@ -178,4 +178,3 @@ class _FakeStorage:
     async def delete(self, path):
         self.deleted.append(path)
         return True
-

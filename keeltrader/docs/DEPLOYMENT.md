@@ -9,7 +9,7 @@ KeelTrader 通过 `docker-compose.selfhost.yml` 运行以下应用组件：
 
 - `web`：Next.js 前端
 - `api`：FastAPI 后端
-- `agent-platform-worker`：Agent Platform 心跳和后台任务
+- `agent-platform-worker`：Research Agent 心跳和可恢复后台任务
 - `opportunity-worker`：跨资产机会快照后台物化
 
 默认 Compose 同时提供 PostgreSQL/pgvector 和 Redis，也允许高级运维者通过自己的私有编排替换它们。完整首次启动流程见 [SELF_HOSTING.md](SELF_HOSTING.md)。
@@ -36,17 +36,18 @@ KeelTrader 通过 `docker-compose.selfhost.yml` 运行以下应用组件：
 
 ```bash
 docker compose -f docker-compose.selfhost.yml up -d --build
-docker compose -f docker-compose.selfhost.yml exec -T api alembic upgrade head
 ```
+
+便携自托管编排默认设置 `KEELTRADER_RUN_MIGRATIONS=1`，API 启动前运行 Alembic。生产滚动发布应由私有发布流程先独立运行迁移，再以 `KEELTRADER_RUN_MIGRATIONS=0` 启动 API。
 
 正式 tag 会通过 GitHub Actions 发布 API/Web GHCR 镜像、SBOM、provenance 和 GitHub Release。具体生产主机、域名、反向代理、凭据和回滚编排必须由部署者在自己的私有基础设施仓库中管理。
 
 ## 健康检查
 
 - Web：`GET /api/health`
-- API：`GET /api/health`
+- API readiness：`GET /api/health/ready`
 - API liveness：`GET /api/health/live`
-- Agent Platform：`GET /api/v1/agent/health`
+- Research Agent：`GET /api/v1/agent/health`
 
 ---
 
@@ -59,7 +60,7 @@ KeelTrader runs these application components through `docker-compose.selfhost.ym
 
 - `web`: Next.js frontend
 - `api`: FastAPI backend
-- `agent-platform-worker`: Agent Platform heartbeat and background tasks
+- `agent-platform-worker`: Research Agent heartbeat and resumable background tasks
 - `opportunity-worker`: background materialization of cross-asset opportunity snapshots
 
 The default Compose stack also provides PostgreSQL/pgvector and Redis. Advanced operators may replace them in their own private orchestration. See [SELF_HOSTING.md](SELF_HOSTING.md) for the complete first-run workflow.
@@ -86,14 +87,15 @@ Start the application:
 
 ```bash
 docker compose -f docker-compose.selfhost.yml up -d --build
-docker compose -f docker-compose.selfhost.yml exec -T api alembic upgrade head
 ```
+
+The portable stack defaults to `KEELTRADER_RUN_MIGRATIONS=1`, so the API runs Alembic before startup. A production rolling release should run migrations as a separate private release step, then start the API with `KEELTRADER_RUN_MIGRATIONS=0`.
 
 Version tags publish API/Web GHCR images, SBOMs, provenance, and a GitHub Release. Production hosts, domains, reverse proxies, credentials, and rollback orchestration belong in each operator's private infrastructure repository.
 
 ## Health Checks
 
 - Web: `GET /api/health`
-- API: `GET /api/health`
+- API readiness: `GET /api/health/ready`
 - API liveness: `GET /api/health/live`
-- Agent Platform: `GET /api/v1/agent/health`
+- Research Agent: `GET /api/v1/agent/health`

@@ -1,6 +1,6 @@
 # Contributing / 贡献指南
 
-KeelTrader 的默认开发分支是 `v2`。提交应聚焦基本面投资研究 AgentOS，不重新引入自动交易、技术分析、交易心理教练、交易所连接或商业化商城界面。`v2` 禁止直接推送，所有改动必须通过 Pull Request 和完整 CI。
+KeelTrader 的默认开发分支是 `v2`。提交应聚焦垂直投资 Research OS，不重新引入自动交易、技术分析、交易心理教练、交易所连接、通用电脑 Agent 或商业化商城界面。`v2` 禁止直接推送，所有改动必须通过 Pull Request 和完整 CI。
 
 ## Workflow
 
@@ -36,7 +36,7 @@ Web 与 API 的详细环境说明见：
 
 ---
 
-The default development branch is `v2`. Direct pushes are blocked; every change must go through a pull request and the complete CI suite. Changes should support the fundamental investment research AgentOS and must not reintroduce automated trading, technical analysis, trading-psychology coaching, exchange connections, or commerce surfaces.
+The default development branch is `v2`. Direct pushes are blocked; every change must go through a pull request and the complete CI suite. Changes should support the vertical investment Research OS and must not reintroduce automated trading, technical analysis, trading-psychology coaching, exchange connections, general computer agents, or commerce surfaces.
 
 Create a focused branch from `v2`, add tests for behavioral changes, use Conventional Commits, and target pull requests to `v2`. Run the checks above before opening a pull request. Report vulnerabilities through the process in [SECURITY.md](SECURITY.md), not through public issues.
 

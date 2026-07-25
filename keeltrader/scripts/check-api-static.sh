@@ -54,29 +54,10 @@ if grep -R --line-number "sys\.path" "${api_root}/scripts" --include '*.py' | gr
   exit 1
 fi
 
-echo "[api-static] checking legacy script production guards"
-guarded_scripts=(
-  "add_api_keys_columns.py"
-  "add_journal_tables.py"
-  "bootstrap_projects.py"
-  "configure_oneapi.py"
-  "create_user_sessions_table.py"
-  "init_coaches.py"
-  "init_database.py"
-  "init_db_simple.py"
-  "init_user.py"
-  "init_user_simple.py"
-  "migrate_to_multi_tenant.py"
-  "save_api_key.py"
-  "setup_custom_api.py"
-)
-
-for script in "${guarded_scripts[@]}"; do
-  path="${api_root}/scripts/${script}"
-  if ! grep -q "require_non_production_script" "$path"; then
-    echo "Missing production guard in ${path}" >&2
-    exit 1
-  fi
-done
+echo "[api-static] checking Alembic-only schema management"
+if grep -R --line-number -E 'create_all|core\.bootstrap|core\.db_bootstrap' "${api_root}" --include '*.py' | grep -v '/tests/'; then
+  echo "Runtime schema bootstrap found. Database schema changes must use Alembic." >&2
+  exit 1
+fi
 
 echo "[api-static] ok"

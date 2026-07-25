@@ -2,20 +2,17 @@
 
 import time
 import uuid
-from typing import Callable, Optional
+from typing import Callable
 
 import structlog
 import jwt
 from fastapi import Request, Response
-from fastapi.responses import JSONResponse
 from jwt import PyJWTError
 from sqlalchemy import select
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from config import get_settings
 from core.database import async_session
-from core.i18n import get_request_locale, t
-from core.ratelimit import RateLimiter, get_rate_limiter
 from domain.user.models import User
 
 settings = get_settings()
@@ -130,132 +127,3 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 logger.debug("Auth middleware token validation failed", error=str(e))
 
         return await call_next(request)
-
-
-class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Middleware for rate limiting."""
-
-    async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Check rate limits before processing request."""
-        # Skip rate limiting for health checks and docs
-        if request.url.path in ["/", "/api/health", "/api/docs", "/api/redoc"]:
-            return await call_next(request)
-
-        # Skip if no user in request (auth middleware will handle)
-        if not hasattr(request.state, "user"):
-            return await call_next(request)
-
-        user = request.state.user
-        endpoint = self._get_endpoint_key(request.url.path)
-
-        # Skip if endpoint is not rate limited
-        if not endpoint:
-            return await call_next(request)
-
-        logger = structlog.get_logger()
-
-        # Get rate limiter (fail open if Redis is unavailable in development)
-        try:
-            rate_limiter = await get_rate_limiter()
-        except Exception as e:
-            logger.warning("rate_limit_unavailable", error=str(e))
-            return await call_next(request)
-
-        # Get limits based on user tier
-        # Handle both string and enum values
-        tier = (
-            user.subscription_tier.value
-            if hasattr(user.subscription_tier, "value")
-            else user.subscription_tier
-        )
-        limits = self._get_limits(tier)
-        limit, window = limits.get(endpoint, (None, None))
-
-        if limit is None:
-            return await call_next(request)
-
-        # Check rate limit
-        key = f"ratelimit:{user.id}:{endpoint}"
-        try:
-            allowed, remaining = await rate_limiter.is_allowed(key, limit, window)
-        except Exception as e:
-            logger.warning("rate_limit_check_failed", error=str(e))
-            return await call_next(request)
-
-        if not allowed:
-            locale = get_request_locale(request)
-            # Calculate retry after
-            try:
-                retry_after = await rate_limiter.get_retry_after(key, window)
-            except Exception as e:
-                logger.warning("rate_limit_retry_after_failed", error=str(e))
-                retry_after = window
-
-            return JSONResponse(
-                status_code=429,
-                content={
-                    "error": {
-                        "code": "RATE_LIMIT_EXCEEDED",
-                        "message": t(
-                            "errors.rate_limit_exceeded",
-                            locale,
-                            limit=limit,
-                            window=window,
-                        ),
-                        "details": {
-                            "limit": limit,
-                            "window": window,
-                            "retry_after": retry_after,
-                        },
-                    }
-                },
-                headers={
-                    "X-RateLimit-Limit": str(limit),
-                    "X-RateLimit-Remaining": "0",
-                    "X-RateLimit-Reset": str(retry_after),
-                    "Retry-After": str(retry_after),
-                },
-            )
-
-        # Process request
-        response = await call_next(request)
-
-        # Add rate limit headers
-        response.headers["X-RateLimit-Limit"] = str(limit)
-        response.headers["X-RateLimit-Remaining"] = str(remaining)
-
-        return response
-
-    def _get_endpoint_key(self, path: str) -> Optional[str]:
-        """Extract endpoint key from path."""
-        if "/chat" in path:
-            return "chat"
-        elif "/journals" in path:
-            return "journal"
-        elif "/analysis" in path:
-            return "analysis"
-        return None
-
-    def _get_limits(self, tier: str) -> dict[str, tuple[int, int]]:
-        """Get rate limits for user tier."""
-        if tier == "free":
-            return {
-                "chat": (settings.rate_limit_free_chat_hourly, 3600),
-                "journal": (settings.rate_limit_free_journal_daily, 86400),
-                "analysis": (1, 86400),  # 1 per day
-            }
-        elif tier == "pro":
-            return {
-                "chat": (settings.rate_limit_pro_chat_hourly, 3600),
-                "journal": (settings.rate_limit_pro_journal_daily, 86400),
-                "analysis": (10, 86400),  # 10 per day
-            }
-        elif tier in ["elite", "enterprise"]:
-            return {
-                "chat": (1000, 3600),  # Very high limits
-                "journal": (9999, 86400),
-                "analysis": (100, 86400),
-            }
-        else:
-            # Default to free tier limits
-            return self._get_limits("free")

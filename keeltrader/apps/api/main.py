@@ -9,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from config import get_settings
-from core.db_bootstrap import maybe_auto_init_db
 from core.exceptions import AppException
 from core.i18n import get_request_locale, t
 from core.logging import setup_logging
@@ -39,15 +38,8 @@ async def lifespan(app: FastAPI):
     # Import all domain models so SQLAlchemy can resolve string relationships
     _import_domain_models()
 
-    # Initialize database
-    logger.info("Skipping automatic database initialization (Base.metadata.create_all)")
-    await maybe_auto_init_db()
-
     yield
 
-    # Shutdown
-    await market_data_service.close()
-    await market_data_ws_service.close()
     logger.info("Shutting down KeelTrader v2 API")
 
 
@@ -150,11 +142,6 @@ from routers.wealth import router as wealth_router
 from routers.research_cloud import router as research_cloud_router
 from routers.users import router as users_router
 from routers.files import router as files_router
-from routers.market_data import (
-    market_data_service,
-    market_data_ws_service,
-    router as market_data_router,
-)
 
 app.include_router(health.router, prefix="/api", tags=["Health"])
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
@@ -169,7 +156,6 @@ app.include_router(
     prefix="/api/v1/research-cloud",
     tags=["Research Cloud"],
 )
-app.include_router(market_data_router, prefix="/api/v1/market-data", tags=["Market Data"])
 
 
 @app.get("/")

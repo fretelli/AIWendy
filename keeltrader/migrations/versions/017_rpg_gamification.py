@@ -115,7 +115,7 @@ def upgrade() -> None:
     op.create_index('ix_leaderboard_period', 'leaderboard_entries', ['period_type', 'period_start'])
 
     # Seed achievements and quests using raw SQL (asyncpg requires explicit casts for enums)
-    from domain.rpg.seed import ACHIEVEMENTS, QUESTS
+    from migrations.legacy_rpg_seed import ACHIEVEMENTS, QUESTS
     import json
 
     for a in ACHIEVEMENTS:

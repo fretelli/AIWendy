@@ -50,7 +50,10 @@ def tracked_markdown(repo_root: Path) -> set[str]:
     output = subprocess.check_output(
         ["git", "ls-files", "*.md"], cwd=repo_root, text=True
     )
-    return set(output.splitlines())
+    deleted = subprocess.check_output(
+        ["git", "ls-files", "--deleted", "*.md"], cwd=repo_root, text=True
+    )
+    return set(output.splitlines()) - set(deleted.splitlines())
 
 
 def load_allowlist(repo_root: Path) -> tuple[list[str], set[str]]:

@@ -14,6 +14,7 @@ permissions:
 
 jobs:
   dependency-review:
+    name: Dependency review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -45,3 +46,40 @@ jobs:
       - uses: github/codeql-action/analyze@4187e74d05793876e9989daffde9c3e66b4acd07 # v3
         with:
           category: /language:${{ matrix.language }}
+          output: sarif-results
+          upload: true
+      - name: Reject medium-or-higher CodeQL findings
+        run: |
+          jq -e '
+            [
+              .runs[]
+              | (
+                  (.tool.driver.rules // [])
+                  | map({key: .id, value: ((.properties["security-severity"] // "0") | tonumber)})
+                  | from_entries
+                ) as $severity
+              | .results[]?
+              | select(($severity[.ruleId] // 0) >= 6.0)
+            ]
+            | length == 0
+          ' sarif-results/*.sarif
+
+  security-gate:
+    name: Security gate
+    if: always()
+    needs: [dependency-review, codeql]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require successful security jobs
+        env:
+          DEPENDENCY_REVIEW_RESULT: ${{ needs.dependency-review.result }}
+          CODEQL_RESULT: ${{ needs.codeql.result }}
+        run: |
+          if [[ "$CODEQL_RESULT" != "success" ]]; then
+            echo "CodeQL result: $CODEQL_RESULT" >&2
+            exit 1
+          fi
+          if [[ "$DEPENDENCY_REVIEW_RESULT" != "success" && "$DEPENDENCY_REVIEW_RESULT" != "skipped" ]]; then
+            echo "Dependency review result: $DEPENDENCY_REVIEW_RESULT" >&2
+            exit 1
+          fi

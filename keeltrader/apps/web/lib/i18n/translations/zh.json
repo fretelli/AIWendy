@@ -1,7 +1,7 @@
 {
   "common": {
     "appName": "KeelTrader",
-    "tagline": "投资研究 AgentOS",
+    "tagline": "投资研究操作系统",
     "loading": "加载中...",
     "error": "错误",
     "success": "成功",
@@ -1004,7 +1004,7 @@
       "zhShort": "中文"
     },
     "hero": {
-      "title": "投资研究 AgentOS",
+      "title": "投资研究操作系统",
       "subtitle": "研究辅助、决策纪律、研报知识库搜索和带护栏的策略实验。",
       "cta": {
         "startFree": "免费开始",
@@ -1077,7 +1077,7 @@
         "noAccount": "没有账号？注册",
         "error": "登录失败，请重试。",
         "checking": "正在检查账号状态...",
-        "alreadySignedIn": "已登录。提交后会进入 AgentOS，或回到刚才请求的页面。",
+        "alreadySignedIn": "已登录。提交后会进入 Research OS，或回到刚才请求的页面。",
         "protectedNotice": "登录后才能访问 Agent 工作台和设置。"
       },
       "register": {
@@ -1284,10 +1284,10 @@
     }
   },
   "meta": {
-    "title": "KeelTrader - 投资研究 AgentOS",
-    "description": "KeelTrader 是一个自进化投资研究 AgentOS，支持人类参与的基本面投研简报、研报知识库搜索、决策日志、复盘和假设验证工作流。",
-    "keywords": "投资研究,AgentOS,金融AI,基本面分析,决策日志,研报搜索,多智能体,人机协作",
-    "ogTitle": "KeelTrader - 投资研究 AgentOS",
+    "title": "KeelTrader - 投资研究操作系统",
+    "description": "KeelTrader 是自托管投资 Research OS，提供聚焦的 Research Agent、市场证据、研报搜索、资产配置和假设验证。",
+    "keywords": "投资研究,研究智能体,金融AI,基本面分析,研报搜索,资产配置,人机协作",
+    "ogTitle": "KeelTrader - 投资研究操作系统",
     "ogDescription": "研究辅助、决策纪律、研报知识库搜索和带护栏的策略实验。"
   }
 }

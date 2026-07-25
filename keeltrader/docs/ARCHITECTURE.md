@@ -1,128 +1,60 @@
-# 系统架构（以代码为准）
+# Architecture
 
-<a id="zh-cn"></a>
-[中文](#zh-cn) | [English](#en)
+[English](#english) | [中文](#中文)
 
-KeelTrader 采用前后端分离架构：Next.js 负责 Web UI，FastAPI 提供业务 API；PostgreSQL（pgvector）存储结构化数据与向量；Redis 用于缓存/限流与 Celery 队列。
-
-## 组件关系
-
-```
-Browser
-  │  HTTP(S)
-  ▼
-Next.js (apps/web) ───────────────┐
-  │  API proxy / fetch            │
-  ▼                               │
-FastAPI (apps/api)                │
-  │                               │
-  ├─ PostgreSQL + pgvector (db)   │
-  └─ Redis (redis) ── Celery worker/beat（可选）
-```
-
-## 代码结构（核心）
-
-- `apps/web/`：Next.js 14 App Router 前端
-- `apps/api/`：FastAPI 后端
-- `migrations/`：Alembic 迁移
-- `docker-compose.selfhost.yml`：可移植的自托管编排
-
-## 核心业务模块
-
-- AgentOS：每日基本面投研简报、深度研究 memo、决策日志、周度复盘、经验 lessons、基本面假设与验证记录
-- Report KB：通过 report-kb 接入研报语义搜索，返回结构化研报命中结果供 AgentOS 使用
-- Tushare Read：读取外部 Tushare 数据库表，应用内不要求配置 Tushare token
-- Chat：SSE 流式对话，会话/消息持久化
-- Settings/Auth：用户认证、登录保护、模型和连接配置
-
-## 数据与异步任务
-
-- PostgreSQL：主数据存储；知识库向量使用 pgvector 列 + 向量索引
-- Redis：
-  - 限流/短期缓存（例如分析、检索结果）
-  - Celery broker/result backend（当启用 worker/beat 时）
-- Celery worker/beat：用于报告生成、知识库导入等耗时任务（可选）
-
-## 关键请求链路（示例）
-
-### 聊天（SSE）
-
-1. Web 发起请求（带上会话/模型/配置参数）
-2. API 生成/续写消息并以 SSE 分块返回
-3. 同步写入会话与消息记录，便于历史回溯
-
-### 研报知识库检索
-
-1. Web/API 提交查询、公司筛选和 top_k
-2. API 通过 report-kb 服务执行语义检索
-3. 结构化命中返回给 AgentOS，用于投研 memo、简报或人工判断
-
----
-
-<a id="en"></a>
 ## English
 
-KeelTrader uses a decoupled web/API architecture: Next.js provides the Web UI, FastAPI provides business APIs; PostgreSQL (pgvector) stores structured data and embeddings; Redis is used for caching/rate limiting and Celery queues.
+KeelTrader is a vertical investment Research OS, not a general-purpose autonomous computer agent. The browser exposes one coherent Research Agent while the backend uses bounded, purpose-built services and workers.
 
-### Component relationships
-
-```
-Browser
-  │  HTTP(S)
-  ▼
-Next.js (apps/web) ───────────────┐
-  │  API proxy / fetch            │
-  ▼                               │
-FastAPI (apps/api)                │
-  │                               │
-  ├─ PostgreSQL + pgvector (db)   │
-  └─ Redis (redis) ── Celery worker/beat (optional)
+```mermaid
+flowchart LR
+  B[Browser] --> W[Next.js]
+  W --> API[FastAPI]
+  API --> PG[(PostgreSQL + pgvector)]
+  API --> R[(Redis)]
+  R --> RW[Research worker]
+  R --> OW[Opportunity worker]
+  API -. read-only .-> KB[Report KB]
+  API -. read-only .-> MD[Structured market data]
+  API -. approved .-> EXT[Model APIs / HTTPS MCP]
 ```
 
-### Code structure (core)
+### Responsibilities
 
-- `apps/web/`: Next.js 14 App Router frontend
-- `apps/api/`: FastAPI backend
-- `migrations/`: Alembic migrations
-- `docker-compose.selfhost.yml`: portable self-hosting orchestration
+- Next.js renders the authenticated workspace and proxies browser API calls.
+- FastAPI owns authentication, authorization, validation, research APIs, and task submission.
+- PostgreSQL is the system of record for users, research runs, evidence, memory, allocations, and audit state.
+- Alembic is the only supported schema-management mechanism. Runtime startup never calls `create_all` or ad-hoc bootstrap SQL.
+- Redis provides cache, coordination, durable queue references, and worker heartbeats.
+- The research worker executes resumable tool-based research runs.
+- The opportunity worker materializes bounded snapshots outside request paths.
+- Report KB and structured market data are optional read-only integrations.
 
-### Core business modules
+### Trust boundaries
 
-- AgentOS: daily fundamental briefs, deep research memos, decision journals, weekly reviews, and reusable lessons
-- Report KB: integrates with report-kb for semantic research-report search and structured hits
-- Tushare Read: reads from an external Tushare database; no in-app Tushare token is required
-- Chat: SSE streaming chat, persisted sessions/messages
-- Settings/Auth: user authentication, login protection, model settings, and connection configuration
+- Authentication is required by default.
+- Every user-owned record is scoped by authenticated user identity.
+- BYOK secrets are encrypted at rest and never included in logs, memory, events, or MCP arguments.
+- MCP endpoints must use public HTTPS and tools require explicit approval.
+- KeelTrader exposes research tools only. It does not offer order execution, arbitrary shell access, or general desktop control.
 
-### Data & async jobs
+### Deployment boundary
 
-- PostgreSQL: primary datastore; KB vectors use pgvector columns + vector indexes
-- Redis:
-  - Rate limiting / short-lived cache (e.g. analysis/retrieval results)
-  - Celery broker/result backend (when worker/beat is enabled)
-- Celery worker/beat: report generation, KB import, and other long-running tasks (optional)
+The public repository contains portable self-hosting definitions and release images. Maintainer domains, host mounts, credentials, observability routes, and rollout manifests belong in a private infrastructure repository.
 
-### Key request flows (examples)
+## 中文
 
-#### Chat (SSE)
+KeelTrader 是垂直投资研究操作系统，不是通用自主电脑 Agent。网页端呈现一个统一 Research Agent，后端使用职责明确、边界受控的服务和 Worker。
 
-1. Web sends a request (session/model/config params)
-2. API generates/continues content and streams chunks via SSE
-3. Sessions and messages are stored for history
+- Next.js 提供登录后的研究工作区，并代理浏览器 API 请求。
+- FastAPI 负责认证、授权、校验、研究 API 和任务提交。
+- PostgreSQL 是用户、研究任务、证据、记忆、配置与审计状态的唯一事实来源。
+- Alembic 是唯一支持的数据库结构管理机制；运行时启动不执行 `create_all` 或临时建表 SQL。
+- Redis 提供缓存、协调、持久任务引用和 Worker 心跳。
+- Research Worker 执行可恢复的工具型研究任务。
+- Opportunity Worker 在请求链路外有界物化机会快照。
+- 研报库与结构化市场数据是可选的只读集成。
 
-#### Report knowledge-base search
+默认要求登录，所有用户数据按身份隔离。BYOK 密钥加密保存，MCP 仅允许公开 HTTPS 且工具需要显式授权。KeelTrader 只暴露研究工具，不提供下单、任意 Shell 或桌面控制。
 
-1. Web/API submits query, company filters, and top_k
-2. API calls report-kb for semantic search
-3. Structured hits are returned to AgentOS for research memos, briefs, or human review
-# Evidence handoff and source status
-
-机会、公司档案与股东披露继续保留各自的不可变快照和来源日期，但不再汇总到独立“今日”收件箱，也不再生成或保存论点记录。市场数据只有在用户显式点击“带入研究”后才创建上下文快照并进入 AI。
-
-机会中心使用一级路由 `/agent/opportunities`；历史 `/agent/market/opportunities` 永久重定向到新地址。机会的不可变快照可以成为 TAA 草案证据，但服务端会重新校验该快照对当前用户可见，并把证据与证伪条件复制进草案；机会本身不提供自动仓位。
-
-家庭财富配置以 `wealth_profiles` 为用户私有聚合根，允许只有“本人”的单人家庭，也允许伴侣、受抚养人和父母等多成员结构。当前态包含成员生命周期、资产负债、目标和资产金额指定关系；确认后写入不可变 `wealth_framework_versions`。框架先按安全/市场/进取三层、短中长期资金桶、核心-卫星预算表达约束，不引入新的优化算法。
-
-`saa_policy_versions` 引用不可变财富框架，保存长期目标权重、上下限和复核日期；同一家庭至多一个已确认 SAA，其余历史版本保留。`taa_overlays` 只能引用当前已确认 SAA，所有增减必须权重守恒、不得调整安全层、不得越过 SAA 区间，最长 180 天并要求人工确认、复核和关闭；系统不自动交易或续期。既有 `/agent/allocation` ERC 配置引擎保持独立且行为不变。
-
-`GET /api/v1/markets/data-status` 只读展示宏观、利率和机会后台任务的源覆盖、起止日期、点数、最近成功、错误和耗时，不触发请求时刷新。中国现券国债曲线在授权来源缺失时明确不可用，不以期货或其他价格合成替代。
+公共仓库只包含可移植自托管定义和发布镜像；维护者域名、宿主机挂载、凭据、监控路由和发布清单应保存在私有基础设施仓库。
