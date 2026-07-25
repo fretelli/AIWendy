@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing signed tag to publish
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -11,6 +17,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAMESPACE: ghcr.io/fretelli/keeltrader
+  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
 
 jobs:
   test:
@@ -24,12 +31,16 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+      - name: Fetch annotated release tag
+        working-directory: ${{ github.workspace }}
+        run: git fetch --force origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
       - name: Verify signed release tag
         working-directory: ${{ github.workspace }}
         run: |
+          git checkout --detach "${RELEASE_TAG}^{commit}"
           git config gpg.format ssh
           git config gpg.ssh.allowedSignersFile .github/allowed_signers
-          git verify-tag "$GITHUB_REF_NAME"
+          git verify-tag "$RELEASE_TAG"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
@@ -70,11 +81,14 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+      - name: Fetch annotated release tag
+        run: git fetch --force origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
       - name: Verify signed release tag
         run: |
+          git checkout --detach "${RELEASE_TAG}^{commit}"
           git config gpg.format ssh
           git config gpg.ssh.allowedSignersFile .github/allowed_signers
-          git verify-tag "$GITHUB_REF_NAME"
+          git verify-tag "$RELEASE_TAG"
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -87,9 +101,9 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha
+            type=semver,pattern={{version}},value=${{ env.RELEASE_TAG }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.RELEASE_TAG }}
+            type=sha,enable=${{ github.event_name == 'push' }}
       - name: Build and push
         id: build
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
@@ -122,19 +136,19 @@ jobs:
         with:
           image: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
           format: spdx-json
-          output-file: keeltrader-${{ matrix.image }}-${{ github.ref_name }}.spdx.json
+          output-file: keeltrader-${{ matrix.image }}-${{ env.RELEASE_TAG }}.spdx.json
           upload-artifact: false
       - name: Save image metadata
         run: |
-          printf '%s\n' '${{ steps.build.outputs.digest }}' > keeltrader-${{ matrix.image }}-${{ github.ref_name }}.digest
-          sha256sum keeltrader-${{ matrix.image }}-${{ github.ref_name }}.spdx.json > keeltrader-${{ matrix.image }}-${{ github.ref_name }}.spdx.json.sha256
+          printf '%s\n' '${{ steps.build.outputs.digest }}' > keeltrader-${{ matrix.image }}-${RELEASE_TAG}.digest
+          sha256sum keeltrader-${{ matrix.image }}-${RELEASE_TAG}.spdx.json > keeltrader-${{ matrix.image }}-${RELEASE_TAG}.spdx.json.sha256
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-${{ matrix.image }}
           path: |
-            keeltrader-${{ matrix.image }}-${{ github.ref_name }}.digest
-            keeltrader-${{ matrix.image }}-${{ github.ref_name }}.spdx.json
-            keeltrader-${{ matrix.image }}-${{ github.ref_name }}.spdx.json.sha256
+            keeltrader-${{ matrix.image }}-${{ env.RELEASE_TAG }}.digest
+            keeltrader-${{ matrix.image }}-${{ env.RELEASE_TAG }}.spdx.json
+            keeltrader-${{ matrix.image }}-${{ env.RELEASE_TAG }}.spdx.json.sha256
           if-no-files-found: error
 
   release:
@@ -154,6 +168,7 @@ jobs:
         run: sha256sum *.digest *.spdx.json > SHA256SUMS
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: release-assets/*
