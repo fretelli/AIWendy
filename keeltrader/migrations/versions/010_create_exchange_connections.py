@@ -8,7 +8,7 @@ Create Date: 2026-01-15
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import ENUM, UUID
 
 # revision identifiers
 revision = "010"
@@ -28,7 +28,19 @@ def upgrade():
         "exchange_connections",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
         sa.Column("user_id", UUID(as_uuid=True), sa.ForeignKey("users.id"), nullable=False),
-        sa.Column("exchange_type", sa.Enum('binance', 'okx', 'bybit', 'coinbase', 'kraken', name='exchangetype', create_type=False), nullable=False),
+        sa.Column(
+            "exchange_type",
+            ENUM(
+                "binance",
+                "okx",
+                "bybit",
+                "coinbase",
+                "kraken",
+                name="exchangetype",
+                create_type=False,
+            ),
+            nullable=False,
+        ),
         sa.Column("name", sa.String(100), nullable=True),
         sa.Column("api_key_encrypted", sa.Text(), nullable=False),
         sa.Column("api_secret_encrypted", sa.Text(), nullable=False),

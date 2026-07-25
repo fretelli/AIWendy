@@ -25,18 +25,26 @@ def upgrade():
     from core.database import Base
     from domain.analysis import models as analysis_models  # noqa: F401
     from domain.coach import models as coach_models  # noqa: F401
-    from domain.exchange import models as exchange_models  # noqa: F401
-    from domain.intervention import models as intervention_models  # noqa: F401
     from domain.journal import models as journal_models  # noqa: F401
-    from domain.knowledge import models as knowledge_models  # noqa: F401
-    from domain.notification import models as notification_models  # noqa: F401
     from domain.project import models as project_models  # noqa: F401
-    from domain.report import models as report_models  # noqa: F401
-    from domain.tenant import models as tenant_models  # noqa: F401
     from domain.user import models as user_models  # noqa: F401
 
     bind = op.get_bind()
-    Base.metadata.create_all(bind=bind)
+    # This historical bootstrap predates later exchange, RPG, and agent
+    # migrations. Limit create_all to the tables that were genuinely missing
+    # at this revision so today's model metadata cannot create future enums or
+    # tables ahead of their owning migration.
+    bootstrap_table_names = (
+        "projects",
+        "user_sessions",
+        "journals",
+        "journal_templates",
+        "chat_attachments",
+        "analysis_reports",
+        "performance_metrics",
+    )
+    for table_name in bootstrap_table_names:
+        Base.metadata.tables[table_name].create(bind=bind, checkfirst=True)
 
     inspector = sa.inspect(bind)
     if inspector.has_table("users"):

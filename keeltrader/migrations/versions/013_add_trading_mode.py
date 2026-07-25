@@ -11,6 +11,7 @@ Create Date: 2026-03-02
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers
 revision = "013"
@@ -21,7 +22,7 @@ depends_on = None
 
 def upgrade():
     # Create ENUM type
-    tradingmode = sa.Enum("spot", "swap", name="tradingmode")
+    tradingmode = postgresql.ENUM("spot", "swap", name="tradingmode")
     tradingmode.create(op.get_bind(), checkfirst=True)
 
     # Add column with server default
@@ -29,7 +30,9 @@ def upgrade():
         "exchange_connections",
         sa.Column(
             "trading_mode",
-            sa.Enum("spot", "swap", name="tradingmode"),
+            postgresql.ENUM(
+                "spot", "swap", name="tradingmode", create_type=False
+            ),
             nullable=False,
             server_default="swap",
         ),

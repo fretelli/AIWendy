@@ -25,7 +25,7 @@ FastAPI (apps/api)                │
 - `apps/web/`：Next.js 14 App Router 前端
 - `apps/api/`：FastAPI 后端
 - `migrations/`：Alembic 迁移
-- `docker-compose.yml`：自托管编排
+- `docker-compose.selfhost.yml`：可移植的自托管编排
 
 ## 核心业务模块
 
@@ -84,7 +84,7 @@ FastAPI (apps/api)                │
 - `apps/web/`: Next.js 14 App Router frontend
 - `apps/api/`: FastAPI backend
 - `migrations/`: Alembic migrations
-- `docker-compose.yml`: self-hosting orchestration
+- `docker-compose.selfhost.yml`: portable self-hosting orchestration
 
 ### Core business modules
 

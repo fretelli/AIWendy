@@ -5,13 +5,14 @@
 
 ## 支持的拓扑
 
-KeelTrader 通过 Docker Compose 运行以下应用组件：
+KeelTrader 通过 `docker-compose.selfhost.yml` 运行以下应用组件：
 
 - `web`：Next.js 前端
 - `api`：FastAPI 后端
 - `agent-platform-worker`：Agent Platform 心跳和后台任务
+- `opportunity-worker`：跨资产机会快照后台物化
 
-PostgreSQL 和 Redis 通过环境变量作为外部服务接入。完整首次启动流程见 [SELF_HOSTING.md](SELF_HOSTING.md)。
+默认 Compose 同时提供 PostgreSQL/pgvector 和 Redis，也允许高级运维者通过自己的私有编排替换它们。完整首次启动流程见 [SELF_HOSTING.md](SELF_HOSTING.md)。
 
 ## 必要环境变量
 
@@ -34,11 +35,11 @@ PostgreSQL 和 Redis 通过环境变量作为外部服务接入。完整首次�
 启动应用：
 
 ```bash
-docker compose up -d api web agent-platform-worker
-docker compose exec -T api alembic upgrade head
+docker compose -f docker-compose.selfhost.yml up -d --build
+docker compose -f docker-compose.selfhost.yml exec -T api alembic upgrade head
 ```
 
-公开文档不承诺特定主机、反向代理或镜像发布流程；运维者应在私有基础设施配置中管理这些细节。
+正式 tag 会通过 GitHub Actions 发布 API/Web GHCR 镜像、SBOM、provenance 和 GitHub Release。具体生产主机、域名、反向代理、凭据和回滚编排必须由部署者在自己的私有基础设施仓库中管理。
 
 ## 健康检查
 
@@ -54,13 +55,14 @@ docker compose exec -T api alembic upgrade head
 
 ## Supported Topology
 
-KeelTrader runs these application components through Docker Compose:
+KeelTrader runs these application components through `docker-compose.selfhost.yml`:
 
 - `web`: Next.js frontend
 - `api`: FastAPI backend
 - `agent-platform-worker`: Agent Platform heartbeat and background tasks
+- `opportunity-worker`: background materialization of cross-asset opportunity snapshots
 
-PostgreSQL and Redis are external services configured through environment variables. See [SELF_HOSTING.md](SELF_HOSTING.md) for the complete first-run workflow.
+The default Compose stack also provides PostgreSQL/pgvector and Redis. Advanced operators may replace them in their own private orchestration. See [SELF_HOSTING.md](SELF_HOSTING.md) for the complete first-run workflow.
 
 ## Required Environment Variables
 
@@ -83,11 +85,11 @@ Validate builds:
 Start the application:
 
 ```bash
-docker compose up -d api web agent-platform-worker
-docker compose exec -T api alembic upgrade head
+docker compose -f docker-compose.selfhost.yml up -d --build
+docker compose -f docker-compose.selfhost.yml exec -T api alembic upgrade head
 ```
 
-Public documentation does not define a specific host, reverse proxy, or image-release pipeline. Operators should manage those details in private infrastructure configuration.
+Version tags publish API/Web GHCR images, SBOMs, provenance, and a GitHub Release. Production hosts, domains, reverse proxies, credentials, and rollback orchestration belong in each operator's private infrastructure repository.
 
 ## Health Checks
 

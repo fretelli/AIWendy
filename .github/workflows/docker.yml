@@ -1,72 +1,143 @@
-name: Docker Build and Publish
+name: Release
 
 on:
   push:
     tags:
-      - 'v*.*.*'
-  workflow_dispatch:
+      - "v*.*.*"
+
+permissions:
+  contents: read
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME_API: ${{ github.repository }}/api
-  IMAGE_NAME_WEB: ${{ github.repository }}/web
+  IMAGE_NAMESPACE: ghcr.io/fretelli/keeltrader
 
 jobs:
-  build-and-push:
+  test:
+    name: Release tests
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: keeltrader
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: keeltrader/apps/web/package-lock.json
+      - run: npm ci
+        working-directory: keeltrader/apps/web
+      - run: make check-security-defaults audit-root check-web check-api-static check-api
+
+  images:
+    name: Publish ${{ matrix.image }} image
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
-
+      id-token: write
+      attestations: write
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - context: ./keeltrader
+          - image: api
+            context: ./keeltrader
             dockerfile: ./keeltrader/apps/api/Dockerfile
-            image: api
-            build-args: |
+            build_args: |
               PIP_INDEX_URL=https://pypi.org/simple/
-          - context: ./keeltrader/apps/web
+          - image: web
+            context: ./keeltrader/apps/web
             dockerfile: ./keeltrader/apps/web/Dockerfile
-            image: web
-            build-args: |
+            build_args: |
               NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
-
+              NEXT_PUBLIC_API_URL=http://api:8000
+              NEXT_PUBLIC_AUTH_REQUIRED=1
+              NEXT_PUBLIC_SITE_URL=http://localhost:3000
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Docker
+      - name: Image metadata
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.image }}
+          images: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
             type=sha
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v7
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
-          build-args: ${{ matrix.build-args }}
+          build-args: ${{ matrix.build_args }}
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          provenance: mode=max
+          sbom: true
+      - name: Attest image provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-name: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+      - name: Sign image digest
+        env:
+          IMAGE: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+        run: cosign sign --yes "$IMAGE"
+      - name: Generate SPDX SBOM
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          image: ${{ env.IMAGE_NAMESPACE }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: keeltrader-${{ matrix.image }}-${{ github.ref_name }}.spdx.json
+          upload-artifact: false
+      - name: Save image metadata
+        run: |
+          printf '%s\n' '${{ steps.build.outputs.digest }}' > keeltrader-${{ matrix.image }}-${{ github.ref_name }}.digest
+          sha256sum keeltrader-${{ matrix.image }}-${{ github.ref_name }}.spdx.json > keeltrader-${{ matrix.image }}-${{ github.ref_name }}.spdx.json.sha256
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-${{ matrix.image }}
+          path: |
+            keeltrader-${{ matrix.image }}-${{ github.ref_name }}.digest
+            keeltrader-${{ matrix.image }}-${{ github.ref_name }}.spdx.json
+            keeltrader-${{ matrix.image }}-${{ github.ref_name }}.spdx.json.sha256
+          if-no-files-found: error
 
-      - name: Image digest
-        run: echo ${{ steps.meta.outputs.digest }}
+  release:
+    name: Create GitHub Release
+    needs: images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release-assets
+      - name: Create checksums
+        working-directory: release-assets
+        run: sha256sum *.digest *.spdx.json > SHA256SUMS
+      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: release-assets/*

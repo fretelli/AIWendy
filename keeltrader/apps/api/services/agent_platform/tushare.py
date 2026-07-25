@@ -1,7 +1,7 @@
 """Read-only access to the existing Tushare PostgreSQL schema.
 
 KeelTrader AgentOS never stores or uses a Tushare token. It reads data that
-has already been synchronized by /opt/services/tushare.
+has already been synchronized by an operator-managed Tushare data service.
 """
 
 from __future__ import annotations

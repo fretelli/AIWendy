@@ -10,7 +10,9 @@ check_pattern() {
   local label="$1"
   local pattern="$2"
   local matches
-  matches="$(git grep -nIE "$pattern" -- . ':!keeltrader/scripts/check-public-safety.sh' || true)"
+  matches="$(git grep -nIE "$pattern" -- . \
+    ':!keeltrader/scripts/check-public-safety.sh' \
+    ':!keeltrader/scripts/audit-root.sh' || true)"
   if [ -n "$matches" ]; then
     echo "[public-safety] ${label} found:" >&2
     printf '%s\n' "$matches" | awk -F: '{print "  - " $1 ":" $2}' >&2
@@ -25,6 +27,8 @@ check_pattern "OpenAI/LiteLLM-style secret key" '\bsk-[A-Za-z0-9_-]{12,}\b'
 check_pattern "Google API key" '\bAIza[0-9A-Za-z_-]{20,}\b'
 check_pattern "Slack token" '\bxox[baprs]-[A-Za-z0-9-]{20,}\b'
 check_pattern "known development password" 'Admin[@]123|Test[@]1234|Cjd1989318'
+check_pattern "maintainer host path" '/opt/services/|/root/infra-root'
+check_pattern "private deployment integration" 'traefik\.http\.routers|MINIFLUX_API_KEY|FEISHU_WEBHOOK_(URL|SECRET)'
 
 python3 - <<'PY'
 from __future__ import annotations

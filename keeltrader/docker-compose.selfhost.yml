@@ -31,7 +31,7 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
       args:
-        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple/}
     restart: unless-stopped
     ports:
       - "${KEELTRADER_API_BIND:-127.0.0.1}:8000:8000"
@@ -71,7 +71,7 @@ services:
       context: .
       dockerfile: apps/api/Dockerfile
       args:
-        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple/}
     restart: unless-stopped
     read_only: true
     security_opt:
@@ -103,12 +103,43 @@ services:
         condition: service_healthy
     command: python tasks/agent_platform_worker.py
 
+  opportunity-worker:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple/}
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:noexec,size=50M
+    environment:
+      DATABASE_URL: postgresql+asyncpg://keeltrader:${POSTGRES_PASSWORD}@postgres:5432/keeltrader
+      DATABASE_POOL_SIZE: 3
+      DATABASE_MAX_OVERFLOW: 1
+      DATABASE_APPLICATION_NAME: keeltrader-opportunity-worker
+      REDIS_URL: redis://redis:6379/0
+      TUSHARE_DATABASE_URL: ${TUSHARE_DATABASE_URL:-}
+      OPPORTUNITY_REFRESH_SECONDS: ${OPPORTUNITY_REFRESH_SECONDS:-300}
+      DEPLOYMENT_MODE: self-hosted
+      ENVIRONMENT: production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python tasks/opportunity_worker.py
+
   web:
     build:
       context: ./apps/web
       dockerfile: Dockerfile
       args:
-        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com/}
+        NPM_CONFIG_REGISTRY: ${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org/}
         NEXT_PUBLIC_API_URL: http://api:8000
         NEXT_PUBLIC_AUTH_REQUIRED: "1"
         NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}

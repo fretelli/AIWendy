@@ -34,18 +34,9 @@ test("desktop workspace is resizable and mobile remains stacked", () => {
   expect(page).toContain('className="space-y-4 md:hidden"');
 });
 
-test("production API release deploys the isolated opportunity worker", () => {
-  const release = fs.readFileSync(path.join(root, "../../scripts/release-api-overlay.sh"), "utf8");
-  const webRelease = fs.readFileSync(path.join(root, "../../scripts/release-web-overlay.sh"), "utf8");
-  const compose = fs.readFileSync(path.join(root, "../../docker-compose.yml"), "utf8");
-  expect(release).toContain("api agent-platform-worker opportunity-worker");
-  expect(release).toContain("keeltrader:opportunity:heartbeat");
+test("self-hosting deploys the isolated opportunity worker", () => {
+  const compose = fs.readFileSync(path.join(root, "../../docker-compose.selfhost.yml"), "utf8");
   expect(compose).toContain("opportunity-worker:");
   expect(compose).toContain("tasks/opportunity_worker.py");
-  expect(compose.match(/image: \$\{KEELTRADER_API_IMAGE:/g)).toHaveLength(3);
-  expect(compose).not.toContain("keeltrader-api:latest");
-  expect(release).toContain('RELEASE_IMAGE="keeltrader-api:${GIT_SHA}"');
-  expect(release).toContain("expect_services_same_image api agent-platform-worker opportunity-worker");
-  expect(release).not.toContain("docker tag keeltrader-api:test-overlay keeltrader-api:latest");
-  expect(webRelease).toContain("ensure_compose_api_image_env");
+  expect(compose).toContain("OPPORTUNITY_REFRESH_SECONDS");
 });

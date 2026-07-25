@@ -8,7 +8,7 @@
 - Docker Desktop 或 Docker Engine（含 Docker Compose v2）
 - 约 1 GB 可用内存和持久化磁盘空间
 
-私有部署使用 `docker-compose.selfhost.yml`，默认自带独立 PostgreSQL/pgvector 和 Redis，且不连接 KeelTrader 官方服务器。仓库根目录的 `docker-compose.yml` 是官方托管环境编排，不用于第三方私有部署。
+自托管统一使用 `docker-compose.selfhost.yml`，默认自带独立 PostgreSQL/pgvector、Redis、API、Web 和两个 Worker，且不连接任何维护者私有基础设施。维护者的生产域名、宿主机挂载、反向代理和发布凭据不在本仓库中。
 
 ## 快速开始
 
@@ -22,6 +22,7 @@
 
    - `POSTGRES_PASSWORD`
    - `JWT_SECRET`（建议 >= 32 位）
+   - `ENCRYPTION_KEY`（建议 >= 32 位，用于加密 BYOK/MCP 凭据）
    - `NEXTAUTH_SECRET`
    - 模型密钥在 `/agent` 的 BYOK 设置中由每个用户单独配置
 
@@ -77,8 +78,8 @@ docker compose -f docker-compose.selfhost.yml exec -T api python scripts/init_us
 - 停止：`docker compose -f docker-compose.selfhost.yml down`
 - 进入 API 容器：`docker compose -f docker-compose.selfhost.yml exec api sh`
 - 验证构建但不部署：`./build.sh`
-- 发布 Web：`scripts/deploy.sh web`
-- 发布 API + Agent Platform Worker：`scripts/deploy.sh api`
+- 构建镜像：`./build.sh`
+- 一次性冷启动验收：`scripts/selfhost-smoke.sh`
 
 ## 健康检查
 
@@ -96,7 +97,7 @@ docker compose -f docker-compose.selfhost.yml exec -T api python scripts/init_us
 - Docker Desktop or Docker Engine with Docker Compose v2
 - About 1 GB of available memory and persistent disk space
 
-Use `docker-compose.selfhost.yml` for private deployments. It includes isolated PostgreSQL/pgvector and Redis services and does not connect to KeelTrader-operated services by default. The root `docker-compose.yml` is the managed production deployment definition.
+Use `docker-compose.selfhost.yml` for every self-hosted deployment. It includes isolated PostgreSQL/pgvector, Redis, API, Web, and both workers and does not connect to maintainer-operated infrastructure by default. Maintainer domains, host mounts, reverse proxies, and release credentials are not stored in this repository.
 
 ## Quick Start
 
@@ -110,6 +111,7 @@ Use `docker-compose.selfhost.yml` for private deployments. It includes isolated 
 
    - `POSTGRES_PASSWORD`
    - `JWT_SECRET` (recommended: >= 32 chars)
+   - `ENCRYPTION_KEY` (recommended: >= 32 chars; encrypts BYOK/MCP credentials)
    - `NEXTAUTH_SECRET`
    - Each user configures model credentials through BYOK settings in `/agent`
 
@@ -165,8 +167,8 @@ Do not enable `KEELTRADER_AUTO_INIT_TEST_USERS` in production.
 - Stop: `docker compose -f docker-compose.selfhost.yml down`
 - Shell into API: `docker compose -f docker-compose.selfhost.yml exec api sh`
 - Validate builds without deploy: `./build.sh`
-- Release Web: `scripts/deploy.sh web`
-- Release API + Agent Platform Worker: `scripts/deploy.sh api`
+- Build images: `./build.sh`
+- Disposable clean-room smoke: `scripts/selfhost-smoke.sh`
 
 ## Health Checks
 

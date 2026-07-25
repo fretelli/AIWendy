@@ -1,5 +1,5 @@
 node_modules/
-.next/cache/
+.next/
 coverage/
 .turbo/
 *.log

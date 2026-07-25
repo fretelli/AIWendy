@@ -236,7 +236,7 @@ def upgrade():
             ),
             sa.Column(
                 "reason",
-                sa.Enum(
+                postgresql.ENUM(
                     "revenge_trading_detected",
                     "overtrading_detected",
                     "excessive_risk",
@@ -252,7 +252,7 @@ def upgrade():
             ),
             sa.Column(
                 "action",
-                sa.Enum(
+                postgresql.ENUM(
                     "block_trade",
                     "warn_user",
                     "require_confirmation",
@@ -367,7 +367,7 @@ def upgrade():
             ),
             sa.Column(
                 "pattern_type",
-                sa.Enum(
+                postgresql.ENUM(
                     "revenge_trading",
                     "overtrading",
                     "fear_of_loss",

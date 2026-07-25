@@ -14,6 +14,11 @@ for path in \
   MARKET_DATA_INTEGRATION.md \
   QUICK_START_EXCHANGES.md \
   keeltrader/apps/api/requirements.cloud.txt \
+  keeltrader/docker-compose.yml \
+  keeltrader/scripts/deploy.sh \
+  keeltrader/scripts/release-api-overlay.sh \
+  keeltrader/scripts/release-web-overlay.sh \
+  keeltrader/scripts/keeltrader_digest.py \
   package.json \
   package-lock.json; do
   if [ -e "$path" ]; then
@@ -47,5 +52,6 @@ git diff --check
 python3 "$REPO_ROOT/keeltrader/scripts/check-public-docs.py"
 python3 "$REPO_ROOT/keeltrader/scripts/check-doc-links.py"
 "$REPO_ROOT/keeltrader/scripts/check-public-safety.sh"
+python3 "$REPO_ROOT/keeltrader/scripts/check-workflow-pins.py"
 
 echo "[root-audit] ok"
