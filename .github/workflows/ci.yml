@@ -1,5 +1,8 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
   pull_request:
     branches: [v2]
@@ -18,7 +21,7 @@ jobs:
       run:
         working-directory: keeltrader
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: make audit-root
 
   web:
@@ -28,8 +31,8 @@ jobs:
       run:
         working-directory: keeltrader
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
@@ -44,7 +47,7 @@ jobs:
         working-directory: keeltrader/apps/web
       - name: Upload coverage
         if: always()
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
         with:
           files: ./keeltrader/apps/web/coverage/lcov.info
           flags: frontend
@@ -57,7 +60,7 @@ jobs:
       run:
         working-directory: keeltrader
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: make check-security-defaults
       - run: make check-api-static
       - run: make check-api

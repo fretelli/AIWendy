@@ -8,7 +8,7 @@ updates:
       day: monday
       time: "09:00"
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 3
     groups:
       web-minor-patch:
         patterns:
@@ -16,10 +16,6 @@ updates:
         update-types:
           - minor
           - patch
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - version-update:semver-major
     labels:
       - dependencies
       - web
@@ -32,7 +28,7 @@ updates:
       day: monday
       time: "09:30"
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 3
     groups:
       api-minor-patch:
         patterns:
@@ -40,10 +36,6 @@ updates:
         update-types:
           - minor
           - patch
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - version-update:semver-major
     labels:
       - dependencies
       - api
@@ -56,7 +48,7 @@ updates:
       day: monday
       time: "10:00"
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 3
     groups:
       web-container-minor-patch:
         patterns:
@@ -64,10 +56,6 @@ updates:
         update-types:
           - minor
           - patch
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - version-update:semver-major
     labels:
       - dependencies
       - docker
@@ -80,7 +68,7 @@ updates:
       day: monday
       time: "10:15"
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 3
     groups:
       api-container-minor-patch:
         patterns:
@@ -88,10 +76,23 @@ updates:
         update-types:
           - minor
           - patch
-    ignore:
-      - dependency-name: "*"
-        update-types:
-          - version-update:semver-major
+    labels:
+      - dependencies
+      - docker
+
+  - package-ecosystem: docker
+    directory: /keeltrader
+    target-branch: v2
+    schedule:
+      interval: weekly
+      day: monday
+      time: "10:25"
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    groups:
+      selfhost-containers:
+        patterns:
+          - "*"
     labels:
       - dependencies
       - docker

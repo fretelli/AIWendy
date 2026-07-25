@@ -3,8 +3,8 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PIP_INDEX_URL="${PIP_INDEX_URL:-https://mirrors.aliyun.com/pypi/simple/}"
-NPM_CONFIG_REGISTRY="${NPM_CONFIG_REGISTRY:-https://registry.npmmirror.com/}"
+PIP_INDEX_URL="${PIP_INDEX_URL:-https://pypi.org/simple/}"
+NPM_CONFIG_REGISTRY="${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org/}"
 
 echo "============================================"
 echo "KeelTrader Development Environment Setup"
@@ -23,7 +23,7 @@ require_command npm
 require_command python3
 
 if command -v docker >/dev/null 2>&1; then
-  echo "Docker detected. Use scripts/deploy.sh or ./build.sh for container build validation."
+  echo "Docker detected. Use ./build.sh for image validation or docker-compose.selfhost.yml to run the stack."
 else
   echo "Docker not found. Container build validation will be unavailable."
 fi

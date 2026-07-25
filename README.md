@@ -1,5 +1,10 @@
 # KeelTrader
 
+[![CI](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml/badge.svg?branch=v2)](https://github.com/fretelli/KeelTrader/actions/workflows/ci.yml)
+[![Security](https://github.com/fretelli/KeelTrader/actions/workflows/security.yml/badge.svg?branch=v2)](https://github.com/fretelli/KeelTrader/actions/workflows/security.yml)
+[![Release](https://github.com/fretelli/KeelTrader/actions/workflows/docker.yml/badge.svg)](https://github.com/fretelli/KeelTrader/releases)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 <a id="zh-cn"></a>
 [中文](#zh-cn) | [English](#en)
 
@@ -30,6 +35,18 @@ KeelTrader 当前不提供技术分析、自动交易、交易所连接、交易
 
 ## 架构
 
+```mermaid
+flowchart LR
+  U[用户] --> W[Next.js Web]
+  W --> A[FastAPI]
+  A --> P[(PostgreSQL + pgvector)]
+  A --> R[(Redis)]
+  R --> AW[Agent Worker]
+  R --> OW[Opportunity Worker]
+  A -. 可选只读连接 .-> KB[Report KB / Structured Data]
+  A -. 用户授权 .-> M[BYOK / Public HTTPS MCP]
+```
+
 - `keeltrader/apps/web/`：Next.js App Router 前端。
 - `keeltrader/apps/api/`：FastAPI 后端，提供认证、Agent Platform、研报搜索、设置等 API。
 - `agent-platform-worker`：复用 API 镜像运行可恢复 Agent 任务 Worker 和定时研究调度。
@@ -56,6 +73,9 @@ docker compose -f docker-compose.selfhost.yml exec -T api alembic upgrade head
 - [系统架构](keeltrader/docs/ARCHITECTURE.md)
 - [部署与发布](keeltrader/docs/DEPLOYMENT.md)
 - [自定义 LLM / OpenAI 兼容 API](keeltrader/docs/CUSTOM_API_SETUP.md)
+- [五分钟产品导览](keeltrader/docs/DEMO.md)
+- [兼容矩阵](keeltrader/docs/COMPATIBILITY.md)
+- [发布与供应链](keeltrader/docs/RELEASING.md)
 
 ## GitHub 展示同步
 
@@ -74,18 +94,18 @@ KeelTrader 不构成投资建议，也不保证跑赢市场。LLM 可能产生�
 <a id="en"></a>
 ## English
 
-KeelTrader is a self-evolving fundamental investment research Agent Platform for individual investors and small teams. It provides multi-agent research assistance, report-KB search, structured decision journals, and weekly reviews.
+KeelTrader is a self-evolving fundamental investment research Agent Platform for individual investors and small teams. It presents one coherent research assistant; internally, a run may compose specialized research roles for fundamentals, macro context, falsification, and review.
 
 Its role is a research assistant and discipline engine, not an automatic money-making system. Production deployments require authentication by default and keep humans in the loop: AI can retrieve, analyze, debate, record, and review, while final trading decisions remain human decisions.
 
-Production API releases use the full Git SHA as an immutable image tag. `KEELTRADER_API_IMAGE` is mandatory for Compose so the API and both workers cannot silently drift to `latest` or run different revisions.
+Tagged releases publish API and Web images with immutable digests, SBOMs, provenance attestations, and signatures. Production operators should pin those digests in a private infrastructure repository rather than deploy mutable tags.
 
 ## Core Capabilities
 
 - Unified Agent workspace: durable research runs, declarative custom agents, BYOK, user MCP, approvals, budgets, reversible memory, and scheduled research.
 - Report knowledge base: integrates with report-kb for semantic research-report search and structured hits.
 - Structured data reads: reads from a Tushare database service without requiring an in-app Tushare token.
-- Multi-agent analysis: supports composable fundamental, macro, sentiment, red-team, and review workflows.
+- Composable research roles: the single assistant can orchestrate fundamental, macro, red-team, and review stages without exposing a collection of disconnected bots.
 - Safety boundary: login-protected by default, no automatic order execution, and AI output is not investment advice.
 
 KeelTrader currently does not provide technical analysis, automated trading, exchange connections, trading-psychology coaching, a points mall, or membership SaaS. Historical database migrations remain for compatibility with existing deployments.
@@ -97,6 +117,18 @@ KeelTrader currently does not provide technical analysis, automated trading, exc
 - Repository root: product overview, license, security policy, and contribution guide.
 
 ## Architecture
+
+```mermaid
+flowchart LR
+  U[User] --> W[Next.js Web]
+  W --> A[FastAPI]
+  A --> P[(PostgreSQL + pgvector)]
+  A --> R[(Redis)]
+  R --> AW[Agent Worker]
+  R --> OW[Opportunity Worker]
+  A -. optional read-only .-> KB[Report KB / Structured Data]
+  A -. user-authorized .-> M[BYOK / Public HTTPS MCP]
+```
 
 - `keeltrader/apps/web/`: Next.js App Router frontend.
 - `keeltrader/apps/api/`: FastAPI backend for auth, Agent Platform, report search, settings, and related APIs.
@@ -123,6 +155,9 @@ Further reading:
 - [Architecture](keeltrader/docs/ARCHITECTURE.md)
 - [Deployment](keeltrader/docs/DEPLOYMENT.md)
 - [Custom LLM / OpenAI-compatible APIs](keeltrader/docs/CUSTOM_API_SETUP.md)
+- [Five-minute walkthrough](keeltrader/docs/DEMO.md)
+- [Compatibility matrix](keeltrader/docs/COMPATIBILITY.md)
+- [Release and supply chain](keeltrader/docs/RELEASING.md)
 
 ## GitHub Display Sync
 

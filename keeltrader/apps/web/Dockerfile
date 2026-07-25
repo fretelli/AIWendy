@@ -1,14 +1,14 @@
-FROM node:20-alpine AS deps
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS deps
 
 WORKDIR /app
-ARG NPM_CONFIG_REGISTRY=https://registry.npmmirror.com/
+ARG NPM_CONFIG_REGISTRY=https://registry.npmjs.org/
 
 # Install dependencies
 COPY package.json package-lock.json ./
 RUN npm ci --registry="$NPM_CONFIG_REGISTRY"
 
 
-FROM node:20-alpine AS builder
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS builder
 
 WORKDIR /app
 
@@ -26,13 +26,14 @@ COPY . .
 RUN npm run build
 
 
-FROM node:20-alpine AS runner
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS runner
 
 WORKDIR /app
-ARG NPM_CONFIG_REGISTRY=https://registry.npmmirror.com/
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
 
 ARG NEXT_PUBLIC_API_URL=http://api:8000
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
@@ -41,17 +42,14 @@ ENV NEXT_PUBLIC_AUTH_REQUIRED=$NEXT_PUBLIC_AUTH_REQUIRED
 ARG NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL
 
-# Install only production dependencies
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --registry="$NPM_CONFIG_REGISTRY" && npm cache clean --force
+# The standalone server contains only the traced runtime dependencies. This
+# avoids a second npm install and keeps the production image minimal.
+COPY --from=builder --chown=node:node /app/public ./public
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 
-# Copy build output and source files
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next ./.next
-# Copy app directory for runtime
-COPY --from=builder /app/app ./app
-COPY --from=builder /app/proxy.ts ./proxy.ts
+USER node
 
 EXPOSE 3000
 
-CMD ["npm", "start", "--", "-p", "3000", "-H", "0.0.0.0"]
+CMD ["node", "server.js"]

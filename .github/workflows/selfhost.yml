@@ -1,0 +1,45 @@
+name: Self-host clean room
+
+on:
+  pull_request:
+    branches: [v2]
+    paths:
+      - "keeltrader/docker-compose.selfhost.yml"
+      - "keeltrader/.env.example"
+      - "keeltrader/apps/**/Dockerfile"
+      - "keeltrader/apps/**/requirements*.txt"
+      - "keeltrader/apps/web/package*.json"
+      - "keeltrader/migrations/**"
+      - "keeltrader/scripts/selfhost-smoke.sh"
+      - ".github/workflows/selfhost.yml"
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selfhost-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  clean-room:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Create isolated CI environment
+        working-directory: keeltrader
+        run: |
+          cp .env.example .env.ci
+          sed -i 's/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=ci-only-postgres-password/' .env.ci
+          sed -i 's/^JWT_SECRET=.*/JWT_SECRET=ci-only-jwt-secret-with-at-least-32-characters/' .env.ci
+          sed -i 's/^ENCRYPTION_KEY=.*/ENCRYPTION_KEY=ci-only-encryption-key-with-at-least-32-characters/' .env.ci
+          sed -i 's/^NEXTAUTH_SECRET=.*/NEXTAUTH_SECRET=ci-only-nextauth-secret-with-at-least-32-characters/' .env.ci
+          sed -i 's/^NEXTAUTH_URL=.*/NEXTAUTH_URL=http:\/\/localhost:3000/' .env.ci
+      - name: Build, migrate, and smoke from scratch
+        working-directory: keeltrader
+        env:
+          KEELTRADER_SELFHOST_ENV_FILE: ${{ github.workspace }}/keeltrader/.env.ci
+        run: scripts/selfhost-smoke.sh

@@ -7,38 +7,32 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 usage() {
   cat <<'USAGE'
 Usage:
-  ./build.sh [all|web|api] [release options]
+  ./build.sh [all|web|api]
 
-Build validation uses the same overlay path as production release, but it does
-not tag latest, restart services, or run production smoke checks.
+Build validation is self-contained and never deploys to a maintainer-operated
+environment.
 
 Examples:
   ./build.sh
   ./build.sh web
-  ./build.sh api --full-build
+  ./build.sh api
 USAGE
 }
 
 target="${1:-all}"
-if [ "$#" -gt 0 ]; then
-  shift
-fi
+shift || true
+if [ "$#" -gt 0 ]; then usage >&2; exit 2; fi
 
 case "$target" in
   all)
-    if [ "$#" -gt 0 ]; then
-      usage >&2
-      printf '\nExtra release options are only supported for web/api targets.\n' >&2
-      exit 2
-    fi
-    "$ROOT_DIR/scripts/deploy.sh" web --test-only
-    "$ROOT_DIR/scripts/deploy.sh" api --test-only
+    docker compose -f "$ROOT_DIR/docker-compose.selfhost.yml" build web
+    "$ROOT_DIR/scripts/check-api-docker.sh"
     ;;
   web)
-    "$ROOT_DIR/scripts/deploy.sh" web --test-only "$@"
+    docker compose -f "$ROOT_DIR/docker-compose.selfhost.yml" build web
     ;;
   api|backend)
-    "$ROOT_DIR/scripts/deploy.sh" api --test-only "$@"
+    "$ROOT_DIR/scripts/check-api-docker.sh"
     ;;
   -h|--help)
     usage

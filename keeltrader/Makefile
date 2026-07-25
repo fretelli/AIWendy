@@ -1,9 +1,9 @@
 # KeelTrader Makefile
 
-PIP_AUDIT_IMAGE ?= keeltrader-api:base
+PIP_AUDIT_IMAGE ?= keeltrader-api:test-base
 PIP_AUDIT_DOCKER_TIMEOUT ?= 600
 PIP_AUDIT_TIMEOUT ?= 120
-PIP_AUDIT_INDEX_URL ?= https://mirrors.aliyun.com/pypi/simple/
+PIP_AUDIT_INDEX_URL ?= https://pypi.org/simple/
 PIP_AUDIT_VULN_SERVICE ?= osv
 PIP_AUDIT_IGNORE_VULNS ?=
 PIP_AUDIT_IGNORE_ARGS = $(foreach vuln,$(PIP_AUDIT_IGNORE_VULNS),--ignore-vuln $(vuln))
@@ -12,7 +12,7 @@ NPM_AUDIT_LEVEL ?= high
 NPM_AUDIT_FETCH_RETRIES ?= 3
 NPM_AUDIT_FETCH_TIMEOUT ?= 120000
 
-.PHONY: help setup dev check check-web check-api check-api-static check-security-defaults audit audit-root audit-web audit-api audit-api-strict audit-api-static-candidates test build deploy clean db-migrate db-rollback
+.PHONY: help setup dev check check-web check-api check-api-static check-security-defaults audit audit-root audit-web audit-api audit-api-strict audit-api-static-candidates test build selfhost-smoke up down clean db-migrate db-rollback
 
 # Default target
 help:
@@ -29,8 +29,9 @@ help:
 	@echo "  make audit-api-strict - Alias for API dependency audit with no vulnerability exceptions"
 	@echo "  make audit-api-static-candidates - Report black/isort/mypy candidates without enforcing them"
 	@echo "  make test      - Alias for make check"
-	@echo "  make build     - Validate production overlay images without deploy"
-	@echo "  make deploy    - Deploy to production"
+	@echo "  make build     - Validate distributable API and Web images"
+	@echo "  make selfhost-smoke - Run a disposable clean-room Compose smoke test"
+	@echo "  make up/down   - Start or stop the local self-hosted stack"
 	@echo "  make clean     - Clean up generated files"
 
 # Setup development environment
@@ -40,7 +41,7 @@ setup:
 
 # Start development servers
 dev:
-	@echo "Use apps/web/npm run dev for frontend work, or scripts/deploy.sh web --no-deploy for production build validation."
+	@echo "Use apps/web/npm run dev for frontend work, or ./build.sh for container validation."
 
 check: check-web check-api-static check-api
 
@@ -50,7 +51,7 @@ check-web:
 	@cd apps/web && npm test -- --runInBand
 
 check-api:
-	@scripts/release-api-overlay.sh --test-only
+	@scripts/check-api-docker.sh
 
 check-api-static:
 	@scripts/check-api-static.sh
@@ -80,16 +81,18 @@ audit-api-static-candidates:
 # Run tests
 test: check
 
-# Validate production overlay images without deploying
+# Validate distributable images without deploying
 build:
-	@scripts/deploy.sh web --test-only
-	@scripts/deploy.sh api --test-only
+	@./build.sh
 
-# Deploy to production
-deploy:
-	@chmod +x scripts/deploy.sh
-	@./scripts/deploy.sh web
-	@./scripts/deploy.sh api
+selfhost-smoke:
+	@scripts/selfhost-smoke.sh
+
+up:
+	@docker compose -f docker-compose.selfhost.yml up -d --build
+
+down:
+	@docker compose -f docker-compose.selfhost.yml down
 
 # Clean up
 clean:
@@ -102,7 +105,7 @@ clean:
 
 # Database operations
 db-migrate:
-	@docker compose exec -T api alembic upgrade head
+	@docker compose -f docker-compose.selfhost.yml exec -T api alembic upgrade head
 
 db-rollback:
-	@docker compose exec -T api alembic downgrade -1
+	@docker compose -f docker-compose.selfhost.yml exec -T api alembic downgrade -1

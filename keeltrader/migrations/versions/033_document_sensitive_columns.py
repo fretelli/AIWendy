@@ -3,6 +3,7 @@
 Revision ID: 033
 Revises: 032
 """
+import sqlalchemy as sa
 from alembic import op
 
 revision = "033"
@@ -12,6 +13,8 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
     comments = {
         "users.hashed_password": "密码单向哈希；不得返回给客户端、日志、研究上下文或 AI",
         "users.openai_api_key": "用户的 OpenAI 提供商凭据字段；无论存储编码为何均按认证秘密处理，禁止明文输出",
@@ -30,6 +33,12 @@ def upgrade() -> None:
         "trading_interventions.gate_token": "人工交易干预门禁令牌；属于授权敏感值，不得被研究 Agent 用于自动执行交易",
     }
     for target, description in comments.items():
+        table_name, column_name = target.split(".", 1)
+        if not inspector.has_table(table_name):
+            continue
+        columns = {column["name"] for column in inspector.get_columns(table_name)}
+        if column_name not in columns:
+            continue
         op.execute(f"COMMENT ON COLUMN {target} IS '{description}'")
 
 

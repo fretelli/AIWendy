@@ -11,6 +11,8 @@ KeelTrader 的默认开发分支是 `v2`。提交应聚焦基本面投资研究 
 
 新增、删除或改名 Markdown 文档时，必须同步更新 `.github/public-docs-allowlist.txt`。私有运维笔记、凭证、事故记录和会议纪要不得进入公开仓库。
 
+维护者生产环境的域名、反向代理、宿主机路径、定时任务和发布凭据必须保存在私有基础设施仓库。Public 仓库只接受可移植的自托管定义。GitHub Actions 必须固定到完整提交 SHA，并保留版本注释供 Dependabot 更新。
+
 ## Local Checks
 
 ```bash
@@ -39,3 +41,5 @@ The default development branch is `v2`. Direct pushes are blocked; every change 
 Create a focused branch from `v2`, add tests for behavioral changes, use Conventional Commits, and target pull requests to `v2`. Run the checks above before opening a pull request. Report vulnerabilities through the process in [SECURITY.md](SECURITY.md), not through public issues.
 
 When adding, deleting, or renaming Markdown documentation, update `.github/public-docs-allowlist.txt` in the same pull request. Private operations notes, credentials, incident records, and meeting notes do not belong in the public repository.
+
+Maintainer domains, reverse proxies, host paths, schedules, and release credentials belong in a private infrastructure repository. The public repository accepts only portable self-host definitions. GitHub Actions must be pinned to full commit SHAs with version comments retained for Dependabot.

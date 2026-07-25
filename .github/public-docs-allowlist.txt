@@ -9,9 +9,12 @@ keeltrader/README.md
 keeltrader/SKILL.md
 keeltrader/apps/api/scripts/USAGE.md
 keeltrader/docs/ARCHITECTURE.md
+keeltrader/docs/COMPATIBILITY.md
 keeltrader/docs/CUSTOM_API_SETUP.md
+keeltrader/docs/DEMO.md
 keeltrader/docs/DEPLOYMENT.md
 keeltrader/docs/DOCKER_SETUP.md
 keeltrader/docs/I18N_GUIDE.md
 keeltrader/docs/INDEX.md
+keeltrader/docs/RELEASING.md
 keeltrader/docs/SELF_HOSTING.md
