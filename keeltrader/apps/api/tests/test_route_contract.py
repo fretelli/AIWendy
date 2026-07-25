@@ -41,7 +41,6 @@ def test_active_route_prefixes_are_mounted(client):
         "/api/v1/agent/dossiers/{company_code}/refresh",
         "/api/v1/research-cloud/connection",
         "/api/v1/research-cloud/search",
-        "/api/v1/market-data/historical/{symbol}",
         "/api/v1/markets/macro/series",
         "/api/v1/markets/data-status",
         "/api/v1/markets/capital",
@@ -84,6 +83,11 @@ def test_legacy_routers_are_not_accidentally_exposed(client):
         "/api/v1/agent/events",
         "/api/v1/agent/events/read",
         "/api/v1/agent/calendar",
+        "/api/v1/market-data/historical/{symbol}",
+        "/api/v1/market-data/real-time/{symbol}",
+        "/api/v1/market-data/ws/{symbol}",
+        "/api/v1/users/me/api-keys",
+        "/api/v1/users/me/api-keys/{provider}",
     }
 
     assert paths.isdisjoint(legacy_paths)

@@ -7,7 +7,6 @@ README.zh-CN.md
 SECURITY.md
 keeltrader/README.md
 keeltrader/SKILL.md
-keeltrader/apps/api/scripts/USAGE.md
 keeltrader/docs/ARCHITECTURE.md
 keeltrader/docs/COMPATIBILITY.md
 keeltrader/docs/CUSTOM_API_SETUP.md

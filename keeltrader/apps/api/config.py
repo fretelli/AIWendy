@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # ========== Application ==========
     app_name: str = "KeelTrader"
-    app_version: str = "1.0.0"
+    app_version: str = "0.3.0"
     debug: bool = False
     environment: str = "development"
 
@@ -96,9 +96,6 @@ class Settings(BaseSettings):
 
     # ========== LLM API Keys ==========
     openai_api_key: Optional[str] = None
-    openai_base_url: Optional[str] = None
-    anthropic_api_key: Optional[str] = None
-    anthropic_base_url: Optional[str] = None
 
     # Deployment-owned Agent model. Self-hosted installs must provide their own
     # values; there is deliberately no hosted fallback.
@@ -109,40 +106,6 @@ class Settings(BaseSettings):
     agent_managed_context_window: int = 128000
     agent_managed_max_output_tokens: int = 4096
     agent_model_timeout_seconds: float = 300.0
-
-    # ========== Market Data API Keys ==========
-    twelve_data_api_key: Optional[str] = None
-    enable_mock_market_data: bool = Field(
-        default=False,
-        validation_alias=AliasChoices(
-            "KEELTRADER_ENABLE_MOCK_MARKET_DATA",
-            "ENABLE_MOCK_MARKET_DATA",
-            "enable_mock_market_data",
-        ),
-    )
-
-    # ========== Exchange API Keys ==========
-    # OKX
-    okx_api_key: Optional[str] = None
-    okx_api_secret: Optional[str] = None
-    okx_passphrase: Optional[str] = None
-    # Bybit
-    bybit_api_key: Optional[str] = None
-    bybit_api_secret: Optional[str] = None
-
-    # ========== LLM Settings ==========
-    llm_default_provider: str = "openai"
-    llm_default_model: str = "gpt-4o-mini"
-    llm_max_tokens: int = 2000
-    llm_temperature: float = 0.7
-    llm_stream_enabled: bool = True
-
-    # ========== Rate Limiting ==========
-    rate_limit_enabled: bool = True
-    rate_limit_free_chat_hourly: int = 10
-    rate_limit_free_journal_daily: int = 3
-    rate_limit_pro_chat_hourly: int = 100
-    rate_limit_pro_journal_daily: int = 999
 
     # ========== CORS ==========
     cors_origins: list[str] = ["http://localhost:3000"]

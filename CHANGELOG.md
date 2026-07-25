@@ -9,6 +9,20 @@
 
 - 暂无。
 
+## 0.3.0 - 2026-07-25
+
+### 破坏性变更
+
+- 删除旧项目、交易日志、交易所、行情代理、任务监控、教练与用户 API Key 接口；模型 BYOK 统一使用 `/api/v1/agent/model-credentials`。
+- 运行时数据库管理统一为 Alembic，删除 `create_all`、临时建表脚本和测试用户自动初始化。
+- 用户资料 API 只保留认证与基础资料字段；旧数据库列和历史迁移继续保留以支持已有部署升级。
+
+### 变更
+
+- 将公开定位统一为垂直投资 Research OS 与单一 Research Agent，不宣称通用电脑 Agent 或多智能体平台。
+- 删除 Web 中无入口的旧交易、项目、教练、订阅与图表代码及其依赖。
+- 增加签名提交、签名 tag、稳定安全门禁和按路径执行的自托管冷启动门禁。
+
 ## 0.2.1 - 2026-07-25
 
 ### 修复
@@ -48,6 +62,20 @@ This file records only notable changes that can be verified from the current rep
 ## Unreleased
 
 - None.
+
+## 0.3.0 - 2026-07-25
+
+### Breaking
+
+- Removed legacy project, trading-journal, exchange, market-data proxy, task-monitoring, coach, and user API-key endpoints. Model BYOK now uses `/api/v1/agent/model-credentials` exclusively.
+- Made Alembic the only runtime schema-management path and removed `create_all`, ad-hoc schema scripts, and automatic test-user initialization.
+- Reduced user profile APIs to authentication and basic profile fields. Historical columns and migrations remain for upgrades of existing installations.
+
+### Changed
+
+- Standardized public positioning on a vertical investment Research OS with one focused Research Agent, without general computer-agent or multi-agent platform claims.
+- Removed unreachable Web trading, project, coach, subscription, and chart code with unused dependencies.
+- Added signed-commit/tag governance, a stable security gate, and a path-aware self-host clean-room gate.
 
 ## 0.2.1 - 2026-07-25
 

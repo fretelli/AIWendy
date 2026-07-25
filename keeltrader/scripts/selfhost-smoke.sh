@@ -22,7 +22,7 @@ trap cleanup EXIT
 "${compose[@]}" exec -T api alembic upgrade head
 
 for _ in $(seq 1 30); do
-  api_code="$("${compose[@]}" exec -T api python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=5).status)" 2>/dev/null || true)"
+  api_code="$("${compose[@]}" exec -T api python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=5).status)" 2>/dev/null || true)"
   web_code="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/api/health 2>/dev/null || true)"
   if [[ "$api_code" == "200" && "$web_code" == "200" ]]; then
     echo "[selfhost-smoke] API and Web are healthy"

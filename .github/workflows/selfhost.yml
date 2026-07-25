@@ -3,15 +3,6 @@ name: Self-host clean room
 on:
   pull_request:
     branches: [v2]
-    paths:
-      - "keeltrader/docker-compose.selfhost.yml"
-      - "keeltrader/.env.example"
-      - "keeltrader/apps/**/Dockerfile"
-      - "keeltrader/apps/**/requirements*.txt"
-      - "keeltrader/apps/web/package*.json"
-      - "keeltrader/migrations/**"
-      - "keeltrader/scripts/selfhost-smoke.sh"
-      - ".github/workflows/selfhost.yml"
   schedule:
     - cron: "17 4 * * 1"
   workflow_dispatch:
@@ -24,7 +15,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Detect self-host changes
+    runs-on: ubuntu-latest
+    outputs:
+      heavy: ${{ steps.paths.outputs.heavy }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - id: paths
+        name: Select heavy clean-room scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "heavy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only "origin/$BASE_REF"...HEAD > /tmp/changed-files
+          if grep -Eq '^(keeltrader/(docker-compose\.selfhost\.yml|\.env\.example|apps/.*/Dockerfile|apps/.*/requirements[^/]*\.txt|apps/web/package[^/]*\.json|migrations/|scripts/selfhost-smoke\.sh)|\.github/workflows/selfhost\.yml)' /tmp/changed-files; then
+            echo "heavy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "heavy=false" >> "$GITHUB_OUTPUT"
+          fi
+
   clean-room:
+    name: Self-host clean room
+    needs: changes
+    if: needs.changes.outputs.heavy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -43,3 +63,23 @@ jobs:
         env:
           KEELTRADER_SELFHOST_ENV_FILE: ${{ github.workspace }}/keeltrader/.env.ci
         run: scripts/selfhost-smoke.sh
+
+  self-host-gate:
+    name: Self-host gate
+    if: always()
+    needs: [changes, clean-room]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require clean room when relevant
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          CLEAN_ROOM_RESULT: ${{ needs.clean-room.result }}
+        run: |
+          if [[ "$CHANGES_RESULT" != "success" ]]; then
+            echo "Path detection result: $CHANGES_RESULT" >&2
+            exit 1
+          fi
+          if [[ "$CLEAN_ROOM_RESULT" != "success" && "$CLEAN_ROOM_RESULT" != "skipped" ]]; then
+            echo "Clean-room result: $CLEAN_ROOM_RESULT" >&2
+            exit 1
+          fi

@@ -34,7 +34,6 @@ from domain.user.auth_schemas import (
 from domain.user.models import User
 from domain.user.schemas import SessionListResponse
 from services.auth.password_reset import PasswordResetService
-from services.auth.projects import ensure_default_project
 from services.auth.sessions import AuthSessionService
 
 settings = get_settings()
@@ -55,7 +54,11 @@ def _user_response(user: User) -> UserResponse:
         id=str(user.id),
         email=user.email,
         full_name=user.full_name,
-        subscription_tier=user.subscription_tier.value,
+        display_name=user.display_name,
+        timezone=user.timezone or "UTC",
+        language=user.language or "en",
+        bio=user.bio,
+        avatar_url=user.avatar_url,
         created_at=user.created_at,
     )
 
@@ -83,9 +86,7 @@ async def register(
     await session.commit()
     await session.refresh(user)
 
-    await ensure_default_project(session, user, locale)
-
-    logger.info("User registered", user_id=str(user.id), email=user.email)
+    logger.info("User registered", user_id=str(user.id))
     return _user_response(user)
 
 
@@ -109,7 +110,7 @@ async def login(
 
     tokens = await AuthSessionService().issue_tokens(session, user)
 
-    logger.info("User logged in", user_id=str(user.id), email=user.email)
+    logger.info("User logged in", user_id=str(user.id))
     return _token_response(tokens)
 
 

@@ -1,1 +1,0 @@
-"""Coach domain module."""

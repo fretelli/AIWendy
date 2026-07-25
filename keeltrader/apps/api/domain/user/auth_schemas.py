@@ -56,7 +56,11 @@ class UserResponse(BaseModel):
     id: str
     email: str
     full_name: Optional[str]
-    subscription_tier: str
+    display_name: Optional[str] = None
+    timezone: str = "UTC"
+    language: str = "en"
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
     created_at: datetime
 
 

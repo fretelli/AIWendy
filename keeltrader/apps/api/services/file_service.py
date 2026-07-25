@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import get_settings
 from core.i18n import t
 from core.logging import get_logger
-from domain.coach.models import ChatAttachment, ChatMessage, ChatSession
 from domain.file.models import UploadedFile
 from domain.user.models import User
 from services.file_extractor import (
@@ -259,28 +258,8 @@ async def user_can_access_storage_path(
     current_user: User,
     session: AsyncSession,
 ) -> bool:
-    if current_user.is_admin:
-        uploaded = await _find_uploaded_file(storage_path, session)
-        if uploaded is not None:
-            return True
-        return await _chat_attachment_exists(storage_path, session)
-
     uploaded = await _find_uploaded_file(storage_path, session, user_id=current_user.id)
-    if uploaded is not None:
-        return True
-
-    stmt = (
-        select(ChatAttachment.id)
-        .join(ChatMessage, ChatAttachment.message_id == ChatMessage.id)
-        .join(ChatSession, ChatMessage.session_id == ChatSession.id)
-        .where(
-            ChatAttachment.storage_path == storage_path,
-            ChatSession.user_id == current_user.id,
-        )
-        .limit(1)
-    )
-    result = await session.execute(stmt)
-    return result.scalar_one_or_none() is not None
+    return uploaded is not None
 
 
 async def mark_uploaded_file_deleted(
@@ -293,8 +272,7 @@ async def mark_uploaded_file_deleted(
         UploadedFile.storage_path == storage_path,
         UploadedFile.deleted_at.is_(None),
     )
-    if not current_user.is_admin:
-        stmt = stmt.where(UploadedFile.user_id == current_user.id)
+    stmt = stmt.where(UploadedFile.user_id == current_user.id)
     result = await session.execute(stmt)
     uploaded = result.scalar_one_or_none()
     if uploaded is not None:
@@ -369,11 +347,3 @@ async def _find_uploaded_file(
         stmt = stmt.where(UploadedFile.user_id == user_id)
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
-
-
-async def _chat_attachment_exists(storage_path: str, session: AsyncSession) -> bool:
-    result = await session.execute(
-        select(ChatAttachment.id).where(ChatAttachment.storage_path == storage_path).limit(1)
-    )
-    return result.scalar_one_or_none() is not None
-

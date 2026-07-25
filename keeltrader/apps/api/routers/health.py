@@ -1,10 +1,8 @@
 """Health check endpoints."""
 
 from datetime import datetime
-from enum import Enum
-
 import redis.asyncio as redis
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,14 +16,6 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-class HealthStatus(str, Enum):
-    """Health status values."""
-
-    HEALTHY = "healthy"
-    DEGRADED = "degraded"
-    UNHEALTHY = "unhealthy"
-
-
 @router.get("/health")
 async def health():
     """Basic health check endpoint."""
@@ -37,19 +27,22 @@ async def health():
 
 
 @router.get("/health/ready")
-async def readiness_check(session: AsyncSession = Depends(get_session)):
-    """Detailed readiness check."""
+async def readiness_check(
+    response: Response,
+    session: AsyncSession = Depends(get_session),
+):
+    """Return readiness without exposing infrastructure exception details."""
     checks = {}
-    overall_status = HealthStatus.HEALTHY
+    ready = True
 
     # Check database
     try:
         await session.execute(text("SELECT 1"))
         checks["database"] = {"status": "ok"}
-    except Exception as e:
-        logger.error("Database health check failed", error=str(e))
-        checks["database"] = {"status": "error", "error": str(e)}
-        overall_status = HealthStatus.UNHEALTHY
+    except Exception as exc:
+        logger.exception("database_readiness_failed", error=str(exc))
+        checks["database"] = {"status": "error", "code": "database_unavailable"}
+        ready = False
 
     # Check Redis
     try:
@@ -57,22 +50,15 @@ async def readiness_check(session: AsyncSession = Depends(get_session)):
         await redis_client.ping()
         await redis_client.close()
         checks["redis"] = {"status": "ok"}
-    except Exception as e:
-        logger.error("Redis health check failed", error=str(e))
-        checks["redis"] = {"status": "error", "error": str(e)}
-        overall_status = HealthStatus.DEGRADED
+    except Exception as exc:
+        logger.exception("redis_readiness_failed", error=str(exc))
+        checks["redis"] = {"status": "error", "code": "redis_unavailable"}
+        ready = False
 
-    # Check LLM providers (basic connectivity)
-    checks["llm"] = {
-        "openai": "configured" if settings.openai_api_key else "not_configured",
-        "anthropic": "configured" if settings.anthropic_api_key else "not_configured",
-    }
-
-    if not settings.openai_api_key and not settings.anthropic_api_key:
-        overall_status = HealthStatus.DEGRADED
+    response.status_code = status.HTTP_200_OK if ready else status.HTTP_503_SERVICE_UNAVAILABLE
 
     return {
-        "status": overall_status.value,
+        "status": "ready" if ready else "not_ready",
         "checks": checks,
         "timestamp": datetime.utcnow().isoformat(),
         **get_build_info(),

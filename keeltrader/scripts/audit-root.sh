@@ -32,7 +32,7 @@ if [ "$(readlink keeltrader/README.md 2>/dev/null || true)" != "../README.md" ];
   exit 1
 fi
 
-if ! grep -q "投资研究操作系统" README.md; then
+if ! grep -qi "investment research operating system" README.md; then
   echo "[root-audit] canonical README is missing the research operating system description" >&2
   exit 1
 fi

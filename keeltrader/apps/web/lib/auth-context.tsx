@@ -15,7 +15,6 @@ type RegisterResponse = {
   id: string
   email: string
   full_name: string | null
-  subscription_tier: string
   created_at: string
 }
 
@@ -23,7 +22,6 @@ type User = {
   id: string
   email: string
   full_name: string | null
-  subscription_tier: string
 }
 
 export function useAuth() {

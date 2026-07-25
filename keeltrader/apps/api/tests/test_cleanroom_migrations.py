@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -14,23 +15,21 @@ def test_exchange_enum_is_not_created_twice_on_a_clean_database() -> None:
     assert 'sa.Enum("binance"' not in source
 
 
-def test_bootstrap_migration_imports_only_current_model_packages() -> None:
+def test_bootstrap_migration_is_runtime_independent() -> None:
     source = (MIGRATIONS / "011a_bootstrap_core_tables.py").read_text(
         encoding="utf-8"
     )
 
-    for retired_package in (
-        "domain.intervention",
-        "domain.knowledge",
-        "domain.notification",
-        "domain.report",
-        "domain.tenant",
-    ):
-        assert retired_package not in source
-    assert "domain.exchange" not in source
-    assert "bootstrap_table_names" in source
-    assert "Base.metadata.create_all" not in source
-    assert "Base.metadata.tables[table_name].create" in source
+    assert "from domain" not in source
+    assert "from core" not in source
+    assert "Base.metadata" not in source
+    assert re.search(r'op\.create_table\(\s*"user_sessions"', source)
+
+
+def test_rpg_seed_is_owned_by_migrations() -> None:
+    source = (MIGRATIONS / "017_rpg_gamification.py").read_text(encoding="utf-8")
+    assert "migrations.legacy_rpg_seed" in source
+    assert "domain.rpg" not in source
 
 
 def test_intervention_enums_reuse_explicit_postgres_types() -> None:
@@ -56,3 +55,13 @@ def test_sensitive_column_comments_tolerate_retired_optional_tables() -> None:
 
     assert "inspector.has_table(table_name)" in source
     assert "inspector.get_columns(table_name)" in source
+
+
+def test_research_cloud_model_has_a_migration_owned_table() -> None:
+    source = (MIGRATIONS / "040_restore_research_cloud_connections.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'op.create_table(\n        "research_cloud_connections"' in source
+    assert '"api_key_encrypted"' in source
+    assert '"pending_device_code_encrypted"' in source
