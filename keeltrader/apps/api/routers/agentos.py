@@ -46,6 +46,8 @@ class PortfolioTransactionCreate(BaseModel):
     name: str | None = Field(default=None, max_length=160)
     market: str = Field(default="CN", max_length=30)
     asset_class: str = Field(default="other", max_length=40)
+    instrument_type: Literal["stock", "etf", "open_fund", "future", "option", "convertible_bond", "cash", "fx", "alternative", "manual"] | None = None
+    provider_symbol: str | None = Field(default=None, max_length=100)
     currency: str = Field(default="CNY", max_length=12)
     quantity: Decimal = Decimal("0")
     price: Decimal | None = Field(default=None, gt=0)
@@ -120,7 +122,8 @@ class ExperimentRun(BaseModel):
     lookback_days: int = Field(default=750, ge=60, le=1200)
     top_n: int = Field(default=20, ge=1, le=50)
     cost_bps: float = Field(default=10, ge=0, le=500)
-    fundamentals: dict[str, dict[str, float]] = Field(default_factory=dict)
+    fundamentals: dict[str, dict[str, float]] = Field(default_factory=dict, deprecated=True,
+        description="Deprecated and ignored. The backend joins point-in-time published fundamentals.")
 
 
 class DocumentCreate(BaseModel):
@@ -335,6 +338,7 @@ async def download_document(version_id: UUID, session: AsyncSession = Depends(ge
                             user: User = Depends(get_current_user)):
     try:
         version, path = await service(session, user).document_version(version_id)
+        await service(session, user).record_document_download(version_id)
     except ValueError as exc:
         raise bad_request(exc) from exc
     filename = f"keeltrader-agentos-v{version.version}-{version.locale}.pdf"

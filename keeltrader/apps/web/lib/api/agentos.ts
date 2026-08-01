@@ -18,14 +18,25 @@ export type PortfolioPosition = {
   name: string;
   market: string;
   asset_class: string;
+  instrument_type: string;
+  provider_symbol?: string;
+  direction: "long" | "short";
+  multiplier: number;
   currency: string;
   quantity: number;
   average_cost?: number;
   price?: number;
   price_date?: string;
-  price_source?: "tushare" | "manual" | "transaction";
+  price_status?: "current" | "stale" | "unavailable";
+  price_as_of?: string;
+  price_source?: string;
+  fx_source?: string;
+  fx_as_of?: string;
+  valuation_method?: string;
   market_value?: number;
   unrealized_pnl?: number;
+  realized_pnl?: number;
+  gap_reason?: string;
 };
 
 export type PortfolioValuation = {
@@ -34,9 +45,9 @@ export type PortfolioValuation = {
   data_status: DataStatus;
   total_value: number;
   base_currency: string;
-  cash: Record<string, number>;
+  cash: Record<string, { amount: number; base_value?: number; fx_source?: string; fx_as_of?: string }>;
   positions: PortfolioPosition[];
-  missing: Array<{ symbol: string; reason: string }>;
+  missing: Array<{ kind: string; symbol?: string; currency?: string; reason: string; price_as_of?: string }>;
 };
 
 export type AgentOSOverview = {

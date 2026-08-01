@@ -691,6 +691,8 @@ export type GlobalSearchResult = { type: string; id: string; title: string; subt
 export type PublicationDataset = { key: string; table?: string; frequency: string; actual_as_of?: string; expected_as_of?: string; history_start?: string; points: number; state: "current" | "delayed" | "missing" | "unavailable" | string; last_attempt_at?: string; last_success_at?: string; deferred_reason?: string; next_expected_update: string; unavailable_reason?: string };
 export type PublicationStatus = { available: boolean; version: string; generated_at?: string; datasets: PublicationDataset[]; unavailable_reason?: string; read_only?: true; synthetic_substitution?: false };
 export type DataStatus = { publication: PublicationStatus; opportunity_refresh: Array<{ domain: string; status: string; last_succeeded_at?: string; last_error?: string; duration_ms?: number; candidates_seen: number }>; read_only: true; request_time_refresh: false; scoring: false; methodology: string };
+export type MarketCapability = { key: string; table?: string; domain: string; exposure: "typed_api" | "agent_query" | "internal" | "unavailable" | string; api: string[]; ui: string[]; physical: boolean; available: boolean; unavailable_reason?: string; publication_state?: string; updated_through?: string; coverage?: { ratio?: number; actual?: number; expected?: number; history_start?: string; points?: number } };
+export type MarketCapabilities = { version: string; schema_version: number; source: string; generated_at?: string; publication_version?: string; physical_table_count?: number; available: boolean; read_only: true; synthetic_substitution: false; capabilities: MarketCapability[]; unavailable_reason?: string };
 export type AllocationAccount = {
   id: string; name: string; base_currency: "CNY"; capital: number; horizon_months: number;
   liquidity_reserve: number; max_drawdown: number; max_leverage: number;
@@ -1044,6 +1046,7 @@ export const agentPlatformApi = {
 const marketsBase = "/markets";
 export const marketsApi = {
   dataStatus: () => apiJson<DataStatus>(`${marketsBase}/data-status`),
+  capabilities: () => apiJson<MarketCapabilities>(`${marketsBase}/capabilities`),
   capital: () => apiJson<MarketCapitalSnapshot>(`${marketsBase}/capital`),
   macroCatalog: () => apiJson<MacroCatalog>(`${marketsBase}/macro/series`),
   macroSeries: (key: string, field: string) =>

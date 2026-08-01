@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from services.agent_platform.allocation import (
     constrained_risk_parity,
@@ -62,3 +63,32 @@ def test_currency_exposure_is_scaled_by_portfolio_weight():
     assert scaled_currency_exposure({"USD": 1}, 0.25) == {"USD": 0.25}
     assert scaled_currency_exposure({"USD": 0.6, "JPY": 0.4}, 0.5) == {"USD": 0.3, "JPY": 0.2}
     assert scaled_currency_exposure(None, 0.5) == {}
+
+
+@pytest.mark.parametrize("methodology,views", [
+    ("risk_parity", {}),
+    ("all_weather", {}),
+    ("lifecycle", {}),
+    ("core_satellite", {"as_of": "2026-07-31", "tilts": {"china_equity": 0.03, "global_bond": -0.03}}),
+    ("black_litterman", {"as_of": "2026-07-31",
+        "market_weights": {"china_equity": .2, "global_equity": .25, "china_bond": .2, "global_bond": .25, "gold": .1},
+        "expected_return_adjustment": {"china_equity": .01, "global_bond": -.005}}),
+])
+def test_all_five_methodologies_are_deterministic_and_constrained(methodology, views):
+    kwargs = dict(capital=1_000_000, reserve=100_000, max_drawdown=.2,
+        sleeves=["china_equity", "global_equity", "china_bond", "global_bond", "gold"],
+        returns=sample_returns(), methodology_key=methodology, horizon_months=180, view_snapshot=views)
+    first, second = policy_from_returns(**kwargs), policy_from_returns(**kwargs)
+    assert first["status"] == "feasible"
+    assert first["weights"] == second["weights"]
+    assert np.isclose(sum(first["weights"].values()), 1)
+    assert max(value for key, value in first["weights"].items() if key != "cny_cash") <= .55 + 1e-9
+    assert first["methodology"]["key"] == methodology
+
+
+@pytest.mark.parametrize("methodology", ["black_litterman", "core_satellite"])
+def test_view_dependent_methods_fail_instead_of_generating_example_weights(methodology):
+    with pytest.raises(ValueError):
+        policy_from_returns(capital=1_000_000, reserve=0, max_drawdown=.2,
+            sleeves=["china_equity", "global_equity", "china_bond", "global_bond", "gold"],
+            returns=sample_returns(), methodology_key=methodology, view_snapshot={})

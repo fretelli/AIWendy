@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     report_kb_service_key: Optional[str] = None
     report_kb_timeout_seconds: float = 6.0
     market_publication_status_path: str = "/app/market-publication/publication-status.json"
+    market_capability_manifest_path: str = "/app/market-publication/capability-manifest.json"
     agent_learning_bridge_path: str = "/app/agent-os-bridge"
     agent_knowledge_snapshot_path: str = "/app/agent-os-bridge/knowledge-snapshot.json"
 
