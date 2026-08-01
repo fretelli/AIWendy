@@ -7,7 +7,7 @@
 
 [中文说明](README.zh-CN.md)
 
-KeelTrader is a self-hosted investment research and wealth-management operating system for individuals and small teams. AgentOS combines portfolio evidence, allocation, holdings, markets, opportunities, decisions, research, and an agent workspace in one persistent desktop.
+KeelTrader is a self-hosted investment research operating system and wealth-management workspace for individuals and small teams. AgentOS combines portfolio evidence, allocation, holdings, markets, opportunities, decisions, research, and an agent workspace in one persistent desktop.
 
 KeelTrader is deliberately vertical. It includes a research agent that can use approved research tools, BYOK model credentials, public HTTPS MCP servers, budgets, memory, and scheduled research. It is not a general computer-use agent or a replacement for Codex, Claude Code, Hermes, or OpenClaw.
 
