@@ -6,6 +6,7 @@ import { DashboardPage, Donut, EmptyPanel, MetricCard, Panel, SectionTitle, Stat
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { agentOSApi, type PortfolioValuation } from "@/lib/api/agentos";
 import { agentPlatformApi, type AllocationPolicyVersion, type SaaPolicyVersion, type TaaOverlay, type WealthAggregate } from "@/lib/api/agent-platform";
+import { useUrlTab } from "@/hooks/use-url-tab";
 import { useI18n } from "@/lib/i18n/provider";
 
 type AllocationData = { wealth?: WealthAggregate; saa?: SaaPolicyVersion; taa?: TaaOverlay; policy?: AllocationPolicyVersion; portfolio?: PortfolioValuation };
@@ -13,6 +14,7 @@ const COLORS = ["var(--agent-mint)", "var(--agent-blue)", "var(--agent-amber)", 
 
 export default function AllocationPage() {
   const { locale, formatCurrency } = useI18n();
+  const [tab, setTab] = useUrlTab(["saa", "taa", "rebalance", "stress"], "saa");
   const [data, setData] = useState<AllocationData>({});
   useEffect(() => {
     let cancelled = false;
@@ -47,7 +49,7 @@ export default function AllocationPage() {
       <MetricCard label="TACTICAL OVERLAY" value={data.taa ? Object.values(data.taa.deltas).filter(Boolean).length.toString() : "0"} note={data.taa?.title || (locale === "zh" ? "当前按 SAA 运行" : "Running at SAA")} color="text-agent-amber" />
       <MetricCard label="EXPECTED VOL" value={risk.expected_volatility !== undefined ? `${(risk.expected_volatility * (risk.expected_volatility < 1 ? 100 : 1)).toFixed(1)}%` : "—"} note={data.policy?.quality_status || (locale === "zh" ? "等待正式配置计算" : "Awaiting allocation run")} color="text-agent-blue" />
     </div>
-    <Tabs defaultValue="saa" className="flex flex-col gap-3">
+    <Tabs value={tab} onValueChange={setTab} className="flex flex-col gap-3">
       <TabsList className="h-auto w-fit border border-agent-border bg-agent-chrome p-1">
         <TabsTrigger value="saa">SAA</TabsTrigger><TabsTrigger value="taa">TAA</TabsTrigger><TabsTrigger value="rebalance">{locale === "zh" ? "再平衡" : "Rebalance"}</TabsTrigger><TabsTrigger value="stress">{locale === "zh" ? "情景压力" : "Stress"}</TabsTrigger>
       </TabsList>

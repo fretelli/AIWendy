@@ -43,6 +43,7 @@ def test_active_route_prefixes_are_mounted(client):
         "/api/v1/research-cloud/search",
         "/api/v1/markets/macro/series",
         "/api/v1/markets/data-status",
+        "/api/v1/markets/capabilities",
         "/api/v1/markets/capital",
         "/api/v1/markets/macro/series/{key}",
         "/api/v1/markets/futures/{code}/underlying",

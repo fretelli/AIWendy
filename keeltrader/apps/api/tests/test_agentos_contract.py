@@ -13,6 +13,8 @@ def test_agentos_uses_additive_migrations_and_does_not_restore_today_or_thesis()
         "041_agentos_portfolio_foundation.py",
         "042_agentos_research_decisions.py",
         "043_agentos_document_versions.py",
+        "044_agentos_instrument_identity.py",
+        "045_agentos_report_fact_audit.py",
     }
     combined = "\n".join((MIGRATIONS / name).read_text(encoding="utf-8") for name in sorted(names))
     assert "today_items" not in combined
@@ -50,7 +52,9 @@ def test_bilingual_pdf_is_real_and_escapes_reportlab_markup() -> None:
 def test_backtest_deducts_configured_transaction_costs() -> None:
     source = (ROOT / "apps" / "api" / "services" / "agentos.py").read_text(encoding="utf-8")
     assert 'parameters.get("cost_bps"' in source
-    assert "gross_nav * (1 - entry_cost)" in source
+    assert "turnover * cost_bps / 10_000" in source
+    assert "point_in_time_factors" in source
+    assert "fundamentals_parameter_ignored" in source
     assert '"cost_bps": cost_bps' in source
 
 
@@ -70,3 +74,5 @@ def test_agentos_models_keep_tenant_ownership_and_immutable_revision_tables() ->
     assert '__tablename__ = "decision_revisions"' in source
     assert '__tablename__ = "strategy_run_versions"' in source
     assert '__tablename__ = "research_document_versions"' in source
+    assert '__tablename__ = "research_document_downloads"' in source
+    assert "fact_snapshot_sha256" in source

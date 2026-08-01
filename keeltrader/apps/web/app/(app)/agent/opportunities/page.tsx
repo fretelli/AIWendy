@@ -1,6 +1,5 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -8,11 +7,12 @@ import { DashboardPage, EmptyPanel, MetricCard, Panel, SectionTitle, StatusDot }
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { agentPlatformApi, marketsApi, type HolderInboxEvent, type HolderWatchItem, type Opportunity } from "@/lib/api/agent-platform";
+import { useUrlTab } from "@/hooks/use-url-tab";
 import { useI18n } from "@/lib/i18n/provider";
 
 export default function OpportunitiesPage() {
-  const params = useSearchParams();
   const { locale, formatNumber } = useI18n();
+  const [defaultTab, setTab] = useUrlTab(["signals", "relative", "people"], "signals");
   const [items, setItems] = useState<Opportunity[]>([]);
   const [holders, setHolders] = useState<HolderWatchItem[]>([]);
   const [events, setEvents] = useState<HolderInboxEvent[]>([]);
@@ -42,10 +42,9 @@ export default function OpportunitiesPage() {
   const signals = items.filter((item) => ["company", "holder", "macro", "capital"].includes(item.domain));
   const relative = items.filter((item) => ["rates", "futures", "options"].includes(item.domain));
   const active = items.filter((item) => ["new", "active", "changed", "challenged"].includes(item.state));
-  const defaultTab = ["signals", "relative", "people"].includes(params.get("tab") || "") ? params.get("tab")! : "signals";
   return <DashboardPage>
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><MetricCard label="ACTIVE SIGNALS" value={formatNumber(active.length)} note={`${items.length} ${locale === "zh" ? "条可审计机会" : "auditable opportunities"}`} color="text-agent-mint" /><MetricCard label="RELATIVE VALUE" value={formatNumber(relative.length)} note={locale === "zh" ? "利率、期货与期权" : "Rates, futures, and options"} color="text-agent-blue" /><MetricCard label="TRACKED PEOPLE" value={formatNumber(holders.filter((item) => item.enabled).length)} note={`${events.filter((item) => !item.read_at).length} ${locale === "zh" ? "条未读变化" : "unread changes"}`} color="text-agent-amber" /><MetricCard label="CHALLENGED" value={formatNumber(items.filter((item) => item.state === "challenged" || item.state === "invalidated").length)} note={locale === "zh" ? "与现有假设冲突" : "Conflicts with current theses"} color="text-agent-up" /></div>
-    <Tabs key={defaultTab} defaultValue={defaultTab} className="flex flex-col gap-3"><TabsList className="h-auto w-fit border border-agent-border bg-agent-chrome p-1"><TabsTrigger value="signals">{locale === "zh" ? "信号" : "Signals"}</TabsTrigger><TabsTrigger value="relative">{locale === "zh" ? "相对价值" : "Relative Value"}</TabsTrigger><TabsTrigger value="people">{locale === "zh" ? "跟踪人物/机构" : "People & Institutions"}</TabsTrigger></TabsList>
+    <Tabs value={defaultTab} onValueChange={setTab} className="flex flex-col gap-3"><TabsList className="h-auto w-fit border border-agent-border bg-agent-chrome p-1"><TabsTrigger value="signals">{locale === "zh" ? "信号" : "Signals"}</TabsTrigger><TabsTrigger value="relative">{locale === "zh" ? "相对价值" : "Relative Value"}</TabsTrigger><TabsTrigger value="people">{locale === "zh" ? "跟踪人物/机构" : "People & Institutions"}</TabsTrigger></TabsList>
       <TabsContent value="signals" className="mt-0"><OpportunityTable items={signals} locale={locale} onFollow={async (item) => { try { await marketsApi.followOpportunity(item.id, { state: "following" }); await load(); } catch (error) { toast.error(error instanceof Error ? error.message : "Follow failed"); } }} /></TabsContent>
       <TabsContent value="relative" className="mt-0"><OpportunityTable items={relative} locale={locale} onFollow={async (item) => { try { await marketsApi.followOpportunity(item.id, { state: "following" }); await load(); } catch (error) { toast.error(error instanceof Error ? error.message : "Follow failed"); } }} /></TabsContent>
       <TabsContent value="people" className="mt-0 grid gap-3 xl:grid-cols-[.75fr_1.25fr]">

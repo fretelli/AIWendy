@@ -21,60 +21,10 @@ from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from config import get_settings
+from services.agent_platform.capabilities import physical_tables, queryable_tables
 
 
 _IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
-
-ALLOWED_TABLES = {
-    "stock_basic",
-    "stock_daily",
-    "stock_daily_adj",
-    "stock_weekly",
-    "stock_monthly",
-    "fina_indicator",
-    "income",
-    "balancesheet",
-    "cashflow",
-    "dividend",
-    "trade_cal",
-    "index_basic",
-    "index_global",
-    "fund_basic",
-    "fund_nav",
-    "fund_share",
-    "margin",
-    "margin_detail",
-    "stk_limit",
-    "moneyflow_mkt_dc",
-    "cn_cpi",
-    "cn_ppi",
-    "cn_pmi",
-    "cn_gdp",
-    "shibor",
-    "lpr",
-    "top10_floatholders",
-    "fut_basic",
-    "fut_daily",
-    "fut_mapping",
-    "opt_basic",
-    "opt_daily",
-    "opt_series_daily",
-    "index_daily",
-    "fund_daily",
-    "cn_m",
-    "sf_month",
-    "us_tycr",
-    "us_trycr",
-    "repo_daily",
-    "shibor_quote",
-    "cb_basic",
-    "cb_daily",
-    "option_underlying_map",
-    "option_analytics_daily",
-    "allocation_series_catalog",
-    "allocation_series_monthly",
-    "allocation_instrument_catalog",
-}
 
 _tushare_session_factory: async_sessionmaker[AsyncSession] | None = None
 _tushare_session_url: str | None = None
@@ -186,7 +136,7 @@ class TushareReadService:
 
     async def table_exists(self, table: str) -> bool:
         """Return whether a synchronized Tushare table exists in the current DB."""
-        if table not in ALLOWED_TABLES:
+        if table not in physical_tables():
             raise ValueError(f"Tushare table is not allowlisted: {table}")
         cached = self._table_exists_cache.get(table)
         if cached is not None:
@@ -337,6 +287,52 @@ class TushareReadService:
         )
         return await self._execute_mappings(q, {"symbol": symbol, "limit": limit})
 
+    async def latest_instrument_price(self, instrument_type: str, symbol: str, as_of: date) -> dict[str, Any] | None:
+        """Resolve a published price from the official table for one instrument type."""
+        specification = {
+            "stock": ("stock_daily", "trade_date", "close"),
+            "etf": ("fund_daily", "trade_date", "close"),
+            "open_fund": ("fund_nav", "nav_date", "unit_nav"),
+            "future": ("fut_daily", "trade_date", "settle"),
+            "option": ("opt_daily", "trade_date", "settle"),
+            "convertible_bond": ("cb_daily", "trade_date", "close"),
+        }.get(instrument_type)
+        if specification is None:
+            return None
+        table, date_column, price_column = specification
+        if not await self.table_exists(table):
+            return None
+        rows = await self._execute_mappings(text(f"""
+            SELECT {date_column} AS price_as_of,{price_column} AS price
+            FROM {self.schema}.{table}
+            WHERE ts_code=:symbol AND {date_column}<=:as_of AND {price_column} IS NOT NULL
+            ORDER BY {date_column} DESC LIMIT 1
+        """), {"symbol": symbol, "as_of": as_of})
+        if not rows:
+            return None
+        return {**rows[0], "source": f"{self.schema}.{table}.{price_column}", "valuation_method": "published_close"}
+
+    async def direct_fx_rate(self, base_currency: str, quote_currency: str, as_of: date) -> dict[str, Any] | None:
+        """Return only a provider-native direct FX pair; never synthesize crosses or inverses."""
+        base, quote = base_currency.upper(), quote_currency.upper()
+        if base == quote:
+            return {"rate": 1.0, "fx_as_of": as_of, "source": "identity", "provider_symbol": None}
+        if not await self.table_exists("fx_obasic") or not await self.table_exists("fx_daily"):
+            return None
+        rows = await self._execute_mappings(text(f"""
+            SELECT d.ts_code,d.trade_date AS fx_as_of,
+                   CASE WHEN d.bid_close IS NOT NULL AND d.ask_close IS NOT NULL
+                        THEN (d.bid_close+d.ask_close)/2 ELSE COALESCE(d.bid_close,d.ask_close) END AS rate
+            FROM {self.schema}.fx_daily d
+            JOIN {self.schema}.fx_obasic b ON b.ts_code=d.ts_code
+            WHERE upper(b.base_cur)=:base AND upper(b.quote_cur)=:quote
+              AND d.trade_date<=:as_of AND (d.bid_close IS NOT NULL OR d.ask_close IS NOT NULL)
+            ORDER BY d.trade_date DESC LIMIT 1
+        """), {"base": base, "quote": quote, "as_of": as_of})
+        if not rows:
+            return None
+        return {**rows[0], "source": "tushare.fx_daily.mid", "direct_pair": True}
+
     async def financial_indicators(self, symbol: str, limit: int = 8) -> list[dict[str, Any]]:
         """Return recent financial indicator rows."""
         if not await self.table_exists("fina_indicator"):
@@ -352,6 +348,42 @@ class TushareReadService:
             """
         )
         return await self._execute_mappings(q, {"symbol": symbol, "limit": limit})
+
+    async def point_in_time_factors(self, symbols: list[str], as_of: date,
+                                    prices: dict[str, float]) -> dict[str, dict[str, Any]]:
+        """Return only financial facts publicly announced by the requested date."""
+        if not symbols or not await self.table_exists("fina_indicator"):
+            return {}
+        date_key = as_of.strftime("%Y%m%d")
+        rows = await self._execute_mappings(text(f"""
+            SELECT DISTINCT ON (ts_code) ts_code,end_date,ann_date,roe,ocf_to_or,tr_yoy,netprofit_yoy
+            FROM {self.schema}.fina_indicator
+            WHERE ts_code=ANY(:symbols) AND ann_date IS NOT NULL AND ann_date<=:as_of
+            ORDER BY ts_code,end_date DESC,ann_date DESC
+        """), {"symbols": symbols, "as_of": date_key})
+        dividends = []
+        if await self.table_exists("dividend"):
+            dividends = await self._execute_mappings(text(f"""
+                SELECT ts_code,SUM(COALESCE(cash_div,0)) AS trailing_cash_dividend
+                FROM {self.schema}.dividend
+                WHERE ts_code=ANY(:symbols) AND ann_date<=:as_of
+                  AND ann_date>=:start_date AND div_proc ILIKE '%%实施%%'
+                GROUP BY ts_code
+            """), {"symbols": symbols, "as_of": date_key,
+                    "start_date": date(as_of.year - 1, as_of.month, min(as_of.day, 28)).strftime("%Y%m%d")})
+        dividend_map = {row["ts_code"]: float(row.get("trailing_cash_dividend") or 0) for row in dividends}
+        result = {}
+        for row in rows:
+            symbol = str(row["ts_code"])
+            price = prices.get(symbol)
+            result[symbol] = {
+                "as_of": as_of.isoformat(), "report_end_date": row.get("end_date"), "announcement_date": row.get("ann_date"),
+                "roe": row.get("roe"), "cash_quality": row.get("ocf_to_or"),
+                "revenue_growth": row.get("tr_yoy"), "profit_growth": row.get("netprofit_yoy"),
+                "dividend_yield": dividend_map.get(symbol, 0) / price if price and price > 0 else None,
+                "source": f"{self.schema}.fina_indicator+dividend", "point_in_time": True,
+            }
+        return result
 
     async def company_financials(self, symbol: str, limit: int = 12) -> dict[str, list[dict[str, Any]]]:
         """Return canonical statement rows used by the deterministic dossier engine."""
@@ -1525,7 +1557,7 @@ class TushareReadService:
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         """Query an allowlisted Tushare table with equality filters."""
-        if table not in ALLOWED_TABLES:
+        if table not in queryable_tables():
             raise ValueError(f"Tushare table is not allowlisted: {table}")
         if not await self.table_exists(table):
             return []

@@ -41,9 +41,9 @@ export function EmptyPanel({ title, detail, action, onAction }: { title: string;
   </div>;
 }
 
-export function MissingData({ items }: { items: Array<{ symbol: string; reason: string }> }) {
+export function MissingData({ items }: { items: Array<{ symbol?: string; currency?: string; kind?: string; reason: string }> }) {
   if (!items.length) return null;
-  return <div className="flex items-start gap-2 rounded-md border border-agent-amber/30 bg-agent-amber/5 px-3 py-2 text-[10px] text-agent-amber"><AlertTriangle /><span>{items.map((item) => `${item.symbol}: ${item.reason}`).join(" · ")}</span></div>;
+  return <div className="flex items-start gap-2 rounded-md border border-agent-amber/30 bg-agent-amber/5 px-3 py-2 text-[10px] text-agent-amber"><AlertTriangle /><span>{items.map((item) => `${item.symbol || item.currency || item.kind || "data"}: ${item.reason}`).join(" · ")}</span></div>;
 }
 
 export function MiniLine({ values, color = "var(--agent-mint)", height = 72 }: { values: number[]; color?: string; height?: number }) {

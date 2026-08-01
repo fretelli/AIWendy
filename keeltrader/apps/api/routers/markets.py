@@ -22,6 +22,7 @@ from domain.agent_platform.models import MarketOpportunityRefreshState
 from services.agent_platform.tushare import TushareReadService
 from services.agent_platform.opportunities import OpportunityService, plan_payload
 from services.agent_platform.publication_status import publication_version, read_publication_status
+from services.agent_platform.capabilities import capability_version, read_capability_manifest
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -31,7 +32,8 @@ async def cached_json(key: str, loader: Callable[[], Awaitable[dict[str, Any]]],
     started = time.perf_counter()
     cache = get_cache_service()
     version = publication_version()
-    cache_key = f"markets:v4:{version}:{key}"
+    manifest_version = capability_version()
+    cache_key = f"markets:v5:{version}:{manifest_version}:{key}"
     payload = await cache.get_async(cache_key)
     cache_state = "hit"
     if not isinstance(payload, dict):
@@ -46,6 +48,7 @@ async def cached_json(key: str, loader: Callable[[], Awaitable[dict[str, Any]]],
     return Response(content=body, media_type="application/json", headers={
         "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
         "ETag": etag, "X-Market-Cache": cache_state, "X-Market-Publication": version,
+        "X-Market-Capabilities": manifest_version,
         "X-Payload-Bytes": str(len(body)),
         "Server-Timing": f'market;dur={elapsed_ms:.1f};desc="{cache_state}"',
     })
@@ -62,6 +65,7 @@ async def data_status(session: AsyncSession = Depends(get_session), user: User =
         MarketOpportunityRefreshState.domain))).scalars().all()
     return {
         "publication": read_publication_status(),
+        "capabilities": {key: value for key, value in read_capability_manifest().items() if key != "capabilities"},
         "opportunity_refresh": [{
             "domain": row.domain, "status": row.status,
             "last_started_at": row.last_started_at, "last_succeeded_at": row.last_succeeded_at,
@@ -73,6 +77,12 @@ async def data_status(session: AsyncSession = Depends(get_session), user: User =
         "scoring": False,
         "methodology": "读取后台原子发布的数据覆盖快照，不在请求时扫描源表；缺失或延迟来源明确标记，不合成替代。",
     }
+
+
+@router.get("/capabilities")
+async def capabilities(user: User = Depends(get_current_user)):
+    """Return the complete physical and planned market-data exposure contract."""
+    return read_capability_manifest()
 
 
 @router.get("/capital")

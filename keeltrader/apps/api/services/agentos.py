@@ -33,6 +33,7 @@ from domain.agentos.models import (
     PortfolioManualPrice,
     PortfolioTransaction,
     ResearchDocument,
+    ResearchDocumentDownload,
     ResearchDocumentVersion,
     ResearchHypothesis,
     ResearchHypothesisRevision,
@@ -43,6 +44,14 @@ from services.agent_platform.tushare import TushareReadService
 
 
 ZERO = Decimal("0")
+INSTRUMENT_ALIASES = {
+    "stock": "stock", "equity": "stock", "a_share": "stock", "etf": "etf",
+    "fund": "open_fund", "open_fund": "open_fund", "mutual_fund": "open_fund",
+    "future": "future", "futures": "future", "option": "option", "options": "option",
+    "convertible_bond": "convertible_bond", "cb": "convertible_bond", "cash": "cash",
+    "fx": "fx", "foreign_exchange": "fx", "alternative": "alternative", "alternatives": "alternative",
+    "manual": "manual",
+}
 STRATEGY_TEMPLATES = {
     "dividend_low_vol": {
         "name": "红利低波",
@@ -142,7 +151,12 @@ class AgentOSService:
             PortfolioInstrument.symbol == symbol,
             PortfolioInstrument.market == market,
         ))
+        requested_type = self._instrument_type(row.get("instrument_type"), row.get("asset_class"))
+        provider_symbol = str(row.get("provider_symbol") or symbol).strip().upper() if requested_type not in {"manual", "alternative", "cash"} else row.get("provider_symbol")
         if item is not None:
+            if row.get("instrument_type") and item.instrument_type in {None, "manual"}:
+                item.instrument_type = requested_type
+                item.provider_symbol = provider_symbol
             return item
         item = PortfolioInstrument(
             user_id=self.user_id,
@@ -150,6 +164,8 @@ class AgentOSService:
             name=str(row.get("name") or symbol).strip(),
             market=market,
             asset_class=str(row.get("asset_class") or "other").strip(),
+            instrument_type=requested_type,
+            provider_symbol=provider_symbol,
             currency=str(row.get("currency") or "CNY").strip().upper(),
             direction=str(row.get("direction") or "long").strip(),
             multiplier=_decimal(row.get("multiplier", 1), "multiplier"),
@@ -160,6 +176,15 @@ class AgentOSService:
         self.session.add(item)
         await self.session.flush()
         return item
+
+    @staticmethod
+    def _instrument_type(explicit: Any, asset_class: Any) -> str:
+        if explicit:
+            value = INSTRUMENT_ALIASES.get(str(explicit).strip().lower())
+            if value:
+                return value
+            raise ValueError("Unsupported instrument_type")
+        return INSTRUMENT_ALIASES.get(str(asset_class or "").strip().lower(), "manual")
 
     async def add_transaction(self, account_id: UUID, payload: dict[str, Any]) -> dict[str, Any]:
         await self._account(account_id)
@@ -355,74 +380,149 @@ class AgentOSService:
         state: dict[UUID, dict[str, Any]] = {}
         cash = defaultdict(lambda: ZERO)
         for tx, instrument in rows:
-            cash[tx.currency] += Decimal(tx.cash_amount) - Decimal(tx.fee)
+            explicit_cash = Decimal(tx.cash_amount)
+            trade_cash = explicit_cash
             if instrument is None:
+                cash[tx.currency] += explicit_cash - Decimal(tx.fee)
                 continue
             bucket = state.setdefault(instrument.id, {"instrument": instrument, "quantity": ZERO, "cost": ZERO,
                                                        "last_price": None, "last_price_date": None})
             old_qty = bucket["quantity"]
             qty = Decimal(tx.quantity)
+            # CSV/manual ledgers commonly record a positive quantity for a
+            # sell.  Normalize the position delta from the immutable event
+            # type while preserving explicitly signed adjustments.
+            if instrument.direction == "short" and tx.transaction_type in {"buy", "sell"}:
+                # A buy covers a short; a sell opens/increases one.  The
+                # explicit opening event remains a positive position delta.
+                qty = -abs(qty) if tx.transaction_type == "buy" else abs(qty)
+            elif tx.transaction_type in {"sell", "reduced", "close", "redeem"}:
+                qty = -abs(qty)
+            elif tx.transaction_type in {"buy", "opening", "increased", "subscribe"}:
+                qty = abs(qty)
             price = Decimal(tx.price) if tx.price is not None else None
+            multiplier = Decimal(instrument.multiplier)
+            direction_sign = Decimal("-1") if instrument.direction == "short" else Decimal("1")
+            if price is not None and explicit_cash == ZERO and tx.transaction_type in {"buy", "sell", "opening"}:
+                trade_cash = -(qty * price * multiplier * direction_sign)
+            cash[tx.currency] += trade_cash - Decimal(tx.fee)
             if qty > 0 and price is not None:
-                bucket["cost"] += qty * price * Decimal(instrument.multiplier)
+                bucket["cost"] += qty * price * multiplier
             elif qty < 0 and old_qty > 0:
-                average = bucket["cost"] / old_qty if old_qty else ZERO
-                bucket["cost"] = max(ZERO, bucket["cost"] + qty * average)
+                average_notional = bucket["cost"] / old_qty if old_qty else ZERO
+                closed = min(old_qty, abs(qty))
+                if price is not None:
+                    bucket["realized_pnl"] = bucket.get("realized_pnl", ZERO) + (
+                        price * multiplier - average_notional
+                    ) * closed * direction_sign
+                bucket["cost"] = max(ZERO, bucket["cost"] - average_notional * closed)
             bucket["quantity"] += qty
             if price is not None:
                 bucket["last_price"] = price
                 bucket["last_price_date"] = tx.trade_date
         positions = []
-        total = cash[account.base_currency]
-        missing: list[dict[str, str]] = []
+        total = ZERO
+        missing: list[dict[str, Any]] = []
+        cash_detail = {}
+        for currency, amount in cash.items():
+            fx = await self.tushare.direct_fx_rate(currency, account.base_currency, as_of)
+            converted = amount * Decimal(str(fx["rate"])) if fx else None
+            if converted is None:
+                missing.append({"kind": "cash", "currency": currency, "reason": "direct_fx_unavailable"})
+            else:
+                total += converted
+            cash_detail[currency] = {"amount": float(amount), "base_value": _json_number(converted),
+                "fx_source": fx.get("source") if fx else None,
+                "fx_as_of": str(fx.get("fx_as_of")) if fx and fx.get("fx_as_of") else None}
         for instrument_id, bucket in state.items():
             quantity = bucket["quantity"]
             if quantity == 0:
                 continue
             instrument = bucket["instrument"]
-            price, price_date, source = await self._resolve_price(instrument, as_of, bucket["last_price"], bucket["last_price_date"])
+            resolved = await self._resolve_price(instrument, as_of, bucket["last_price"], bucket["last_price_date"])
+            price, price_date = resolved.get("price"), resolved.get("price_as_of")
             market_value = None
             if price is None:
-                missing.append({"symbol": instrument.symbol, "reason": "price_unavailable"})
-            elif instrument.currency != account.base_currency:
-                missing.append({"symbol": instrument.symbol, "reason": f"fx_unavailable:{instrument.currency}/{account.base_currency}"})
+                missing.append({"kind": "position", "symbol": instrument.symbol, "reason": resolved.get("reason", "price_unavailable")})
             else:
-                market_value = quantity * price * Decimal(instrument.multiplier)
-                total += market_value
+                native_value = quantity * price * Decimal(instrument.multiplier) * (Decimal("-1") if instrument.direction == "short" else Decimal("1"))
+                fx = await self.tushare.direct_fx_rate(instrument.currency, account.base_currency, as_of)
+                if fx is None:
+                    missing.append({"kind": "position", "symbol": instrument.symbol,
+                                    "reason": f"direct_fx_unavailable:{instrument.currency}/{account.base_currency}"})
+                else:
+                    market_value = native_value * Decimal(str(fx["rate"]))
+                    total += market_value
+                    resolved["fx_source"] = fx.get("source")
+                    resolved["fx_as_of"] = fx.get("fx_as_of")
+            if resolved.get("price_status") == "stale":
+                missing.append({"kind": "position", "symbol": instrument.symbol, "reason": "price_stale",
+                                "price_as_of": str(price_date) if price_date else None})
+            direction_sign = Decimal("-1") if instrument.direction == "short" else Decimal("1")
+            cost_basis = bucket["cost"] * direction_sign
             positions.append({
                 "instrument_id": str(instrument_id), "symbol": instrument.symbol, "name": instrument.name,
-                "market": instrument.market, "asset_class": instrument.asset_class, "currency": instrument.currency,
+                "market": instrument.market, "asset_class": instrument.asset_class,
+                "instrument_type": instrument.instrument_type, "provider_symbol": instrument.provider_symbol,
+                "direction": instrument.direction, "multiplier": float(instrument.multiplier), "currency": instrument.currency,
                 "quantity": float(quantity), "average_cost": float(bucket["cost"] / quantity / Decimal(instrument.multiplier)) if quantity else None,
-                "price": _json_number(price), "price_date": price_date.isoformat() if price_date else None,
-                "price_source": source, "market_value": _json_number(market_value),
-                "unrealized_pnl": _json_number(market_value - bucket["cost"]) if market_value is not None else None,
+                "price": _json_number(price), "price_status": resolved.get("price_status"),
+                "price_as_of": price_date.isoformat() if isinstance(price_date, date) else (str(price_date) if price_date else None),
+                "price_date": price_date.isoformat() if isinstance(price_date, date) else (str(price_date) if price_date else None),
+                "price_source": resolved.get("price_source"), "fx_source": resolved.get("fx_source"),
+                "fx_as_of": str(resolved.get("fx_as_of")) if resolved.get("fx_as_of") else None,
+                "valuation_method": resolved.get("valuation_method"), "market_value": _json_number(market_value),
+                "realized_pnl": _json_number(bucket.get("realized_pnl", ZERO)),
+                "unrealized_pnl": _json_number(market_value - cost_basis) if market_value is not None else None,
+                "gap_reason": resolved.get("reason"),
             })
         return {
             "account": self._account_json(account), "as_of": as_of.isoformat(),
             "data_status": "partial" if missing else "complete", "total_value": float(total),
-            "base_currency": account.base_currency, "cash": {key: float(value) for key, value in cash.items()},
+            "base_currency": account.base_currency, "cash": cash_detail,
             "positions": positions, "missing": missing,
         }
 
     async def _resolve_price(self, instrument: PortfolioInstrument, as_of: date,
-                             transaction_price: Decimal | None, transaction_date: date | None):
+                             transaction_price: Decimal | None, transaction_date: date | None) -> dict[str, Any]:
         manual = await self.session.scalar(select(PortfolioManualPrice).where(
             PortfolioManualPrice.user_id == self.user_id,
             PortfolioManualPrice.instrument_id == instrument.id,
             PortfolioManualPrice.price_date <= as_of,
         ).order_by(PortfolioManualPrice.price_date.desc()).limit(1))
+        # Provider-native prices always win for typed instruments.  Transaction
+        # imports also create a manual price row, so looking at that first
+        # would silently make a historical trade price masquerade as a quote.
+        official = await self.tushare.latest_instrument_price(
+            instrument.instrument_type, instrument.provider_symbol or instrument.symbol, as_of)
+        if official and official.get("price") is not None:
+            raw_date = official.get("price_as_of")
+            price_date = raw_date if isinstance(raw_date, date) else date.fromisoformat(str(raw_date)[:10])
+            age = (as_of - price_date).days
+            threshold = 14 if instrument.instrument_type == "open_fund" else 7
+            return {"price": Decimal(str(official["price"])), "price_as_of": price_date,
+                    "price_source": official["source"], "price_status": "current" if age <= threshold else "stale",
+                    "valuation_method": official["valuation_method"], "reason": None if age <= threshold else "published_price_stale"}
         if manual is not None:
-            return Decimal(manual.price), manual.price_date, "manual"
-        if instrument.market in {"CN", "SH", "SZ", "BJ"}:
-            bars = await self.tushare.daily_bars(instrument.symbol, limit=10, adjusted=True)
-            eligible = [bar for bar in bars if str(bar.get("trade_date", ""))[:10] <= as_of.isoformat()]
-            if eligible:
-                bar = max(eligible, key=lambda item: str(item.get("trade_date", "")))
-                value = bar.get("close") or bar.get("adj_close")
-                if value is not None:
-                    raw_date = str(bar.get("trade_date"))[:10]
-                    return Decimal(str(value)), date.fromisoformat(raw_date), "tushare"
-        return transaction_price, transaction_date, "transaction" if transaction_price is not None else None
+            age = (as_of - manual.price_date).days
+            if instrument.instrument_type in {"alternative", "manual"}:
+                threshold = 45
+                return {"price": Decimal(manual.price), "price_as_of": manual.price_date, "price_source": "manual",
+                        "price_status": "current" if age <= threshold else "stale", "valuation_method": "dated_manual_nav",
+                        "reason": None if age <= threshold else "manual_price_stale"}
+            # For typed instruments a manual row is only a short-lived gap
+            # fallback and is always labelled stale; it never becomes a
+            # durable substitute for the provider's official series.
+            if age <= 3:
+                return {"price": Decimal(manual.price), "price_as_of": manual.price_date, "price_source": "manual",
+                        "price_status": "stale", "valuation_method": "dated_manual_fallback",
+                        "reason": "official_price_unavailable"}
+        if transaction_price is not None and transaction_date is not None and (as_of - transaction_date).days <= 3:
+            return {"price": transaction_price, "price_as_of": transaction_date, "price_source": "transaction",
+                    "price_status": "stale", "valuation_method": "recent_transaction_fallback",
+                    "reason": "official_price_unavailable"}
+        return {"price": None, "price_as_of": None, "price_source": None, "price_status": "unavailable",
+                "valuation_method": None, "reason": "official_or_dated_manual_price_unavailable"}
 
     async def nav_history(self, account_id: UUID) -> dict[str, Any]:
         await self._account(account_id)
@@ -609,56 +709,85 @@ class AgentOSService:
         symbols = [str(value).strip().upper() for value in parameters.get("symbols", []) if str(value).strip()]
         if not symbols:
             raise ValueError("At least one symbol is required")
-        histories: dict[str, list[dict[str, Any]]] = {}
+        histories: dict[str, dict[str, float]] = {}
         for symbol in symbols[:50]:
             bars = await self.tushare.daily_bars(symbol, limit=min(int(parameters.get("lookback_days", 750)), 1200), adjusted=True)
-            normalized = []
+            normalized = {}
             for bar in bars:
                 close = bar.get("close") or bar.get("adj_close")
                 raw_date = str(bar.get("trade_date", ""))[:10]
                 if close is not None and len(raw_date) == 10:
-                    normalized.append({"date": raw_date, "close": float(close)})
-            normalized.sort(key=lambda item: item["date"])
+                    normalized[raw_date] = float(close)
             if len(normalized) >= 60:
                 histories[symbol] = normalized
         if not histories:
             raise ValueError("No symbol has enough published price history")
-        scored = []
-        supplied = parameters.get("fundamentals", {})
-        for symbol, bars in histories.items():
-            closes = [row["close"] for row in bars]
-            returns = [closes[index] / closes[index - 1] - 1 for index in range(1, len(closes))]
-            volatility = math.sqrt(252) * (sum((value - sum(returns) / len(returns)) ** 2 for value in returns) / max(1, len(returns) - 1)) ** 0.5
-            if template_key == "momentum_trend":
-                momentum = closes[-22] / closes[max(0, len(closes) - 253)] - 1 if len(closes) >= 253 else closes[-1] / closes[0] - 1
-                moving = sum(closes[-200:]) / min(200, len(closes))
-                score = momentum if closes[-1] > moving else -999
-            elif template_key == "dividend_low_vol":
-                dividend_yield = supplied.get(symbol, {}).get("dividend_yield")
-                if dividend_yield is None:
-                    continue
-                score = float(dividend_yield) - volatility
-            else:
-                values = supplied.get(symbol, {})
-                required = [values.get(key) for key in ("roe", "cash_quality", "revenue_growth", "profit_growth")]
-                if any(value is None for value in required):
-                    continue
-                score = sum(float(value) for value in required) / 4
-            scored.append((score, symbol, bars, volatility))
-        scored = [item for item in scored if item[0] > -900]
-        if not scored:
-            raise ValueError("Required point-in-time factors are missing for this template")
-        selected = sorted(scored, reverse=True)[:min(int(parameters.get("top_n", 20)), len(scored))]
-        min_length = min(len(item[2]) for item in selected)
+        dates = sorted(set.intersection(*(set(values) for values in histories.values())))
+        if len(dates) < 60:
+            raise ValueError("Published histories do not have enough common trading dates")
         cost_bps = max(0.0, min(float(parameters.get("cost_bps", STRATEGY_TEMPLATES[template_key]["default_cost_bps"])), 500.0))
-        entry_cost = cost_bps / 10_000
-        series = []
-        for offset in range(min_length):
-            values = [item[2][-min_length + offset]["close"] / item[2][-min_length]["close"] for item in selected]
-            gross_nav = sum(values) / len(values)
-            series.append({"date": selected[0][2][-min_length + offset]["date"], "nav": gross_nav * (1 - entry_cost)})
+        rebalance = STRATEGY_TEMPLATES[template_key]["rebalance"]
+        month_ends = {value for index, value in enumerate(dates) if index == len(dates) - 1 or dates[index + 1][:7] != value[:7]}
+        rebalance_dates = {value for value in month_ends if rebalance == "monthly" or int(value[5:7]) in {3, 6, 9, 12}}
+        top_n = min(int(parameters.get("top_n", 20)), len(histories))
+        current_weights = {symbol: 0.0 for symbol in histories}
+        nav, benchmark_nav = 1.0, 1.0
+        series, trades = [], []
+        start_index = 252 if template_key == "momentum_trend" and len(dates) > 252 else 60
+        for index in range(start_index, len(dates)):
+            day, previous = dates[index], dates[index - 1]
+            if previous in rebalance_dates or not any(current_weights.values()):
+                signal_day = previous
+                prices = {symbol: histories[symbol][signal_day] for symbol in histories}
+                factors = {} if template_key == "momentum_trend" else await self.tushare.point_in_time_factors(
+                    list(histories), date.fromisoformat(signal_day), prices)
+                scored = []
+                for symbol, price_history in histories.items():
+                    available_dates = dates[:index]
+                    closes = [price_history[value] for value in available_dates]
+                    recent = closes[-60:]
+                    daily_returns = [recent[pos] / recent[pos - 1] - 1 for pos in range(1, len(recent))]
+                    mean = sum(daily_returns) / len(daily_returns)
+                    volatility = math.sqrt(252) * (sum((value - mean) ** 2 for value in daily_returns) / max(1, len(daily_returns) - 1)) ** .5
+                    if template_key == "momentum_trend":
+                        moving = sum(closes[-200:]) / min(200, len(closes))
+                        score = closes[-22] / closes[-252] - 1 if len(closes) >= 252 and closes[-1] > moving else -999.0
+                    elif template_key == "dividend_low_vol":
+                        dividend_yield = (factors.get(symbol) or {}).get("dividend_yield")
+                        if dividend_yield is None:
+                            continue
+                        score = float(dividend_yield) - volatility
+                    else:
+                        values = factors.get(symbol) or {}
+                        required = [values.get(key) for key in ("roe", "cash_quality", "revenue_growth", "profit_growth")]
+                        if any(value is None for value in required):
+                            continue
+                        score = sum(float(value) for value in required) / 4
+                    if score > -900:
+                        scored.append((score, symbol))
+                selected = [symbol for _, symbol in sorted(scored, reverse=True)[:top_n]]
+                if not selected:
+                    raise ValueError(f"Required point-in-time factors are missing at {signal_day}")
+                target = {symbol: (1 / len(selected) if symbol in selected else 0.0) for symbol in histories}
+                turnover = sum(abs(target[symbol] - current_weights[symbol]) for symbol in histories)
+                transaction_cost = turnover * cost_bps / 10_000
+                nav *= max(0, 1 - transaction_cost)
+                for symbol in histories:
+                    if abs(target[symbol] - current_weights[symbol]) > 1e-12:
+                        trades.append({"date": signal_day, "symbol": symbol, "from_weight": current_weights[symbol],
+                            "to_weight": target[symbol], "turnover": abs(target[symbol] - current_weights[symbol]),
+                            "cost_bps": cost_bps, "action": "rebalance"})
+                current_weights = target
+            day_return = sum(current_weights[symbol] * (histories[symbol][day] / histories[symbol][previous] - 1)
+                             for symbol in histories)
+            benchmark_return = sum(histories[symbol][day] / histories[symbol][previous] - 1 for symbol in histories) / len(histories)
+            nav *= 1 + day_return
+            benchmark_nav *= 1 + benchmark_return
+            series.append({"date": day, "nav": nav, "benchmark_nav": benchmark_nav})
+        if not series:
+            raise ValueError("Backtest produced no point-in-time observations")
         total_return = series[-1]["nav"] - 1
-        years = max(min_length / 252, 1 / 252)
+        years = max(len(series) / 252, 1 / 252)
         cagr = series[-1]["nav"] ** (1 / years) - 1
         nav_returns = [series[index]["nav"] / series[index - 1]["nav"] - 1 for index in range(1, len(series))]
         mean = sum(nav_returns) / max(1, len(nav_returns))
@@ -669,14 +798,16 @@ class AgentOSService:
             peak = max(peak, point["nav"])
             max_drawdown = min(max_drawdown, point["nav"] / peak - 1 if peak else 0)
         return {
-            "data_snapshot": {"source": "tushare", "symbols": [item[1] for item in selected], "as_of": series[-1]["date"],
+            "data_snapshot": {"source": "tushare", "symbols": selected, "universe": sorted(histories), "as_of": series[-1]["date"],
                               "cost_bps": cost_bps,
-                              "note": "Uses published adjusted daily bars; supplied factors must be point-in-time. Entry transaction cost is deducted from NAV."},
+                              "rebalance": rebalance, "fundamentals_parameter_ignored": bool(parameters.get("fundamentals")),
+                              "note": "Backend joins published point-in-time fundamentals by announcement date; every rebalance charges turnover cost and no caller-supplied factor is used."},
             "metrics": {"total_return": total_return, "cagr": cagr, "volatility": vol,
-                        "max_drawdown": max_drawdown, "sharpe": cagr / vol if vol else None},
+                        "max_drawdown": max_drawdown, "sharpe": cagr / vol if vol else None,
+                        "benchmark_total_return": series[-1]["benchmark_nav"] - 1,
+                        "excess_return": series[-1]["nav"] - series[-1]["benchmark_nav"]},
             "series": series,
-            "trades": [{"date": series[0]["date"], "symbol": item[1], "weight": 1 / len(selected),
-                        "cost_bps": cost_bps, "action": "simulated_entry"} for item in selected],
+            "trades": trades,
         }
 
     @staticmethod
@@ -724,12 +855,20 @@ class AgentOSService:
         document.current_version += 1
         document.status = "ready"
         document.updated_at = datetime.utcnow()
+        source_snapshot = payload.get("source_snapshot", {})
+        if not source_snapshot.get("as_of") or not source_snapshot.get("citations"):
+            raise ValueError("A dated source_snapshot with citations is required")
+        fact_snapshot = {"structured": payload.get("structured", {}), "source_snapshot": source_snapshot}
+        fact_snapshot_sha256 = hashlib.sha256(json.dumps(fact_snapshot, ensure_ascii=False, sort_keys=True,
+            separators=(",", ":"), default=str).encode()).hexdigest()
         versions = []
         for locale in ("zh-CN", "en-US"):
             body = payload["bodies"].get(locale)
             if not body:
                 raise ValueError(f"Missing {locale} report body")
-            pdf = self._render_pdf(document.title, body, locale, payload.get("structured", {}), payload.get("source_snapshot", {}))
+            pdf = self._render_pdf(document.title, body, locale, payload.get("structured", {}), source_snapshot)
+            if not pdf.startswith(b"%PDF"):
+                raise ValueError(f"Generated {locale} artifact is not a valid PDF")
             digest = hashlib.sha256(pdf).hexdigest()
             relative = Path("agentos") / str(self.user_id) / str(document.id) / str(document.current_version) / f"{locale}.pdf"
             target = Path("./uploads") / relative
@@ -737,13 +876,15 @@ class AgentOSService:
             target.write_bytes(pdf)
             version = ResearchDocumentVersion(
                 document_id=document.id, version=document.current_version, locale=locale, template_version="agentos-v1",
-                markdown_body=body, structured_json=payload.get("structured", {}), source_snapshot=payload.get("source_snapshot", {}),
-                storage_path=str(relative), content_sha256=digest, size_bytes=len(pdf), status="ready",
+                markdown_body=body, structured_json=payload.get("structured", {}), source_snapshot=source_snapshot,
+                storage_path=str(relative), content_sha256=digest, fact_snapshot_sha256=fact_snapshot_sha256,
+                size_bytes=len(pdf), status="ready",
             )
             self.session.add(version)
             await self.session.flush()
             versions.append(self._version_json(version))
-        return {"document": self._document_json(document), "versions": versions}
+        return {"document": self._document_json(document), "versions": versions,
+                "fact_snapshot_sha256": fact_snapshot_sha256, "generation_mode": "background_ready"}
 
     async def list_document_versions(self, document_id: UUID) -> dict[str, Any]:
         document = await self.session.scalar(select(ResearchDocument).where(
@@ -802,11 +943,16 @@ class AgentOSService:
             raise ValueError("Research document file not found")
         return version, target
 
+    async def record_document_download(self, version_id: UUID) -> None:
+        self.session.add(ResearchDocumentDownload(version_id=version_id, user_id=self.user_id))
+        await self.session.flush()
+
     @staticmethod
     def _version_json(item: ResearchDocumentVersion) -> dict[str, Any]:
         return {"id": str(item.id), "document_id": str(item.document_id), "version": item.version,
                 "locale": item.locale, "template_version": item.template_version, "status": item.status,
                 "content_sha256": item.content_sha256, "size_bytes": item.size_bytes,
+                "fact_snapshot_sha256": item.fact_snapshot_sha256,
                 "download_url": f"/api/v1/agent/research-document-versions/{item.id}/download"}
 
     async def overview(self) -> dict[str, Any]:
