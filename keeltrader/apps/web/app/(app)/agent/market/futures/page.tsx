@@ -1,1 +1,3 @@
-export { default } from '../../capital/futures/page'
+import { redirect } from "next/navigation";
+
+export default function Page() { redirect("/agent/market?tab=capital"); }

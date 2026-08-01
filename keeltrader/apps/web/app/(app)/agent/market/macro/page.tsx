@@ -1,1 +1,3 @@
-export { default } from '../../capital/macro/page'
+import { redirect } from "next/navigation";
+
+export default function Page() { redirect("/agent/market?tab=macro"); }

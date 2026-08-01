@@ -1,100 +1,20 @@
-import fs from 'node:fs'
-import path from 'node:path'
+import fs from "node:fs";
+import path from "node:path";
 
-const root = path.resolve(__dirname, '..')
-const page = fs.readFileSync(path.join(root, 'app/(app)/agent/capital/page.tsx'), 'utf8')
-const api = fs.readFileSync(path.join(root, 'lib/api/agent-platform.ts'), 'utf8')
-const desk = fs.readFileSync(path.join(root, 'app/(app)/agent/page.tsx'), 'utf8')
-const macro = fs.readFileSync(path.join(root, 'app/(app)/agent/capital/macro/page.tsx'), 'utf8')
-const futures = fs.readFileSync(path.join(root, 'app/(app)/agent/capital/futures/page.tsx'), 'utf8')
-const options = fs.readFileSync(path.join(root, 'app/(app)/agent/capital/options/page.tsx'), 'utf8')
-const chart = fs.readFileSync(path.join(root, 'app/(app)/agent/capital/_components/native-series-chart.tsx'), 'utf8')
-const interaction = fs.readFileSync(path.join(root, 'app/(app)/agent/capital/_components/native-chart-interaction.tsx'), 'utf8')
-const freshness = fs.readFileSync(path.join(root, 'lib/market-source-freshness.ts'), 'utf8')
+const root = path.resolve(__dirname, "..");
+const market = fs.readFileSync(path.join(root, "app/(app)/agent/market/page.tsx"), "utf8");
+const api = fs.readFileSync(path.join(root, "lib/api/agent-platform.ts"), "utf8");
 
-test('market capital page separates observable data from provider proxy', () => {
-  expect(page).toContain('成交额不等于净流入')
-  expect(page).toContain('供应商代理口径')
-  expect(page).toContain('与可验证资金面隔离')
-  expect(freshness).toContain('来源不可用')
-  expect(page).not.toContain('综合评分')
-  expect(page).not.toContain('仓位建议')
-  expect(page).not.toContain('选股推荐')
-})
+test("capital data remains traceable inside the canonical market module", () => {
+  expect(market).toContain("marketsApi.capital");
+  expect(market).toContain("ETF 资金流");
+  expect(market).toContain("ESTIMATED FROM SHARES");
+  expect(market).toContain("数据解释");
+  expect(api).toContain("capital: ()");
+});
 
-test('market capital dashboard exposes interactive history and methodology', () => {
-  expect(page).toContain('全量原始历史')
-  expect(page).toContain('数据口径中心')
-  expect(page).toContain('aria-label="图表起点"')
-  expect(page).toContain('aria-label="图表终点"')
-  expect(page).toContain("type ChartMode = 'turnover' | 'breadth'")
-  expect(page).toContain('全量原始历史')
-  expect(page).toContain('data.history_meta.points')
-  expect(page).toContain('完整交易日与时间范围')
-  expect(page).toContain('融资净额 = 融资买入额 − 融资偿还额')
-  expect(page).toContain('不会以 0 或其他指标替代')
-})
-
-test('interactive chart is the first dashboard content, not hidden below the context block', () => {
-  expect(page).toContain('data-chart-priority="primary"')
-  expect(page.indexOf('<MarketTape')).toBeLessThan(page.indexOf('<MarketContext'))
-})
-
-test('market chart uses native SVG instead of the incompatible Recharts runtime', () => {
-  expect(page).toContain('data-chart-canvas="market-capital"')
-  expect(page).toContain('data-chart-series="market-capital"')
-  expect(page).toContain('new ResizeObserver(measure)')
-  expect(page).toContain('<NativeCapitalChart')
-  expect(page).toContain('onPointerMove={onPointerMove}')
-  expect(page).toContain('<NativeChartTooltip')
-  expect(chart).toContain('<NativeChartTooltip')
-  expect(interaction).toContain('placeChartTooltip')
-  expect(page).not.toContain('top-2 z-10')
-  expect(chart).not.toContain('top-6 z-10')
-  expect(page).not.toContain(' · +${source.lag_days}天')
-  expect(page).toContain('aria-label="图表起点"')
-  expect(page).not.toContain('<ResponsiveContainer')
-  expect(page).not.toContain("from 'recharts'")
-  expect(page).not.toContain('turnover_average_20d')
-  expect(page).not.toContain('20日均额')
-  expect(page).not.toContain('5日均额')
-  expect(page).not.toContain('较20日均值')
-  expect(page).not.toContain('均线')
-  expect(page).not.toContain('中位涨跌幅')
-  expect(page).not.toContain('median_return_pct')
-})
-
-test('capital route is exposed in API client and research desk', () => {
-  expect(api).toContain('marketCapital')
-  expect(api).toContain('`${base}/market-capital`')
-  expect(desk).toContain('href="/agent/market/capital"')
-})
-
-test('macro futures and options routes expose raw full-range workstations', () => {
-  expect(api).toContain('macroMarket')
-  expect(api).toContain('futuresHistory')
-  expect(api).toContain('futuresCurve')
-  expect(api).toContain('optionsHistory')
-  expect(api).toContain('optionsChain')
-  expect(macro).toContain('全部可用原始历史')
-  expect(macro).toContain('marketsApi.macroCatalog')
-  expect(macro).toContain('PanelResizeHandle')
-  expect(futures).toContain('未调整')
-  expect(futures).toContain('futuresUnderlying')
-  expect(options).toContain('optionUnderlying')
-  expect(options).toContain('opt_daily 与 opt_basic')
-  expect(options).toContain('PanelResizeHandle')
-  expect(chart).toContain('<svg')
-  expect(chart).toContain('data-chart-series="raw-market-series"')
-  expect(chart).toContain('new ResizeObserver(measure)')
-  for (const source of [macro, futures, options, chart]) {
-    expect(source).not.toContain("from 'recharts'")
-    expect(source).not.toContain('均线')
-    expect(source).not.toContain('均额')
-    expect(source).not.toContain('百分位')
-    expect(source).not.toContain('中位数')
-    expect(source).not.toContain('PCR')
-    expect(source).not.toContain('综合评分')
-    expect(source).not.toContain('选股推荐')
+test("market module exposes the five approved research tabs", () => {
+  for (const tab of ["valuation", "correlation", "factors", "macro", "capital"]) {
+    expect(market).toContain(`value="${tab}"`);
   }
-})
+});

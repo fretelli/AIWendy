@@ -1,26 +1,26 @@
-import fs from 'fs'
-import path from 'path'
+import fs from "node:fs";
+import path from "node:path";
 
-const root = path.resolve(__dirname, '..')
+const root = path.resolve(__dirname, "..");
+const market = fs.readFileSync(path.join(root, "app/(app)/agent/market/page.tsx"), "utf8");
 
-test('cross-asset routes preserve evidence-first and human-only product contract', () => {
-  const rates = fs.readFileSync(path.join(root, 'app/(app)/agent/market/rates/page.tsx'), 'utf8')
-  const opportunities = fs.readFileSync(path.join(root, 'app/(app)/agent/market/opportunities/page.tsx'), 'utf8')
-  const options = fs.readFileSync(path.join(root, 'app/(app)/agent/capital/options/page.tsx'), 'utf8')
-  const shell = fs.readFileSync(path.join(root, 'app/(app)/agent/capital/_components/market-shell.tsx'), 'utf8')
-  const config = fs.readFileSync(path.join(root, 'next.config.js'), 'utf8')
-  expect(rates).toContain('中国现券国债收益率曲线未接入')
-  expect(rates).toContain('PanelResizeHandle')
-  expect(opportunities).toContain('全部观察 · 不评分')
-  expect(opportunities).toContain('待人工确认，未连接券商执行')
-  expect(options).toContain('Black–76')
-  expect(options).toContain('Gross OI-weighted sensitivity')
-  expect(options).toContain('Promise.allSettled')
-  expect(options).toContain('重新读取')
-  expect(rates).toContain('Promise.allSettled')
-  expect(rates).toContain('重新读取')
-  expect(shell).toContain('数据航标')
-  expect(shell).toContain('setInterval(load, 60_000)')
-  expect(config).toContain("destination: '/agent/market/options'")
-  expect(config).toContain('permanent: true')
-})
+test("market module is evidence-first and refuses synthetic substitutes", () => {
+  expect(market).toContain("NO SYNTHETIC CURVE");
+  expect(market).toContain("不用指数代理或虚构曲线替代");
+  expect(market).toContain("当前缺口不会用模拟矩阵填充");
+  expect(market).toContain("OBSERVED, NOT SCORED");
+});
+
+test("legacy cross-asset routes redirect to canonical market tabs", () => {
+  const redirects: Record<string, string> = {
+    "market/rates": "/agent/market?tab=macro",
+    "market/macro": "/agent/market?tab=macro",
+    "market/capital": "/agent/market?tab=capital",
+    "market/options": "/agent/market?tab=capital",
+    "market/futures": "/agent/market?tab=capital",
+  };
+  for (const [route, destination] of Object.entries(redirects)) {
+    const source = fs.readFileSync(path.join(root, `app/(app)/agent/${route}/page.tsx`), "utf8");
+    expect(source).toContain(`redirect("${destination}")`);
+  }
+});

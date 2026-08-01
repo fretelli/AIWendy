@@ -1,67 +1,25 @@
-import fs from 'node:fs'
-import path from 'node:path'
+import fs from "node:fs";
+import path from "node:path";
 
-const root = path.resolve(__dirname, '..')
+const root = path.resolve(__dirname, "..");
+const shell = fs.readFileSync(path.join(root, "components/agentos/agentos-shell.tsx"), "utf8");
+const provider = fs.readFileSync(path.join(root, "components/agentos/workspace-provider.tsx"), "utf8");
+const workspace = fs.readFileSync(path.join(root, "app/(app)/agent/workspace/page.tsx"), "utf8");
 
-describe('Agent Platform contract', () => {
-  it('uses the unified agent route without a standalone research hub', () => {
-    const layout = fs.readFileSync(path.join(root, 'app/(app)/layout.tsx'), 'utf8')
-    expect(fs.existsSync(path.join(root, 'app/(app)/agent/page.tsx'))).toBe(true)
-    expect(layout).not.toContain("href: '/research'")
-    expect(layout).not.toContain("href: '/chat'")
-    expect(layout).not.toContain("href: '/settings'")
-    expect(fs.existsSync(path.join(root, 'app/(app)/settings/page.tsx'))).toBe(false)
-  })
+describe("AgentOS workspace contract", () => {
+  it("keeps one persistent agent runtime across all eight modules", () => {
+    for (const route of ["/agent", "/agent/allocation", "/agent/holdings", "/agent/market", "/agent/opportunities", "/agent/decisions", "/agent/research", "/agent/workspace"]) {
+      expect(shell).toContain(`href: "${route}"`);
+      expect(provider).toContain(`"${route}"`);
+    }
+    expect(shell).toContain("<AgentDock />");
+    expect(provider).toContain("new EventSource");
+    expect(provider).toContain("message.delta");
+  });
 
-  it('uses a conversation-first workspace instead of the legacy tab console', () => {
-    const page = fs.readFileSync(path.join(root, 'app/(app)/agent/page.tsx'), 'utf8')
-    expect(page).toContain('新建会话')
-    expect(page).toContain('EventSource')
-    expect(page).toContain("'/compact'")
-    expect(page).toContain('需要你的批准')
-    expect(page).toContain("'/ask'")
-    expect(page).toContain("'/research'")
-    expect(page).toContain("'/plan'")
-    expect(page).toContain('PanelResizeHandle')
-    expect(page).toContain('autoSaveId="keeltrader-agent-workspace"')
-    expect(page).not.toContain('<select value={mode}')
-    expect(page).not.toContain('连续追问、调用 report-kb 和 Tushare')
-    expect(page).not.toContain('[Ask mode:')
-    expect(page).toContain('我的自选')
-    expect(page).toContain('agentPlatformApi.addWatchlist')
-    expect(page).toContain('刷新基本面档案')
-    expect(page).toContain('证据航迹')
-    expect(page).toContain('Paperclip')
-    expect(page).toContain('附件与市场证据由你显式带入')
-    expect(page).toContain('context_snapshot_ids')
-    expect(page).toContain('ResearchBearing')
-    expect(page).toContain('ThemeMenu')
-    expect(page).toContain("'message.delta'")
-    expect(page).toContain('15000')
-    expect(page).not.toContain('void refreshWorkspace() }, 2500')
-    expect(page).not.toContain('<Tabs')
-    expect(page).toContain('KeelTrader 始终只有一个研究助手')
-    expect(page).not.toContain('选择 Agent')
-    expect(page).not.toContain('创建 Agent')
-    expect(page).not.toContain('Agent 数')
-    expect(page).toContain('永久删除这个研究会话？')
-    expect(page).toContain('agentPlatformApi.deleteSession')
-    expect(page).toContain('重命名研究会话')
-    expect(page).toContain('agentPlatformApi.updateSession(renameSession.id, { title })')
-    expect(page).toContain('aria-label={`重命名 ${item.title}`}')
-    expect(page).toContain('教会 KeelTrader')
-    expect(page).toContain('以后都这样')
-    expect(page).toContain('跨入口全局学习')
-    expect(page).toContain('agentPlatformApi.learningFeedback')
-    expect(page).toContain('workspace_scope')
-    expect(page).toContain('通用工作区')
-    expect(page).toContain('不会执行命令、部署、重启或改密钥')
-  })
-
-  it('does not expose trade execution controls in the Agent workspace', () => {
-    const page = fs.readFileSync(path.join(root, 'app/(app)/agent/page.tsx'), 'utf8')
-    expect(page).not.toContain('place_order')
-    expect(page).not.toContain('cancel_order')
-    expect(page).not.toContain('execute_trade')
-  })
-})
+  it("shows safe tool traces without exposing model reasoning or trade execution", () => {
+    expect(workspace).toContain("不展示模型思维链");
+    expect(workspace).toContain("SAFE TOOL TRACE");
+    expect(workspace).not.toMatch(/place_order|cancel_order|execute_trade/);
+  });
+});

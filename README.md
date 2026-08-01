@@ -7,17 +7,18 @@
 
 [中文说明](README.zh-CN.md)
 
-KeelTrader is a self-hosted investment research operating system for individuals and small teams. It combines market evidence, report search, shareholder research, household allocation, durable research runs, and thesis review in one web workspace.
+KeelTrader is a self-hosted investment research operating system and wealth-management workspace for individuals and small teams. AgentOS combines portfolio evidence, allocation, holdings, markets, opportunities, decisions, research, and an agent workspace in one persistent desktop.
 
 KeelTrader is deliberately vertical. It includes a research agent that can use approved research tools, BYOK model credentials, public HTTPS MCP servers, budgets, memory, and scheduled research. It is not a general computer-use agent or a replacement for Codex, Claude Code, Hermes, or OpenClaw.
 
 ## What it provides
 
-- A unified Research Agent workspace with resumable runs and human approval boundaries.
-- A market workspace for capital flows, macro data, rates, futures, and options.
-- An opportunity center that turns evidence into reviewable research snapshots.
-- Company dossiers, shareholder radar, report-KB search, and thesis validation.
-- Household wealth, SAA/TAA, and constrained allocation research workflows.
+- Eight coordinated AgentOS modules: Overview, Allocation, Holdings, Market, Opportunities, Decisions, Research, and Agent Workspace.
+- Manual and CSV portfolio ingestion, immutable transactions, dated manual prices, explicit valuation completeness, and NAV history.
+- Market evidence, report search, shareholder research, consensus snapshots, and Tushare-backed strategy experiments.
+- Versioned hypotheses and decisions with evidence, falsification conditions, review dates, and attribution.
+- Immutable bilingual research versions with real Chinese and English downloadable PDFs.
+- A persistent Research Agent dock with resumable runs and human approval boundaries.
 - Encrypted per-user BYOK credentials and explicitly authorized MCP tools.
 - Immutable releases with container digests, SBOMs, provenance, and signatures.
 
@@ -39,9 +40,13 @@ flowchart LR
 
 - `keeltrader/apps/web/`: Next.js App Router frontend.
 - `keeltrader/apps/api/`: FastAPI API and research services.
+- AgentOS web routes live under `/agent`; its authenticated API is mounted under `/api/v1/agent`.
+- `domain/agentos` owns portfolio, hypothesis, decision, strategy, consensus, and document-version records.
 - PostgreSQL owns application state; Alembic is the only schema-management path.
 - Redis provides cache, task queues, coordination, and worker heartbeats.
 - Dedicated workers execute resumable research and materialize opportunity snapshots.
+
+AgentOS never connects to a broker or executes orders. Missing prices, FX rates, or source data remain explicit unavailable/incomplete states; production does not synthesize portfolio values. Schema upgrades are additive, and historical migrations remain immutable.
 
 See [Architecture](keeltrader/docs/ARCHITECTURE.md) for boundaries and data flow.
 

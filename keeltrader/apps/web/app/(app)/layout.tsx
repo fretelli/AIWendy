@@ -3,7 +3,8 @@
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
-import { ResearchOsShell } from '@/components/research-os-shell';
+import { AgentOsShell } from '@/components/agentos/agentos-shell';
+import { AgentWorkspaceProvider } from '@/components/agentos/workspace-provider';
 
 export default function AppLayout({
   children,
@@ -29,6 +30,8 @@ export default function AppLayout({
   }
 
   return (
-    <main className="h-dvh min-h-0 overflow-hidden bg-background"><ResearchOsShell>{children}</ResearchOsShell></main>
+    <main className="h-dvh min-h-0 overflow-hidden bg-background">
+      <AgentWorkspaceProvider><AgentOsShell>{children}</AgentOsShell></AgentWorkspaceProvider>
+    </main>
   );
 }
