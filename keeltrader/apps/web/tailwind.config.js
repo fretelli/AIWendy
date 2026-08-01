@@ -17,7 +17,25 @@ module.exports = {
   		}
   	},
   	extend: {
-  		colors: {
+		colors: {
+			agent: {
+				page: 'var(--agent-page)',
+				canvas: 'var(--agent-canvas)',
+				chrome: 'var(--agent-chrome)',
+				surface: 'var(--agent-surface)',
+				raised: 'var(--agent-raised)',
+				border: 'var(--agent-border)',
+				'border-strong': 'var(--agent-border-strong)',
+				text: 'var(--agent-text)',
+				muted: 'var(--agent-muted)',
+				dim: 'var(--agent-dim)',
+				mint: 'var(--agent-mint)',
+				'mint-bright': 'var(--agent-mint-bright)',
+				blue: 'var(--agent-blue)',
+				amber: 'var(--agent-amber)',
+				up: 'var(--agent-up)',
+				down: 'var(--agent-down)'
+			},
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',

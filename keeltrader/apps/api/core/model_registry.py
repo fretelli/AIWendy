@@ -4,6 +4,7 @@ from sqlalchemy.orm import configure_mappers
 
 
 def register_domain_models() -> None:
+    import domain.agentos.models  # noqa: F401
     import domain.agent_platform.models  # noqa: F401
     import domain.file.models  # noqa: F401
     import domain.research_cloud.models  # noqa: F401

@@ -1,42 +1,27 @@
-import fs from 'node:fs'
-import path from 'node:path'
+import fs from "node:fs";
+import path from "node:path";
 
-const root = path.resolve(__dirname, '..')
+const root = path.resolve(__dirname, "..");
 
-describe('maritime research workspace design', () => {
-  it('defines the chart-room palette, typography, and reduced-motion treatment', () => {
-    const css = fs.readFileSync(path.join(root, 'app/globals.css'), 'utf8')
-    const layout = fs.readFileSync(path.join(root, 'app/layout.tsx'), 'utf8')
-    expect(css).toContain('--copper:')
-    expect(css).toContain('--deep-sounding:')
-    expect(css).toContain('.research-bearing')
-    expect(css).toContain('prefers-reduced-motion')
-    expect(css).toContain('--font-display: Charter')
-    expect(css).toContain('--font-data: "SFMono-Regular"')
-    expect(layout).not.toContain('next/font/google')
-    expect(layout).toContain("'/icon.svg'")
-    expect(layout).not.toContain("'/favicon.ico'")
-    expect(fs.existsSync(path.join(root, 'public/icon.svg'))).toBe(true)
-    expect(fs.existsSync(path.join(root, 'public/site.webmanifest'))).toBe(true)
-  })
+describe("Claude AgentOS design contract", () => {
+  it("locks the accepted dark palette and bundled typography", () => {
+    const css = fs.readFileSync(path.join(root, "app/globals.css"), "utf8");
+    const layout = fs.readFileSync(path.join(root, "app/layout.tsx"), "utf8");
+    const providers = fs.readFileSync(path.join(root, "app/providers.tsx"), "utf8");
+    expect(css).toContain('--font-body: "Noto Sans SC"');
+    expect(css).toContain('--font-data: "IBM Plex Mono"');
+    expect(css).toContain("--agent-page: #050708");
+    expect(css).toContain("--agent-canvas: #07090b");
+    expect(css).toContain("prefers-reduced-motion");
+    expect(layout).toContain('@fontsource-variable/noto-sans-sc');
+    expect(layout).toContain('@fontsource/ibm-plex-mono/400.css');
+    expect(providers).toContain('forcedTheme="dark"');
+  });
 
-  it('keeps one functional header and exposes theme and research state controls', () => {
-    const appLayout = fs.readFileSync(path.join(root, 'app/(app)/layout.tsx'), 'utf8')
-    const page = fs.readFileSync(path.join(root, 'app/(app)/agent/page.tsx'), 'utf8')
-    expect(appLayout).not.toContain('<header')
-    expect(page).toContain('ResearchBearing')
-    expect(page).toContain('ThemeMenu')
-    expect(page).toContain('只读，不执行交易')
-    expect(page).toContain('PanelResizeHandle')
-  })
-
-  it('uses the unified private-research auth shell on every account entry page', () => {
-    for (const route of ['login', 'register', 'forgot-password', 'reset-password']) {
-      const page = fs.readFileSync(path.join(root, `app/auth/${route}/page.tsx`), 'utf8')
-      expect(page).toContain('AuthShell')
-    }
-    const shell = fs.readFileSync(path.join(root, 'components/auth-shell.tsx'), 'utf8')
-    expect(shell).toContain('只读基本面研究，不执行交易')
-    expect(shell).toContain('私有部署自行 BYOK')
-  })
-})
+  it("preserves the 78/60/384 desktop frame", () => {
+    const shell = fs.readFileSync(path.join(root, "components/agentos/agentos-shell.tsx"), "utf8");
+    expect(shell).toContain("w-[78px]");
+    expect(shell).toContain("h-[60px]");
+    expect(shell).toContain("w-[384px]");
+  });
+});
