@@ -13,11 +13,11 @@ test("market module is evidence-first and refuses synthetic substitutes", () => 
 
 test("legacy cross-asset routes redirect to canonical market tabs", () => {
   const redirects: Record<string, string> = {
-    "market/rates": "/agent/market?tab=macro",
-    "market/macro": "/agent/market?tab=macro",
-    "market/capital": "/agent/market?tab=capital",
-    "market/options": "/agent/market?tab=capital",
-    "market/futures": "/agent/market?tab=capital",
+    "market/rates": "/agent/market?tab=rates&period=1Y",
+    "market/macro": "/agent/market?tab=macro&period=1Y",
+    "market/capital": "/agent/market?tab=capital&period=1Y",
+    "market/options": "/agent/market?tab=options&period=1Y",
+    "market/futures": "/agent/market?tab=futures&period=1Y",
   };
   for (const [route, destination] of Object.entries(redirects)) {
     const source = fs.readFileSync(path.join(root, `app/(app)/agent/${route}/page.tsx`), "utf8");

@@ -94,13 +94,91 @@ def constrained_risk_parity(returns: np.ndarray, lower: np.ndarray | None = None
     return weights, contributions(weights), covariance
 
 
+def _bounded_normalize(weights: np.ndarray, upper: float = 0.55) -> np.ndarray:
+    values = np.maximum(np.asarray(weights, dtype=float), 0)
+    if not np.isfinite(values).all() or values.sum() <= 0:
+        raise ValueError("allocation weights are not finite")
+    values /= values.sum()
+    for _ in range(20):
+        excess = np.maximum(values - upper, 0).sum()
+        values = np.minimum(values, upper)
+        if excess <= 1e-12:
+            break
+        eligible = values < upper - 1e-12
+        if not eligible.any():
+            raise ValueError("allocation upper bounds are infeasible")
+        values[eligible] += excess * values[eligible] / values[eligible].sum()
+    return values / values.sum()
+
+
+def methodology_weights(methodology_key: str, returns: np.ndarray, sleeves: list[str], *,
+                        horizon_months: int, max_drawdown: float, view_snapshot: dict[str, Any]) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
+    covariance = LedoitWolf().fit(returns).covariance_
+    volatility = np.sqrt(np.maximum(np.diag(covariance), 1e-12))
+    details: dict[str, Any] = {"key": methodology_key, "deterministic": True}
+    if methodology_key == "risk_parity":
+        weights, _, covariance = constrained_risk_parity(returns)
+    elif methodology_key == "all_weather":
+        budgets = np.asarray([0.25 if "equity" in sleeve else 0.20 if "bond" in sleeve else 0.10 for sleeve in sleeves])
+        weights = _bounded_normalize(budgets / volatility)
+        details["risk_budgets"] = {sleeve: float(budgets[i] / budgets.sum()) for i, sleeve in enumerate(sleeves)}
+    elif methodology_key == "lifecycle":
+        equity_budget = min(0.75, max(0.20, horizon_months / 240)) * min(1.0, max_drawdown / 0.25)
+        raw = 1 / volatility
+        for index, sleeve in enumerate(sleeves):
+            if "equity" in sleeve:
+                raw[index] *= equity_budget
+            elif "bond" in sleeve:
+                raw[index] *= max(0.15, 1 - equity_budget)
+            else:
+                raw[index] *= 0.20
+        weights = _bounded_normalize(raw)
+        details["equity_budget"] = equity_budget
+    elif methodology_key == "core_satellite":
+        tilts = view_snapshot.get("tilts")
+        if not isinstance(tilts, dict) or not tilts:
+            raise ValueError("core_satellite requires a dated view_snapshot.tilts mapping")
+        core, _, covariance = constrained_risk_parity(returns)
+        adjustment = np.asarray([float(tilts.get(sleeve, 0)) for sleeve in sleeves])
+        if np.abs(adjustment).sum() > 0.40 + 1e-9:
+            raise ValueError("core_satellite absolute tilt budget cannot exceed 40 percentage points")
+        weights = _bounded_normalize(core + adjustment)
+        details["tilts"] = {key: float(value) for key, value in tilts.items()}
+    elif methodology_key == "black_litterman":
+        market = view_snapshot.get("market_weights")
+        views = view_snapshot.get("expected_return_adjustment")
+        if not isinstance(market, dict) or not isinstance(views, dict):
+            raise ValueError("black_litterman requires market_weights and expected_return_adjustment snapshots")
+        market_weights = _bounded_normalize(np.asarray([float(market.get(sleeve, 0)) for sleeve in sleeves]))
+        posterior = 2.5 * covariance @ market_weights + np.asarray([float(views.get(sleeve, 0)) for sleeve in sleeves])
+        result = minimize(lambda w: float(1.25 * w @ covariance @ w - posterior @ w), market_weights,
+                          method="SLSQP", bounds=[(0, 0.55)] * len(sleeves),
+                          constraints=[{"type": "eq", "fun": lambda w: float(w.sum() - 1)}],
+                          options={"ftol": 1e-12, "maxiter": 1000})
+        if not result.success:
+            raise ValueError(f"black_litterman optimizer failed: {result.message}")
+        weights = _bounded_normalize(result.x)
+        details["market_weights"] = {sleeve: float(market_weights[i]) for i, sleeve in enumerate(sleeves)}
+        details["expected_return_adjustment"] = {key: float(value) for key, value in views.items()}
+    else:
+        raise ValueError("Unsupported allocation methodology")
+    variance = float(weights @ covariance @ weights)
+    contributions = weights * (covariance @ weights) / variance if variance > 0 else np.zeros_like(weights)
+    return weights, contributions, details
+
+
 def policy_from_returns(*, capital: float, reserve: float, max_drawdown: float,
-                        sleeves: list[str], returns: np.ndarray, max_leverage: float = 1.0) -> dict[str, Any]:
+                        sleeves: list[str], returns: np.ndarray, max_leverage: float = 1.0,
+                        methodology_key: str = "risk_parity", horizon_months: int = 120,
+                        view_snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
     if capital <= 0 or reserve < 0:
         raise ValueError("capital and reserve are invalid")
     if reserve > capital:
         return {"status": "infeasible", "reasons": ["流动性储备与未来现金需求超过总资金"]}
-    risky_weights, risk_contributions, covariance = constrained_risk_parity(returns)
+    risky_weights, risk_contributions, methodology = methodology_weights(
+        methodology_key, returns, sleeves, horizon_months=horizon_months,
+        max_drawdown=max_drawdown, view_snapshot=view_snapshot or {})
+    covariance = LedoitWolf().fit(returns).covariance_
     investable_fraction = (capital - reserve) / capital
     stress_at_full_risk = []
     for key, shocks in STRESS_LIBRARY.items():
@@ -125,6 +203,7 @@ def policy_from_returns(*, capital: float, reserve: float, max_drawdown: float,
             "gross_underlying_exposure": float(total_risky.sum()),
             "cash_weight": cash_weight,
         },
+        "methodology": methodology,
     }
 
 
@@ -211,7 +290,8 @@ class AllocationService:
                 "sleeves": [self._sleeve(row) for row in sleeves],
                 "implementations": [self._implementation(row) for row in implementations]}
 
-    async def generate_version(self, account_id: UUID) -> dict[str, Any]:
+    async def generate_version(self, account_id: UUID, methodology_key: str = "risk_parity",
+                               view_snapshot: dict[str, Any] | None = None) -> dict[str, Any]:
         account = await self._owned_account(account_id, lock=True)
         if account is None:
             raise ValueError("Allocation account not found")
@@ -242,9 +322,14 @@ class AllocationService:
             return await self._persist(account, constraints, catalog, result, selected)
         lookup = {(row["series_id"], str(row["month_end"])): float(row["monthly_return"]) for row in monthly if row.get("monthly_return") is not None}
         matrix = np.asarray([[lookup[(series["series_id"], month)] for series in selected] for month in dates], dtype=float)
-        result = policy_from_returns(capital=float(account.capital), reserve=reserve,
+        try:
+            result = policy_from_returns(capital=float(account.capital), reserve=reserve,
                                      max_drawdown=float(account.max_drawdown), max_leverage=float(account.max_leverage),
-                                     sleeves=RISK_SLEEVES, returns=matrix)
+                                     sleeves=RISK_SLEEVES, returns=matrix, methodology_key=methodology_key,
+                                     horizon_months=account.horizon_months, view_snapshot=view_snapshot or {})
+        except ValueError as exc:
+            result = {"status": "unavailable", "reasons": [str(exc)],
+                      "methodology": {"key": methodology_key, "view_snapshot": view_snapshot or {}}}
         result["common_history"] = {"start": dates[0], "end": dates[-1], "months": len(dates)}
         return await self._persist(account, constraints, catalog, result, selected)
 
@@ -263,7 +348,8 @@ class AllocationService:
     async def _persist(self, account: AllocationAccount, constraints: dict[str, Any], catalog: dict[str, Any],
                        result: dict[str, Any], selected: list[dict[str, Any]]) -> dict[str, Any]:
         methodology = {
-            "allocation_method": "constrained_equal_risk_contribution", "covariance": "ledoit_wolf_monthly",
+            "allocation_method": (result.get("methodology") or {}).get("key", "risk_parity"),
+            "details": result.get("methodology") or {}, "covariance": "ledoit_wolf_monthly",
             "expected_returns": False, "minimum_common_months": 120, "forward_fill": False,
             "stress_library": STRESS_LIBRARY, "automatic_reallocation": False,
             "derivatives_are_asset_classes": False,

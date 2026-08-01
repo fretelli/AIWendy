@@ -26,6 +26,10 @@ type AgentWorkspaceValue = {
   setInput: (value: string) => void;
   setSessionId: (value: string) => void;
   newSession: () => Promise<void>;
+  renameSession: (id: string, title: string) => Promise<void>;
+  deleteSession: (id: string) => Promise<void>;
+  exportSession: (id: string) => Promise<void>;
+  rerunLast: () => Promise<void>;
   send: (content?: string) => Promise<void>;
   stop: () => Promise<void>;
   openHint: (hint: NavigationHint) => void;
@@ -177,6 +181,35 @@ export function AgentWorkspaceProvider({ children }: { children: React.ReactNode
     await loadTimeline(sessionId);
   }, [loadTimeline, sessionId]);
 
+  const renameSession = useCallback(async (id: string, title: string) => {
+    const value = title.trim();
+    if (!value) return;
+    const updated = await agentPlatformApi.updateSession(id, { title: value });
+    setSessions((current) => current.map((item) => item.id === id ? updated : item));
+  }, []);
+
+  const deleteSession = useCallback(async (id: string) => {
+    await agentPlatformApi.deleteSession(id);
+    const remaining = sessions.filter((item) => item.id !== id);
+    setSessions(remaining);
+    if (sessionId === id) setSessionIdState(remaining[0]?.id || null);
+  }, [sessionId, sessions]);
+
+  const exportSession = useCallback(async (id: string) => {
+    const timeline = await agentPlatformApi.timeline(id);
+    const url = URL.createObjectURL(new Blob([JSON.stringify(timeline, null, 2)], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `keeltrader-session-${id}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const rerunLast = useCallback(async () => {
+    const last = [...messages].reverse().find((message) => message.role === "user");
+    if (last) await send(last.content);
+  }, [messages, send]);
+
   const openHint = useCallback((hint: NavigationHint) => {
     if (!hint.route || !ROUTE_ALLOWLIST.has(hint.route)) return;
     const params = new URLSearchParams();
@@ -187,8 +220,9 @@ export function AgentWorkspaceProvider({ children }: { children: React.ReactNode
 
   const value = useMemo<AgentWorkspaceValue>(() => ({
     loading, sending, sessions, sessionId, messages, events, activeRun, input, setInput,
-    setSessionId: setSessionIdState, newSession: async () => { await createSession(); }, send, stop, openHint,
-  }), [activeRun, createSession, events, input, loading, messages, openHint, send, sending, sessionId, sessions, stop]);
+    setSessionId: setSessionIdState, newSession: async () => { await createSession(); }, renameSession, deleteSession,
+    exportSession, rerunLast, send, stop, openHint,
+  }), [activeRun, createSession, deleteSession, events, exportSession, input, loading, messages, openHint, renameSession, rerunLast, send, sending, sessionId, sessions, stop]);
 
   return <AgentWorkspaceContext.Provider value={value}>{children}</AgentWorkspaceContext.Provider>;
 }

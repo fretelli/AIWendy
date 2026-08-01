@@ -30,6 +30,8 @@ class PortfolioInstrument(Base):
     name = Column(String(160), nullable=False)
     market = Column(String(30), nullable=False)
     asset_class = Column(String(40), nullable=False)
+    instrument_type = Column(String(40), nullable=False, default="manual")
+    provider_symbol = Column(String(100), nullable=True)
     currency = Column(String(12), nullable=False, default="CNY")
     direction = Column(String(12), nullable=False, default="long")
     multiplier = Column(Numeric(24, 8), nullable=False, default=1)
@@ -41,6 +43,7 @@ class PortfolioInstrument(Base):
     __table_args__ = (
         Index("uq_portfolio_instrument_user_symbol", "user_id", "symbol", "market", unique=True),
         Index("ix_portfolio_instrument_user_asset", "user_id", "asset_class"),
+        Index("ix_portfolio_instrument_provider", "instrument_type", "provider_symbol"),
     )
 
 
@@ -252,6 +255,7 @@ class ResearchDocumentVersion(Base):
     source_snapshot = Column(JSON, nullable=False, default=dict)
     storage_path = Column(String(500), nullable=True)
     content_sha256 = Column(String(64), nullable=True)
+    fact_snapshot_sha256 = Column(String(64), nullable=True)
     mime_type = Column(String(120), nullable=False, default="application/pdf")
     size_bytes = Column(Integer, nullable=True)
     status = Column(String(30), nullable=False, default="pending")
@@ -260,3 +264,12 @@ class ResearchDocumentVersion(Base):
         Index("uq_research_document_version_locale", "document_id", "version", "locale", unique=True),
         Index("ix_research_document_versions_document", "document_id", "version"),
     )
+
+
+class ResearchDocumentDownload(Base):
+    __tablename__ = "research_document_downloads"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    version_id = Column(UUID(as_uuid=True), ForeignKey("research_document_versions.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    downloaded_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    __table_args__ = (Index("ix_research_document_download_version", "version_id", "downloaded_at"),)

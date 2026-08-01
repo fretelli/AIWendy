@@ -53,6 +53,11 @@ class AllocationAccountUpdate(BaseModel):
     status: Literal["active", "archived"] | None = None
 
 
+class AllocationGenerateRequest(BaseModel):
+    methodology_key: Literal["black_litterman", "core_satellite", "risk_parity", "all_weather", "lifecycle"] = "risk_parity"
+    view_snapshot: dict = Field(default_factory=dict)
+
+
 def service(session: AsyncSession, user: User) -> AllocationService:
     return AllocationService(session, TushareReadService(session), user.id)
 
@@ -119,11 +124,12 @@ async def list_versions(account_id: UUID, session: AsyncSession = Depends(get_se
 
 
 @router.post("/allocation-accounts/{account_id}/policy-versions")
-async def generate_version(account_id: UUID, session: AsyncSession = Depends(get_session),
+async def generate_version(account_id: UUID, body: AllocationGenerateRequest | None = None, session: AsyncSession = Depends(get_session),
                            user: User = Depends(get_current_user)):
     started = time.perf_counter()
     try:
-        result = await service(session, user).generate_version(account_id)
+        request = body or AllocationGenerateRequest()
+        result = await service(session, user).generate_version(account_id, request.methodology_key, request.view_snapshot)
         logger.info("allocation_policy_generation", account_id=str(account_id), user_id=str(user.id),
                     status=result.get("feasibility_status"), quality_status=result.get("quality_status"),
                     duration_ms=round((time.perf_counter() - started) * 1000, 1))
