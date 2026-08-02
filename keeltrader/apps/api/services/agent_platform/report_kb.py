@@ -235,6 +235,58 @@ class ReportKBService:
             return []
         return [_normalize_summary_hit(row, score=0, match_scopes=["recent"]) for row in rows]
 
+    async def list_reports(
+        self,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        institution: str | None = None,
+        source_family: str | None = None,
+        date_from: date | None = None,
+        date_to: date | None = None,
+    ) -> dict[str, Any]:
+        query: dict[str, Any] = {
+            "doc_type": "research_report",
+            "limit": max(1, min(limit, 200)),
+            "offset": max(0, offset),
+        }
+        if institution:
+            query["broker"] = institution
+        if source_family:
+            query["source_family"] = source_family
+        if date_from:
+            query["date_from"] = date_from.isoformat()
+        if date_to:
+            query["date_to"] = date_to.isoformat()
+        result = await asyncio.to_thread(_http_json, "GET", "/reports?" + parse.urlencode(query))
+        if isinstance(result, list):
+            return {"available": True, "items": result, "limit": query["limit"], "offset": query["offset"]}
+        return {
+            "available": False,
+            "items": [],
+            "limit": query["limit"],
+            "offset": query["offset"],
+            "reason": str(result.get("error") or "report_library_unavailable") if isinstance(result, dict) else "report_library_unavailable",
+        }
+
+    async def report_freshness(self) -> dict[str, Any]:
+        result = await asyncio.to_thread(_http_json, "GET", "/reports/freshness")
+        if isinstance(result, dict) and result.get("ok") is False:
+            return {"available": False, "reason": str(result.get("error") or "report_freshness_unavailable")}
+        return {"available": True, "data": result}
+
+    async def report_detail(self, report_id: str) -> dict[str, Any]:
+        result = await asyncio.to_thread(_http_json, "GET", f"/reports/{parse.quote(report_id)}")
+        if isinstance(result, dict) and result.get("ok") is False:
+            return {"available": False, "reason": str(result.get("error") or "report_unavailable")}
+        return {"available": True, "report": result}
+
+    async def report_pdf_link(self, report_id: str) -> dict[str, Any]:
+        result = await asyncio.to_thread(_http_json, "GET", f"/reports/{parse.quote(report_id)}/pdf-link")
+        if isinstance(result, dict) and result.get("ok") is False:
+            return {"available": False, "reason": str(result.get("error") or "report_pdf_unavailable")}
+        return {"available": True, **(result if isinstance(result, dict) else {})}
+
     async def _search_recent_report_titles(
         self,
         query: str,

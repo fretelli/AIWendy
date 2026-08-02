@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from datetime import date
 from typing import Literal
 from uuid import UUID
 
@@ -14,6 +15,7 @@ from core.logging import get_logger
 from domain.user.models import User
 from services.agent_platform.allocation import AllocationService
 from services.agent_platform.tushare import TushareReadService
+from services.agent_platform.wealth import WealthService
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -56,6 +58,13 @@ class AllocationAccountUpdate(BaseModel):
 class AllocationGenerateRequest(BaseModel):
     methodology_key: Literal["black_litterman", "core_satellite", "risk_parity", "all_weather", "lifecycle"] = "risk_parity"
     view_snapshot: dict = Field(default_factory=dict)
+
+
+class AllocationPublishSaaRequest(BaseModel):
+    framework_version_id: UUID
+    name: str = Field(min_length=1, max_length=160)
+    effective_date: date
+    review_date: date
 
 
 def service(session: AsyncSession, user: User) -> AllocationService:
@@ -156,3 +165,18 @@ async def confirm_version(account_id: UUID, version_id: UUID, session: AsyncSess
         return await service(session, user).confirm_version(account_id, version_id)
     except ValueError as exc:
         raise HTTPException(400, str(exc)) from exc
+
+
+@router.post("/allocation-policy-versions/{version_id}/publish-saa")
+async def publish_saa(version_id: UUID, body: AllocationPublishSaaRequest,
+                      session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    try:
+        return await WealthService(session, user.id).publish_allocation_policy_as_saa(
+            version_id,
+            framework_version_id=body.framework_version_id,
+            name=body.name,
+            effective_date=body.effective_date,
+            review_date=body.review_date,
+        )
+    except ValueError as exc:
+        raise HTTPException(404 if "不存在" in str(exc) else 400, str(exc)) from exc

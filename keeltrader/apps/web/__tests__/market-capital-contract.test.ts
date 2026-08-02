@@ -9,12 +9,12 @@ test("capital data remains traceable inside the canonical market module", () => 
   expect(market).toContain("marketsApi.capital");
   expect(market).toContain("ETF 资金流");
   expect(market).toContain("ESTIMATED FROM SHARES");
-  expect(market).toContain("数据解释");
+  expect(market).toContain("Flow gaps stay explicit");
   expect(api).toContain("capital: ()");
 });
 
-test("market module exposes the five approved research tabs", () => {
-  for (const tab of ["valuation", "correlation", "factors", "macro", "capital"]) {
-    expect(market).toContain(`value="${tab}"`);
-  }
+test("market module exposes exactly two approved top-level tabs and professional drilldowns", () => {
+  expect(market).toContain('value="market"');
+  expect(market).toContain('value="macro"');
+  for (const view of ["valuation", "correlation", "factors", "capital", "futures", "options", "rates"]) expect(market).toContain(`"${view}"`);
 });

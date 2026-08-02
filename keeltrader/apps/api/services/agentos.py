@@ -6,6 +6,7 @@ import html
 import io
 import json
 import math
+import statistics
 from collections import defaultdict
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -42,6 +43,7 @@ from domain.agentos.models import (
     StrategyRunVersion,
 )
 from services.agent_platform.tushare import TushareReadService
+from domain.agent_platform.models import AgentRun
 
 
 ZERO = Decimal("0")
@@ -542,6 +544,140 @@ class AgentOSService:
             prior = row
         return {"items": points, "history_available": bool(points)}
 
+    async def portfolio_analytics(self, account_id: UUID, period: str = "1Y") -> dict[str, Any]:
+        """Return portfolio facts without manufacturing unavailable analytics."""
+        valuation = await self.valuation(account_id, date.today())
+        history = await self.nav_history(account_id)
+        days = {"1M": 31, "3M": 92, "1Y": 366, "3Y": 1096}.get(period, 366)
+        cutoff = date.today().toordinal() - days
+        points = [
+            item for item in history["items"]
+            if date.fromisoformat(item["date"]).toordinal() >= cutoff
+        ]
+        returns = [float(item["return"]) for item in points if item.get("return") is not None]
+
+        cash_value = sum(
+            float(item["base_value"])
+            for item in valuation["cash"].values()
+            if item.get("base_value") is not None
+        )
+        today_pnl: dict[str, Any] = {
+            "status": "unavailable",
+            "value": None,
+            "as_of": None,
+            "method": "daily_nav_less_external_flow",
+            "reason": "two_nav_observations_required",
+        }
+        if len(points) >= 2:
+            prior, latest = points[-2], points[-1]
+            value = float(latest["nav"]) - float(prior["nav"]) - float(latest.get("net_flow") or 0)
+            today_pnl = {
+                "status": "complete" if latest["date"] == date.today().isoformat() else "stale",
+                "value": value,
+                "as_of": latest["date"],
+                "method": "daily_nav_less_external_flow",
+                "reason": None if latest["date"] == date.today().isoformat() else "latest_nav_precedes_today",
+            }
+
+        volatility: dict[str, Any] = {
+            "status": "unavailable", "value": None, "observations": len(returns),
+            "method": "annualized_sample_volatility_252d", "reason": "minimum_20_returns_required",
+        }
+        if len(returns) >= 20:
+            volatility = {
+                "status": "complete", "value": statistics.stdev(returns) * math.sqrt(252),
+                "observations": len(returns), "method": "annualized_sample_volatility_252d", "reason": None,
+            }
+
+        drawdown: dict[str, Any] = {
+            "status": "unavailable", "current": None, "maximum": None,
+            "peak_date": None, "trough_date": None, "reason": "nav_history_required",
+        }
+        if points:
+            peak_value = float(points[0]["nav"])
+            peak_date = points[0]["date"]
+            max_drawdown = 0.0
+            max_peak_date = peak_date
+            trough_date = peak_date
+            for item in points:
+                value = float(item["nav"])
+                if value > peak_value:
+                    peak_value = value
+                    peak_date = item["date"]
+                item_drawdown = value / peak_value - 1 if peak_value else 0.0
+                if item_drawdown < max_drawdown:
+                    max_drawdown = item_drawdown
+                    max_peak_date = peak_date
+                    trough_date = item["date"]
+            latest_value = float(points[-1]["nav"])
+            drawdown = {
+                "status": "complete", "current": latest_value / peak_value - 1 if peak_value else 0.0,
+                "maximum": max_drawdown, "peak_date": max_peak_date, "trough_date": trough_date,
+                "reason": None,
+            }
+
+        gross_value = sum(abs(float(item.get("market_value") or 0)) for item in valuation["positions"])
+        position_weights = [{
+            "instrument_id": item["instrument_id"], "symbol": item["symbol"], "name": item["name"],
+            "market_value_weight": abs(float(item.get("market_value") or 0)) / gross_value if gross_value else None,
+            "risk_contribution": None,
+            "risk_status": "unavailable",
+            "risk_reason": "aligned_instrument_return_history_not_available",
+        } for item in valuation["positions"]]
+
+        return {
+            "account_id": str(account_id), "as_of": valuation["as_of"], "period": period,
+            "base_currency": valuation["base_currency"], "data_status": valuation["data_status"],
+            "total_value": valuation["total_value"],
+            "cash": {"status": "complete", "value": cash_value, "method": "direct_fx_converted_cash"},
+            "today_pnl": today_pnl, "volatility": volatility, "drawdown": drawdown,
+            "risk_contribution": {"status": "unavailable", "items": position_weights,
+                                  "reason": "aligned_instrument_return_history_not_available"},
+            "allocation_drift": {"status": "unavailable", "items": [],
+                                 "reason": "portfolio_instrument_to_saa_sleeve_mapping_not_confirmed"},
+            "drift_decomposition": {"status": "unavailable", "active_tilt": None, "passive_drift": None,
+                                    "reason": "confirmed_saa_taa_and_mapping_required"},
+            "risk_budget": {"status": "unavailable", "used": None, "limit": None,
+                            "reason": "confirmed_policy_risk_budget_required"},
+            "nav": {"items": points, "history_available": bool(points)},
+            "missing": valuation["missing"],
+        }
+
+    async def holding_detail(self, account_id: UUID, instrument_id: UUID) -> dict[str, Any]:
+        valuation = await self.valuation(account_id, date.today())
+        position = next((item for item in valuation["positions"] if item["instrument_id"] == str(instrument_id)), None)
+        if position is None:
+            raise ValueError("Portfolio holding not found")
+        instrument_type = str(position.get("instrument_type") or "manual")
+        symbol = str(position.get("provider_symbol") or position.get("symbol") or "")
+        history = await self.tushare.instrument_price_history(instrument_type, symbol, limit=260)
+        fundamentals: dict[str, Any] = {"available": False, "reason": "not_applicable", "data": {}}
+        derivatives: dict[str, Any] = {"available": False, "reason": "not_applicable"}
+        if instrument_type == "stock":
+            data = await self.tushare.company_financials(symbol, limit=12)
+            fundamentals = {"available": any(data.values()), "reason": None if any(data.values()) else "financials_unavailable", "data": data}
+        elif instrument_type == "option":
+            derivatives = {
+                "available": True,
+                "history": await self.tushare.options_history(symbol),
+                "surface": await self.tushare.options_surface(symbol),
+                "exposures": await self.tushare.options_exposures(symbol),
+            }
+        elif instrument_type == "future":
+            derivatives = {"available": True, "history": await self.tushare.futures_history(symbol)}
+        gross_value = sum(abs(float(item.get("market_value") or 0)) for item in valuation["positions"])
+        market_value = abs(float(position.get("market_value") or 0))
+        return {
+            "account_id": str(account_id), "position": position,
+            "history": history, "fundamentals": fundamentals, "derivatives": derivatives,
+            "portfolio_context": {
+                "market_value_weight": market_value / gross_value if gross_value else None,
+                "risk_contribution": None,
+                "risk_status": "unavailable",
+                "risk_reason": "aligned_instrument_return_history_not_available",
+            },
+        }
+
     async def list_hypotheses(self) -> dict[str, Any]:
         rows = (await self.session.scalars(select(ResearchHypothesis).where(
             ResearchHypothesis.user_id == self.user_id,
@@ -887,6 +1023,21 @@ class AgentOSService:
         return {"document": self._document_json(document), "versions": versions,
                 "fact_snapshot_sha256": fact_snapshot_sha256, "generation_mode": "background_ready"}
 
+    async def generate_bilingual_document(self, document_id: UUID, payload: dict[str, Any]) -> dict[str, Any]:
+        source = payload.get("source_snapshot", {})
+        citations = source.get("citations") or []
+        if not source.get("as_of") or not citations:
+            raise ValueError("A dated source_snapshot with citations is required")
+        structured = payload.get("structured", {})
+        summary = (payload.get("summary") or "").strip()
+        facts = json.dumps(structured, ensure_ascii=False, sort_keys=True, indent=2, default=str)
+        citation_lines = "\n".join(f"- {item.get('label') or item.get('title') or item}" for item in citations)
+        bodies = {
+            "zh-CN": f"截至日：{source['as_of']}\n\n研究摘要\n{summary or '本报告依据下列不可变事实快照自动生成。'}\n\n事实快照\n{facts}\n\n引用\n{citation_lines}",
+            "en-US": f"As of: {source['as_of']}\n\nResearch Summary\n{summary or 'This report was generated from the immutable fact snapshot below.'}\n\nFact Snapshot\n{facts}\n\nCitations\n{citation_lines}",
+        }
+        return await self.generate_document(document_id, {**payload, "bodies": bodies})
+
     async def list_document_versions(self, document_id: UUID) -> dict[str, Any]:
         document = await self.session.scalar(select(ResearchDocument).where(
             ResearchDocument.id == document_id, ResearchDocument.user_id == self.user_id,
@@ -961,13 +1112,23 @@ class AgentOSService:
             PortfolioAccount.user_id == self.user_id, PortfolioAccount.status == "active",
         ).order_by(PortfolioAccount.updated_at.desc()))).all()
         valuation = await self.valuation(accounts[0].id, date.today()) if accounts else None
+        analytics = await self.portfolio_analytics(accounts[0].id, "1Y") if accounts else None
         counts = {}
         for key, model in (("hypotheses", ResearchHypothesis), ("decisions", DecisionRecord),
                            ("experiments", StrategyExperiment), ("documents", ResearchDocument)):
             counts[key] = int(await self.session.scalar(select(func.count()).select_from(model).where(model.user_id == self.user_id)) or 0)
+        active_tasks = int(await self.session.scalar(select(func.count()).select_from(AgentRun).where(
+            AgentRun.user_id == self.user_id,
+            AgentRun.status.in_({"queued", "planning", "running", "paused", "paused_budget"}),
+        )) or 0)
+        total_tasks = int(await self.session.scalar(select(func.count()).select_from(AgentRun).where(
+            AgentRun.user_id == self.user_id,
+        )) or 0)
         return {
             "as_of": date.today().isoformat(), "data_status": valuation["data_status"] if valuation else "partial",
             "portfolio": valuation or {"data_status": "unavailable", "reason": "no_portfolio_account"},
+            "analytics": analytics or {"data_status": "unavailable", "reason": "no_portfolio_account"},
+            "tasks": {"active": active_tasks, "total": total_tasks},
             "research": counts,
             "sections": {
                 "allocation": {"data_status": "complete", "source": "/api/v1/agent/saa-policy-versions"},

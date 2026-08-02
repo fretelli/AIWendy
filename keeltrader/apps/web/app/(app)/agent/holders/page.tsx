@@ -1,3 +1,3 @@
 import { redirect } from "next/navigation";
 
-export default function Page() { redirect("/agent/opportunities?tab=people"); }
+export default function Page() { redirect("/agent/opportunities?tab=signals&panel=watchlist"); }
