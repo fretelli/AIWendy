@@ -312,6 +312,61 @@ class TushareReadService:
             return None
         return {**rows[0], "source": f"{self.schema}.{table}.{price_column}", "valuation_method": "published_close"}
 
+    async def instrument_price_history(
+        self,
+        instrument_type: str,
+        symbol: str,
+        *,
+        limit: int = 260,
+    ) -> dict[str, Any]:
+        """Return the provider-native series used by portfolio valuation.
+
+        The method deliberately mirrors ``latest_instrument_price`` so a
+        holdings detail view cannot silently switch to a proxy series.
+        """
+        specification = {
+            "stock": ("stock_daily", "trade_date", "close"),
+            "etf": ("fund_daily", "trade_date", "close"),
+            "open_fund": ("fund_nav", "nav_date", "unit_nav"),
+            "future": ("fut_daily", "trade_date", "settle"),
+            "option": ("opt_daily", "trade_date", "settle"),
+            "convertible_bond": ("cb_daily", "trade_date", "close"),
+        }.get(instrument_type)
+        if specification is None:
+            return {
+                "available": False,
+                "instrument_type": instrument_type,
+                "symbol": symbol,
+                "reason": "provider_series_not_defined",
+                "items": [],
+            }
+        table, date_column, price_column = specification
+        if not await self.table_exists(table):
+            return {
+                "available": False,
+                "instrument_type": instrument_type,
+                "symbol": symbol,
+                "reason": f"{table}_not_published",
+                "items": [],
+            }
+        bounded_limit = max(2, min(limit, 1200))
+        rows = await self._execute_mappings(text(f"""
+            SELECT {date_column} AS date,{price_column} AS price
+            FROM {self.schema}.{table}
+            WHERE ts_code=:symbol AND {price_column} IS NOT NULL
+            ORDER BY {date_column} DESC LIMIT :limit
+        """), {"symbol": symbol, "limit": bounded_limit})
+        rows.reverse()
+        return {
+            "available": bool(rows),
+            "instrument_type": instrument_type,
+            "symbol": symbol,
+            "source": f"{self.schema}.{table}.{price_column}",
+            "valuation_method": "published_close",
+            "items": rows,
+            "reason": None if rows else "published_series_empty",
+        }
+
     async def direct_fx_rate(self, base_currency: str, quote_currency: str, as_of: date) -> dict[str, Any] | None:
         """Return only a provider-native direct FX pair; never synthesize crosses or inverses."""
         base, quote = base_currency.upper(), quote_currency.upper()

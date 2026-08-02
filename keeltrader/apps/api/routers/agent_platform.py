@@ -267,6 +267,14 @@ class ScheduleCreate(BaseModel):
     timezone: str = Field(default="Asia/Shanghai", max_length=80)
 
 
+class ScheduleUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    prompt: str | None = Field(default=None, min_length=1, max_length=20000)
+    cron: str | None = Field(default=None, pattern=r"^[0-9*,-/]+ [0-9*,-/]+ [0-9*,-/]+ [0-9*,-/]+ [0-9*,-/]+$")
+    timezone: str | None = Field(default=None, max_length=80)
+    enabled: bool | None = None
+
+
 @router.get("/health")
 async def health(session: AsyncSession = Depends(get_session)):
     settings = get_settings()
@@ -403,6 +411,89 @@ async def get_run(run_id: UUID, session: AsyncSession = Depends(get_session), us
         raise HTTPException(404, "Run not found")
     artifacts = (await session.execute(select(AgentArtifact).where(AgentArtifact.run_id == run_id))).scalars().all()
     return {"run": dump(item), "artifacts": [dump(a) for a in artifacts]}
+
+
+def _trace_payload(payload: Any) -> Any:
+    hidden = {"prompt", "system_prompt", "thought", "reasoning", "chain_of_thought", "chainOfThought", "content", "delta"}
+    allowed = {
+        "status", "tool", "tool_name", "source", "dataset", "table", "capability", "row_count", "rows",
+        "duration_ms", "error", "reason", "ui_hint", "navigation_hint", "artifact_id", "artifact_type",
+        "sequence", "attempt", "attempts", "as_of", "publication_version", "capability_version",
+    }
+    value = redact_sensitive(payload)
+    if isinstance(value, list):
+        return [_trace_payload(item) for item in value[:20]]
+    if not isinstance(value, dict):
+        return value if isinstance(value, (str, int, float, bool)) or value is None else str(type(value).__name__)
+    result: dict[str, Any] = {}
+    for key, item in value.items():
+        lowered = key.lower()
+        if key in hidden or "reasoning" in lowered or "thought" in lowered or "prompt" in lowered:
+            continue
+        if key not in allowed:
+            continue
+        if key == "rows" and isinstance(item, list):
+            result["row_count"] = len(item)
+            continue
+        result[key] = _trace_payload(item)
+    return result
+
+
+@router.get("/runs/{run_id}/trace")
+async def run_trace(run_id: UUID, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    run = await session.get(AgentRun, run_id)
+    if not run or run.user_id != user.id:
+        raise HTTPException(404, "Run not found")
+    steps = (await session.execute(select(AgentRunStep).where(
+        AgentRunStep.run_id == run_id,
+    ).order_by(AgentRunStep.sequence))).scalars().all()
+    events = (await session.execute(select(AgentRunEvent).where(
+        AgentRunEvent.run_id == run_id,
+    ).order_by(AgentRunEvent.id).limit(500))).scalars().all()
+    artifacts = (await session.execute(select(AgentArtifact).where(
+        AgentArtifact.run_id == run_id,
+    ).order_by(AgentArtifact.created_at))).scalars().all()
+    step_items = [{
+        "id": str(item.id), "sequence": item.sequence, "agent_role": item.agent_role,
+        "tool_name": item.tool_name, "status": item.status, "attempts": item.attempts,
+        "input_keys": sorted((item.input_json or {}).keys()),
+        "output_summary": _trace_payload(item.output_json or {}),
+        "error": str(item.error)[:500] if item.error else None,
+        "started_at": item.started_at.isoformat() if item.started_at else None,
+        "finished_at": item.finished_at.isoformat() if item.finished_at else None,
+    } for item in steps]
+    tushare_calls = [{
+        "step_id": str(item.id), "sequence": item.sequence, "status": item.status,
+        "dataset": (item.input_json or {}).get("table") or (item.input_json or {}).get("dataset"),
+        "capability": (item.input_json or {}).get("capability"),
+        "requested_fields": sorted((item.input_json or {}).get("fields") or []),
+        "filter_keys": sorted(((item.input_json or {}).get("filters") or {}).keys()),
+        "output_summary": _trace_payload(item.output_json or {}),
+        "error": str(item.error)[:500] if item.error else None,
+        "started_at": item.started_at.isoformat() if item.started_at else None,
+        "finished_at": item.finished_at.isoformat() if item.finished_at else None,
+    } for item in steps if item.tool_name == "query_tushare_data"]
+    return {
+        "run": {
+            "id": str(run.id), "session_id": str(run.session_id), "status": run.status,
+            "interaction_mode": run.interaction_mode, "current_step": run.current_step,
+            "tokens_used": run.tokens_used, "cost_used_usd": run.cost_used_usd,
+            "started_at": run.started_at.isoformat() if run.started_at else None,
+            "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+            "created_at": run.created_at.isoformat(),
+        },
+        "steps": step_items,
+        "events": [{
+            "id": item.id, "type": item.event_type, "payload": _trace_payload(item.payload),
+            "created_at": item.created_at.isoformat(),
+        } for item in events if item.event_type != "message.delta"],
+        "artifacts": [{
+            "id": str(item.id), "artifact_type": item.artifact_type, "title": item.title,
+            "created_at": item.created_at.isoformat(),
+        } for item in artifacts],
+        "tushare_calls": tushare_calls,
+        "redaction": "safe_summary_only",
+    }
 
 
 async def _control_run(run_id: UUID, action: Literal["pause", "resume", "cancel"], session: AsyncSession, user: User):
@@ -1216,6 +1307,34 @@ async def list_schedules(session: AsyncSession = Depends(get_session), user: Use
     items = (await session.execute(select(AgentSchedule).where(AgentSchedule.user_id == user.id)
                                    .order_by(AgentSchedule.created_at))).scalars().all()
     return {"items": [dump(item) for item in items]}
+
+
+@router.patch("/schedules/{schedule_id}")
+async def update_schedule(schedule_id: UUID, req: ScheduleUpdate, session: AsyncSession = Depends(get_session),
+                          user: User = Depends(get_current_user)):
+    item = await session.get(AgentSchedule, schedule_id)
+    if not item or item.user_id != user.id:
+        raise HTTPException(404, "Schedule not found")
+    values = req.model_dump(exclude_unset=True)
+    for key, value in values.items():
+        setattr(item, key, value)
+    if item.enabled:
+        item.next_run_at = next_daily_run(item.cron)
+    else:
+        item.next_run_at = None
+    await session.flush()
+    return dump(item)
+
+
+@router.delete("/schedules/{schedule_id}")
+async def delete_schedule(schedule_id: UUID, session: AsyncSession = Depends(get_session),
+                          user: User = Depends(get_current_user)):
+    item = await session.get(AgentSchedule, schedule_id)
+    if not item or item.user_id != user.id:
+        raise HTTPException(404, "Schedule not found")
+    await session.delete(item)
+    await session.flush()
+    return {"ok": True}
 
 
 @router.get("/usage")

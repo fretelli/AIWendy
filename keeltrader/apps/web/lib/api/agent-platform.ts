@@ -124,11 +124,21 @@ export type MCPServer = {
 };
 export type AgentSchedule = {
   id: string;
+  agent_definition_id?: string;
   name: string;
   cron: string;
+  timezone: string;
   prompt: string;
   enabled: boolean;
   next_run_at?: string;
+};
+export type AgentRunTrace = {
+  run: AgentRun & { session_id: string; started_at?: string; finished_at?: string };
+  steps: Array<{ id: string; sequence: number; agent_role: string; tool_name?: string; status: string; attempts: number; input_keys: string[]; output_summary: Record<string, unknown>; error?: string; started_at?: string; finished_at?: string }>;
+  events: Array<{ id: number; type: string; payload: Record<string, unknown>; created_at: string }>;
+  artifacts: Array<{ id: string; artifact_type: string; title: string; created_at: string }>;
+  tushare_calls: Array<{ step_id: string; sequence: number; status: string; dataset?: string; capability?: string; requested_fields: string[]; filter_keys: string[]; output_summary: Record<string, unknown>; error?: string; started_at?: string; finished_at?: string }>;
+  redaction: "safe_summary_only";
 };
 export type Usage = {
   today: { input_tokens: number; output_tokens: number; cost_usd: number };
@@ -772,6 +782,7 @@ export const agentPlatformApi = {
       mcp_tools: Array<{ name: string; server: string; description: string }>;
     }>(`${base}/definitions`),
   runs: () => apiJson<{ items: AgentRun[] }>(`${base}/runs`),
+  runTrace: (id: string) => apiJson<AgentRunTrace>(`${base}/runs/${id}/trace`),
   createRun: (body: object) =>
     apiJson<AgentRun>(`${base}/runs`, { method: "POST", body }),
   sessions: (includeArchived = false) =>
@@ -857,7 +868,11 @@ export const agentPlatformApi = {
   allocationPolicyVersions: (accountId: string) => apiJson<{ items: AllocationPolicyVersion[]; current_policy_version_id?: string }>(`${base}/allocation-accounts/${accountId}/policy-versions`),
   allocationPolicyVersion: (id: string) => apiJson<AllocationPolicyVersion>(`${base}/allocation-policy-versions/${id}`),
   generateAllocationPolicy: (accountId: string) => apiJson<AllocationPolicyVersion>(`${base}/allocation-accounts/${accountId}/policy-versions`, { method: "POST" }),
+  generateAllocationPolicyWithMethod: (accountId: string, body: { methodology_key: "black_litterman" | "core_satellite" | "risk_parity" | "all_weather" | "lifecycle"; view_snapshot?: Record<string, unknown> }) =>
+    apiJson<AllocationPolicyVersion>(`${base}/allocation-accounts/${accountId}/policy-versions`, { method: "POST", body }),
   confirmAllocationPolicy: (accountId: string, versionId: string) => apiJson<AllocationPolicyVersion>(`${base}/allocation-accounts/${accountId}/policy-versions/${versionId}/confirm`, { method: "POST" }),
+  publishAllocationPolicyAsSaa: (versionId: string, body: { framework_version_id: string; name: string; effective_date: string; review_date: string }) =>
+    apiJson<SaaPolicyVersion>(`${base}/allocation-policy-versions/${versionId}/publish-saa`, { method: "POST", body }),
   wealthProfile: () => apiJson<WealthAggregate>(`${base}/wealth-profile`),
   updateWealthProfile: (body: Partial<WealthProfile>) => apiJson<WealthAggregate>(`${base}/wealth-profile`, { method: "PUT", body }),
   createWealthMember: (body: Omit<HouseholdMember, "id" | "age" | "life_stage">) => apiJson<HouseholdMember>(`${base}/wealth-profile/members`, { method: "POST", body }),
@@ -922,6 +937,9 @@ export const agentPlatformApi = {
   schedules: () => apiJson<{ items: AgentSchedule[] }>(`${base}/schedules`),
   createSchedule: (body: object) =>
     apiJson<AgentSchedule>(`${base}/schedules`, { method: "POST", body }),
+  updateSchedule: (id: string, body: Partial<Pick<AgentSchedule, "name" | "prompt" | "cron" | "timezone" | "enabled">>) =>
+    apiJson<AgentSchedule>(`${base}/schedules/${id}`, { method: "PATCH", body }),
+  deleteSchedule: (id: string) => apiJson<{ ok: boolean }>(`${base}/schedules/${id}`, { method: "DELETE" }),
   usage: () => apiJson<Usage>(`${base}/usage`),
   globalSearch: (query: string) => apiJson<{ items: GlobalSearchResult[]; scoring: false }>(`${base}/search?q=${encodeURIComponent(query)}`),
   companies: (query: string) =>

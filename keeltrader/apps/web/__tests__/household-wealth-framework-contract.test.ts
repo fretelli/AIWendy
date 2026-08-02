@@ -9,8 +9,9 @@ test("wealth framework feeds versioned allocation without automatic orders", () 
   expect(allocation).toContain("wealthProfile");
   expect(allocation).toContain("saaPolicyVersions");
   expect(allocation).toContain("taaOverlays");
-  expect(allocation).toContain("FALSIFIABLE OVERLAY");
-  expect(allocation).toContain("No broker connection or order creation");
+  expect(allocation).toContain("FALSIFIABLE");
+  expect(allocation).toContain("no broker connection or orders");
+  expect(allocation).toContain("publishAllocationPolicyAsSaa");
 });
 
 test("allocation is a single top-level AgentOS module", () => {

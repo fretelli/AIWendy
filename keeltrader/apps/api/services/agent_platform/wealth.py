@@ -324,6 +324,94 @@ class WealthService:
         await self.session.commit()
         return self._saa(row)
 
+    async def publish_allocation_policy_as_saa(
+        self,
+        policy_version_id: UUID,
+        *,
+        framework_version_id: UUID,
+        name: str,
+        effective_date: date,
+        review_date: date,
+    ) -> dict[str, Any]:
+        """Atomically confirm an allocation calculation and publish its SAA."""
+        profile = await self._profile(create=True, lock=True)
+        assert profile is not None
+        framework = await self.session.get(WealthFrameworkVersion, framework_version_id)
+        if framework is None or framework.profile_id != profile.id:
+            raise ValueError("家庭财富框架版本不存在")
+        policy = await self.session.get(AllocationPolicyVersion, policy_version_id)
+        if policy is None:
+            raise ValueError("配置版本不存在")
+        account = await self.session.get(AllocationAccount, policy.account_id, with_for_update=True)
+        if account is None or account.user_id != self.user_id:
+            raise ValueError("配置版本不存在")
+        if policy.feasibility_status != "feasible" or policy.quality_status != "ready":
+            raise ValueError("只有可行且数据质量通过的配置版本可以发布为SAA")
+        if review_date <= effective_date:
+            raise ValueError("SAA复核日期必须晚于生效日期")
+        sleeves = (await self.session.execute(select(AllocationPolicySleeve).where(
+            AllocationPolicySleeve.policy_version_id == policy.id,
+        ).order_by(AllocationPolicySleeve.sleeve_key))).scalars().all()
+        targets = [{
+            "key": row.sleeve_key,
+            "label": row.label,
+            "layer": "safety" if row.sleeve_key == "cny_cash" else "market",
+            "target_weight": float(row.target_weight),
+            "min_weight": float(row.min_weight),
+            "max_weight": float(row.max_weight),
+        } for row in sleeves]
+        self._validate_targets(targets)
+        allocatable = float((framework.summary or {}).get("allocatable_wealth_cny") or 0)
+        safety_required = float((framework.summary or {}).get("safety_required_cny") or 0)
+        required_safety_weight = min(1.0, safety_required / allocatable) if allocatable > 0 else 0.0
+        safety_weight = sum(float(item["target_weight"]) for item in targets if item["layer"] == "safety")
+        if safety_weight + 1e-6 < required_safety_weight:
+            raise ValueError("SAA安全层权重不足以覆盖已确认财富框架的安全需求")
+        constraints = {
+            "framework_summary": framework.summary,
+            "framework_conflicts": framework.conflicts,
+            "aspirational_cap": float(profile.aspirational_cap),
+            "satellite_cap": float(profile.satellite_cap),
+        }
+        content = {
+            "framework_version_id": str(framework.id),
+            "source_allocation_policy_version_id": str(policy.id),
+            "targets": targets,
+            "constraints": constraints,
+            "effective_date": effective_date.isoformat(),
+            "review_date": review_date.isoformat(),
+            "source_type": "allocation_policy",
+        }
+        version = int((await self.session.execute(select(func.coalesce(func.max(SaaPolicyVersion.version), 0)).where(
+            SaaPolicyVersion.profile_id == profile.id))).scalar_one()) + 1
+        row = SaaPolicyVersion(
+            profile_id=profile.id,
+            framework_version_id=framework.id,
+            source_allocation_policy_version_id=policy.id,
+            version=version,
+            name=name,
+            effective_date=effective_date,
+            review_date=review_date,
+            targets=targets,
+            constraints_snapshot=constraints,
+            source_type="allocation_policy",
+            status="confirmed",
+            content_hash=stable_hash(content),
+        )
+        await self.session.execute(select(SaaPolicyVersion).where(
+            SaaPolicyVersion.profile_id == profile.id,
+            SaaPolicyVersion.status == "confirmed",
+        ).with_for_update())
+        await self.session.execute(update(SaaPolicyVersion).where(
+            SaaPolicyVersion.profile_id == profile.id,
+            SaaPolicyVersion.status == "confirmed",
+        ).values(status="superseded"))
+        account.current_policy_version_id = policy.id
+        account.updated_at = datetime.now(UTC)
+        self.session.add(row)
+        await self.session.commit()
+        return self._saa(row)
+
     async def create_taa(self, values: dict[str, Any]) -> dict[str, Any]:
         profile = await self._profile(create=True)
         assert profile is not None

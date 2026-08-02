@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,7 @@ from core.auth import get_current_user
 from core.database import get_session
 from domain.user.models import User
 from services.agentos import AgentOSService
+from services.agent_platform.report_kb import ReportKBService
 
 router = APIRouter()
 
@@ -137,6 +138,12 @@ class DocumentGenerate(BaseModel):
     source_snapshot: dict[str, Any] = Field(default_factory=dict)
 
 
+class DocumentBilingualGenerate(BaseModel):
+    summary: str | None = Field(default=None, max_length=4000)
+    structured: dict[str, Any] = Field(default_factory=dict)
+    source_snapshot: dict[str, Any] = Field(default_factory=dict)
+
+
 @router.get("/os/overview")
 async def overview(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     return await service(session, user).overview()
@@ -224,6 +231,24 @@ async def nav(account_id: UUID, session: AsyncSession = Depends(get_session), us
         raise bad_request(exc) from exc
 
 
+@router.get("/portfolio/accounts/{account_id}/analytics")
+async def portfolio_analytics(account_id: UUID, period: Literal["1M", "3M", "1Y", "3Y"] = "1Y",
+                              session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    try:
+        return await service(session, user).portfolio_analytics(account_id, period)
+    except ValueError as exc:
+        raise bad_request(exc) from exc
+
+
+@router.get("/portfolio/accounts/{account_id}/holdings/{instrument_id}/detail")
+async def holding_detail(account_id: UUID, instrument_id: UUID, session: AsyncSession = Depends(get_session),
+                         user: User = Depends(get_current_user)):
+    try:
+        return await service(session, user).holding_detail(account_id, instrument_id)
+    except ValueError as exc:
+        raise bad_request(exc) from exc
+
+
 @router.get("/hypotheses")
 async def hypotheses(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     return await service(session, user).list_hypotheses()
@@ -304,6 +329,44 @@ async def consensus(subject_type: str | None = None, subject_code: str | None = 
     return await service(session, user).consensus(subject_type, subject_code)
 
 
+@router.get("/research/library")
+async def research_library(
+    query: str | None = Query(default=None, max_length=240),
+    institution: str | None = Query(default=None, max_length=160),
+    source_family: str | None = Query(default=None, max_length=80),
+    date_from: date | None = None,
+    date_to: date | None = None,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    user: User = Depends(get_current_user),
+):
+    del user
+    client = ReportKBService()
+    if query and query.strip():
+        items = await client.search_reports(query.strip(), top_k=min(limit, 20))
+        return {"available": True, "items": items, "limit": min(limit, 20), "offset": 0, "search": True}
+    return await client.list_reports(limit=limit, offset=offset, institution=institution, source_family=source_family,
+                                     date_from=date_from, date_to=date_to)
+
+
+@router.get("/research/library/status")
+async def research_library_status(user: User = Depends(get_current_user)):
+    del user
+    return await ReportKBService().report_freshness()
+
+
+@router.get("/research/library/{report_id}")
+async def research_library_detail(report_id: UUID, user: User = Depends(get_current_user)):
+    del user
+    return await ReportKBService().report_detail(str(report_id))
+
+
+@router.get("/research/library/{report_id}/pdf")
+async def research_library_pdf(report_id: UUID, user: User = Depends(get_current_user)):
+    del user
+    return await ReportKBService().report_pdf_link(str(report_id))
+
+
 @router.get("/research-documents")
 async def documents(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     return await service(session, user).list_documents()
@@ -320,6 +383,16 @@ async def generate_document(document_id: UUID, body: DocumentGenerate, session: 
                             user: User = Depends(get_current_user)):
     try:
         return await service(session, user).generate_document(document_id, body.model_dump())
+    except ValueError as exc:
+        raise bad_request(exc) from exc
+
+
+@router.post("/research-documents/{document_id}/generate-bilingual")
+async def generate_bilingual_document(document_id: UUID, body: DocumentBilingualGenerate,
+                                      session: AsyncSession = Depends(get_session),
+                                      user: User = Depends(get_current_user)):
+    try:
+        return await service(session, user).generate_bilingual_document(document_id, body.model_dump())
     except ValueError as exc:
         raise bad_request(exc) from exc
 
