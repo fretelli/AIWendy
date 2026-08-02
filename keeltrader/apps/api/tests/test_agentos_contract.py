@@ -1,5 +1,10 @@
+import asyncio
+from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
+from uuid import uuid4
 
+from domain.agentos.models import ResearchDocumentVersion
 from services.agentos import AgentOSService
 
 
@@ -47,6 +52,47 @@ def test_bilingual_pdf_is_real_and_escapes_reportlab_markup() -> None:
     assert english.startswith(b"%PDF-")
     assert len(chinese) > 1_000
     assert len(english) > 1_000
+
+
+def test_bilingual_generation_persists_shared_fact_snapshot(tmp_path, monkeypatch) -> None:
+    document = SimpleNamespace(
+        id=uuid4(),
+        user_id=uuid4(),
+        title="Bilingual integration contract",
+        document_type="research_note",
+        current_version=0,
+        status="draft",
+        updated_at=datetime.utcnow(),
+    )
+
+    class FakeSession:
+        def __init__(self) -> None:
+            self.added = []
+
+        async def scalar(self, _query):
+            return document
+
+        def add(self, item) -> None:
+            self.added.append(item)
+
+        async def flush(self) -> None:
+            return None
+
+    session = FakeSession()
+    monkeypatch.chdir(tmp_path)
+    result = asyncio.run(AgentOSService(session, document.user_id).generate_document(document.id, {
+        "bodies": {"zh-CN": "中文事实", "en-US": "English facts"},
+        "structured": {"scope": "test"},
+        "source_snapshot": {"as_of": "2026-08-01", "citations": [{"label": "contract"}]},
+    }))
+    versions = [item for item in session.added if isinstance(item, ResearchDocumentVersion)]
+    assert len(versions) == 2
+    assert {item.locale for item in versions} == {"zh-CN", "en-US"}
+    assert {item.fact_snapshot_sha256 for item in versions} == {result["fact_snapshot_sha256"]}
+    for version in versions:
+        pdf = (tmp_path / "uploads" / version.storage_path).read_bytes()
+        assert pdf.startswith(b"%PDF-")
+        assert len(pdf) > 1_000
 
 
 def test_backtest_deducts_configured_transaction_costs() -> None:

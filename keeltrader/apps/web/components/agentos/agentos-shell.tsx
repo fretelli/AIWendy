@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AgentDock } from "@/components/agentos/agent-dock";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { agentOSApi, type AgentOSOverview } from "@/lib/api/agentos";
 import { useI18n } from "@/lib/i18n/provider";
 
@@ -72,7 +72,7 @@ export function AgentOsShell({ children }: { children: React.ReactNode }) {
         <header className="flex h-[60px] shrink-0 items-center gap-4 border-b border-agent-border bg-agent-chrome px-4 lg:px-[26px]">
           <Sheet open={navOpen} onOpenChange={setNavOpen}>
             <SheetTrigger asChild><Button variant="ghost" size="icon" className="lg:hidden"><Menu /></Button></SheetTrigger>
-            <SheetContent side="left" className="w-[280px] border-agent-border bg-agent-chrome text-agent-text"><SheetHeader><SheetTitle className="text-left text-agent-text">KeelTrader AgentOS</SheetTitle></SheetHeader><div className="mt-6"><ModuleNavigation mobile period={period} close={() => setNavOpen(false)} /></div></SheetContent>
+            <SheetContent side="left" className="w-[280px] border-agent-border bg-agent-chrome text-agent-text"><SheetHeader><SheetTitle className="text-left text-agent-text">KeelTrader AgentOS</SheetTitle><SheetDescription className="sr-only">{locale === "zh" ? "选择 AgentOS 一级模块" : "Choose an AgentOS module"}</SheetDescription></SheetHeader><div className="mt-6"><ModuleNavigation mobile period={period} close={() => setNavOpen(false)} /></div></SheetContent>
           </Sheet>
           <div className="flex min-w-0 items-baseline gap-2">
             <h1 className="truncate text-[17px] font-medium">{locale === "zh" ? current.zh : current.en}</h1>
@@ -96,7 +96,7 @@ export function AgentOsShell({ children }: { children: React.ReactNode }) {
       </section>
       <aside className="hidden w-[384px] shrink-0 2xl:block"><AgentDock /></aside>
       <Sheet open={agentOpen} onOpenChange={setAgentOpen}>
-        <SheetContent side="right" className="w-full border-agent-border bg-agent-chrome p-0 text-agent-text sm:max-w-[420px]"><SheetHeader className="sr-only"><SheetTitle>Agent</SheetTitle></SheetHeader><AgentDock compact /></SheetContent>
+        <SheetContent side="right" className="w-full border-agent-border bg-agent-chrome p-0 text-agent-text sm:max-w-[420px]"><SheetHeader className="sr-only"><SheetTitle>Agent</SheetTitle><SheetDescription>{locale === "zh" ? "持续研究对话与安全工具摘要" : "Persistent research chat and safe tool summaries"}</SheetDescription></SheetHeader><AgentDock compact /></SheetContent>
       </Sheet>
     </div>
   );

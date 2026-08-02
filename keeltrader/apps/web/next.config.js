@@ -46,7 +46,7 @@ const nextConfig = {
       { source: '/agent/capital/macro', destination: '/agent/market/macro', permanent: true },
       { source: '/agent/capital/futures', destination: '/agent/market/futures', permanent: true },
       { source: '/agent/capital/options', destination: '/agent/market/options', permanent: true },
-      { source: '/agent/market/opportunities', destination: '/agent/opportunities', permanent: true },
+      { source: '/agent/market/opportunities', destination: '/agent/opportunities?period=1Y', permanent: true },
     ];
   },
 
