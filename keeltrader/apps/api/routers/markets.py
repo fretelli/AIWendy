@@ -144,7 +144,7 @@ async def market_capital(session: AsyncSession = Depends(get_session), user: Use
 
 @router.get("/valuation-board")
 async def valuation_board(request: Request, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
-    return await cached_json("valuation-board:v3", service(session).valuation_snapshot, request=request)
+    return await cached_json("valuation-board:v4", service(session).valuation_snapshot, request=request)
 
 
 @router.get("/correlations")
@@ -153,9 +153,24 @@ async def correlations(request: Request, window: int = Query(60, ge=20, le=252),
     return await cached_json(f"correlations:v2:{window}", lambda: service(session).correlation_snapshot(window), request=request)
 
 
+@router.get("/correlations/history")
+async def correlations_history(request: Request, window: int = Query(60, ge=20, le=252),
+                               limit: int = Query(756, ge=20, le=1200),
+                               session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    return await cached_json(f"correlations:history:v1:{window}:{limit}",
+                             lambda: service(session).correlation_history(window, limit), ttl=900, request=request)
+
+
 @router.get("/factors")
 async def factors(request: Request, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     return await cached_json("factors:kt_factor_v1:materialized", service(session).factor_snapshot, ttl=900, request=request)
+
+
+@router.get("/factors/history")
+async def factors_history(request: Request, limit: int = Query(756, ge=20, le=1200),
+                          session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    return await cached_json(f"factors:history:v1:{limit}", lambda: service(session).factor_history(limit),
+                             ttl=900, request=request)
 
 
 @router.get("/macro/series")

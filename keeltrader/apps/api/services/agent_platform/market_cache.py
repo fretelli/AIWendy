@@ -28,7 +28,7 @@ async def prewarm_market_snapshots(cache: CacheService | None = None) -> dict[st
     cache = cache or get_cache_service()
     reader = TushareReadService(None)
     definitions = (
-        ("valuation-board:v3", reader.valuation_snapshot, 600),
+        ("valuation-board:v4", reader.valuation_snapshot, 600),
         ("correlations:v2:60", lambda: reader.correlation_snapshot(60), 600),
         ("factors:kt_factor_v1:materialized", reader.factor_snapshot, 900),
     )
