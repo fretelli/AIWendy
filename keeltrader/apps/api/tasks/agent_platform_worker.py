@@ -30,6 +30,7 @@ async def main() -> None:
         from services.agent_platform.runtime import worker_loop
         from services.agent_platform.dossier import dossier_scheduler_loop, dossier_worker_loop
         from services.agent_platform.holders import holder_scheduler_loop, holder_worker_loop
+        from services.agent_platform.market_cache import market_snapshot_prewarm_loop
 
         async def heartbeat_loop() -> None:
             while True:
@@ -49,6 +50,7 @@ async def main() -> None:
             group.create_task(dossier_scheduler_loop(), name="dossier-scheduler")
             group.create_task(holder_worker_loop(), name="holder-worker")
             group.create_task(holder_scheduler_loop(), name="holder-scheduler")
+            group.create_task(market_snapshot_prewarm_loop(), name="market-snapshot-prewarm")
             group.create_task(heartbeat_loop(), name="heartbeat")
     except* Exception as errors:
         logger.exception("agent_worker_taskgroup_failed", errors=[str(error) for error in errors.exceptions])

@@ -2,6 +2,7 @@
 
 import { ThemeProvider } from "next-themes";
 import { ReactNode } from "react";
+import { SWRConfig } from "swr";
 
 export function Providers({
   children,
@@ -16,7 +17,9 @@ export function Providers({
       enableSystem={false}
       disableTransitionOnChange
     >
-      {children}
+      <SWRConfig value={{ dedupingInterval: 30_000, revalidateOnFocus: false, keepPreviousData: true }}>
+        {children}
+      </SWRConfig>
     </ThemeProvider>
   );
 }

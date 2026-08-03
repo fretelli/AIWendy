@@ -29,9 +29,12 @@ export default function AppLayout({
     );
   }
 
-  return (
+  const content = (
     <main className="h-dvh min-h-0 overflow-hidden bg-background">
-      <AgentWorkspaceProvider><AgentOsShell>{children}</AgentOsShell></AgentWorkspaceProvider>
+      <AgentOsShell>{children}</AgentOsShell>
     </main>
   );
+  return pathname.startsWith('/agent/workspace')
+    ? <AgentWorkspaceProvider>{content}</AgentWorkspaceProvider>
+    : content;
 }

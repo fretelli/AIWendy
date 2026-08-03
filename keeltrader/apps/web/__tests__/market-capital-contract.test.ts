@@ -9,9 +9,10 @@ test("the canonical market board uses the four approved same-screen analyses", (
   for (const title of ["估值分位矩阵", "大类相关性 60 日滚动", "估值分位排序 · 带时间维度", "因子收益与拥挤度"]) {
     expect(market).toContain(title);
   }
-  expect(market).toContain("marketsApi.valuationBoard()");
+  expect(market).toContain('useSWR<ValuationBoard>');
+  expect(market).toContain("marketsApi.valuationBoard");
   expect(market).toContain("marketsApi.correlations(60)");
-  expect(market).toContain("marketsApi.factors()");
+  expect(market).toContain("marketsApi.factors");
   expect(market).toContain("item.percentile_change_3m != null");
   expect(market).toContain("historical_coverage_partial");
   expect(api).toContain("valuationBoard: ()");

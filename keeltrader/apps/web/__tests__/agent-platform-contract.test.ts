@@ -12,7 +12,8 @@ describe("AgentOS workspace contract", () => {
       expect(shell).toContain(`href: "${route}"`);
       expect(provider).toContain(`"${route}"`);
     }
-    expect(shell).toContain("<AgentDock />");
+    expect(shell).toContain("<DockRuntime");
+    expect(shell).toContain("wideDock ?");
     expect(provider).toContain("new EventSource");
     expect(provider).toContain("message.delta");
   });

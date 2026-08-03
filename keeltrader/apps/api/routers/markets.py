@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import time
@@ -7,11 +8,13 @@ from datetime import date
 from typing import Any, Awaitable, Callable, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError
+from redis.exceptions import RedisError
 
 from core.auth import get_current_user
 from core.cache_service import get_cache_service
@@ -23,35 +26,84 @@ from services.agent_platform.tushare import TushareReadService
 from services.agent_platform.opportunities import OpportunityService, plan_payload
 from services.agent_platform.publication_status import publication_version, read_publication_status
 from services.agent_platform.capabilities import capability_version, read_capability_manifest
+from services.agent_platform.market_cache import market_cache_key, market_last_good_key
 
 router = APIRouter()
 logger = get_logger(__name__)
 
 
-async def cached_json(key: str, loader: Callable[[], Awaitable[dict[str, Any]]], ttl: int = 600) -> Response:
+async def cached_json(key: str, loader: Callable[[], Awaitable[dict[str, Any]]], ttl: int = 600,
+                      request: Request | None = None) -> Response:
     started = time.perf_counter()
     cache = get_cache_service()
     version = publication_version()
     manifest_version = capability_version()
-    cache_key = f"markets:v5:{version}:{manifest_version}:{key}"
+    cache_key = market_cache_key(key)
+    cache_started = time.perf_counter()
     payload = await cache.get_async(cache_key)
+    cache_ms = (time.perf_counter() - cache_started) * 1000
     cache_state = "hit"
+    loader_ms = 0.0
     if not isinstance(payload, dict):
-        payload = await loader()
-        await cache.set_async(cache_key, payload, ttl=ttl)
         cache_state = "miss"
+        last_good_key = market_last_good_key(key)
+        lock_key = f"{cache_key}:singleflight"
+        lock_token = hashlib.sha256(f"{time.time_ns()}:{key}".encode()).hexdigest()
+        acquired = False
+        client = None
+        try:
+            client = await cache.async_client
+            acquired = bool(await client.set(lock_key, lock_token, nx=True, ex=30))
+        except RedisError:
+            logger.warning("market_singleflight_unavailable", cache_key=key)
+        if not acquired and client is not None:
+            for _ in range(30):
+                await asyncio.sleep(.1)
+                payload = await cache.get_async(cache_key)
+                if isinstance(payload, dict):
+                    cache_state = "coalesced"
+                    break
+        try:
+            if not isinstance(payload, dict):
+                loader_started = time.perf_counter()
+                try:
+                    payload = await loader()
+                    loader_ms = (time.perf_counter() - loader_started) * 1000
+                    await cache.set_async(cache_key, payload, ttl=ttl)
+                    metadata = payload.get("metadata") if isinstance(payload, dict) else None
+                    if not isinstance(metadata, dict) or metadata.get("status") != "unavailable":
+                        await cache.set_async(last_good_key, payload, ttl=604800)
+                except (DBAPIError, TimeoutError):
+                    payload = await cache.get_async(last_good_key)
+                    if not isinstance(payload, dict):
+                        raise
+                    cache_state = "last-good"
+                    loader_ms = (time.perf_counter() - loader_started) * 1000
+        finally:
+            if acquired and client is not None:
+                try:
+                    await client.eval(
+                        "if redis.call('get',KEYS[1]) == ARGV[1] then return redis.call('del',KEYS[1]) else return 0 end",
+                        1, lock_key, lock_token,
+                    )
+                except RedisError:
+                    logger.warning("market_singleflight_release_failed", cache_key=key)
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str).encode()
     etag = '"' + hashlib.sha256(body).hexdigest()[:24] + '"'
     elapsed_ms = (time.perf_counter() - started) * 1000
-    logger.info("market_read", cache_key=key, cache=cache_state, duration_ms=round(elapsed_ms, 1),
-                payload_bytes=len(body))
-    return Response(content=body, media_type="application/json", headers={
+    headers = {
         "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
         "ETag": etag, "X-Market-Cache": cache_state, "X-Market-Publication": version,
         "X-Market-Capabilities": manifest_version,
         "X-Payload-Bytes": str(len(body)),
-        "Server-Timing": f'market;dur={elapsed_ms:.1f};desc="{cache_state}"',
-    })
+        "Server-Timing": f'cache;dur={cache_ms:.1f}, loader;dur={loader_ms:.1f}, total;dur={elapsed_ms:.1f};desc="{cache_state}"',
+    }
+    logger.info("market_read", cache_key=key, cache=cache_state, duration_ms=round(elapsed_ms, 1),
+                cache_ms=round(cache_ms, 1), loader_ms=round(loader_ms, 1),
+                payload_bytes=len(body))
+    if request and request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=headers)
+    return Response(content=body, media_type="application/json", headers=headers)
 
 
 def service(session: AsyncSession) -> TushareReadService:
@@ -91,19 +143,19 @@ async def market_capital(session: AsyncSession = Depends(get_session), user: Use
 
 
 @router.get("/valuation-board")
-async def valuation_board(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
-    return await cached_json("valuation-board:v2", service(session).valuation_board)
+async def valuation_board(request: Request, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    return await cached_json("valuation-board:v3", service(session).valuation_snapshot, request=request)
 
 
 @router.get("/correlations")
-async def correlations(window: int = Query(60, ge=20, le=252), session: AsyncSession = Depends(get_session),
+async def correlations(request: Request, window: int = Query(60, ge=20, le=252), session: AsyncSession = Depends(get_session),
                        user: User = Depends(get_current_user)):
-    return await cached_json(f"correlations:v1:{window}", lambda: service(session).rolling_correlations(window))
+    return await cached_json(f"correlations:v2:{window}", lambda: service(session).correlation_snapshot(window), request=request)
 
 
 @router.get("/factors")
-async def factors(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
-    return await cached_json("factors:kt_factor_v1", service(session).factor_board, ttl=900)
+async def factors(request: Request, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    return await cached_json("factors:kt_factor_v1:materialized", service(session).factor_snapshot, ttl=900, request=request)
 
 
 @router.get("/macro/series")

@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     database_max_overflow: int = 10
     database_pool_timeout_seconds: int = 15
     database_application_name: str = "keeltrader-api"
+    tushare_database_pool_size: int = 3
+    tushare_database_max_overflow: int = 1
+    tushare_database_pool_timeout_seconds: int = 15
+    tushare_database_pool_recycle_seconds: int = 1800
+    tushare_database_statement_timeout_ms: int = 30000
 
     # ========== Redis ==========
     redis_url: str = "redis://localhost:6379"
