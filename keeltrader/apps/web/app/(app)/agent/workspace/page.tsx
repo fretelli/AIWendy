@@ -39,6 +39,8 @@ export default function AgentWorkspacePage() {
   const { locale } = useI18n();
   const [schedules, setSchedules] = useState<AgentSchedule[]>([]);
   const [trace, setTrace] = useState<AgentRunTrace | null>(null);
+  const activeRunId = workspace.activeRun?.id;
+  const activeTrace = trace?.run.id === activeRunId ? trace : null;
   const refreshSchedules = () =>
     agentPlatformApi.schedules().then((result) => setSchedules(result.items));
 
@@ -46,15 +48,12 @@ export default function AgentWorkspacePage() {
     void refreshSchedules().catch(() => undefined);
   }, []);
   useEffect(() => {
-    if (!workspace.activeRun?.id) {
-      setTrace(null);
-      return;
-    }
+    if (!activeRunId) return;
     void agentPlatformApi
-      .runTrace(workspace.activeRun.id)
+      .runTrace(activeRunId)
       .then(setTrace)
-      .catch(() => setTrace(null));
-  }, [workspace.activeRun?.id, workspace.events.length]);
+      .catch(() => undefined);
+  }, [activeRunId, workspace.events.length]);
 
   return (
     <DashboardPage className="h-full min-h-0 overflow-hidden">
@@ -322,7 +321,7 @@ export default function AgentWorkspacePage() {
               }
               action={
                 <span className="font-data text-[9px] text-agent-dim">
-                  {trace?.tushare_calls.length || 0}{" "}
+                  {activeTrace?.tushare_calls.length || 0}{" "}
                   {locale === "zh" ? "次" : "CALLS"}
                 </span>
               }
@@ -330,8 +329,8 @@ export default function AgentWorkspacePage() {
           </div>
           <ScrollArea className="h-[calc(100%-68px)]">
             <div className="divide-y divide-agent-border px-4">
-              {trace?.tushare_calls.length ? (
-                trace.tushare_calls.map((item) => (
+              {activeTrace?.tushare_calls.length ? (
+                activeTrace.tushare_calls.map((item) => (
                   <div
                     key={`${item.step_id}-${item.sequence}`}
                     className="py-4"
