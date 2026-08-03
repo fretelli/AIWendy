@@ -49,15 +49,13 @@ KeelTrader 默认不连接 Research Cloud。管理员可显式设置 `RESEARCH_C
 
 ## 登录
 
-默认配置要求登录：`KEELTRADER_AUTH_REQUIRED=1`。
-
-仅本地开发可以显式关闭登录：
+默认的本机自托管模式不要求账密，系统使用一个本地 guest 工作区：
 
 ```bash
 KEELTRADER_AUTH_REQUIRED=0
 ```
 
-仓库不提供启动时自动创建用户或测试账号的入口。首次用户通过注册 API 或网页注册流程创建。
+此模式默认同时把 Web 与 API 绑定到 `127.0.0.1`。只要将任一入口绑定到非回环地址，就必须设置 `KEELTRADER_AUTH_REQUIRED=1`；API 会拒绝以“关闭认证 + 非回环暴露”的组合启动。启用认证后，首次用户通过注册 API 或网页注册流程创建。
 
 ## 常用命令
 
@@ -126,15 +124,13 @@ KeelTrader does not connect to Research Cloud by default. An administrator may e
 
 ## Authentication
 
-Authentication is required by default: `KEELTRADER_AUTH_REQUIRED=1`.
-
-For local development only, you may explicitly disable login:
+Local self-hosting does not require credentials by default and uses one local guest workspace:
 
 ```bash
 KEELTRADER_AUTH_REQUIRED=0
 ```
 
-The repository has no startup path that auto-creates users or test accounts. Create the first user through the registration API or Web registration flow.
+Web and API bind to `127.0.0.1` by default in this mode. If either endpoint is bound to a non-loopback address, set `KEELTRADER_AUTH_REQUIRED=1`; the API refuses to start with authentication disabled and non-loopback exposure. With authentication enabled, create the first user through the registration API or Web registration flow.
 
 ## Common Commands
 

@@ -1,57 +1,445 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowUpRight, CircleStop, Download, MoreHorizontal, Pencil, Play, Send, Settings2, Trash2, MessageSquarePlus } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import {
+  Download,
+  MessageSquarePlus,
+  MoreHorizontal,
+  Pencil,
+  Play,
+  Trash2,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
-import { DashboardPage, EmptyPanel, MetricCard, Panel, SectionTitle, StatusDot } from "@/components/agentos/dashboard-ui";
+import {
+  DashboardPage,
+  EmptyPanel,
+  Panel,
+  SectionTitle,
+  StatusDot,
+} from "@/components/agentos/dashboard-ui";
 import { useAgentWorkspace } from "@/components/agentos/workspace-provider";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { useUrlTab } from "@/hooks/use-url-tab";
+import {
+  agentPlatformApi,
+  type AgentRunTrace,
+  type AgentSchedule,
+} from "@/lib/api/agent-platform";
 import { useI18n } from "@/lib/i18n/provider";
-import { agentPlatformApi, type AgentRunTrace, type AgentSchedule } from "@/lib/api/agent-platform";
 
 export default function AgentWorkspacePage() {
   const workspace = useAgentWorkspace();
-  const { locale, formatNumber } = useI18n();
-  const [tab, setTab] = useUrlTab(["conversation", "queue", "trace", "tools"], "conversation");
+  const { locale } = useI18n();
   const [schedules, setSchedules] = useState<AgentSchedule[]>([]);
   const [trace, setTrace] = useState<AgentRunTrace | null>(null);
-  const refreshSchedules = () => agentPlatformApi.schedules().then((result) => setSchedules(result.items));
-  useEffect(() => { void refreshSchedules().catch(() => undefined); }, []);
-  useEffect(() => { if (!workspace.activeRun?.id) return; void agentPlatformApi.runTrace(workspace.activeRun.id).then(setTrace).catch(() => setTrace(null)); }, [workspace.activeRun?.id, workspace.events.length]);
-  const submit = (event: FormEvent) => { event.preventDefault(); void workspace.send(); };
-  const toolEvents = workspace.events.filter((event) => event.type.startsWith("step.") || event.type.includes("tool") || event.type === "artifact.created");
-  return <DashboardPage className="h-full min-h-0 overflow-hidden">
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4"><MetricCard label="SESSIONS" value={formatNumber(workspace.sessions.length)} note={locale === "zh" ? "用户拥有的研究会话" : "User-owned research sessions"} /><MetricCard label="RUN STATUS" value={workspace.activeRun?.status.toUpperCase() || "IDLE"} note={workspace.activeRun ? `${workspace.activeRun.current_step} steps · ${workspace.activeRun.tokens_used} tokens` : (locale === "zh" ? "没有运行中任务" : "No active run")} color={workspace.activeRun ? "text-agent-mint" : "text-agent-dim"} /><MetricCard label="VISIBLE EVENTS" value={formatNumber(workspace.events.length)} note={locale === "zh" ? "安全阶段、工具摘要与产物" : "Safe phases, tool summaries, artifacts"} color="text-agent-blue" /><MetricCard label="TOOL / ARTIFACT" value={formatNumber(toolEvents.length)} note={locale === "zh" ? "不展示模型思维链" : "No chain-of-thought shown"} color="text-agent-amber" /></div>
-    <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[260px_1fr_320px]">
-      <Panel className="min-h-0 overflow-hidden p-0"><div className="flex items-center border-b border-agent-border p-3"><SectionTitle title={locale === "zh" ? "会话" : "Sessions"} en="RESEARCH THREADS" action={<Button variant="ghost" size="icon" onClick={() => void workspace.newSession()}><MessageSquarePlus /></Button>} /></div><ScrollArea className="h-[calc(100%-56px)]"><div className="flex flex-col gap-1 p-2">{workspace.sessions.map((session) => <div key={session.id} className={`group rounded-md border px-2 py-2 ${workspace.sessionId === session.id ? "border-agent-mint bg-agent-mint/5" : "border-transparent hover:bg-agent-raised"}`}><div className="flex items-start gap-1"><button type="button" onClick={() => workspace.setSessionId(session.id)} className="min-w-0 flex-1 px-1 text-left"><p className="truncate text-xs text-agent-text">{session.title}</p><div className="mt-2 flex items-center gap-2 font-data text-[8px] uppercase text-agent-dim"><StatusDot status={session.status} />{session.interaction_mode} · {session.workspace_scope}</div></button><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-7 w-7 shrink-0 opacity-70 group-hover:opacity-100" aria-label={locale === "zh" ? "会话操作" : "Session actions"}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onClick={() => { const title = window.prompt(locale === "zh" ? "重命名会话" : "Rename session", session.title)?.trim(); if (title) void workspace.renameSession(session.id, title); }}><Pencil className="mr-2 h-4 w-4" />{locale === "zh" ? "重命名" : "Rename"}</DropdownMenuItem><DropdownMenuItem onClick={() => void workspace.exportSession(session.id)}><Download className="mr-2 h-4 w-4" />{locale === "zh" ? "导出 JSON" : "Export JSON"}</DropdownMenuItem><DropdownMenuItem disabled={workspace.sessionId !== session.id} onClick={() => void workspace.rerunLast()}><Play className="mr-2 h-4 w-4" />{locale === "zh" ? "重跑上一问" : "Rerun last"}</DropdownMenuItem><DropdownMenuSeparator /><DropdownMenuItem className="text-red-400 focus:text-red-400" onClick={() => { if (window.confirm(locale === "zh" ? "确认删除这个会话？" : "Delete this session?")) void workspace.deleteSession(session.id); }}><Trash2 className="mr-2 h-4 w-4" />{locale === "zh" ? "删除" : "Delete"}</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></div>)}{!workspace.sessions.length ? <EmptyPanel title={locale === "zh" ? "没有会话" : "No sessions"} detail={locale === "zh" ? "新建会话后开始研究。" : "Create a session to begin research."} /> : null}</div></ScrollArea></Panel>
-      <Panel className="flex min-h-0 flex-col overflow-hidden p-0">
-        <div className="flex items-center border-b border-agent-border px-4 py-3"><div><p className="text-sm text-agent-text">{workspace.sessions.find((item) => item.id === workspace.sessionId)?.title || (locale === "zh" ? "Agent 工作台" : "Agent Workspace")}</p><p className="mt-1 font-data text-[8px] uppercase text-agent-dim">ASK / RESEARCH / PLAN · SAFE TOOL TRACE</p></div><Link href="/agent/workspace/advanced" className="ml-auto inline-flex items-center gap-2 rounded border border-agent-border px-3 py-2 text-[10px] text-agent-muted hover:border-agent-mint hover:text-agent-mint"><Settings2 />{locale === "zh" ? "高级设置" : "Advanced"}<ArrowUpRight /></Link></div>
-        <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col"><TabsList className="mx-4 mt-3 h-auto w-fit border border-agent-border bg-agent-chrome p-1"><TabsTrigger value="conversation">{locale === "zh" ? "对话" : "Conversation"}</TabsTrigger><TabsTrigger value="queue">{locale === "zh" ? "任务队列" : "Task Queue"}</TabsTrigger><TabsTrigger value="trace">{locale === "zh" ? "运行轨迹" : "Trace"}</TabsTrigger><TabsTrigger value="tools">{locale === "zh" ? "工具日志" : "Tool Log"}</TabsTrigger></TabsList>
-          <TabsContent value="conversation" className="mt-0 flex min-h-0 flex-1 flex-col"><ScrollArea className="min-h-0 flex-1"><div className="mx-auto flex max-w-3xl flex-col gap-4 p-4">{workspace.messages.map((message) => <article key={message.id} className={`max-w-[85%] rounded-md border px-4 py-3 text-xs leading-6 ${message.role === "user" ? "ml-auto border-agent-border-strong bg-agent-raised text-agent-text" : "border-transparent bg-agent-surface text-agent-muted"}`}><p className="mb-1 font-data text-[8px] uppercase text-agent-dim">{message.role}</p><p className="whitespace-pre-wrap">{message.content}</p></article>)}{workspace.events.filter((event) => event.type === "message.delta").length ? <article className="rounded-md bg-agent-surface px-4 py-3 text-xs leading-6 text-agent-muted">{workspace.events.filter((event) => event.type === "message.delta").map((event) => String(event.payload.delta || "")).join("")}<span className="ml-1 inline-block h-3 w-px animate-pulse bg-agent-mint" /></article> : null}</div></ScrollArea><form onSubmit={submit} className="border-t border-agent-border p-3"><div className="mx-auto flex max-w-3xl items-end gap-2 rounded-md border border-agent-border-strong bg-agent-surface p-2"><Textarea value={workspace.input} onChange={(event) => workspace.setInput(event.target.value)} placeholder={locale === "zh" ? "输入研究问题…" : "Enter a research question…"} className="min-h-12 resize-none border-0 bg-transparent focus-visible:ring-0" />{workspace.activeRun ? <Button type="button" variant="ghost" size="icon" onClick={() => void workspace.stop()}><CircleStop /></Button> : <Button type="submit" size="icon" disabled={!workspace.input.trim() || workspace.sending}><Send /></Button>}</div></form></TabsContent>
-          <TabsContent value="queue" className="mt-0 min-h-0 flex-1 overflow-auto p-4"><RunList events={workspace.events.filter((event) => event.type.startsWith("run."))} locale={locale} onNavigate={workspace.openHint} /></TabsContent>
-          <TabsContent value="trace" className="mt-0 min-h-0 flex-1 overflow-auto p-4"><RunList events={workspace.events} locale={locale} onNavigate={workspace.openHint} /></TabsContent>
-          <TabsContent value="tools" className="mt-0 min-h-0 flex-1 overflow-auto p-4"><RunList events={toolEvents} locale={locale} onNavigate={workspace.openHint} /></TabsContent>
-        </Tabs>
-      </Panel>
-      <Panel className="min-h-0 overflow-hidden p-0"><Tabs defaultValue="jobs" className="flex h-full min-h-0 flex-col"><TabsList className="m-3 h-auto w-fit border border-agent-border bg-agent-chrome p-1"><TabsTrigger value="jobs">{locale === "zh" ? "任务" : "Jobs"}</TabsTrigger><TabsTrigger value="tushare">Tushare</TabsTrigger></TabsList><TabsContent value="jobs" className="mt-0 min-h-0 flex-1 overflow-y-auto px-3 pb-3"><SectionTitle title={locale === "zh" ? "任务队列与触发条件" : "Jobs & Triggers"} en="SCHEDULES" />{schedules.length ? <div className="divide-y divide-agent-border">{schedules.map((item) => <div key={item.id} className="py-3"><div className="flex items-center gap-2"><StatusDot status={item.enabled ? "active" : "unavailable"} /><p className="min-w-0 flex-1 truncate text-xs text-agent-text">{item.name}</p><button type="button" className="font-data text-[9px] text-agent-mint" onClick={() => void agentPlatformApi.updateSchedule(item.id, { enabled: !item.enabled }).then(refreshSchedules)}>{item.enabled ? "PAUSE" : "ENABLE"}</button></div><p className="mt-2 font-data text-[9px] text-agent-dim">{item.cron} · {item.timezone}</p><p className="mt-1 line-clamp-2 text-[10px] leading-5 text-agent-muted">{item.prompt}</p><div className="mt-2 flex gap-3"><button type="button" className="text-[10px] text-agent-blue" onClick={() => { const name = window.prompt(locale === "zh" ? "任务名称" : "Job name", item.name)?.trim(); if (name) void agentPlatformApi.updateSchedule(item.id, { name }).then(refreshSchedules); }}>{locale === "zh" ? "编辑" : "Edit"}</button><button type="button" className="text-[10px] text-agent-down" onClick={() => { if (window.confirm(locale === "zh" ? "删除这个触发任务？" : "Delete this trigger?")) void agentPlatformApi.deleteSchedule(item.id).then(refreshSchedules); }}>{locale === "zh" ? "删除" : "Delete"}</button></div></div>)}</div> : <EmptyPanel title={locale === "zh" ? "没有定时任务" : "No scheduled jobs"} detail={locale === "zh" ? "任务触发条件将显示在这里。" : "Job triggers appear here."} />}</TabsContent><TabsContent value="tushare" className="mt-0 min-h-0 flex-1 overflow-y-auto px-3 pb-3"><SectionTitle title="Tushare 调用日志" en="SAFE SUMMARY" />{trace?.tushare_calls.length ? <div className="divide-y divide-agent-border">{trace.tushare_calls.map((item) => <div key={`${item.step_id}-${item.sequence}`} className="py-3"><div className="flex items-center gap-2"><StatusDot status={item.status} /><span className="font-data text-[9px] text-agent-mint">{item.dataset || item.capability || "dataset"}</span><span className="ml-auto font-data text-[9px] text-agent-dim">#{item.sequence}</span></div><p className="mt-2 font-data text-[9px] leading-5 text-agent-muted">fields: {item.requested_fields.join(", ") || "—"}<br/>filters: {item.filter_keys.join(", ") || "—"}</p>{item.error ? <p className="mt-2 text-[10px] text-agent-down">{item.error}</p> : null}</div>)}</div> : <EmptyPanel title={locale === "zh" ? "暂无 Tushare 调用" : "No Tushare calls"} detail={locale === "zh" ? "这里只展示数据集、字段、过滤键与结果摘要，不展示提示词或思维链。" : "Only dataset, fields, filters and result summaries are shown."} />}</TabsContent></Tabs></Panel>
-    </div>
-  </DashboardPage>;
+  const refreshSchedules = () =>
+    agentPlatformApi.schedules().then((result) => setSchedules(result.items));
+
+  useEffect(() => {
+    void refreshSchedules().catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    if (!workspace.activeRun?.id) {
+      setTrace(null);
+      return;
+    }
+    void agentPlatformApi
+      .runTrace(workspace.activeRun.id)
+      .then(setTrace)
+      .catch(() => setTrace(null));
+  }, [workspace.activeRun?.id, workspace.events.length]);
+
+  return (
+    <DashboardPage className="h-full min-h-0 overflow-hidden">
+      <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[.9fr_1.25fr_1fr]">
+        <Panel className="min-h-0 overflow-hidden p-0">
+          <div className="border-b border-agent-border p-4">
+            <SectionTitle
+              title={locale === "zh" ? "会话历史" : "SESSION HISTORY"}
+              action={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void workspace.newSession()}
+                >
+                  <MessageSquarePlus />
+                  {locale === "zh" ? "新研究会话" : "NEW SESSION"}
+                </Button>
+              }
+            />
+          </div>
+          <ScrollArea className="h-[calc(100%-68px)]">
+            <div className="flex flex-col gap-2 p-3">
+              {workspace.sessions.map((session) => (
+                <div
+                  key={session.id}
+                  className={`group rounded-md border p-3 ${workspace.sessionId === session.id ? "border-agent-mint bg-agent-mint/5" : "border-agent-border bg-agent-raised"}`}
+                >
+                  <div className="flex items-start gap-2">
+                    <button
+                      type="button"
+                      onClick={() => workspace.setSessionId(session.id)}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <div className="flex items-center gap-2">
+                        <StatusDot status={session.status} />
+                        <span className="font-data text-[9px] text-agent-dim">
+                          {localizeMode(session.interaction_mode, locale)}
+                        </span>
+                        <span className="ml-auto font-data text-[9px] text-agent-dim">
+                          {session.last_message_at.slice(0, 16)}
+                        </span>
+                      </div>
+                      <p className="mt-3 truncate text-sm text-agent-text">
+                        {session.title}
+                      </p>
+                      <p className="mt-2 line-clamp-2 text-[10px] leading-5 text-agent-muted">
+                        {session.summary ||
+                          (locale === "zh"
+                            ? "尚无会话摘要"
+                            : "No session summary yet")}
+                      </p>
+                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={
+                            locale === "zh" ? "会话操作" : "Session actions"
+                          }
+                        >
+                          <MoreHorizontal />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            const title = window
+                              .prompt(
+                                locale === "zh"
+                                  ? "重命名会话"
+                                  : "Rename session",
+                                session.title,
+                              )
+                              ?.trim();
+                            if (title)
+                              void workspace.renameSession(session.id, title);
+                          }}
+                        >
+                          <Pencil />
+                          {locale === "zh" ? "重命名" : "Rename"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() =>
+                            void workspace.exportSession(session.id)
+                          }
+                        >
+                          <Download />
+                          {locale === "zh" ? "导出" : "Export"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={workspace.sessionId !== session.id}
+                          onClick={() => void workspace.rerunLast()}
+                        >
+                          <Play />
+                          {locale === "zh" ? "重跑" : "Rerun"}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-agent-down"
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                locale === "zh"
+                                  ? "确认删除这个会话？"
+                                  : "Delete this session?",
+                              )
+                            )
+                              void workspace.deleteSession(session.id);
+                          }}
+                        >
+                          <Trash2 />
+                          {locale === "zh" ? "删除" : "Delete"}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              ))}
+              {!workspace.sessions.length ? (
+                <EmptyPanel
+                  title={locale === "zh" ? "没有会话" : "NO SESSIONS"}
+                  detail={
+                    locale === "zh"
+                      ? "新建会话后开始研究。"
+                      : "Create a session to begin research."
+                  }
+                />
+              ) : null}
+            </div>
+          </ScrollArea>
+        </Panel>
+
+        <Panel className="min-h-0 overflow-hidden p-0">
+          <div className="border-b border-agent-border p-4">
+            <SectionTitle
+              title={locale === "zh" ? "任务队列" : "JOB QUEUE"}
+              action={
+                <span className="font-data text-[9px] text-agent-mint">
+                  {workspace.activeRun
+                    ? locale === "zh"
+                      ? "运行中"
+                      : "RUNNING"
+                    : locale === "zh"
+                      ? "空闲"
+                      : "IDLE"}
+                </span>
+              }
+            />
+          </div>
+          <ScrollArea className="h-[calc(100%-68px)]">
+            <div className="flex flex-col gap-3 p-4">
+              {schedules.length ? (
+                schedules.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-md border border-agent-border bg-agent-raised p-4"
+                  >
+                    <div className="flex items-center gap-2">
+                      <StatusDot
+                        status={item.enabled ? "active" : "unavailable"}
+                      />
+                      <p className="min-w-0 flex-1 truncate text-sm text-agent-text">
+                        {item.name}
+                      </p>
+                      <button
+                        type="button"
+                        className="font-data text-[9px] text-agent-mint"
+                        onClick={() =>
+                          void agentPlatformApi
+                            .updateSchedule(item.id, { enabled: !item.enabled })
+                            .then(refreshSchedules)
+                        }
+                      >
+                        {item.enabled
+                          ? locale === "zh"
+                            ? "暂停"
+                            : "PAUSE"
+                          : locale === "zh"
+                            ? "启用"
+                            : "ENABLE"}
+                      </button>
+                    </div>
+                    <p className="mt-2 font-data text-[9px] text-agent-dim">
+                      {item.cron} · {item.timezone}
+                    </p>
+                    <p className="mt-2 line-clamp-2 text-[10px] leading-5 text-agent-muted">
+                      {item.prompt}
+                    </p>
+                    <div className="mt-3 flex gap-3">
+                      <button
+                        type="button"
+                        className="text-[10px] text-agent-blue"
+                        onClick={() => {
+                          const name = window
+                            .prompt(
+                              locale === "zh" ? "任务名称" : "Job name",
+                              item.name,
+                            )
+                            ?.trim();
+                          if (name)
+                            void agentPlatformApi
+                              .updateSchedule(item.id, { name })
+                              .then(refreshSchedules);
+                        }}
+                      >
+                        {locale === "zh" ? "编辑触发条件" : "EDIT TRIGGER"}
+                      </button>
+                      <button
+                        type="button"
+                        className="text-[10px] text-agent-down"
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              locale === "zh"
+                                ? "删除这个触发任务？"
+                                : "Delete this trigger?",
+                            )
+                          )
+                            void agentPlatformApi
+                              .deleteSchedule(item.id)
+                              .then(refreshSchedules);
+                        }}
+                      >
+                        {locale === "zh" ? "删除" : "DELETE"}
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <EmptyPanel
+                  title={locale === "zh" ? "没有定时任务" : "NO SCHEDULED JOBS"}
+                  detail={
+                    locale === "zh"
+                      ? "任务触发条件将显示在这里。"
+                      : "Job triggers appear here."
+                  }
+                />
+              )}
+              <div className="rounded-md border border-agent-border bg-agent-raised p-4">
+                <SectionTitle
+                  title={locale === "zh" ? "执行轨迹" : "EXECUTION TRACE"}
+                />
+                {workspace.events.length ? (
+                  <SafeTrace events={workspace.events} locale={locale} />
+                ) : (
+                  <p className="text-[10px] leading-5 text-agent-dim">
+                    {locale === "zh"
+                      ? "只展示安全阶段、工具摘要与产物，不展示思维链。"
+                      : "Only safe phases, tool summaries, and artifacts are shown."}
+                  </p>
+                )}
+              </div>
+            </div>
+          </ScrollArea>
+        </Panel>
+
+        <Panel className="min-h-0 overflow-hidden p-0">
+          <div className="border-b border-agent-border p-4">
+            <SectionTitle
+              title={
+                locale === "zh"
+                  ? "Tushare 数据调用日志"
+                  : "TUSHARE DATA CALL LOG"
+              }
+              action={
+                <span className="font-data text-[9px] text-agent-dim">
+                  {trace?.tushare_calls.length || 0}{" "}
+                  {locale === "zh" ? "次" : "CALLS"}
+                </span>
+              }
+            />
+          </div>
+          <ScrollArea className="h-[calc(100%-68px)]">
+            <div className="divide-y divide-agent-border px-4">
+              {trace?.tushare_calls.length ? (
+                trace.tushare_calls.map((item) => (
+                  <div
+                    key={`${item.step_id}-${item.sequence}`}
+                    className="py-4"
+                  >
+                    <div className="flex items-center gap-2">
+                      <StatusDot status={item.status} />
+                      <span className="font-data text-[10px] text-agent-mint">
+                        {item.dataset ||
+                          item.capability ||
+                          (locale === "zh" ? "数据集" : "dataset")}
+                      </span>
+                      <span className="ml-auto font-data text-[9px] text-agent-dim">
+                        #{item.sequence}
+                      </span>
+                    </div>
+                    <p className="mt-2 font-data text-[9px] leading-5 text-agent-muted">
+                      {locale === "zh" ? "字段" : "fields"}:{" "}
+                      {item.requested_fields.join(", ") || "—"}
+                      <br />
+                      {locale === "zh" ? "过滤键" : "filters"}:{" "}
+                      {item.filter_keys.join(", ") || "—"}
+                    </p>
+                    {item.error ? (
+                      <p className="mt-2 text-[10px] text-agent-down">
+                        {item.error}
+                      </p>
+                    ) : null}
+                  </div>
+                ))
+              ) : (
+                <div className="py-4">
+                  <EmptyPanel
+                    title={
+                      locale === "zh" ? "暂无 Tushare 调用" : "NO TUSHARE CALLS"
+                    }
+                    detail={
+                      locale === "zh"
+                        ? "这里只展示数据集、字段、过滤键与结果摘要。"
+                        : "Only datasets, fields, filters, and result summaries are shown."
+                    }
+                  />
+                </div>
+              )}
+            </div>
+          </ScrollArea>
+        </Panel>
+      </div>
+    </DashboardPage>
+  );
 }
 
-function RunList({ events, locale, onNavigate }: { events: Array<{ id: string; type: string; payload: Record<string, unknown>; navigation?: { route?: string; tab?: string; entity_id?: string; label?: string } }>; locale: string; onNavigate: (hint: { route?: string; tab?: string; entity_id?: string; label?: string }) => void }) {
-  const hidden = new Set(["thought", "reasoning", "chain_of_thought", "chainOfThought", "prompt", "system_prompt"]);
-  const safePayload = (value: unknown): unknown => {
-    if (Array.isArray(value)) return value.map(safePayload);
-    if (!value || typeof value !== "object") return value;
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>)
-      .filter(([key]) => !hidden.has(key) && !key.toLowerCase().includes("reasoning") && !key.toLowerCase().includes("thought"))
-      .map(([key, item]) => [key, safePayload(item)]));
-  };
-  return events.length ? <div className="mx-auto max-w-4xl divide-y divide-agent-border rounded-md border border-agent-border bg-agent-surface px-4">{events.map((event) => <div key={event.id} className="grid gap-3 py-3 md:grid-cols-[150px_1fr]"><span className="font-data text-[9px] uppercase text-agent-mint">{event.type}</span><div><pre className="overflow-auto whitespace-pre-wrap font-data text-[9px] leading-5 text-agent-muted">{JSON.stringify(safePayload(event.payload), null, 2)}</pre>{event.navigation?.route ? <Button variant="link" size="sm" className="mt-1 h-auto px-0 text-[10px] text-agent-blue" onClick={() => onNavigate(event.navigation!)}>{event.navigation.label || (locale === "zh" ? "打开关联视图" : "Open linked view")}<ArrowUpRight className="ml-1 h-3 w-3" /></Button> : null}</div></div>)}</div> : <EmptyPanel title={locale === "zh" ? "暂无事件" : "No events"} detail={locale === "zh" ? "运行开始后这里只展示安全阶段、工具摘要与产物，不展示思维链。" : "Once a run starts, only safe phases, tool summaries, and artifacts appear here—not chain-of-thought."} />;
+function localizeMode(value: string, locale: string) {
+  if (locale !== "zh") return value.toUpperCase();
+  return (
+    ({ ask: "问答", research: "研究", plan: "规划" } as Record<string, string>)[
+      value
+    ] || value
+  );
+}
+
+function SafeTrace({
+  events,
+  locale,
+}: {
+  events: Array<{ id: string; type: string; payload: Record<string, unknown> }>;
+  locale: string;
+}) {
+  const hidden = new Set([
+    "thought",
+    "reasoning",
+    "chain_of_thought",
+    "chainOfThought",
+    "prompt",
+    "system_prompt",
+  ]);
+  const sanitize = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.map(sanitize)
+      : value && typeof value === "object"
+        ? Object.fromEntries(
+            Object.entries(value as Record<string, unknown>)
+              .filter(
+                ([key]) =>
+                  !hidden.has(key) &&
+                  !key.toLowerCase().includes("reasoning") &&
+                  !key.toLowerCase().includes("thought"),
+              )
+              .map(([key, item]) => [key, sanitize(item)]),
+          )
+        : value;
+  return (
+    <div className="divide-y divide-agent-border">
+      {events
+        .slice(-12)
+        .reverse()
+        .map((event) => (
+          <div key={event.id} className="py-3">
+            <p className="font-data text-[9px] text-agent-mint">{event.type}</p>
+            <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap font-data text-[9px] leading-5 text-agent-muted">
+              {JSON.stringify(sanitize(event.payload), null, 2)}
+            </pre>
+          </div>
+        ))}
+      <p className="pt-3 text-[9px] text-agent-dim">
+        {locale === "zh"
+          ? "已自动移除提示词、推理与思维链字段。"
+          : "Prompt, reasoning, and chain-of-thought fields are automatically removed."}
+      </p>
+    </div>
+  );
 }

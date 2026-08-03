@@ -14,8 +14,8 @@ export function Panel({ children, className, tone = "default" }: { children: Rea
   return <section className={cn("rounded-md border border-agent-border p-4", tone === "raised" ? "bg-agent-raised" : "bg-agent-surface", className)}>{children}</section>;
 }
 
-export function SectionTitle({ title, en, action }: { title: string; en?: string; action?: ReactNode }) {
-  return <div className="mb-3 flex min-h-7 items-center gap-2"><h2 className="text-sm font-medium text-agent-text">{title}</h2>{en ? <span className="font-data text-[9px] uppercase tracking-[.1em] text-agent-dim">{en}</span> : null}<div className="ml-auto">{action}</div></div>;
+export function SectionTitle({ title, action }: { title: string; en?: string; action?: ReactNode }) {
+  return <div className="mb-3 flex min-h-7 items-center gap-2"><h2 className="text-sm font-medium text-agent-text">{title}</h2><div className="ml-auto">{action}</div></div>;
 }
 
 export function MetricCard({ label, value, note, color = "text-agent-text", progress }: { label: string; value: string; note?: string; color?: string; progress?: number }) {

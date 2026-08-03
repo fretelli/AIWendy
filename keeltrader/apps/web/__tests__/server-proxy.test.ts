@@ -63,6 +63,28 @@ describe("server proxy helper", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("forwards unauthenticated requests when self-hosted auth is disabled", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ auth_required: false }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+
+    const response = await proxyRequest(
+      request("/api/proxy/v1/runtime/config"),
+      context(["v1", "runtime", "config"]),
+      {
+        baseUrls: () => ["http://api:8000"],
+        requireAuth: false,
+      }
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ auth_required: false });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("sets auth cookies after login", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(

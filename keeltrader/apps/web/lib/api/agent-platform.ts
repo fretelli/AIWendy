@@ -703,6 +703,10 @@ export type PublicationStatus = { available: boolean; version: string; generated
 export type DataStatus = { publication: PublicationStatus; opportunity_refresh: Array<{ domain: string; status: string; last_succeeded_at?: string; last_error?: string; duration_ms?: number; candidates_seen: number }>; read_only: true; request_time_refresh: false; scoring: false; methodology: string };
 export type MarketCapability = { key: string; table?: string; domain: string; exposure: "typed_api" | "agent_query" | "internal" | "unavailable" | string; api: string[]; ui: string[]; physical: boolean; available: boolean; unavailable_reason?: string; publication_state?: string; updated_through?: string; coverage?: { ratio?: number; actual?: number; expected?: number; history_start?: string; points?: number } };
 export type MarketCapabilities = { version: string; schema_version: number; source: string; generated_at?: string; publication_version?: string; physical_table_count?: number; available: boolean; read_only: true; synthetic_substitution: false; capabilities: MarketCapability[]; unavailable_reason?: string };
+export type MarketAnalysisMetadata = { status: "available" | "unavailable" | string; reason_code?: string; as_of?: string; coverage?: number; publication_version: string; capability_version: string; methodology_key: string; source_datasets: string[] };
+export type ValuationBoard = { metadata: MarketAnalysisMetadata; percentile_window: string; synthetic_substitution: false; items: Array<{ code: string; name: string; trade_date: string; pe?: number; pb?: number; total_mv?: number; turnover_rate?: number; source: string; pe_percentile?: number; pb_percentile?: number; crowding_percentile?: number; percentile_change_1m?: number; percentile_change_3m?: number }> };
+export type CorrelationBoard = { metadata: MarketAnalysisMetadata; window: number; aligned_points: number; synthetic_substitution: false; series: Array<{ key: string; label: string; source_table: string; provider_symbol: string }>; matrix: Array<Array<number | null>>; delta_matrix: Array<Array<number | null>> };
+export type FactorBoard = { metadata: MarketAnalysisMetadata; point_in_time: true; synthetic_substitution: false; factors: Array<{ key: string; returns: Record<"1M" | "3M" | "1Y", number | null>; ic: Record<"1M" | "3M" | "1Y", number | null>; coverage: Record<string, number>; crowding?: number | null }>; crowding: { status: string; reason_code?: string; coverage?: number; methodology_key?: string; weights?: Record<string, number>; missing_component_policy?: string } };
 export type AllocationAccount = {
   id: string; name: string; base_currency: "CNY"; capital: number; horizon_months: number;
   liquidity_reserve: number; max_drawdown: number; max_leverage: number;
@@ -1066,6 +1070,9 @@ export const marketsApi = {
   dataStatus: () => apiJson<DataStatus>(`${marketsBase}/data-status`),
   capabilities: () => apiJson<MarketCapabilities>(`${marketsBase}/capabilities`),
   capital: () => apiJson<MarketCapitalSnapshot>(`${marketsBase}/capital`),
+  valuationBoard: () => apiJson<ValuationBoard>(`${marketsBase}/valuation-board`),
+  correlations: (window = 60) => apiJson<CorrelationBoard>(`${marketsBase}/correlations?window=${window}`),
+  factors: () => apiJson<FactorBoard>(`${marketsBase}/factors`),
   macroCatalog: () => apiJson<MacroCatalog>(`${marketsBase}/macro/series`),
   macroSeries: (key: string, field: string) =>
     apiJson<MacroSeriesDetail>(

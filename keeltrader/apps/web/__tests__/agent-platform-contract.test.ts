@@ -18,8 +18,8 @@ describe("AgentOS workspace contract", () => {
   });
 
   it("shows safe tool traces without exposing model reasoning or trade execution", () => {
-    expect(workspace).toContain("不展示模型思维链");
-    expect(workspace).toContain("SAFE TOOL TRACE");
+    expect(workspace).toContain("不展示思维链");
+    expect(workspace).toContain("安全阶段");
     expect(workspace).not.toMatch(/place_order|cancel_order|execute_trade/);
   });
 });
