@@ -16,3 +16,7 @@ test("allocation consolidates SAA TAA rebalance and stress in one module", () =>
 test("legacy allocation framework route redirects to the canonical module", () => {
   expect(legacy).toContain('redirect("/agent/allocation")');
 });
+
+test("allocation missing-input reason codes are localized", () => {
+  expect(page).toContain('cny_cash: ["人民币计价与现金收益序列"');
+});

@@ -22,6 +22,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from config import get_settings
 from services.agent_platform.capabilities import physical_tables, queryable_tables
+from services.agent_platform.capabilities import capability_version
+from services.agent_platform.publication_status import publication_version
 
 
 _IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
@@ -32,6 +34,28 @@ _market_capital_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _MARKET_CAPITAL_CACHE_SECONDS = 300
 _market_domain_cache: dict[str, tuple[float, Any]] = {}
 _MARKET_DOMAIN_CACHE_SECONDS = 600
+
+
+def _pearson(left: list[float], right: list[float]) -> float | None:
+    if len(left) != len(right) or len(left) < 20:
+        return None
+    left_mean = sum(left) / len(left)
+    right_mean = sum(right) / len(right)
+    numerator = sum((a - left_mean) * (b - right_mean) for a, b in zip(left, right))
+    left_norm = math.sqrt(sum((a - left_mean) ** 2 for a in left))
+    right_norm = math.sqrt(sum((b - right_mean) ** 2 for b in right))
+    return numerator / (left_norm * right_norm) if left_norm and right_norm else None
+
+
+_FACTOR_FIELDS = {
+    "value": "value_score",
+    "momentum": "momentum_score",
+    "low_vol": "low_vol_score",
+    "quality": "quality_score",
+    "growth": "growth_score",
+    "size": "size_score",
+    "dividend": "dividend_score",
+}
 
 
 def source_freshness_metadata(
@@ -948,6 +972,361 @@ class TushareReadService:
         result["interpretations"] = factual_interpretations(result)
         _market_capital_cache[cache_key] = (time.monotonic(), copy.deepcopy(result))
         return result
+
+    def _analysis_metadata(self, *, status: str, reason_code: str | None, as_of: str | None,
+                           coverage: float | None, methodology_key: str,
+                           source_datasets: list[str]) -> dict[str, Any]:
+        return {
+            "status": status,
+            "reason_code": reason_code,
+            "as_of": as_of,
+            "coverage": coverage,
+            "publication_version": publication_version(),
+            "capability_version": capability_version(),
+            "methodology_key": methodology_key,
+            "source_datasets": source_datasets,
+        }
+
+    async def valuation_board(self) -> dict[str, Any]:
+        """Return source-native valuation percentiles and their time changes."""
+        required = ["sw_daily", "index_dailybasic"]
+        if not all(await asyncio.gather(*(self.table_exists(table) for table in required))):
+            return {"metadata": self._analysis_metadata(
+                status="unavailable", reason_code="required_dataset_not_published", as_of=None,
+                coverage=None, methodology_key="kt_valuation_percentile_v1", source_datasets=required,
+            ), "items": []}
+        rows = await self._execute_mappings(text(f"""
+            WITH raw AS (
+              SELECT d.ts_code AS code,COALESCE(NULLIF(d.name,''),d.ts_code) AS name,d.trade_date,
+                     d.pe,d.pb,d.total_mv,NULL::numeric AS turnover_rate,d.amount::numeric AS activity,'sw_daily'::text AS source
+              FROM {self.schema}.sw_daily d WHERE d.pe>0 AND d.pb>0
+              UNION ALL
+              SELECT d.ts_code AS code,COALESCE(NULLIF(b.name,''),d.ts_code) AS name,d.trade_date,
+                     d.pe,d.pb,d.total_mv,d.turnover_rate,d.turnover_rate::numeric AS activity,'index_dailybasic'::text AS source
+              FROM {self.schema}.index_dailybasic d
+              LEFT JOIN {self.schema}.index_basic b ON b.ts_code=d.ts_code
+              WHERE d.pe>0 AND d.pb>0
+            ), source_latest AS (
+              SELECT source,MAX(trade_date) AS as_of FROM raw GROUP BY source
+            ), history AS (
+              SELECT raw.*,
+                     percent_rank() OVER(PARTITION BY code ORDER BY pe) AS pe_percentile,
+                     percent_rank() OVER(PARTITION BY code ORDER BY pb) AS pb_percentile,
+                     CASE WHEN activity IS NULL OR activity<=0 THEN NULL
+                          ELSE percent_rank() OVER(PARTITION BY code ORDER BY activity) END AS crowding_percentile
+              FROM raw JOIN source_latest USING(source)
+              WHERE raw.trade_date>=source_latest.as_of-INTERVAL '5 years'
+            ), current AS (
+              SELECT h.* FROM history h JOIN source_latest USING(source)
+              WHERE h.trade_date=source_latest.as_of
+            ), source_stats AS (
+              SELECT source,MIN(trade_date) AS history_start,MAX(trade_date) AS history_end,
+                     COUNT(DISTINCT trade_date)::int AS history_points
+              FROM history GROUP BY source
+            ), prior_1m AS (
+              SELECT DISTINCT ON (h.code) h.code,h.pe_percentile
+              FROM history h JOIN source_latest USING(source)
+              WHERE h.trade_date<=source_latest.as_of-INTERVAL '1 month'
+              ORDER BY h.code,h.trade_date DESC
+            ), prior_3m AS (
+              SELECT DISTINCT ON (h.code) h.code,h.pe_percentile
+              FROM history h JOIN source_latest USING(source)
+              WHERE h.trade_date<=source_latest.as_of-INTERVAL '3 months'
+              ORDER BY h.code,h.trade_date DESC
+            )
+            SELECT c.code,c.name,c.trade_date,c.pe,c.pb,c.total_mv,c.turnover_rate,c.source,
+                   c.pe_percentile,c.pb_percentile,c.crowding_percentile,
+                   c.pe_percentile-p1.pe_percentile AS percentile_change_1m,
+                   c.pe_percentile-p3.pe_percentile AS percentile_change_3m,
+                   s.history_start,s.history_end,s.history_points
+            FROM current c LEFT JOIN prior_1m p1 USING(code) LEFT JOIN prior_3m p3 USING(code)
+            JOIN source_stats s USING(source)
+            ORDER BY c.pe_percentile DESC,c.total_mv DESC NULLS LAST LIMIT 80
+        """), {})
+        as_of = str(rows[0]["trade_date"]) if rows else None
+        source_coverage: dict[str, float] = {}
+        for row in rows:
+            history_start = row.pop("history_start", None)
+            history_end = row.pop("history_end", None)
+            row.pop("history_points", None)
+            if history_start and history_end:
+                history_start_date = date.fromisoformat(str(history_start))
+                history_end_date = date.fromisoformat(str(history_end))
+                elapsed_days = max(0, (history_end_date - history_start_date).days)
+                source_coverage[row["source"]] = min(1.0, elapsed_days / (365.25 * 5))
+            for key in ("pe_percentile", "pb_percentile", "crowding_percentile", "percentile_change_1m", "percentile_change_3m"):
+                if row.get(key) is not None:
+                    row[key] = round(float(row[key]), 6)
+        coverage = min(source_coverage.values()) if source_coverage else 0.0
+        history_partial = bool(rows) and coverage < 0.95
+        return {
+            "metadata": self._analysis_metadata(
+                status="partial" if history_partial else "available" if rows else "unavailable",
+                reason_code="historical_coverage_partial" if history_partial else None if rows else "published_dataset_empty",
+                as_of=as_of, coverage=round(coverage, 6), methodology_key="kt_valuation_percentile_v1",
+                source_datasets=required,
+            ),
+            "items": rows,
+            "percentile_window": "5Y",
+            "synthetic_substitution": False,
+        }
+
+    async def rolling_correlations(self, window: int = 60) -> dict[str, Any]:
+        """Return aligned rolling correlations for six formal cross-asset series."""
+        window = max(20, min(int(window), 252))
+        definitions = [
+            ("cn_equity", "A股", "fund_daily", "510300.SH"),
+            ("hk_equity", "港股", "index_global", "HSI"),
+            ("us_equity", "美股", "index_global", "SPX"),
+            ("bond", "债券", "fut_daily", "TS.CFX"),
+            ("commodity", "商品", "fut_daily", "AU.SHF"),
+            ("fx", "外汇", "fx_daily", "EURUSD.FXCM"),
+        ]
+        required = sorted({item[2] for item in definitions})
+        if not all(await asyncio.gather(*(self.table_exists(table) for table in required))):
+            return {"metadata": self._analysis_metadata(
+                status="unavailable", reason_code="required_dataset_not_published", as_of=None,
+                coverage=None, methodology_key="kt_corr_v1", source_datasets=required,
+            ), "series": [], "matrix": [], "delta_matrix": []}
+        rows = await self._execute_mappings(text(f"""
+            SELECT 'cn_equity' AS key,trade_date,close::numeric AS value FROM {self.schema}.fund_daily
+              WHERE ts_code='510300.SH' AND close>0
+            UNION ALL SELECT 'hk_equity',trade_date,close::numeric FROM {self.schema}.index_global
+              WHERE ts_code='HSI' AND close>0
+            UNION ALL SELECT 'us_equity',trade_date,close::numeric FROM {self.schema}.index_global
+              WHERE ts_code='SPX' AND close>0
+            UNION ALL SELECT 'bond',trade_date,close::numeric FROM {self.schema}.fut_daily
+              WHERE ts_code='TS.CFX' AND close>0
+            UNION ALL SELECT 'commodity',trade_date,close::numeric FROM {self.schema}.fut_daily
+              WHERE ts_code='AU.SHF' AND close>0
+            UNION ALL SELECT 'fx',trade_date,
+              COALESCE((bid_close+ask_close)/2,bid_close,ask_close)::numeric FROM {self.schema}.fx_daily
+              WHERE ts_code='EURUSD.FXCM' AND COALESCE((bid_close+ask_close)/2,bid_close,ask_close)>0
+            ORDER BY trade_date,key
+        """), {})
+        values: dict[str, dict[str, float]] = {key: {} for key, *_ in definitions}
+        for row in rows:
+            values[str(row["key"])][str(row["trade_date"])] = float(row["value"])
+        common_dates = sorted(set.intersection(*(set(values[key]) for key, *_ in definitions)))
+        returns: dict[str, list[float]] = {}
+        for key, *_ in definitions:
+            prices = [values[key][day] for day in common_dates]
+            returns[key] = [prices[index] / prices[index - 1] - 1 for index in range(1, len(prices))]
+        keys = [item[0] for item in definitions]
+        current_slice = slice(max(0, len(common_dates) - window - 1), None)
+        previous_end = max(0, len(common_dates) - window - 1)
+        previous_start = max(0, previous_end - window)
+
+        def matrix_for(bounds: slice) -> list[list[float | None]]:
+            matrix: list[list[float | None]] = []
+            for left in keys:
+                line = []
+                for right in keys:
+                    if left == right:
+                        line.append(1.0)
+                    else:
+                        value = _pearson(returns[left][bounds], returns[right][bounds])
+                        line.append(round(value, 4) if value is not None else None)
+                matrix.append(line)
+            return matrix
+
+        matrix = matrix_for(current_slice)
+        previous = matrix_for(slice(previous_start, previous_end)) if previous_end - previous_start >= 20 else []
+        delta = [[None if not previous or matrix[i][j] is None or previous[i][j] is None
+                  else round(float(matrix[i][j]) - float(previous[i][j]), 4)
+                  for j in range(len(keys))] for i in range(len(keys))]
+        available = len(common_dates) >= window + 1
+        return {
+            "metadata": self._analysis_metadata(
+                status="available" if available else "unavailable",
+                reason_code=None if available else "insufficient_aligned_history",
+                as_of=common_dates[-1] if common_dates else None,
+                coverage=min(1.0, len(common_dates) / (window + 1)) if common_dates else 0.0,
+                methodology_key="kt_corr_v1", source_datasets=required,
+            ),
+            "window": window,
+            "series": [{"key": key, "label": label, "source_table": table, "provider_symbol": symbol}
+                       for key, label, table, symbol in definitions],
+            "matrix": matrix if available else [],
+            "delta_matrix": delta if available else [],
+            "aligned_points": len(common_dates),
+            "synthetic_substitution": False,
+        }
+
+    async def factor_board(self) -> dict[str, Any]:
+        """Compute point-in-time seven-factor quintile spreads and formal crowding."""
+        required = ["stock_daily", "daily_basic", "fina_indicator", "stock_moneyflow"]
+        if not all(await asyncio.gather(*(self.table_exists(table) for table in required))):
+            return {"metadata": self._analysis_metadata(
+                status="unavailable", reason_code="required_dataset_not_published", as_of=None,
+                coverage=None, methodology_key="kt_factor_v1", source_datasets=required,
+            ), "factors": [], "crowding": {"status": "unavailable", "reason_code": "required_dataset_not_published"}}
+        calendar = await self._execute_mappings(text(f"""
+            SELECT DISTINCT trade_date FROM {self.schema}.stock_daily ORDER BY trade_date DESC LIMIT 280
+        """), {})
+        dates = [date.fromisoformat(str(row["trade_date"])) for row in calendar]
+        if len(dates) < 253:
+            return {"metadata": self._analysis_metadata(
+                status="unavailable", reason_code="insufficient_history", as_of=str(dates[0]) if dates else None,
+                coverage=len(dates) / 253 if dates else 0.0, methodology_key="kt_factor_v1",
+                source_datasets=required,
+            ), "factors": [], "crowding": {"status": "unavailable", "reason_code": "insufficient_history"}}
+        as_of = dates[0]
+        horizons = {"1M": 22, "3M": 66, "1Y": 252}
+        start_dates = {horizon: dates[index] for horizon, index in horizons.items()}
+        available_date_rows = await self._execute_mappings(text(f"""
+            SELECT DISTINCT trade_date
+            FROM {self.schema}.daily_basic
+            WHERE trade_date IN (:d1, :d2, :d3)
+        """), {
+            "d1": start_dates["1M"],
+            "d2": start_dates["3M"],
+            "d3": start_dates["1Y"],
+        })
+        available_start_dates = {
+            date.fromisoformat(str(row["trade_date"])) for row in available_date_rows
+        }
+
+        async def cross_section(start_index: int) -> list[dict[str, Any]]:
+            start_date = dates[start_index]
+            if start_date not in available_start_dates:
+                return []
+            lookback_date = dates[min(start_index + 20, len(dates) - 1)]
+            return await self._execute_mappings(text(f"""
+                WITH volatility AS (
+                  SELECT ts_code,stddev_samp(pct_chg) AS sigma
+                  FROM {self.schema}.stock_daily
+                  WHERE trade_date>:lookback_date AND trade_date<=:start_date
+                  GROUP BY ts_code
+                )
+                SELECT db.ts_code,
+                  CASE WHEN db.pe_ttm>0 THEN 1/db.pe_ttm END AS value_score,
+                  CASE WHEN past.close>0 THEN start_px.close/past.close-1 END AS momentum_score,
+                  -volatility.sigma AS low_vol_score,fin.roe AS quality_score,
+                  fin.netprofit_yoy AS growth_score,
+                  CASE WHEN db.total_mv>0 THEN -ln(db.total_mv) END AS size_score,
+                  db.dv_ttm AS dividend_score,
+                  CASE WHEN start_px.close>0 THEN end_px.close/start_px.close-1 END AS forward_return
+                FROM {self.schema}.daily_basic db
+                JOIN {self.schema}.stock_daily start_px ON start_px.ts_code=db.ts_code AND start_px.trade_date=db.trade_date
+                JOIN {self.schema}.stock_daily end_px ON end_px.ts_code=db.ts_code AND end_px.trade_date=:as_of
+                LEFT JOIN {self.schema}.stock_daily past ON past.ts_code=db.ts_code AND past.trade_date=:lookback_date
+                LEFT JOIN volatility ON volatility.ts_code=db.ts_code
+                LEFT JOIN LATERAL (
+                  SELECT roe,netprofit_yoy
+                  FROM {self.schema}.fina_indicator f
+                  WHERE f.ts_code=db.ts_code AND f.ann_date IS NOT NULL
+                    AND f.ann_date::text<=to_char(CAST(:start_date AS date),'YYYYMMDD')
+                  ORDER BY f.end_date DESC,f.ann_date DESC
+                  LIMIT 1
+                ) fin ON TRUE
+                WHERE db.trade_date=:start_date AND start_px.close>0 AND end_px.close>0
+            """), {"start_date": start_date, "lookback_date": lookback_date, "as_of": as_of})
+
+        sections = dict(zip(horizons, await asyncio.gather(*(cross_section(index) for index in horizons.values()))))
+        factor_rows: dict[str, dict[str, Any]] = {
+            key: {"key": key, "returns": {}, "ic": {}, "coverage": {}} for key in _FACTOR_FIELDS
+        }
+        for horizon, rows in sections.items():
+            for factor, field in _FACTOR_FIELDS.items():
+                valid = [(float(row[field]), float(row["forward_return"])) for row in rows
+                         if row.get(field) is not None and row.get("forward_return") is not None]
+                valid.sort(key=lambda item: item[0])
+                bucket = len(valid) // 5
+                if bucket < 20:
+                    factor_rows[factor]["returns"][horizon] = None
+                    factor_rows[factor]["ic"][horizon] = None
+                else:
+                    low = sum(item[1] for item in valid[:bucket]) / bucket
+                    high = sum(item[1] for item in valid[-bucket:]) / bucket
+                    factor_rows[factor]["returns"][horizon] = round(high - low, 6)
+                    ic = _pearson([item[0] for item in valid], [item[1] for item in valid])
+                    factor_rows[factor]["ic"][horizon] = round(ic, 6) if ic is not None else None
+                factor_rows[factor]["coverage"][horizon] = len(valid)
+
+        crowding_history = await self._execute_mappings(text(f"""
+            SELECT EXISTS (
+              SELECT 1 FROM {self.schema}.daily_basic WHERE trade_date=:d60
+            ) AS available
+        """), {"d60": dates[60]})
+        if crowding_history and crowding_history[0]["available"]:
+            current = await self._execute_mappings(text(f"""
+            WITH flow AS (
+              SELECT ts_code,SUM(net_mf_amount) AS net_mf_amount
+              FROM {self.schema}.stock_moneyflow WHERE trade_date>:d5 AND trade_date<=:as_of GROUP BY ts_code
+            ), vol AS (
+              SELECT ts_code,stddev_samp(pct_chg) AS sigma FROM {self.schema}.stock_daily
+              WHERE trade_date>:d20 AND trade_date<=:as_of GROUP BY ts_code
+            ), base AS (
+              SELECT db.ts_code,
+                CASE WHEN db.pe_ttm>0 THEN 1/db.pe_ttm END AS value_score,
+                CASE WHEN p20.close>0 THEN px.close/p20.close-1 END AS momentum_score,
+                -vol.sigma AS low_vol_score,fin.roe AS quality_score,fin.netprofit_yoy AS growth_score,
+                CASE WHEN db.total_mv>0 THEN -ln(db.total_mv) END AS size_score,db.dv_ttm AS dividend_score,
+                db.turnover_rate_f,
+                CASE WHEN p60.pe_ttm>0 THEN db.pe_ttm/p60.pe_ttm-1 END AS valuation_expansion,
+                CASE WHEN db.free_share>0 AND px.close>0 THEN flow.net_mf_amount/(db.free_share*px.close) END AS flow_intensity
+              FROM {self.schema}.daily_basic db
+              JOIN {self.schema}.stock_daily px ON px.ts_code=db.ts_code AND px.trade_date=db.trade_date
+              LEFT JOIN {self.schema}.stock_daily p20 ON p20.ts_code=db.ts_code AND p20.trade_date=:d20
+              LEFT JOIN {self.schema}.daily_basic p60 ON p60.ts_code=db.ts_code AND p60.trade_date=:d60
+              LEFT JOIN flow ON flow.ts_code=db.ts_code LEFT JOIN vol ON vol.ts_code=db.ts_code
+              LEFT JOIN LATERAL (
+                SELECT roe,netprofit_yoy
+                FROM {self.schema}.fina_indicator f
+                WHERE f.ts_code=db.ts_code AND f.ann_date IS NOT NULL
+                  AND f.ann_date::text<=to_char(CAST(:as_of AS date),'YYYYMMDD')
+                ORDER BY f.end_date DESC,f.ann_date DESC
+                LIMIT 1
+              ) fin ON TRUE
+              WHERE db.trade_date=:as_of
+            ), ranked AS (
+              SELECT base.*,
+                percent_rank() OVER(ORDER BY turnover_rate_f) AS turnover_rank,
+                percent_rank() OVER(ORDER BY momentum_score) AS momentum_rank,
+                percent_rank() OVER(ORDER BY valuation_expansion) AS valuation_rank,
+                percent_rank() OVER(ORDER BY flow_intensity) AS flow_rank
+              FROM base
+            )
+            SELECT *,CASE WHEN turnover_rate_f IS NOT NULL AND momentum_score IS NOT NULL
+                               AND valuation_expansion IS NOT NULL AND flow_intensity IS NOT NULL
+                          THEN .30*turnover_rank+.25*momentum_rank+.20*valuation_rank+.25*flow_rank END AS crowding_score
+            FROM ranked
+            """), {"as_of": as_of, "d5": dates[5], "d20": dates[20], "d60": dates[60]})
+        else:
+            current = []
+        complete = [row for row in current if row.get("crowding_score") is not None]
+        crowding_coverage = len(complete) / len(current) if current else 0.0
+        crowding_available = crowding_coverage >= 0.8
+        for factor, field in _FACTOR_FIELDS.items():
+            eligible = [row for row in complete if row.get(field) is not None]
+            eligible.sort(key=lambda row: float(row[field]))
+            bucket = len(eligible) // 5
+            factor_rows[factor]["crowding"] = round(
+                sum(float(row["crowding_score"]) for row in eligible[-bucket:]) / bucket, 6
+            ) if crowding_available and bucket >= 20 else None
+        history_coverage = len(available_start_dates) / len(horizons)
+        history_complete = history_coverage == 1.0
+        return {
+            "metadata": self._analysis_metadata(
+                status="available" if history_complete else "partial",
+                reason_code=None if history_complete else "historical_daily_basic_coverage_partial",
+                as_of=str(as_of), coverage=history_coverage,
+                methodology_key="kt_factor_v1", source_datasets=required,
+            ),
+            "factors": list(factor_rows.values()),
+            "crowding": {
+                "status": "available" if crowding_available else "unavailable",
+                "reason_code": None if crowding_available else "component_coverage_below_threshold",
+                "coverage": round(crowding_coverage, 6),
+                "methodology_key": "kt_crowding_v1",
+                "weights": {"turnover": 0.30, "momentum_20d": 0.25, "valuation_expansion_3m": 0.20,
+                            "official_flow_5d_free_float": 0.25},
+                "missing_component_policy": "unavailable_without_weight_redistribution",
+            },
+            "point_in_time": True,
+            "synthetic_substitution": False,
+        }
 
     async def macro_market_snapshot(self) -> dict[str, Any]:
         """Return every synchronized raw macro series without normalization or scoring."""

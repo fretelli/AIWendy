@@ -24,13 +24,22 @@ type User = {
   full_name: string | null
 }
 
+type RuntimeConfig = {
+  auth_required: boolean
+  deployment_mode: string
+  local_only: boolean
+}
+
 export function useAuth() {
   const [user, setUser] = React.useState<User | null>(null)
   const [isLoading, setIsLoading] = React.useState(true)
+  const [runtimeConfig, setRuntimeConfig] = React.useState<RuntimeConfig | null>(null)
 
   React.useEffect(() => {
     const checkAuth = async () => {
       try {
+        const config = await apiJson<RuntimeConfig>("/runtime/config")
+        setRuntimeConfig(config)
         const userData = await apiJson<User>("/users/me")
         setUser(userData)
       } catch (error) {
@@ -86,5 +95,13 @@ export function useAuth() {
     setUser(null)
   }, [])
 
-  return { user, isLoading, login, register, logout }
+  return {
+    user,
+    isLoading,
+    authRequired: runtimeConfig?.auth_required ?? process.env.NEXT_PUBLIC_AUTH_REQUIRED !== '0',
+    runtimeConfig,
+    login,
+    register,
+    logout,
+  }
 }

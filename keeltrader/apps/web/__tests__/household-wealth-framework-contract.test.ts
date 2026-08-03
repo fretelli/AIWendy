@@ -15,7 +15,7 @@ test("wealth framework feeds versioned allocation without automatic orders", () 
 });
 
 test("allocation is a single top-level AgentOS module", () => {
-  expect(shell).toContain('{ no: "02", href: "/agent/allocation"');
+  expect(shell).toMatch(/no:\s*"02",\s*href:\s*"\/agent\/allocation"/);
   expect(shell).not.toContain("/agent/today");
   expect(shell).not.toContain("/agent/theses");
 });

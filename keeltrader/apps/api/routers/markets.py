@@ -90,6 +90,22 @@ async def market_capital(session: AsyncSession = Depends(get_session), user: Use
     return await cached_json("capital:all-raw-history", service(session).market_capital_snapshot)
 
 
+@router.get("/valuation-board")
+async def valuation_board(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    return await cached_json("valuation-board:v2", service(session).valuation_board)
+
+
+@router.get("/correlations")
+async def correlations(window: int = Query(60, ge=20, le=252), session: AsyncSession = Depends(get_session),
+                       user: User = Depends(get_current_user)):
+    return await cached_json(f"correlations:v1:{window}", lambda: service(session).rolling_correlations(window))
+
+
+@router.get("/factors")
+async def factors(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    return await cached_json("factors:kt_factor_v1", service(session).factor_board, ttl=900)
+
+
 @router.get("/macro/series")
 async def macro_catalog(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     reader = service(session)

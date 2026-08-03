@@ -31,6 +31,6 @@ test("all module pages preserve real gaps and approved workflows", () => {
   expect(decisions).not.toContain("fundamentals: {}");
   expect(research).toContain("researchLibrary");
   expect(research).toContain("generateBilingualDocument");
-  expect(workspace).toContain("Tushare 调用日志");
+  expect(workspace).toMatch(/Tushare (?:数据)?调用日志/);
   expect(workspace).not.toMatch(/chain_of_thought\s*:/);
 });

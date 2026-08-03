@@ -118,3 +118,32 @@ def test_tushare_json_conversion_replaces_nonfinite_source_values_with_null():
     assert _json_safe(float("nan")) is None
     assert _json_safe(float("inf")) is None
     assert _json_safe(Decimal("NaN")) is None
+
+
+def test_agentos_market_analysis_uses_formal_versioned_methodologies():
+    service = (ROOT / "apps/api/services/agent_platform/tushare.py").read_text()
+    router = (ROOT / "apps/api/routers/markets.py").read_text()
+    for route in ('/valuation-board', '/correlations', '/factors'):
+        assert f'@router.get("{route}")' in router
+    for methodology in ("kt_valuation_percentile_v1", "kt_corr_v1", "kt_factor_v1", "kt_crowding_v1"):
+        assert methodology in service
+    assert "INTERVAL '5 years'" in service
+    assert "crowding_percentile" in service
+    assert 'reason_code="historical_coverage_partial"' in service
+    assert "elapsed_days / (365.25 * 5)" in service
+    assert '"publication_version": publication_version()' in service
+    assert '"capability_version": capability_version()' in service
+    assert '"synthetic_substitution": False' in service
+
+
+def test_factor_returns_are_point_in_time_and_crowding_never_redistributes_missing_weights():
+    service = (ROOT / "apps/api/services/agent_platform/tushare.py").read_text()
+    assert "ann_date::text<=to_char(CAST(:start_date AS date),'YYYYMMDD')" in service
+    assert '"historical_daily_basic_coverage_partial"' in service
+    assert "end_px.trade_date=:as_of" in service
+    assert '"point_in_time": True' in service
+    assert '"turnover": 0.30' in service
+    assert '"momentum_20d": 0.25' in service
+    assert '"valuation_expansion_3m": 0.20' in service
+    assert '"official_flow_5d_free_float": 0.25' in service
+    assert '"unavailable_without_weight_redistribution"' in service

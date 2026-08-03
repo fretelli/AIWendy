@@ -1,6 +1,7 @@
 """KeelTrader v2 API."""
 
 import logging
+import ipaddress
 from contextlib import asynccontextmanager
 
 import structlog
@@ -50,6 +51,20 @@ def _validate_security_config():
     if settings.environment in ["test", "testing"]:
         logger.info("Skipping security validation in test environment")
         return
+
+    def is_loopback(host: str) -> bool:
+        try:
+            return ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            return host.lower() == "localhost"
+
+    if not settings.auth_required and not all(
+        is_loopback(host)
+        for host in (settings.exposure_host, settings.web_exposure_host)
+    ):
+        errors.append(
+            "CRITICAL: authentication may be disabled only when API and Web are loopback-only"
+        )
 
     if settings.jwt_secret in [
         "INSECURE-DEFAULT-CHANGE-ME-32CHARS-MIN",
@@ -160,6 +175,16 @@ app.include_router(
 )
 
 
+@app.get("/api/v1/runtime/config", tags=["Runtime"])
+async def runtime_config():
+    """Expose non-secret deployment behavior required by the Web client."""
+    return {
+        "auth_required": settings.auth_required,
+        "deployment_mode": settings.deployment_mode,
+        "local_only": not settings.auth_required,
+    }
+
+
 @app.get("/")
 async def root():
     return {
@@ -175,7 +200,7 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
+        host=settings.bind_host,
         port=8000,
         reload=settings.debug,
         log_level=settings.log_level.lower(),

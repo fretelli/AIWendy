@@ -29,6 +29,18 @@ class Settings(BaseSettings):
         default="self-hosted",
         validation_alias=AliasChoices("DEPLOYMENT_MODE", "deployment_mode"),
     )
+    bind_host: str = Field(
+        default="127.0.0.1",
+        validation_alias=AliasChoices("KEELTRADER_BIND_HOST", "BIND_HOST"),
+    )
+    exposure_host: str = Field(
+        default="127.0.0.1",
+        validation_alias=AliasChoices("KEELTRADER_EXPOSURE_HOST", "EXPOSURE_HOST"),
+    )
+    web_exposure_host: str = Field(
+        default="127.0.0.1",
+        validation_alias=AliasChoices("KEELTRADER_WEB_EXPOSURE_HOST", "WEB_EXPOSURE_HOST"),
+    )
 
     # ========== Database ==========
     database_url: str = "postgresql+asyncpg://keeltrader:password@localhost:5432/keeltrader"

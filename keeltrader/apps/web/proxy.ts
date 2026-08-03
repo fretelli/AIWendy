@@ -16,6 +16,7 @@ const PROTECTED_PATHS = [
   '/agent',
   '/settings',
 ];
+const AUTH_REQUIRED = process.env.NEXT_PUBLIC_AUTH_REQUIRED !== '0';
 
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -32,7 +33,7 @@ export function proxy(request: NextRequest) {
     (path) => pathname === path || pathname.startsWith(`${path}/`)
   );
 
-  if (isProtectedPath && !request.cookies.get(AUTH_COOKIE)?.value) {
+  if (AUTH_REQUIRED && isProtectedPath && !request.cookies.get(AUTH_COOKIE)?.value) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/auth/login';
     loginUrl.search = '';

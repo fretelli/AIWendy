@@ -13,15 +13,15 @@ export default function AppLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, authRequired } = useAuth();
 
   useEffect(() => {
-    if (!isLoading && !user) {
+    if (authRequired && !isLoading && !user) {
       router.push(`/auth/login?next=${encodeURIComponent(pathname)}`);
     }
-  }, [user, isLoading, router, pathname]);
+  }, [user, isLoading, authRequired, router, pathname]);
 
-  if (isLoading || !user) {
+  if (isLoading || (authRequired && !user)) {
     return (
       <div className="flex h-dvh items-center justify-center">
         <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full" />

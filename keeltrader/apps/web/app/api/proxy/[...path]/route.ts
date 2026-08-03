@@ -12,8 +12,10 @@ const ACCESS_TOKEN_COOKIE = "keeltrader_access_token";
 const REFRESH_TOKEN_COOKIE = "keeltrader_refresh_token";
 
 function proxy(request: Request, context: RouteContext): Promise<Response> {
+  const authRequired = process.env.NEXT_PUBLIC_AUTH_REQUIRED !== "0";
   return proxyRequest(request, context, {
     baseUrls: getApiBaseUrlCandidates,
+    requireAuth: authRequired,
     publicPaths: [
       "v1/auth/login",
       "v1/auth/register",
@@ -21,13 +23,13 @@ function proxy(request: Request, context: RouteContext): Promise<Response> {
       "v1/auth/reset-password",
       "v1/auth/google",
     ],
-    auth: {
+    auth: authRequired ? {
       loginPath: "v1/auth/login",
       refreshPath: "v1/auth/refresh",
       logoutPath: "v1/auth/logout",
       accessTokenCookie: ACCESS_TOKEN_COOKIE,
       refreshTokenCookie: REFRESH_TOKEN_COOKIE,
-    },
+    } : undefined,
     rewriteLocation: rewriteApiLocationToProxy,
     errorPayload: ({ candidates, errors }) => ({
       error: "API proxy failed",

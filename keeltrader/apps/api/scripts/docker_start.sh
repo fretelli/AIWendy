@@ -23,7 +23,7 @@ if is_truthy "${KEELTRADER_RUN_MIGRATIONS:-1}"; then
 fi
 
 if is_truthy "${KEELTRADER_RELOAD:-0}"; then
-  exec uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+  exec uvicorn main:app --host "${KEELTRADER_BIND_HOST:-127.0.0.1}" --port 8000 --reload
 fi
 
-exec uvicorn main:app --host 0.0.0.0 --port 8000
+exec uvicorn main:app --host "${KEELTRADER_BIND_HOST:-127.0.0.1}" --port 8000
