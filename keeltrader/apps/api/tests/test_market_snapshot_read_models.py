@@ -17,7 +17,7 @@ async def test_snapshot_reader_preserves_payload_and_adds_materialization_metada
         "analysis_version": "analysis-v1",
         "computed_at": "2026-08-03T10:00:00Z",
         "source_watermarks": {"sw_daily": "2026-08-01"},
-        "payload": {"metadata": {"status": "available", "methodology_key": "kt_valuation_percentile_v1",
+        "payload": {"metadata": {"status": "available", "methodology_key": "kt_valuation_percentile_v2",
                                   "source_datasets": ["sw_daily"]},
                     "items": [{"code": "801010.SI"}], "percentile_window": "5Y",
                     "synthetic_substitution": False},
@@ -27,6 +27,8 @@ async def test_snapshot_reader_preserves_payload_and_adds_materialization_metada
     assert result["metadata"]["materialization_version"] == "analysis-v1"
     assert result["metadata"]["publication_version"] == "publication-v1"
     assert result["metadata"]["source_watermarks"] == {"sw_daily": "2026-08-01"}
+    query_parameters = reader._execute_mappings.await_args.args[1]
+    assert query_parameters["methodology"] == "kt_valuation_percentile_v2"
 
 
 @pytest.mark.asyncio
@@ -38,6 +40,19 @@ async def test_missing_materialized_capability_returns_immediately(monkeypatch):
     assert result["metadata"]["status"] == "unavailable"
     assert result["metadata"]["reason_code"] == "materialized_capability_unavailable"
     reader._execute_mappings.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_market_history_readers_filter_methodology(monkeypatch):
+    monkeypatch.setattr(tushare_module, "queryable_tables", lambda: frozenset({
+        "market_correlation_snapshot", "market_factor_snapshot",
+    }))
+    reader = TushareReadService(None)
+    reader._execute_mappings = AsyncMock(return_value=[])
+    await reader.correlation_history(60, 120)
+    assert reader._execute_mappings.await_args.args[1]["methodology"] == "kt_corr_v1"
+    await reader.factor_history(120)
+    assert reader._execute_mappings.await_args.args[1]["methodology"] == "kt_factor_v1"
 
 
 def test_market_cache_key_binds_both_publication_versions(monkeypatch):

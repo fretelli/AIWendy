@@ -999,12 +999,16 @@ class TushareReadService:
                 status="unavailable", reason_code="materialized_capability_unavailable", as_of=None,
                 coverage=None, methodology_key=methodology_key, source_datasets=[],
             )}
-        where = "WHERE window_days=:window" if window is not None else ""
+        where = "WHERE methodology_key=:methodology"
+        parameters: dict[str, Any] = {"methodology": methodology_key}
+        if window is not None:
+            where += " AND window_days=:window"
+            parameters["window"] = window
         rows = await self._execute_mappings(text(f"""
             SELECT analysis_version,computed_at,source_watermarks,payload
             FROM {self.schema}.{table} {where}
             ORDER BY computed_at DESC LIMIT 1
-        """), {"window": window} if window is not None else {})
+        """), parameters)
         if not rows:
             return {**empty, "metadata": self._analysis_metadata(
                 status="unavailable", reason_code="materialized_snapshot_pending", as_of=None,
@@ -1025,7 +1029,7 @@ class TushareReadService:
 
     async def valuation_snapshot(self) -> dict[str, Any]:
         return await self._market_analysis_snapshot(
-            "market_valuation_snapshot", "kt_valuation_percentile_v1",
+            "market_valuation_snapshot", "kt_valuation_percentile_v2",
             {"items": [], "percentile_window": "5Y", "synthetic_substitution": False},
         )
 
@@ -1044,6 +1048,69 @@ class TushareReadService:
              "reason_code": "materialized_snapshot_pending"}, "point_in_time": True,
              "synthetic_substitution": False},
         )
+
+    async def correlation_history(self, window: int = 60, limit: int = 756) -> dict[str, Any]:
+        window = max(20, min(int(window), 252))
+        limit = max(20, min(int(limit), 1200))
+        if "market_correlation_snapshot" not in queryable_tables():
+            return {"metadata": self._analysis_metadata(
+                status="unavailable", reason_code="materialized_capability_unavailable", as_of=None,
+                coverage=None, methodology_key="kt_corr_v1", source_datasets=[],
+            ), "window": window, "series": [], "points": []}
+        rows = await self._execute_mappings(text(f"""
+            SELECT analysis_version,computed_at,payload
+            FROM {self.schema}.market_correlation_snapshot
+            WHERE window_days=:window AND methodology_key=:methodology
+            ORDER BY computed_at DESC LIMIT :limit
+        """), {"window": window, "methodology": "kt_corr_v1", "limit": limit})
+        points = []
+        series = []
+        for row in reversed(rows):
+            payload = dict(row.get("payload") or {})
+            definitions = list(payload.get("series") or [])
+            matrix = list(payload.get("matrix") or [])
+            if definitions and not series:
+                series = definitions
+            pairs: dict[str, float | None] = {}
+            for left, left_item in enumerate(definitions):
+                for right in range(left + 1, len(definitions)):
+                    right_item = definitions[right]
+                    value = matrix[left][right] if left < len(matrix) and right < len(matrix[left]) else None
+                    pairs[f"{left_item.get('key')}|{right_item.get('key')}"] = value
+            metadata = dict(payload.get("metadata") or {})
+            points.append({"as_of": metadata.get("as_of"), "analysis_version": row.get("analysis_version"), "pairs": pairs})
+        latest = points[-1]["as_of"] if points else None
+        return {"metadata": self._analysis_metadata(
+            status="available" if points else "unavailable",
+            reason_code=None if points else "materialized_snapshot_pending", as_of=latest,
+            coverage=None, methodology_key="kt_corr_v1", source_datasets=["market_correlation_snapshot"],
+        ), "window": window, "series": series, "points": points,
+            "synthetic_substitution": False}
+
+    async def factor_history(self, limit: int = 756) -> dict[str, Any]:
+        limit = max(20, min(int(limit), 1200))
+        if "market_factor_snapshot" not in queryable_tables():
+            return {"metadata": self._analysis_metadata(
+                status="unavailable", reason_code="materialized_capability_unavailable", as_of=None,
+                coverage=None, methodology_key="kt_factor_v1", source_datasets=[],
+            ), "points": []}
+        rows = await self._execute_mappings(text(f"""
+            SELECT analysis_version,computed_at,payload
+            FROM {self.schema}.market_factor_snapshot
+            WHERE methodology_key=:methodology ORDER BY computed_at DESC LIMIT :limit
+        """), {"methodology": "kt_factor_v1", "limit": limit})
+        points = []
+        for row in reversed(rows):
+            payload = dict(row.get("payload") or {})
+            metadata = dict(payload.get("metadata") or {})
+            points.append({"as_of": metadata.get("as_of"), "analysis_version": row.get("analysis_version"),
+                           "factors": list(payload.get("factors") or []), "crowding": payload.get("crowding") or {}})
+        latest = points[-1]["as_of"] if points else None
+        return {"metadata": self._analysis_metadata(
+            status="available" if points else "unavailable",
+            reason_code=None if points else "materialized_snapshot_pending", as_of=latest,
+            coverage=None, methodology_key="kt_factor_v1", source_datasets=["market_factor_snapshot"],
+        ), "points": points, "point_in_time": True, "synthetic_substitution": False}
 
     async def valuation_board(self) -> dict[str, Any]:
         """Return source-native valuation percentiles and their time changes."""

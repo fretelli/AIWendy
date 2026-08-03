@@ -1,11 +1,15 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 
-import { EmptyPanel, MiniLine, Panel, SectionTitle, StatusDot } from "@/components/agentos/dashboard-ui";
+import { EmptyPanel, Panel, SectionTitle, StatusDot } from "@/components/agentos/dashboard-ui";
 import { Button } from "@/components/ui/button";
 import { marketsApi, type FuturesCurve, type FuturesHistory, type FuturesProduct, type OptionSeries, type OptionsChain, type RatesCatalog } from "@/lib/api/agent-platform";
 import { useI18n } from "@/lib/i18n/provider";
+
+const TimeSeriesChart = dynamic(() => import("@/components/agentos/market-charts").then((module) => module.TimeSeriesChart), { ssr: false });
+type Period = "1M" | "3M" | "1Y" | "3Y";
 
 export function RatesDrilldown() {
   const { locale } = useI18n();
@@ -16,7 +20,7 @@ export function RatesDrilldown() {
   </Panel>;
 }
 
-export function FuturesDrilldown() {
+export function FuturesDrilldown({ period = "1Y" }: { period?: Period }) {
   const { locale } = useI18n();
   const [items, setItems] = useState<FuturesProduct[]>([]);
   const [selected, setSelected] = useState<string>();
@@ -24,7 +28,8 @@ export function FuturesDrilldown() {
   const [curve, setCurve] = useState<FuturesCurve>();
   useEffect(() => { void marketsApi.futuresProducts().then((data) => { setItems(data.items); setSelected(data.items[0]?.product_code); }); }, []);
   useEffect(() => { if (!selected) return; void Promise.all([marketsApi.futuresHistory(selected), marketsApi.futuresCurve(selected)]).then(([nextHistory, nextCurve]) => { setHistory(nextHistory); setCurve(nextCurve); }); }, [selected]);
-  return <div className="grid gap-3 xl:grid-cols-[280px_1fr]"><Panel><SectionTitle title={locale === "zh" ? "期货品种" : "Futures Products"} en="PUBLISHED CONTRACTS" /><div className="flex max-h-[430px] flex-col gap-1 overflow-y-auto">{items.map((item) => <Button key={item.product_code} variant={selected === item.product_code ? "secondary" : "ghost"} className="justify-between" onClick={() => setSelected(item.product_code)}><span>{item.product_code}</span><span className="font-data text-[9px] text-agent-dim">{item.trade_date}</span></Button>)}</div></Panel><Panel><SectionTitle title={selected || (locale === "zh" ? "期限结构" : "Term Structure")} en="HISTORY · CURVE" />{history?.history.length ? <><div className="h-[220px]"><MiniLine values={history.history.map((item) => item.settle ?? item.close ?? 0)} color="var(--agent-blue)" height={100} /></div><div className="mt-4 grid gap-2 md:grid-cols-3">{curve?.items.slice(0, 12).map((item) => <div key={item.contract_code} className="rounded border border-agent-border bg-agent-raised p-3"><p className="text-xs text-agent-text">{item.contract_code}</p><p className="mt-2 font-data text-sm text-agent-blue">{item.settle ?? item.close ?? "—"}</p><p className="mt-1 text-[9px] text-agent-dim">{locale === "zh" ? "持仓量" : "Open interest"} {item.oi ?? "—"}</p></div>)}</div></> : <EmptyPanel title={locale === "zh" ? "选择有历史的品种" : "Select a product with history"} detail={locale === "zh" ? "只展示原始期货行情与可审计合约映射。" : "Only raw futures data and audited contract mappings are shown."} />}</Panel></div>;
+  const visibleHistory = history?.history.slice(-periodPoints(period)) || [];
+  return <div className="grid gap-3 xl:grid-cols-[280px_1fr]"><Panel><SectionTitle title={locale === "zh" ? "期货品种" : "Futures Products"} en="PUBLISHED CONTRACTS" /><div className="flex max-h-[430px] flex-col gap-1 overflow-y-auto">{items.map((item) => <Button key={item.product_code} variant={selected === item.product_code ? "secondary" : "ghost"} className="justify-between" onClick={() => setSelected(item.product_code)}><span>{item.product_code}</span><span className="font-data text-[9px] text-agent-dim">{item.trade_date}</span></Button>)}</div></Panel><Panel><SectionTitle title={selected || (locale === "zh" ? "期限结构" : "Term Structure")} en="HISTORY · CURVE" />{visibleHistory.length ? <><TimeSeriesChart dates={visibleHistory.map((item) => item.trade_date)} series={[{ name: locale === "zh" ? "结算价 / 收盘价" : "Settlement / Close", values: visibleHistory.map((item) => item.settle ?? item.close ?? null) }]} locale={locale} title={`${selected || "—"} · ${period}`} height={320} /><div className="mt-4 grid gap-2 md:grid-cols-3">{curve?.items.slice(0, 12).map((item) => <div key={item.contract_code} className="rounded border border-agent-border bg-agent-raised p-3"><p className="text-xs text-agent-text">{item.contract_code}</p><p className="mt-2 font-data text-sm text-agent-blue">{item.settle ?? item.close ?? "—"}</p><p className="mt-1 text-[9px] text-agent-dim">{locale === "zh" ? "持仓量" : "Open interest"} {item.oi ?? "—"}</p></div>)}</div></> : <EmptyPanel title={locale === "zh" ? "选择有历史的品种" : "Select a product with history"} detail={locale === "zh" ? "只展示原始期货行情与可审计合约映射。" : "Only raw futures data and audited contract mappings are shown."} />}</Panel></div>;
 }
 
 export function OptionsDrilldown() {
@@ -46,4 +51,8 @@ function localizeUnavailableReason(reason: string, locale: "zh" | "en") {
     publication_pending: "等待正式数据发布。",
   };
   return known[reason] || "该正式数据源当前不可用。";
+}
+
+function periodPoints(period: Period) {
+  return ({ "1M": 22, "3M": 66, "1Y": 252, "3Y": 756 } as const)[period];
 }

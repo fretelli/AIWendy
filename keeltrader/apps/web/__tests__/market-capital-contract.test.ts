@@ -14,10 +14,24 @@ test("the canonical market board uses the four approved same-screen analyses", (
   expect(market).toContain("marketsApi.correlations(60)");
   expect(market).toContain("marketsApi.factors");
   expect(market).toContain("item.percentile_change_3m != null");
+  expect(market).toContain('item.universe === "broad"');
+  expect(market).toContain('item.universe === "sw_l1"');
+  expect(market).toContain('data?.metadata.methodology_key === "kt_valuation_percentile_v2"');
   expect(market).toContain("historical_coverage_partial");
   expect(api).toContain("valuationBoard: ()");
   expect(api).toContain("correlations: (window = 60)");
   expect(api).toContain("factors: ()");
+});
+
+test("major market analysis charts expose zoom reset and fullscreen without changing mini trends", () => {
+  const interactive = fs.readFileSync(path.join(root, "components/agentos/interactive-chart.tsx"), "utf8");
+  const charts = fs.readFileSync(path.join(root, "components/agentos/market-charts.tsx"), "utf8");
+  for (const action of ["放大", "缩小", "复位", "全屏查看", "dataZoom", "dispatchAction"]) {
+    expect(interactive).toContain(action);
+  }
+  expect(charts).toContain('zoomMode="xy"');
+  expect(charts).toContain('zoomMode="x"');
+  expect(market).toContain("<MiniLine values={row.values.slice(-60)}");
 });
 
 test("market module exposes exactly two approved top-level tabs and professional drilldowns", () => {
