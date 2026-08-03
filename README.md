@@ -15,7 +15,7 @@ KeelTrader is deliberately vertical. It includes a research agent that can use a
 
 - Eight coordinated AgentOS modules: Overview, Allocation, Holdings, Market, Opportunities, Decisions, Research, and Agent Workspace.
 - Market is organized as exactly two top-level views—Market/Sectors/Flows and Macro Data—with rates, futures, options, valuation, correlation, and factors kept as in-module drilldowns.
-- Interactive valuation, 20–252 day correlation, and factor/crowding endpoints read immutable Tushare-published snapshots; Redis singleflight, last-good real-data fallback, ETag, and SWR prevent duplicate cold-path work.
+- Interactive valuation v2, 20–252 day correlation, and factor/crowding endpoints read immutable Tushare-published snapshots; audited broad/SW-L1 classification and append-only history endpoints support zoomable charts without request-time source scans.
 - Manual and CSV portfolio ingestion, immutable transactions, dated manual prices, explicit valuation completeness, and NAV history.
 - Market evidence, report search, shareholder research, consensus snapshots, and Tushare-backed strategy experiments.
 - Versioned hypotheses and decisions with evidence, falsification conditions, review dates, and attribution.
