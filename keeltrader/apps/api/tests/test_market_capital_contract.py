@@ -125,6 +125,17 @@ def test_agentos_market_analysis_uses_formal_versioned_methodologies():
     router = (ROOT / "apps/api/routers/markets.py").read_text()
     for route in ('/valuation-board', '/correlations', '/factors'):
         assert f'@router.get("{route}")' in router
+    assert "service(session).valuation_snapshot" in router
+    assert "service(session).correlation_snapshot" in router
+    assert "service(session).factor_snapshot" in router
+    assert "service(session).valuation_board" not in router
+    assert "service(session).rolling_correlations" not in router
+    assert "service(session).factor_board" not in router
+    assert '"materialization_version"' in service
+    assert '"computed_at"' in service
+    assert '"source_watermarks"' in service
+    worker = (ROOT / "apps/api/tasks/agent_platform_worker.py").read_text()
+    assert "market_snapshot_prewarm_loop" in worker
     for methodology in ("kt_valuation_percentile_v1", "kt_corr_v1", "kt_factor_v1", "kt_crowding_v1"):
         assert methodology in service
     assert "INTERVAL '5 years'" in service

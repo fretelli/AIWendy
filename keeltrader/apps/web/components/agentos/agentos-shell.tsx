@@ -1,11 +1,13 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Bot, FileDown, Menu } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
 
-import { AgentDock } from "@/components/agentos/agent-dock";
+import { AgentWorkspaceProvider } from "@/components/agentos/workspace-provider";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -22,6 +24,10 @@ import {
 } from "@/lib/api/agentos";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
+
+const AgentDock = dynamic(() => import("@/components/agentos/agent-dock").then((module) => module.AgentDock), {
+  ssr: false,
+});
 
 type ModuleItem = {
   no: string;
@@ -255,9 +261,14 @@ export function AgentOsShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { locale, setLocale, formatCurrency } = useI18n();
-  const [overview, setOverview] = useState<AgentOSOverview | null>(null);
-  const [shellError, setShellError] = useState(false);
+  const { data: overview = null, error: overviewError } = useSWR<AgentOSOverview>(
+    "agentos/overview",
+    agentOSApi.overview,
+    { refreshInterval: 60_000 },
+  );
+  const shellError = Boolean(overviewError);
   const [navOpen, setNavOpen] = useState(false);
+  const [wideDock, setWideDock] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const current = useMemo(() => activeModule(pathname), [pathname]);
   const period = ["1M", "3M", "1Y", "3Y"].includes(
@@ -271,22 +282,13 @@ export function AgentOsShell({ children }: { children: React.ReactNode }) {
     router.replace(`${pathname}?${params.toString()}`);
   };
   useEffect(() => {
-    let cancelled = false;
-    void agentOSApi
-      .overview()
-      .then((value) => {
-        if (!cancelled) {
-          setOverview(value);
-          setShellError(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setShellError(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [pathname]);
+    const media = window.matchMedia("(min-width: 1536px)");
+    const update = () => setWideDock(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  const inheritedWorkspace = pathname.startsWith("/agent/workspace");
   const portfolio =
     overview?.portfolio && "total_value" in overview.portfolio
       ? overview.portfolio
@@ -456,7 +458,7 @@ export function AgentOsShell({ children }: { children: React.ReactNode }) {
         </main>
       </section>
       <aside className="hidden w-[384px] shrink-0 2xl:block">
-        <AgentDock />
+        {wideDock ? <DockRuntime inherited={inheritedWorkspace} /> : null}
       </aside>
       <Sheet open={agentOpen} onOpenChange={setAgentOpen}>
         <SheetContent
@@ -471,11 +473,16 @@ export function AgentOsShell({ children }: { children: React.ReactNode }) {
                 : "Persistent research chat and safe tool summaries"}
             </SheetDescription>
           </SheetHeader>
-          <AgentDock compact />
+          {agentOpen ? <DockRuntime compact inherited={inheritedWorkspace} /> : null}
         </SheetContent>
       </Sheet>
     </div>
   );
+}
+
+function DockRuntime({ compact = false, inherited }: { compact?: boolean; inherited: boolean }) {
+  const dock = <AgentDock compact={compact} />;
+  return inherited ? dock : <AgentWorkspaceProvider>{dock}</AgentWorkspaceProvider>;
 }
 
 function Metric({

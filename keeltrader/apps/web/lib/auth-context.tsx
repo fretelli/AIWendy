@@ -38,9 +38,11 @@ export function useAuth() {
   React.useEffect(() => {
     const checkAuth = async () => {
       try {
-        const config = await apiJson<RuntimeConfig>("/runtime/config")
+        const [config, userData] = await Promise.all([
+          apiJson<RuntimeConfig>("/runtime/config"),
+          apiJson<User>("/users/me"),
+        ])
         setRuntimeConfig(config)
-        const userData = await apiJson<User>("/users/me")
         setUser(userData)
       } catch (error) {
         logClientError("auth.check", error)

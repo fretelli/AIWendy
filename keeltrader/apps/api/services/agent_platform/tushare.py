@@ -120,12 +120,16 @@ def _get_tushare_session_factory() -> async_sessionmaker[AsyncSession] | None:
     if _tushare_session_factory is not None and _tushare_session_url == url:
         return _tushare_session_factory
 
+    settings = get_settings()
     engine = create_async_engine(
-        url, pool_pre_ping=True, pool_size=3, max_overflow=1, pool_timeout=15, pool_recycle=1800,
+        url, pool_pre_ping=True, pool_size=settings.tushare_database_pool_size,
+        max_overflow=settings.tushare_database_max_overflow,
+        pool_timeout=settings.tushare_database_pool_timeout_seconds,
+        pool_recycle=settings.tushare_database_pool_recycle_seconds,
         connect_args={"server_settings": {
             "application_name": "keeltrader-tushare-reader",
             "idle_in_transaction_session_timeout": "60000",
-            "statement_timeout": "30000",
+            "statement_timeout": str(settings.tushare_database_statement_timeout_ms),
         }} if "+asyncpg" in url else {},
     )
     _tushare_session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -136,7 +140,7 @@ def _get_tushare_session_factory() -> async_sessionmaker[AsyncSession] | None:
 class TushareReadService:
     """Small, safe query facade for the synchronized `tushare` schema."""
 
-    def __init__(self, session: AsyncSession, schema: str = "tushare"):
+    def __init__(self, session: AsyncSession | None, schema: str = "tushare"):
         if not _IDENT_RE.match(schema):
             raise ValueError("Invalid Tushare schema name")
         self.session = session
@@ -986,6 +990,60 @@ class TushareReadService:
             "methodology_key": methodology_key,
             "source_datasets": source_datasets,
         }
+
+    async def _market_analysis_snapshot(self, table: str, methodology_key: str, empty: dict[str, Any],
+                                        window: int | None = None) -> dict[str, Any]:
+        """Read one immutable market-analysis payload without scanning source history."""
+        if table not in queryable_tables():
+            return {**empty, "metadata": self._analysis_metadata(
+                status="unavailable", reason_code="materialized_capability_unavailable", as_of=None,
+                coverage=None, methodology_key=methodology_key, source_datasets=[],
+            )}
+        where = "WHERE window_days=:window" if window is not None else ""
+        rows = await self._execute_mappings(text(f"""
+            SELECT analysis_version,computed_at,source_watermarks,payload
+            FROM {self.schema}.{table} {where}
+            ORDER BY computed_at DESC LIMIT 1
+        """), {"window": window} if window is not None else {})
+        if not rows:
+            return {**empty, "metadata": self._analysis_metadata(
+                status="unavailable", reason_code="materialized_snapshot_pending", as_of=None,
+                coverage=None, methodology_key=methodology_key, source_datasets=[],
+            )}
+        row = rows[0]
+        payload = dict(row.get("payload") or {})
+        metadata = dict(payload.get("metadata") or {})
+        metadata.update({
+            "publication_version": publication_version(),
+            "capability_version": capability_version(),
+            "materialization_version": row.get("analysis_version"),
+            "computed_at": row.get("computed_at"),
+            "source_watermarks": row.get("source_watermarks") or {},
+        })
+        payload["metadata"] = metadata
+        return payload
+
+    async def valuation_snapshot(self) -> dict[str, Any]:
+        return await self._market_analysis_snapshot(
+            "market_valuation_snapshot", "kt_valuation_percentile_v1",
+            {"items": [], "percentile_window": "5Y", "synthetic_substitution": False},
+        )
+
+    async def correlation_snapshot(self, window: int = 60) -> dict[str, Any]:
+        window = max(20, min(int(window), 252))
+        return await self._market_analysis_snapshot(
+            "market_correlation_snapshot", "kt_corr_v1",
+            {"window": window, "series": [], "matrix": [], "delta_matrix": [],
+             "aligned_points": 0, "synthetic_substitution": False}, window,
+        )
+
+    async def factor_snapshot(self) -> dict[str, Any]:
+        return await self._market_analysis_snapshot(
+            "market_factor_snapshot", "kt_factor_v1",
+            {"factors": [], "crowding": {"status": "unavailable",
+             "reason_code": "materialized_snapshot_pending"}, "point_in_time": True,
+             "synthetic_substitution": False},
+        )
 
     async def valuation_board(self) -> dict[str, Any]:
         """Return source-native valuation percentiles and their time changes."""

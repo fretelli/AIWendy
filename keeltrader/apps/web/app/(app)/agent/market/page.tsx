@@ -2,7 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import useSWR from "swr";
 
 import { DashboardPage, EmptyPanel, MiniLine, Panel } from "@/components/agentos/dashboard-ui";
 import { Button } from "@/components/ui/button";
@@ -23,21 +24,12 @@ export default function MarketPage() {
   const { locale } = useI18n();
   const tab: TopTab = params.get("tab") === "macro" ? "macro" : "market";
   const detail = (["rates", "futures", "options"].includes(params.get("detail") || "") ? params.get("detail") : null) as Detail | null;
-  const [valuation, setValuation] = useState<ValuationBoard | null>(null);
-  const [correlations, setCorrelations] = useState<CorrelationBoard | null>(null);
-  const [factors, setFactors] = useState<FactorBoard | null>(null);
-  const [macro, setMacro] = useState<MacroMarketSnapshot | null>(null);
-
-  useEffect(() => {
-    if (detail) return;
-    if (tab === "market") {
-      void marketsApi.valuationBoard().then(setValuation).catch(() => setValuation(null));
-      void marketsApi.correlations(60).then(setCorrelations).catch(() => setCorrelations(null));
-      void marketsApi.factors().then(setFactors).catch(() => setFactors(null));
-    } else {
-      void agentPlatformApi.macroMarket().then(setMacro).catch(() => setMacro(null));
-    }
-  }, [detail, tab]);
+  const showMarket = !detail && tab === "market";
+  const showMacro = !detail && tab === "macro";
+  const { data: valuation = null } = useSWR<ValuationBoard>(showMarket ? "markets/valuation-board" : null, marketsApi.valuationBoard);
+  const { data: correlations = null } = useSWR<CorrelationBoard>(showMarket ? "markets/correlations/60" : null, () => marketsApi.correlations(60));
+  const { data: factors = null } = useSWR<FactorBoard>(showMarket ? "markets/factors" : null, marketsApi.factors);
+  const { data: macro = null } = useSWR<MacroMarketSnapshot>(showMacro ? "markets/macro" : null, agentPlatformApi.macroMarket);
 
   const closeDetail = () => {
     const next = new URLSearchParams(params.toString());
