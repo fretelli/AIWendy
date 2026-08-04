@@ -518,23 +518,54 @@ export type MacroCatalog = {
     points?: number;
     source?: string;
     unavailable_reason?: string;
+    primary_field?: string;
+    primary_alias?: string;
+    methodology_key?: string;
+    summary?: MacroAnalysisSummary;
+    sparkline?: { periods: string[]; values: Array<number | null> };
   }>;
-  methodology: { raw?: true; local_transforms?: false; raw_history?: boolean; synthetic_prices?: boolean };
+  methodology: { raw?: true; local_transforms?: boolean; raw_history?: boolean; synthetic_prices?: boolean; methodology_key?: string; percentile_window?: string };
 };
+export type MacroMetricMethod = "official" | "calculated" | "not_applicable";
+export type MacroMetricSummary = {
+  value: number | null;
+  as_of?: string | null;
+  unit: string;
+  method: MacroMetricMethod;
+  status: "available" | "insufficient_history" | "not_applicable" | string;
+  source_field?: string;
+  formula?: string;
+  reason_code?: string;
+  window?: string;
+  minimum_samples?: number;
+  sample_count?: number;
+  window_complete?: boolean;
+};
+export type MacroAnalysisSummary = Record<"primary" | "mom" | "yoy" | "percentile_10y", MacroMetricSummary>;
+export type MacroAnalysisPoint = { period: string; value: number | null; sample_count?: number; window_complete?: boolean };
 export type MacroSeriesDetail = {
   available: boolean;
   key: string;
   label: string;
-  field: string;
+  field?: string;
   frequency: string;
   period_field: string;
   source: string;
   start?: string;
   end?: string;
   points: number;
-  raw: true;
-  rows: Array<{ period: string; value: number | null }>;
+  raw?: true;
+  rows?: Array<{ period: string; value: number | null }>;
   recent_source_rows: Array<Record<string, string | number | null>>;
+  primary_field?: string;
+  primary_alias?: string;
+  methodology_key?: string;
+  summary?: MacroAnalysisSummary;
+  series?: Record<"primary" | "mom" | "yoy" | "percentile_10y", {
+    meta: Omit<MacroMetricSummary, "value" | "as_of">;
+    rows: MacroAnalysisPoint[];
+  }>;
+  sparkline?: { periods: string[]; values: Array<number | null> };
 };
 export type RatesCatalog = MacroCatalog;
 export type RatesSeries = {
@@ -704,9 +735,9 @@ export type DataStatus = { publication: PublicationStatus; opportunity_refresh: 
 export type MarketCapability = { key: string; table?: string; domain: string; exposure: "typed_api" | "agent_query" | "internal" | "unavailable" | string; api: string[]; ui: string[]; physical: boolean; available: boolean; unavailable_reason?: string; publication_state?: string; updated_through?: string; coverage?: { ratio?: number; actual?: number; expected?: number; history_start?: string; points?: number } };
 export type MarketCapabilities = { version: string; schema_version: number; source: string; generated_at?: string; publication_version?: string; physical_table_count?: number; available: boolean; read_only: true; synthetic_substitution: false; capabilities: MarketCapability[]; unavailable_reason?: string };
 export type MarketAnalysisMetadata = { status: "available" | "unavailable" | string; reason_code?: string; as_of?: string; coverage?: number; publication_version: string; capability_version: string; methodology_key: string; source_datasets: string[]; materialization_version?: string; computed_at?: string; source_watermarks?: Record<string, string | null> };
-export type ValuationBoard = { metadata: MarketAnalysisMetadata; percentile_window: string; synthetic_substitution: false; items: Array<{ code: string; name: string; trade_date: string; pe?: number; pb?: number; total_mv?: number; turnover_rate?: number; source: string; universe?: "broad" | "sw_l1"; classification_source?: string; classification_level?: string; industry_code?: string; pe_percentile?: number; pb_percentile?: number; activity_percentile?: number; crowding_percentile?: number | null; crowding_status?: "available" | "unavailable" | string; crowding_reason?: string; crowding_coverage?: number; crowding_methodology_key?: string; percentile_change_1m?: number; percentile_change_3m?: number }> };
+export type ValuationBoard = { metadata: MarketAnalysisMetadata; percentile_window: string; synthetic_substitution: false; items: Array<{ code: string; name: string; trade_date: string; pe?: number; pb?: number; total_mv?: number; turnover_rate?: number; source: string; universe?: "broad" | "sw_l1"; classification_source?: string; classification_level?: string; industry_code?: string; pe_percentile?: number; pb_percentile?: number; activity_percentile?: number; crowding_percentile?: number | null; crowding_status?: "available" | "unavailable" | string; crowding_reason?: string; crowding_coverage?: number; crowding_coverage_actual?: number; crowding_coverage_expected?: number; crowding_coverage_basis?: string; crowding_threshold?: number; crowding_methodology_key?: string; percentile_change_1m?: number; percentile_change_3m?: number }> };
 export type CorrelationBoard = { metadata: MarketAnalysisMetadata; window: number; aligned_points: number; synthetic_substitution: false; series: Array<{ key: string; label: string; source_table: string; provider_symbol: string }>; matrix: Array<Array<number | null>>; delta_matrix: Array<Array<number | null>> };
-export type FactorBoard = { metadata: MarketAnalysisMetadata; point_in_time: true; synthetic_substitution: false; factors: Array<{ key: string; returns: Record<"1M" | "3M" | "1Y", number | null>; ic: Record<"1M" | "3M" | "1Y", number | null>; coverage: Record<string, number>; crowding?: number | null }>; crowding: { status: string; reason_code?: string; coverage?: number; methodology_key?: string; weights?: Record<string, number>; missing_component_policy?: string } };
+export type FactorBoard = { metadata: MarketAnalysisMetadata; point_in_time: true; synthetic_substitution: false; factors: Array<{ key: string; returns: Record<"1M" | "3M" | "1Y", number | null>; ic: Record<"1M" | "3M" | "1Y", number | null>; coverage: Record<string, number>; crowding?: number | null }>; crowding: { status: string; reason_code?: string; coverage?: number; covered?: number; eligible?: number; threshold?: number; methodology_key?: string; weights?: Record<string, number>; valuation_expansion_priority?: string[]; valuation_expansion_method_counts?: Record<string, number>; missing_component_policy?: string } };
 export type CorrelationHistory = { metadata: MarketAnalysisMetadata; window: number; synthetic_substitution: false; series: CorrelationBoard["series"]; points: Array<{ as_of?: string; analysis_version: string; pairs: Record<string, number | null> }> };
 export type FactorHistory = { metadata: MarketAnalysisMetadata; point_in_time: true; synthetic_substitution: false; points: Array<{ as_of?: string; analysis_version: string; factors: FactorBoard["factors"]; crowding: FactorBoard["crowding"] }> };
 export type AllocationAccount = {
@@ -1078,9 +1109,9 @@ export const marketsApi = {
   factors: () => apiJson<FactorBoard>(`${marketsBase}/factors`),
   factorHistory: (limit = 756) => apiJson<FactorHistory>(`${marketsBase}/factors/history?limit=${limit}`),
   macroCatalog: () => apiJson<MacroCatalog>(`${marketsBase}/macro/series`),
-  macroSeries: (key: string, field: string) =>
+  macroSeries: (key: string, field?: string) =>
     apiJson<MacroSeriesDetail>(
-      `${marketsBase}/macro/series/${encodeURIComponent(key)}?field=${encodeURIComponent(field)}`,
+      `${marketsBase}/macro/series/${encodeURIComponent(key)}${field ? `?field=${encodeURIComponent(field)}` : ""}`,
     ),
   futuresProducts: () =>
     apiJson<{

@@ -8,7 +8,7 @@ import useSWR from "swr";
 import { DashboardPage, EmptyPanel, MiniLine, Panel } from "@/components/agentos/dashboard-ui";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { agentPlatformApi, marketsApi, type CorrelationBoard, type CorrelationHistory, type FactorBoard, type FactorHistory, type MacroMarketSnapshot, type ValuationBoard } from "@/lib/api/agent-platform";
+import { marketsApi, type CorrelationBoard, type CorrelationHistory, type FactorBoard, type FactorHistory, type MacroCatalog, type MacroMetricSummary, type MacroSeriesDetail, type ValuationBoard } from "@/lib/api/agent-platform";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
 
@@ -36,7 +36,7 @@ export default function MarketPage() {
   const { data: correlationHistory = null } = useSWR<CorrelationHistory>(showMarket ? `markets/correlations/60/history/${period}` : null, () => marketsApi.correlationHistory(60, periodLimit(period)));
   const { data: factors = null } = useSWR<FactorBoard>(showMarket ? "markets/factors" : null, marketsApi.factors);
   const { data: factorHistory = null } = useSWR<FactorHistory>(showMarket ? `markets/factors/history/${period}` : null, () => marketsApi.factorHistory(periodLimit(period)));
-  const { data: macro = null } = useSWR<MacroMarketSnapshot>(showMacro ? "markets/macro" : null, agentPlatformApi.macroMarket);
+  const { data: macro = null } = useSWR<MacroCatalog>(showMacro ? "markets/macro/catalog-v1" : null, marketsApi.macroCatalog);
 
   const closeDetail = () => {
     const next = new URLSearchParams(params.toString());
@@ -107,28 +107,47 @@ function FactorCrowding({ data, history, locale }: { data: FactorBoard | null; h
   const [selected, setSelected] = useState<string | null>(null);
   const selectedDates = (history?.points || []).map(item => item.as_of || "—");
   const selectedValues = (history?.points || []).map(item => item.factors.find(factor => factor.key === selected)?.crowding ?? null);
-  return <Panel className="min-h-0 overflow-auto"><PanelTitle title={locale === "zh" ? "因子收益与拥挤度" : "Factor Returns & Crowding"} note="kt_factor_v1 · kt_crowding_v1" />
+  return <Panel className="min-h-0 overflow-auto"><PanelTitle title={locale === "zh" ? "因子收益与拥挤度" : "Factor Returns & Crowding"} note={`kt_factor_v1 · ${data?.crowding.methodology_key || "kt_crowding_v2"}`} />
     {data?.factors.length ? <div className="flex flex-col gap-2">{data.factors.map((factor) => { const crowding = factor.crowding; return <button type="button" onClick={() => setSelected(factor.key)} key={factor.key} className="grid grid-cols-[96px_1fr_48px] items-center gap-2 rounded-sm text-left hover:bg-agent-raised"><div><p className="text-[10px] text-agent-text">{factorLabel(factor.key, locale)}</p><p className="mt-1 font-data text-[8px] text-agent-dim">{formatSigned(factor.returns["1M"])} · {formatSigned(factor.returns["3M"])} · {formatSigned(factor.returns["1Y"])}</p></div><div className="h-1.5 overflow-hidden rounded bg-agent-border"><span className={cn("block h-full", crowding != null && crowding >= .75 ? "bg-agent-up" : crowding != null && crowding >= .5 ? "bg-agent-amber" : "bg-agent-mint")} style={{ width: `${Math.max(0, Math.min(100, Number(crowding || 0) * 100))}%` }} /></div><span className="text-right font-data text-[9px] text-agent-muted">{crowding == null ? "—" : `${Math.round(crowding * 100)}%`}</span></button>; })}</div> : <DataGap title={locale === "zh" ? "因子收益不可用" : "Factor returns unavailable"} reason={data?.metadata.reason_code} locale={locale} />}
-    {data && data.crowding.status !== "available" ? <p className="mt-3 text-[9px] text-agent-amber">{locale === "zh" ? "拥挤度组件覆盖不足，权重未重新分配。" : "Crowding component coverage is insufficient; weights were not redistributed."}</p> : null}
+    {data && data.crowding.status !== "available" ? <p className="mt-3 text-[9px] leading-4 text-agent-amber">{crowdingCoverageNote(data, locale)}</p> : null}
     <Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open) setSelected(null); }}><DialogContent className="w-[min(1100px,calc(100vw-32px))] max-w-none border-agent-border bg-agent-surface text-agent-text"><DialogHeader><DialogTitle>{selected ? factorLabel(selected, locale) : "—"}</DialogTitle><DialogDescription>{locale === "zh" ? "正式拥挤度历史；历史快照不足时保持空缺" : "Formal crowding history; missing snapshots remain blank"}</DialogDescription></DialogHeader>{selectedValues.some(value => value != null) ? <TimeSeriesChart dates={selectedDates} series={[{ name: locale === "zh" ? "拥挤度" : "Crowding", values: selectedValues.map(value => value == null ? null : value * 100) }]} locale={locale} title={locale === "zh" ? "因子拥挤度历史" : "Factor Crowding History"} height={430} /> : <DataGap title={locale === "zh" ? "因子历史不可用" : "Factor history unavailable"} reason={history?.metadata.reason_code} locale={locale} />}</DialogContent></Dialog>
   </Panel>;
 }
 
-function MacroBoard({ data, locale, period }: { data: MacroMarketSnapshot | null; locale: "zh" | "en"; period: Period }) {
+type MacroRange = Period | "5Y" | "10Y" | "ALL";
+
+function MacroBoard({ data, locale, period }: { data: MacroCatalog | null; locale: "zh" | "en"; period: Period }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const rows = useMemo(() => Object.entries(data?.series || {}).map(([key, series]) => {
-    const history = series.rows || [];
-    const latest = history.at(-1) || {};
-    const values = history.map((row) => Object.values(row).find((value) => typeof value === "number")).filter((value): value is number => typeof value === "number");
-    return { key, series, values, latest: values.at(-1) };
-  }), [data]);
+  const [range, setRange] = useState<MacroRange>(period);
+  const rows = data?.items || [];
   const selectedRow = rows.find(row => row.key === selected);
-  const selectedPoints = selectedRow ? sliceSeriesByPeriod(selectedRow.series.rows || [], selectedRow.series.frequency, period) : [];
-  const selectedDates = selectedPoints.map(row => String(row[selectedRow?.series.period_field || "trade_date"] || row.trade_date || row.date || row.month || row.quarter || "—"));
-  const selectedValues = selectedPoints.map(row => Object.entries(row).find(([key, value]) => key !== selectedRow?.series.period_field && typeof value === "number")?.[1] as number | undefined).map(value => value ?? null);
-  return <div className="grid min-h-[calc(100dvh-104px)] grid-rows-[1fr_auto] gap-3"><Panel className="min-h-0 overflow-auto"><PanelTitle title={locale === "zh" ? "宏观指标面板 · 环比 / 同比 / 历史分位 / 趋势" : "Macro Indicators · Changes / Percentiles / Trends"} note={locale === "zh" ? "点任一行查看正式原始序列" : "Select a row for its formal raw series"} />
-    {rows.length ? <div><div className="grid grid-cols-[minmax(150px,1.4fr)_90px_80px_80px_100px_minmax(150px,1fr)_minmax(130px,1fr)] gap-2 border-b border-agent-border pb-2 font-data text-[8px] text-agent-dim"><span>{locale === "zh" ? "指标 / API" : "Indicator / API"}</span><span className="text-right">{locale === "zh" ? "最新值" : "Latest"}</span><span className="text-right">{locale === "zh" ? "环比" : "MoM"}</span><span className="text-right">{locale === "zh" ? "同比" : "YoY"}</span><span className="text-right">{locale === "zh" ? "历史分位" : "Percentile"}</span><span>{locale === "zh" ? "趋势" : "Trend"}</span><span className="text-right">{locale === "zh" ? "数据范围" : "Coverage"}</span></div>{rows.map((row) => <button type="button" onClick={() => setSelected(row.key)} key={row.key} className="grid min-h-[72px] w-full grid-cols-[minmax(150px,1.4fr)_90px_80px_80px_100px_minmax(150px,1fr)_minmax(130px,1fr)] items-center gap-2 border-b border-agent-border text-left text-[9px] hover:bg-agent-raised"><div><p className="text-[11px] text-agent-text">{macroLabel(row.key, locale)}</p><p className="font-data text-[8px] text-agent-dim">{row.series.table}</p></div><span className="text-right font-data text-[13px] text-agent-text">{row.latest == null ? "—" : Number(row.latest).toFixed(2)}</span><span className="text-right font-data text-agent-dim">—</span><span className="text-right font-data text-agent-dim">—</span><span className="text-right font-data text-agent-dim">—</span><div className="h-8"><MiniLine values={row.values.slice(-60)} color="var(--agent-blue)" height={36} /></div><span className="text-right font-data text-agent-dim">{row.series.start || "—"} → {row.series.end || "—"}</span></button>)}</div> : <DataGap title={locale === "zh" ? "宏观数据不可用" : "Macro data unavailable"} locale={locale} />}
-  </Panel><Panel className="grid grid-cols-[70px_1fr] items-start gap-4 py-3"><span className="font-data text-[9px] text-agent-mint">AGENT<br/>{locale === "zh" ? "判读" : "READ"}</span><p className="text-[10px] leading-5 text-agent-muted">{locale === "zh" ? "仅基于上方已发布原始序列展示事实范围；缺少环比、同比或历史分位字段时保持空缺，不生成代理结论。" : "This view uses only the published raw series above. Missing change or percentile fields remain blank and are never replaced with proxy conclusions."}</p></Panel><Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open) setSelected(null); }}><DialogContent className="h-[min(760px,calc(100dvh-32px))] w-[min(1320px,calc(100vw-32px))] max-w-none overflow-hidden border-agent-border bg-agent-surface text-agent-text"><DialogHeader><DialogTitle>{selected ? macroLabel(selected, locale) : "—"}</DialogTitle><DialogDescription>{selectedRow ? `${selectedRow.series.table} · ${selectedRow.series.start || "—"} → ${selectedRow.series.end || "—"}` : ""}</DialogDescription></DialogHeader>{selectedValues.length ? <TimeSeriesChart dates={selectedDates} series={[{ name: selected ? macroLabel(selected, locale) : "—", values: selectedValues }]} locale={locale} title={selected ? macroLabel(selected, locale) : "—"} height={560} /> : <DataGap title={locale === "zh" ? "宏观序列不可用" : "Macro series unavailable"} locale={locale} />}</DialogContent></Dialog></div>;
+  const { data: detail = null, isLoading, error } = useSWR<MacroSeriesDetail>(
+    selected ? `markets/macro/series/${selected}/analysis-v1` : null,
+    () => marketsApi.macroSeries(selected!),
+  );
+  return <div className="grid min-h-[calc(100dvh-104px)] grid-rows-[1fr_auto] gap-3"><Panel className="min-h-0 overflow-hidden"><PanelTitle title={locale === "zh" ? "宏观指标面板 · 环比 / 同比 / 历史分位 / 趋势" : "Macro Indicators · Changes / Percentiles / Trends"} note={locale === "zh" ? "官方字段优先 · 计算值标明口径 · 点任一行查看四组历史" : "Official fields first · calculated values disclose their method"} />
+    {rows.length ? <div className="overflow-x-auto"><div className="min-w-[980px]"><div className="grid grid-cols-[minmax(170px,1.4fr)_105px_92px_92px_105px_minmax(160px,1fr)_145px] gap-2 border-b border-agent-border pb-2 font-data text-[8px] text-agent-dim"><span>{locale === "zh" ? "指标 / 正式来源" : "Indicator / Source"}</span><span className="text-right">{locale === "zh" ? "最新值" : "Latest"}</span><span className="text-right">{locale === "zh" ? "环比" : "MoM"}</span><span className="text-right">{locale === "zh" ? "同比" : "YoY"}</span><span className="text-right">{locale === "zh" ? "近10年分位" : "10Y Percentile"}</span><span>{locale === "zh" ? "主值趋势" : "Primary Trend"}</span><span className="text-right">{locale === "zh" ? "原始数据范围" : "Raw Coverage"}</span></div>{rows.map((row) => {
+      const summary = row.summary;
+      const sparkline = (row.sparkline?.values || []).filter((value): value is number => typeof value === "number");
+      return <button type="button" onClick={() => { setSelected(row.key); setRange(period); }} key={row.key} className="grid min-h-[76px] w-full grid-cols-[minmax(170px,1.4fr)_105px_92px_92px_105px_minmax(160px,1fr)_145px] items-center gap-2 border-b border-agent-border text-left text-[9px] transition-colors hover:bg-agent-raised focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-agent-mint"><div><p className="text-[11px] text-agent-text">{macroLabel(row.key, locale)}</p><p className="mt-1 font-data text-[8px] text-agent-dim">{row.source || row.table}</p></div><MacroMetricCell metric={summary?.primary} locale={locale} emphasis /><MacroMetricCell metric={summary?.mom} locale={locale} signed /><MacroMetricCell metric={summary?.yoy} locale={locale} signed /><MacroMetricCell metric={summary?.percentile_10y} locale={locale} percentile /><div className="h-9">{sparkline.length > 1 ? <MiniLine values={sparkline} color="var(--agent-blue)" height={38} /> : <span className="font-data text-agent-dim">—</span>}</div><span className="text-right font-data text-agent-dim">{row.start || "—"} → {row.end || "—"}</span></button>;
+    })}</div></div> : <DataGap title={locale === "zh" ? "宏观数据不可用" : "Macro data unavailable"} locale={locale} />}
+  </Panel><Panel className="grid grid-cols-[70px_1fr] items-start gap-4 py-3"><span className="font-data text-[9px] text-agent-mint">METHOD<br/>{locale === "zh" ? "口径" : "READ"}</span><p className="text-[10px] leading-5 text-agent-muted">{locale === "zh" ? "环比、同比优先读取官方字段；社融、PMI 与利率只做透明且单位安全的计算。历史分位基于主值滚动十年，样本不足十年时明确标记实际窗口。" : "Official changes are preferred. Social financing, PMI and rates use transparent unit-safe calculations. Percentiles use the primary series over a rolling ten-year window."}</p></Panel><Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open) setSelected(null); }}><DialogContent className="h-[min(900px,calc(100dvh-24px))] w-[min(1380px,calc(100vw-24px))] max-w-none overflow-y-auto border-agent-border bg-agent-surface text-agent-text"><DialogHeader><DialogTitle>{selected ? macroLabel(selected, locale) : "—"}</DialogTitle><DialogDescription>{selectedRow ? `${selectedRow.source || selectedRow.table} · ${selectedRow.start || "—"} → ${selectedRow.end || "—"} · ${selectedRow.points || 0} ${locale === "zh" ? "个原始观测" : "raw observations"}` : ""}</DialogDescription></DialogHeader><div className="flex flex-wrap gap-1 border-b border-agent-border pb-3">{(["1M", "3M", "1Y", "3Y", "5Y", "10Y", "ALL"] as MacroRange[]).map(value => <Button key={value} type="button" size="sm" variant={range === value ? "secondary" : "outline"} onClick={() => setRange(value)}>{value === "ALL" ? (locale === "zh" ? "全部" : "All") : value}</Button>)}</div>{isLoading ? <EmptyPanel title={locale === "zh" ? "正在读取正式历史" : "Loading formal history"} detail={locale === "zh" ? "只加载当前指标，不再下载全部宏观表。" : "Only the selected indicator is loaded."} /> : error || !detail?.series ? <DataGap title={locale === "zh" ? "宏观序列不可用" : "Macro series unavailable"} locale={locale} /> : <div className="grid gap-3 lg:grid-cols-2"><MacroChartPanel kind="primary" detail={detail} range={range} locale={locale} /><MacroChartPanel kind="mom" detail={detail} range={range} locale={locale} /><MacroChartPanel kind="yoy" detail={detail} range={range} locale={locale} /><MacroChartPanel kind="percentile_10y" detail={detail} range={range} locale={locale} /></div>}</DialogContent></Dialog></div>;
+}
+
+function MacroMetricCell({ metric, locale, emphasis = false, signed = false, percentile = false }: { metric?: MacroMetricSummary; locale: "zh" | "en"; emphasis?: boolean; signed?: boolean; percentile?: boolean }) {
+  const value = formatMacroMetric(metric, locale, signed, percentile);
+  const method = metric?.method === "official" ? (locale === "zh" ? "官" : "OFF") : metric?.method === "calculated" ? (locale === "zh" ? "算" : "CALC") : null;
+  const title = macroMetricExplanation(metric, locale);
+  return <span title={title} className={cn("flex items-center justify-end gap-1 text-right font-data", emphasis ? "text-[13px] text-agent-text" : metric?.value != null && Number(metric.value) >= 0 ? "text-agent-muted" : "text-agent-mint")}><span>{value}</span>{method ? <span className={cn("rounded-sm border px-1 py-px text-[7px]", metric?.method === "official" ? "border-agent-blue/30 text-agent-blue" : "border-agent-amber/30 text-agent-amber")}>{method}</span> : null}</span>;
+}
+
+function MacroChartPanel({ kind, detail, range, locale }: { kind: "primary" | "mom" | "yoy" | "percentile_10y"; detail: MacroSeriesDetail; range: MacroRange; locale: "zh" | "en" }) {
+  const series = detail.series?.[kind];
+  const rows = sliceMacroSeries(series?.rows || [], detail.frequency, range);
+  const labels: Record<typeof kind, [string, string]> = { primary: [detail.primary_alias === "yoy" ? "官方主值（同比）" : "主值", "Primary"], mom: ["环比", "MoM"], yoy: ["同比", "YoY"], percentile_10y: ["近10年历史分位", "10Y Historical Percentile"] };
+  const title = labels[kind][locale === "zh" ? 0 : 1];
+  if (series?.meta.method === "not_applicable") return <Panel tone="raised" className="min-h-[310px]"><PanelTitle title={title} note={locale === "zh" ? "不适用" : "Not applicable"} /><EmptyPanel title={locale === "zh" ? "该指标没有可靠官方环比口径" : "No reliable official MoM measure"} detail={locale === "zh" ? "保持不适用，不使用累计值反推或代理数据。" : "No cumulative-value inference or proxy is used."} /></Panel>;
+  return <Panel tone="raised" className="min-h-[310px]"><PanelTitle title={title} note={`${series?.meta.unit || ""} · ${macroMethodLabel(series?.meta.method, locale)}`} />{rows.some(row => row.value != null) ? <TimeSeriesChart dates={rows.map(row => row.period)} series={[{ name: title, values: rows.map(row => row.value) }]} locale={locale} title={`${title} · ${range === "ALL" ? (locale === "zh" ? "全部" : "All") : range}`} height={250} /> : <EmptyPanel title={locale === "zh" ? "可比较历史不足" : "Insufficient comparable history"} detail={macroMetricExplanation(series?.meta as MacroMetricSummary | undefined, locale)} />}</Panel>;
 }
 
 function PanelTitle({ title, note }: { title: string; note?: string }) { return <div className="mb-3 flex items-baseline gap-3"><h2 className="text-sm font-medium text-agent-text">{title}</h2>{note ? <span className="font-data text-[8px] text-agent-dim">{note}</span> : null}</div>; }
@@ -143,16 +162,45 @@ function localizedMarketName(name: string, code: string, locale: "zh" | "en") { 
 function periodLimit(period: Period) {
   return ({ "1M": 31, "3M": 92, "1Y": 366, "3Y": 1096 } as const)[period];
 }
-function sliceSeriesByPeriod(rows: Array<Record<string, string | number | null>>, frequency: string | undefined, period: Period) {
+function sliceMacroSeries<T extends { period: string; value: number | null }>(rows: T[], frequency: string | undefined, period: MacroRange) {
+  if (period === "ALL") return rows;
   const normalized = (frequency || "daily").toLowerCase();
-  const pointsByFrequency: Record<string, Record<Period, number>> = {
-    daily: { "1M": 22, "3M": 66, "1Y": 252, "3Y": 756 },
-    weekly: { "1M": 5, "3M": 14, "1Y": 52, "3Y": 156 },
-    monthly: { "1M": 1, "3M": 3, "1Y": 12, "3Y": 36 },
-    quarterly: { "1M": 1, "3M": 1, "1Y": 4, "3Y": 12 },
+  const pointsByFrequency: Record<string, Record<Exclude<MacroRange, "ALL">, number>> = {
+    daily: { "1M": 22, "3M": 66, "1Y": 252, "3Y": 756, "5Y": 1260, "10Y": 2520 },
+    weekly: { "1M": 5, "3M": 14, "1Y": 52, "3Y": 156, "5Y": 260, "10Y": 520 },
+    monthly: { "1M": 1, "3M": 3, "1Y": 12, "3Y": 36, "5Y": 60, "10Y": 120 },
+    quarterly: { "1M": 1, "3M": 1, "1Y": 4, "3Y": 12, "5Y": 20, "10Y": 40 },
   };
   const bucket = normalized.includes("quarter") ? "quarterly" : normalized.includes("month") ? "monthly" : normalized.includes("week") ? "weekly" : "daily";
   return rows.slice(-pointsByFrequency[bucket][period]);
+}
+function formatMacroMetric(metric: MacroMetricSummary | undefined, locale: "zh" | "en", signed = false, percentile = false) {
+  if (!metric || metric.value == null) return metric?.method === "not_applicable" ? (locale === "zh" ? "不适用" : "N/A") : "—";
+  const prefix = signed && metric.value > 0 ? "+" : "";
+  const value = new Intl.NumberFormat(locale === "zh" ? "zh-CN" : "en-US", { maximumFractionDigits: 2 }).format(metric.value);
+  const unit = percentile ? "%" : metric.unit;
+  return `${prefix}${value}${unit === "%" || unit === "bp" ? unit : unit ? ` ${unit}` : ""}`;
+}
+function macroMethodLabel(method: string | undefined, locale: "zh" | "en") {
+  if (method === "official") return locale === "zh" ? "官方" : "Official";
+  if (method === "calculated") return locale === "zh" ? "透明计算" : "Calculated";
+  return locale === "zh" ? "不适用" : "Not applicable";
+}
+function macroMetricExplanation(metric: MacroMetricSummary | undefined, locale: "zh" | "en") {
+  if (!metric) return locale === "zh" ? "等待正式数据。" : "Waiting for formal data.";
+  if (metric.method === "not_applicable") return locale === "zh" ? "该口径不适用；不使用代理或反推值。" : "Not applicable; no proxy or inferred value is used.";
+  const method = macroMethodLabel(metric.method, locale);
+  const field = metric.source_field ? `${locale === "zh" ? "字段" : "field"} ${metric.source_field}` : metric.formula || "";
+  const sample = metric.sample_count ? ` · ${metric.sample_count} ${locale === "zh" ? "个样本" : "samples"}${metric.window_complete === false ? (locale === "zh" ? "（不足完整10年）" : " (partial 10Y window)") : ""}` : "";
+  return `${method}${field ? ` · ${field}` : ""}${sample}`;
+}
+function crowdingCoverageNote(data: FactorBoard, locale: "zh" | "en") {
+  const coverage = data.crowding.coverage == null ? "—" : `${(data.crowding.coverage * 100).toFixed(1)}%`;
+  const count = data.crowding.covered != null && data.crowding.eligible != null ? `${data.crowding.covered}/${data.crowding.eligible} · ` : "";
+  const threshold = `${((data.crowding.threshold ?? .8) * 100).toFixed(0)}%`;
+  return locale === "zh"
+    ? `拥挤度有效覆盖 ${count}${coverage}，低于 ${threshold} 门槛；固定权重未重分配。估值扩张按两期同口径 PE → PB → PS 选择。`
+    : `Crowding coverage is ${count}${coverage}, below the ${threshold} gate. Fixed weights are not redistributed; valuation expansion uses same-period PE → PB → PS fallback.`;
 }
 function marketGapReason(reason: string | undefined, locale: "zh" | "en") {
   const messages: Record<string, [string, string]> = {
