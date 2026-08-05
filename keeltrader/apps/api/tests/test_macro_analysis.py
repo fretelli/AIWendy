@@ -26,10 +26,10 @@ def test_official_cpi_changes_and_partial_ten_year_percentile_are_explicit():
 
 def test_social_financing_and_pmi_use_unit_safe_calculations():
     social = build_macro_analysis("social_financing", [
-        {"period": "202501", "inc": 100},
-        {"period": "202502", "inc": 110},
-        {"period": "202601", "inc": 120},
-        {"period": "202602", "inc": 132},
+        {"period": "202501", "inc_month": 100},
+        {"period": "202502", "inc_month": 110},
+        {"period": "202601", "inc_month": 120},
+        {"period": "202602", "inc_month": 132},
     ])
     assert social["summary"]["mom"]["value"] == pytest.approx(10)
     assert social["summary"]["yoy"]["value"] == pytest.approx(20)
@@ -63,7 +63,7 @@ def test_gdp_qoq_is_not_applicable_and_ppi_primary_is_official_yoy():
     assert gdp["summary"]["mom"]["reason_code"] == "official_qoq_unavailable"
     assert gdp["summary"]["yoy"]["value"] == pytest.approx(5.2)
 
-    ppi = build_macro_analysis("ppi", [{"period": "202606", "ppi_yoy": -1.2, "ppi_mp": .1}])
+    ppi = build_macro_analysis("ppi", [{"period": "202606", "ppi_yoy": -1.2, "ppi_mom": .1}])
     assert ppi["primary_alias"] == "yoy"
     assert ppi["summary"]["primary"]["value"] == pytest.approx(-1.2)
     assert ppi["summary"]["yoy"]["value"] == pytest.approx(-1.2)
