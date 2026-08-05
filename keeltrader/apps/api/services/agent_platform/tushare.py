@@ -7,9 +7,12 @@ has already been synchronized by an operator-managed Tushare data service.
 from __future__ import annotations
 
 import asyncio
+from bisect import bisect_left, bisect_right, insort
+import calendar
 import copy
 from contextlib import asynccontextmanager
-from datetime import date, datetime
+from collections import deque
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 import math
 import re
@@ -34,6 +37,194 @@ _market_capital_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 _MARKET_CAPITAL_CACHE_SECONDS = 300
 _market_domain_cache: dict[str, tuple[float, Any]] = {}
 _MARKET_DOMAIN_CACHE_SECONDS = 600
+
+
+_MACRO_ANALYSIS_DEFINITIONS: dict[str, dict[str, Any]] = {
+    "gdp": {"table": "cn_gdp", "period": "quarter", "frequency": "quarterly", "label": "国内生产总值",
+            "primary": "gdp", "primary_unit": "亿元", "mom_mode": "not_applicable",
+            "mom_reason": "official_qoq_unavailable", "yoy_field": "gdp_yoy", "yoy_unit": "%"},
+    "cpi": {"table": "cn_cpi", "period": "month", "frequency": "monthly", "label": "居民消费价格",
+            "primary": "nt_val", "primary_unit": "指数", "mom_field": "nt_mom", "mom_unit": "%",
+            "yoy_field": "nt_yoy", "yoy_unit": "%"},
+    "ppi": {"table": "cn_ppi", "period": "month", "frequency": "monthly", "label": "工业生产者价格",
+            "primary": "ppi_yoy", "primary_unit": "%", "primary_alias": "yoy",
+            "mom_field": "ppi_mp", "mom_unit": "%", "yoy_field": "ppi_yoy", "yoy_unit": "%"},
+    "money_supply": {"table": "cn_m", "period": "month", "frequency": "monthly", "label": "货币供应量 M2",
+            "primary": "m2", "primary_unit": "亿元", "mom_field": "m2_mom", "mom_unit": "%",
+            "yoy_field": "m2_yoy", "yoy_unit": "%"},
+    "social_financing": {"table": "sf_month", "period": "month", "frequency": "monthly", "label": "社会融资规模增量",
+            "primary": "inc", "primary_unit": "亿元", "mom_mode": "percent", "mom_unit": "%",
+            "yoy_mode": "percent", "yoy_unit": "%"},
+    "pmi": {"table": "cn_pmi", "period": "month", "frequency": "monthly", "label": "制造业采购经理指数",
+            "primary": "pmi010000", "primary_unit": "点", "mom_mode": "difference", "mom_unit": "点",
+            "yoy_mode": "difference", "yoy_unit": "点"},
+    "shibor": {"table": "shibor", "period": "date", "frequency": "daily", "label": "SHIBOR 3M",
+            "primary": "3m", "primary_unit": "%", "mom_mode": "basis_points", "mom_unit": "bp",
+            "yoy_mode": "basis_points", "yoy_unit": "bp"},
+    "lpr": {"table": "lpr", "period": "date", "frequency": "monthly", "label": "LPR 1Y",
+            "primary": "1y", "primary_unit": "%", "mom_mode": "basis_points", "mom_unit": "bp",
+            "yoy_mode": "basis_points", "yoy_unit": "bp"},
+    "us_treasury": {"table": "us_tycr", "period": "date", "frequency": "daily", "label": "美国国债收益率 10Y",
+            "primary": "y10", "primary_unit": "%", "mom_mode": "basis_points", "mom_unit": "bp",
+            "yoy_mode": "basis_points", "yoy_unit": "bp"},
+    "us_real_treasury": {"table": "us_trycr", "period": "date", "frequency": "daily", "label": "美国实际国债收益率 10Y",
+            "primary": "y10", "primary_unit": "%", "mom_mode": "basis_points", "mom_unit": "bp",
+            "yoy_mode": "basis_points", "yoy_unit": "bp"},
+}
+
+_RATES_ANALYSIS_ALIASES = {
+    "shibor": "shibor", "lpr": "lpr", "us_nominal": "us_treasury", "us_real": "us_real_treasury",
+}
+
+
+def _number(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    return numeric if math.isfinite(numeric) else None
+
+
+def _period_date(value: Any, frequency: str) -> date | None:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    text_value = str(value or "").strip()
+    try:
+        if frequency == "monthly" and re.fullmatch(r"\d{6}", text_value):
+            return date(int(text_value[:4]), int(text_value[4:]), 1)
+        if frequency == "quarterly":
+            match = re.fullmatch(r"(\d{4})Q?([1-4])", text_value, re.IGNORECASE)
+            if match:
+                return date(int(match.group(1)), (int(match.group(2)) - 1) * 3 + 1, 1)
+        return date.fromisoformat(text_value[:10])
+    except ValueError:
+        return None
+
+
+def _shift_months(value: date, months: int) -> date:
+    total = value.year * 12 + value.month - 1 + months
+    year, month_index = divmod(total, 12)
+    month = month_index + 1
+    return date(year, month, min(value.day, calendar.monthrange(year, month)[1]))
+
+
+def _latest_metric(meta: dict[str, Any], rows: list[dict[str, Any]]) -> dict[str, Any]:
+    latest = next((row for row in reversed(rows) if row.get("value") is not None), None)
+    status = "available" if latest else meta.get("status", "insufficient_history")
+    return {**meta, "status": status, "value": latest.get("value") if latest else None,
+            "as_of": latest.get("period") if latest else None,
+            **({key: latest[key] for key in ("sample_count", "window_complete") if key in latest} if latest else {})}
+
+
+def build_macro_analysis(key: str, source_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build auditable primary, change and rolling-percentile series from official rows."""
+    definition = _MACRO_ANALYSIS_DEFINITIONS[key]
+    frequency = str(definition["frequency"])
+    primary_field = str(definition["primary"])
+    normalized = [{**dict(row), "period": str(row.get("period"))} for row in source_rows if row.get("period") is not None]
+    primary_rows = [{"period": row["period"], "value": _number(row.get(primary_field))} for row in normalized]
+    parsed_dates = [_period_date(row["period"], frequency) for row in primary_rows]
+
+    def official_rows(field: str) -> list[dict[str, Any]]:
+        return [{"period": row["period"], "value": _number(row.get(field))} for row in normalized]
+
+    def calculated_rows(mode: str, months: int) -> list[dict[str, Any]]:
+        dated = [(parsed, row["value"]) for parsed, row in zip(parsed_dates, primary_rows) if parsed is not None]
+        date_values = {parsed: value for parsed, value in dated}
+        ordered_dates = [parsed for parsed, _value in dated]
+        result: list[dict[str, Any]] = []
+        for parsed, row in zip(parsed_dates, primary_rows):
+            current = row["value"]
+            previous = None
+            if parsed is not None:
+                target = _shift_months(parsed, -months)
+                if frequency in {"monthly", "quarterly"} and mode != "basis_points":
+                    previous = date_values.get(target)
+                else:
+                    position = bisect_right(ordered_dates, target) - 1
+                    if position >= 0 and target - timedelta(days=7) <= ordered_dates[position] <= target:
+                        previous = date_values.get(ordered_dates[position])
+            value = None
+            if current is not None and previous is not None:
+                if mode == "percent" and previous != 0:
+                    value = (current / previous - 1) * 100
+                elif mode == "difference":
+                    value = current - previous
+                elif mode == "basis_points":
+                    value = (current - previous) * 100
+            result.append({"period": row["period"], "value": round(value, 6) if value is not None else None})
+        return result
+
+    def metric(name: str, months: int) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        field = definition.get(f"{name}_field")
+        mode = definition.get(f"{name}_mode")
+        unit = str(definition.get(f"{name}_unit") or "%")
+        if field:
+            return ({"unit": unit, "method": "official", "source_field": field,
+                     "formula": "official_source_field"}, official_rows(str(field)))
+        if mode == "not_applicable":
+            return ({"unit": unit, "method": "not_applicable", "status": "not_applicable",
+                     "reason_code": definition.get(f"{name}_reason")}, [])
+        formulas = {
+            "percent": f"(current/previous_{months}m-1)*100",
+            "difference": f"current-previous_{months}m",
+            "basis_points": f"(current-previous_{months}m)*100bp",
+        }
+        return ({"unit": unit, "method": "calculated", "formula": formulas[str(mode)]},
+                calculated_rows(str(mode), months))
+
+    mom_meta, mom_rows = metric("mom", 1)
+    yoy_meta, yoy_rows = metric("yoy", 12)
+    minimum = {"quarterly": 8, "monthly": 24, "daily": 252}.get(frequency, 24)
+    percentile_rows: list[dict[str, Any]] = []
+    active: deque[tuple[date, float]] = deque()
+    ranked: list[float] = []
+    first_valid_date = next((parsed for parsed, row in zip(parsed_dates, primary_rows)
+                             if parsed is not None and row["value"] is not None), None)
+    for parsed, row in zip(parsed_dates, primary_rows):
+        current = row["value"]
+        if parsed is None or current is None:
+            percentile_rows.append({"period": row["period"], "value": None, "sample_count": len(ranked),
+                                    "window_complete": False})
+            continue
+        cutoff = _shift_months(parsed, -120)
+        while active and active[0][0] < cutoff:
+            _old_date, old_value = active.popleft()
+            ranked.pop(bisect_left(ranked, old_value))
+        active.append((parsed, current))
+        insort(ranked, current)
+        left, right = bisect_left(ranked, current), bisect_right(ranked, current)
+        percentile = (((left + right - 1) / 2) / (len(ranked) - 1) * 100) if len(ranked) >= minimum and len(ranked) > 1 else None
+        complete = bool(first_valid_date and first_valid_date <= cutoff)
+        percentile_rows.append({"period": row["period"], "value": round(percentile, 6) if percentile is not None else None,
+                                "sample_count": len(ranked), "window_complete": complete})
+
+    primary_meta = {"unit": definition["primary_unit"], "method": "official", "source_field": primary_field,
+                    "formula": "official_source_field"}
+    percentile_meta = {"unit": "%", "method": "calculated", "formula": "percent_rank_inc_trailing_10_calendar_years",
+                       "window": "10Y", "minimum_samples": minimum}
+    series = {
+        "primary": {"meta": primary_meta, "rows": primary_rows},
+        "mom": {"meta": mom_meta, "rows": mom_rows},
+        "yoy": {"meta": yoy_meta, "rows": yoy_rows},
+        "percentile_10y": {"meta": percentile_meta, "rows": percentile_rows},
+    }
+    summary = {name: _latest_metric(value["meta"], value["rows"]) for name, value in series.items()}
+    return {
+        "available": summary["primary"]["value"] is not None, "key": key, "label": definition["label"],
+        "table": definition["table"], "frequency": frequency, "period_field": definition["period"],
+        "primary_field": primary_field, "primary_alias": definition.get("primary_alias"),
+        "start": primary_rows[0]["period"] if primary_rows else None,
+        "end": primary_rows[-1]["period"] if primary_rows else None, "points": len(primary_rows),
+        "source": f"tushare.{definition['table']}", "methodology_key": "kt_macro_analysis_v1",
+        "summary": summary, "series": series,
+        "sparkline": {"periods": [row["period"] for row in primary_rows[-60:]],
+                      "values": [row["value"] for row in primary_rows[-60:]]},
+    }
 
 
 def _pearson(left: list[float], right: list[float]) -> float | None:
@@ -1493,54 +1684,67 @@ class TushareReadService:
 
     @staticmethod
     def macro_definitions() -> dict[str, tuple[str, str, str, str]]:
-        return {
-            "gdp": ("cn_gdp", "quarter", "quarterly", "国内生产总值"),
-            "cpi": ("cn_cpi", "month", "monthly", "居民消费价格"),
-            "ppi": ("cn_ppi", "month", "monthly", "工业生产者价格"),
-            "money_supply": ("cn_m", "month", "monthly", "货币供应"),
-            "social_financing": ("sf_month", "month", "monthly", "社会融资"),
-            "pmi": ("cn_pmi", "month", "monthly", "采购经理指数"),
-            "shibor": ("shibor", "date", "daily", "上海银行间拆放利率"),
-            "lpr": ("lpr", "date", "monthly", "贷款市场报价利率"),
-            "us_treasury": ("us_tycr", "date", "daily", "美国国债收益率"),
-            "us_real_treasury": ("us_trycr", "date", "daily", "美国实际国债收益率"),
-        }
+        return {key: (str(item["table"]), str(item["period"]), str(item["frequency"]), str(item["label"]))
+                for key, item in _MACRO_ANALYSIS_DEFINITIONS.items()}
+
+    async def _numeric_fields(self, tables: list[str]) -> dict[str, list[str]]:
+        if not tables:
+            return {}
+        trusted = ",".join(f"'{table}'" for table in tables)
+        rows = await self._execute_mappings(text(f"""
+            SELECT table_name,column_name,data_type
+            FROM information_schema.columns
+            WHERE table_schema=:schema AND table_name IN ({trusted})
+            ORDER BY table_name,ordinal_position
+        """), {"schema": self.schema})
+        numeric = {"smallint", "integer", "bigint", "numeric", "real", "double precision"}
+        result = {table: [] for table in tables}
+        for row in rows:
+            if row.get("data_type") in numeric:
+                result.setdefault(str(row["table_name"]), []).append(str(row["column_name"]))
+        return result
+
+    async def _macro_detail(self, key: str) -> dict[str, Any]:
+        definition = _MACRO_ANALYSIS_DEFINITIONS[key]
+        table, period = str(definition["table"]), str(definition["period"])
+        fields = list(dict.fromkeys(str(definition[name]) for name in ("primary", "mom_field", "yoy_field")
+                                    if definition.get(name)))
+        if not await self.table_exists(table):
+            return build_macro_analysis(key, [])
+        columns = ",".join(f'"{field}"' for field in fields)
+        rows = await self._execute_mappings(text(
+            f'SELECT {period} AS period,{columns} FROM {self.schema}.{table} ORDER BY {period} ASC'
+        ), {})
+        detail = build_macro_analysis(key, rows)
+        detail["source"] = f"{self.schema}.{table}"
+        detail["recent_source_rows"] = rows[-12:]
+        return detail
 
     async def macro_catalog(self) -> dict[str, Any]:
-        """Return metadata only; never download every macro row for navigation."""
-        async def describe(key: str, definition: tuple[str, str, str, str]) -> dict[str, Any]:
-            table, period, frequency, label = definition
-            if not await self.table_exists(table):
-                return {"key": key, "label": label, "table": table, "available": False, "fields": []}
-            columns = await self._execute_mappings(text("""
-                SELECT column_name, data_type
-                FROM information_schema.columns
-                WHERE table_schema=:schema AND table_name=:table
-                ORDER BY ordinal_position
-            """), {"schema": self.schema, "table": table})
-            numeric_types = {"smallint", "integer", "bigint", "numeric", "real", "double precision"}
-            fields = [row["column_name"] for row in columns if row["data_type"] in numeric_types]
-            stats = await self._execute_mappings(text(
-                f"SELECT MIN({period}) AS start, MAX({period}) AS end, COUNT(*)::int AS points FROM {self.schema}.{table}"
-            ), {})
-            meta = stats[0] if stats else {}
-            return {"key": key, "label": label, "table": table, "frequency": frequency,
-                    "period_field": period, "available": bool(meta.get("points")), "fields": fields,
-                    "start": str(meta.get("start")) if meta.get("start") else None,
-                    "end": str(meta.get("end")) if meta.get("end") else None,
-                    "points": int(meta.get("points") or 0), "source": f"{self.schema}.{table}"}
-        items = await asyncio.gather(*(describe(key, value) for key, value in self.macro_definitions().items()))
+        """Return lightweight audited summaries; full history remains lazy-loaded."""
+        tables = [str(item["table"]) for item in _MACRO_ANALYSIS_DEFINITIONS.values()]
+        fields_task = asyncio.create_task(self._numeric_fields(tables))
+        details = await asyncio.gather(*(self._macro_detail(key) for key in _MACRO_ANALYSIS_DEFINITIONS))
+        fields_by_table = await fields_task
+        items = []
+        for detail in details:
+            table = str(detail["table"])
+            items.append({key: value for key, value in detail.items() if key not in {"series", "recent_source_rows"}} | {
+                "fields": fields_by_table.get(table, []),
+            })
         return {"available": any(item["available"] for item in items), "items": items,
-                "methodology": {"raw": True, "local_transforms": False}}
+                "methodology": {"raw_history": True, "local_transforms": True,
+                                "methodology_key": "kt_macro_analysis_v1", "percentile_window": "10Y"}}
 
-    async def macro_series(self, key: str, field: str) -> dict[str, Any]:
+    async def macro_series(self, key: str, field: str | None = None) -> dict[str, Any]:
         definition = self.macro_definitions().get(key)
         if not definition:
             raise ValueError("Unknown macro series")
         table, period, frequency, label = definition
-        catalog = await self.macro_catalog()
-        meta = next(item for item in catalog["items"] if item["key"] == key)
-        if field not in meta["fields"]:
+        if field is None:
+            return await self._macro_detail(key)
+        fields = (await self._numeric_fields([table])).get(table, [])
+        if field not in fields:
             raise ValueError("Unknown macro source field")
         rows, recent = await asyncio.gather(
             self._execute_mappings(text(
@@ -1568,6 +1772,10 @@ class TushareReadService:
         }
 
     async def rates_catalog(self) -> dict[str, Any]:
+        analysis = {rate_key: value for rate_key, value in zip(
+            _RATES_ANALYSIS_ALIASES,
+            await asyncio.gather(*(self._macro_detail(macro_key) for macro_key in _RATES_ANALYSIS_ALIASES.values())),
+        )}
         items = []
         for key, (table, period, frequency, label) in self.rates_definitions().items():
             if not await self.table_exists(table):
@@ -1580,21 +1788,31 @@ class TushareReadService:
             fields = [row["column_name"] for row in columns if row["data_type"] in numeric]
             stats = await self._execute_mappings(text(f"SELECT MIN({period}) start,MAX({period}) end,COUNT(*)::int points FROM {self.schema}.{table}"), {})
             meta = stats[0] if stats else {}
-            items.append({"key": key, "label": label, "table": table, "frequency": frequency,
+            item = {"key": key, "label": label, "table": table, "frequency": frequency,
                           "period_field": period, "available": bool(meta.get("points")), "fields": fields,
                           "start": str(meta.get("start")) if meta.get("start") else None,
                           "end": str(meta.get("end")) if meta.get("end") else None,
-                          "points": int(meta.get("points") or 0), "source": f"{self.schema}.{table}"})
+                          "points": int(meta.get("points") or 0), "source": f"{self.schema}.{table}"}
+            if key in analysis:
+                item.update({"summary": analysis[key]["summary"], "primary_field": analysis[key]["primary_field"],
+                             "methodology_key": analysis[key]["methodology_key"]})
+            items.append(item)
         items.append({"key": "china_cash_treasury_curve", "label": "中国现券国债收益率曲线", "table": None,
                       "available": False, "fields": [], "unavailable_reason": "当前数据源未接入 yc_cb；不使用国债期货或其他价格伪造现券收益率曲线。"})
         return {"available": any(item["available"] for item in items), "items": items,
                 "methodology": {"raw_history": True, "synthetic_prices": False}}
 
-    async def rates_series(self, key: str, field: str, bank: str | None = None,
+    async def rates_series(self, key: str, field: str | None = None, bank: str | None = None,
                            maturity: str | None = None) -> dict[str, Any]:
         definition = self.rates_definitions().get(key)
         if not definition: raise ValueError("Unknown rates series")
         table, period, frequency, label = definition
+        if field is None:
+            macro_key = _RATES_ANALYSIS_ALIASES.get(key)
+            if not macro_key:
+                raise ValueError("A source field is required for this rates series")
+            detail = await self._macro_detail(macro_key)
+            return {**detail, "key": key, "label": label}
         catalog = await self.rates_catalog(); meta = next(item for item in catalog["items"] if item["key"] == key)
         if field not in meta["fields"]: raise ValueError("Unknown rates source field")
         filters, params = [], {}

@@ -185,11 +185,11 @@ async def rates_catalog(session: AsyncSession = Depends(get_session), user: User
 
 
 @router.get("/rates/series/{key}")
-async def rates_series(key: str, field: str = Query(...), bank: str | None = None, maturity: str | None = None,
+async def rates_series(key: str, field: str | None = None, bank: str | None = None, maturity: str | None = None,
                        session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     reader = service(session)
     try:
-        return await cached_json(f"rates:{key}:{field}:{bank or '-'}:{maturity or '-'}",
+        return await cached_json(f"rates:{key}:{field or 'analysis-v1'}:{bank or '-'}:{maturity or '-'}",
                                  lambda: reader.rates_series(key, field, bank, maturity))
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
@@ -218,11 +218,11 @@ async def bond_convertibles(code: str | None = None, limit: int = Query(200, ge=
 
 
 @router.get("/macro/series/{key}")
-async def macro_series(key: str, field: str = Query(...), session: AsyncSession = Depends(get_session),
+async def macro_series(key: str, field: str | None = None, session: AsyncSession = Depends(get_session),
                        user: User = Depends(get_current_user)):
     reader = service(session)
     try:
-        return await cached_json(f"macro:{key}:{field}", lambda: reader.macro_series(key, field))
+        return await cached_json(f"macro:{key}:{field or 'analysis-v1'}", lambda: reader.macro_series(key, field))
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
 

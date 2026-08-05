@@ -31,7 +31,9 @@ test("major market analysis charts expose zoom reset and fullscreen without chan
   }
   expect(charts).toContain('zoomMode="xy"');
   expect(charts).toContain('zoomMode="x"');
-  expect(market).toContain("<MiniLine values={row.values.slice(-60)}");
+  expect(market).toContain("<MiniLine values={sparkline}");
+  expect(market).toContain('marketsApi.macroSeries(selected!)');
+  for (const range of ['"5Y"', '"10Y"', '"ALL"']) expect(market).toContain(range);
 });
 
 test("market module exposes exactly two approved top-level tabs and professional drilldowns", () => {

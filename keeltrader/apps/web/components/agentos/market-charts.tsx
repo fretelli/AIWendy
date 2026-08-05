@@ -24,6 +24,8 @@ export function ValuationScatterChart({ items, locale, title, asOf }: {
         crowdingStatus: item.crowding_status,
         crowdingReason: item.crowding_reason,
         crowdingCoverage: item.crowding_coverage,
+        crowdingCoverageActual: item.crowding_coverage_actual,
+        crowdingCoverageExpected: item.crowding_coverage_expected,
         itemStyle: {
           color: crowding == null ? "rgba(138,151,163,.18)" : crowding >= .7 ? "rgba(255,90,82,.28)" : crowding >= .4 ? "rgba(232,163,77,.24)" : "rgba(95,227,181,.24)",
           borderColor: crowding == null ? COLORS.text : crowding >= .7 ? COLORS.up : crowding >= .4 ? COLORS.amber : COLORS.mint,
@@ -38,16 +40,19 @@ export function ValuationScatterChart({ items, locale, title, asOf }: {
       tooltip: {
         trigger: "item",
         backgroundColor: "rgba(14,19,24,.96)", borderColor: "#26313A", textStyle: { color: "#E8EDF2", fontFamily: "IBM Plex Mono" },
-        formatter: (params: { data?: { name?: string; code?: string; value?: Array<number | null>; crowdingStatus?: string; crowdingReason?: string; crowdingCoverage?: number } }) => {
+        formatter: (params: { data?: { name?: string; code?: string; value?: Array<number | null>; crowdingStatus?: string; crowdingReason?: string; crowdingCoverage?: number; crowdingCoverageActual?: number; crowdingCoverageExpected?: number } }) => {
           const item = params.data;
           const values = item?.value || [];
           const crowding = values[2] == null ? (locale === "zh" ? "不可用" : "Unavailable") : `${Number(values[2]).toFixed(0)}%`;
           const coverage = item?.crowdingCoverage == null ? "—" : `${(item.crowdingCoverage * 100).toFixed(0)}%`;
+          const coverageCount = item?.crowdingCoverageActual != null && item?.crowdingCoverageExpected
+            ? ` (${Number(item.crowdingCoverageActual).toFixed(0)}/${Number(item.crowdingCoverageExpected).toFixed(0)})`
+            : "";
           const reasonText = item?.crowdingReason === "component_coverage_below_threshold"
             ? (locale === "zh" ? "正式组件覆盖率低于 80%" : "Formal component coverage is below 80%")
             : item?.crowdingReason;
           const reason = reasonText ? `<br/><span style="color:${COLORS.amber}">${reasonText}</span>` : "";
-          return `${item?.name || "—"}<br/><span style="color:${COLORS.dim}">${item?.code || ""}</span><br/>PE ${locale === "zh" ? "分位" : "percentile"} ${Number(values[1] || 0).toFixed(0)}%<br/>Δ3M ${Number(values[0] || 0) >= 0 ? "+" : ""}${Number(values[0] || 0).toFixed(1)} pct<br/>${locale === "zh" ? "拥挤度" : "Crowding"} ${crowding}<br/>${locale === "zh" ? "覆盖率" : "Coverage"} ${coverage}${reason}`;
+          return `${item?.name || "—"}<br/><span style="color:${COLORS.dim}">${item?.code || ""}</span><br/>PE ${locale === "zh" ? "分位" : "percentile"} ${Number(values[1] || 0).toFixed(0)}%<br/>Δ3M ${Number(values[0] || 0) >= 0 ? "+" : ""}${Number(values[0] || 0).toFixed(1)} pct<br/>${locale === "zh" ? "拥挤度" : "Crowding"} ${crowding}<br/>${locale === "zh" ? "覆盖率" : "Coverage"} ${coverage}${coverageCount}${reason}`;
         },
       },
       xAxis: {

@@ -6,9 +6,9 @@ const market = fs.readFileSync(path.join(root, "app/(app)/agent/market/page.tsx"
 
 test("market module is evidence-first and refuses synthetic substitutes", () => {
   expect(market).toContain("publication_pending");
-  expect(market).toContain("kt_factor_v1 · kt_crowding_v1");
-  expect(market).toContain("权重未重新分配");
-  expect(market).toContain("不生成代理结论");
+  expect(market).toContain("kt_factor_v1 · ${data?.crowding.methodology_key");
+  expect(market).toContain("固定权重未重分配");
+  expect(market).toContain("不使用代理或反推值");
 });
 
 test("legacy cross-asset routes redirect to canonical market tabs", () => {

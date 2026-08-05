@@ -16,6 +16,7 @@ KeelTrader is deliberately vertical. It includes a research agent that can use a
 - Eight coordinated AgentOS modules: Overview, Allocation, Holdings, Market, Opportunities, Decisions, Research, and Agent Workspace.
 - Market is organized as exactly two top-level views—Market/Sectors/Flows and Macro Data—with rates, futures, options, valuation, correlation, and factors kept as in-module drilldowns.
 - Interactive valuation v2, 20–252 day correlation, and factor/crowding endpoints read immutable Tushare-published snapshots; audited broad/SW-L1 classification and append-only history endpoints support zoomable charts without request-time source scans.
+- Macro navigation returns lightweight official-field summaries, while each selected GDP/CPI/PPI/M2/social-financing/PMI/rate series lazily loads primary, MoM, YoY, and rolling 10-year percentile histories with explicit official/calculated/not-applicable methodology.
 - Manual and CSV portfolio ingestion, immutable transactions, dated manual prices, explicit valuation completeness, and NAV history.
 - Market evidence, report search, shareholder research, consensus snapshots, and Tushare-backed strategy experiments.
 - Versioned hypotheses and decisions with evidence, falsification conditions, review dates, and attribution.
@@ -43,7 +44,7 @@ flowchart LR
 - `keeltrader/apps/web/`: Next.js App Router frontend.
 - `keeltrader/apps/api/`: FastAPI API and research services.
 - AgentOS web routes live under `/agent`; its authenticated API is mounted under `/api/v1/agent`.
-- Read-only capability discovery is available at `GET /api/v1/markets/capabilities`; portfolio analytics and holding evidence live under `/api/v1/agent/portfolio/accounts/{id}`; Research reads the deduplicated report library through `/api/v1/agent/research/library`.
+- Read-only capability discovery is available at `GET /api/v1/markets/capabilities`; macro summaries and normalized detail remain on the additive `/api/v1/markets/macro/series` contract; portfolio analytics and holding evidence live under `/api/v1/agent/portfolio/accounts/{id}`; Research reads the deduplicated report library through `/api/v1/agent/research/library`.
 - `domain/agentos` owns portfolio, hypothesis, decision, strategy, consensus, and document-version records.
 - PostgreSQL owns application state; Alembic is the only schema-management path.
 - Redis provides cache, task queues, coordination, and worker heartbeats.
