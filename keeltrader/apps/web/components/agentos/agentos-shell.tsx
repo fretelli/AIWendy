@@ -17,6 +17,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   agentOSApi,
   type AgentOSOverview,
@@ -271,7 +273,9 @@ export function AgentOsShell({ children }: { children: React.ReactNode }) {
   const [wideDock, setWideDock] = useState(false);
   const [agentOpen, setAgentOpen] = useState(false);
   const current = useMemo(() => activeModule(pathname), [pathname]);
-  const period = ["1M", "3M", "1Y", "3Y"].includes(
+  const isMarketModule = pathname.startsWith("/agent/market");
+  const enabledPeriods = isMarketModule ? ["1M", "3M", "1Y", "3Y", "5Y"] : ["1M", "3M", "1Y", "3Y"];
+  const period = enabledPeriods.includes(
     searchParams.get("period") || "",
   )
     ? searchParams.get("period")!
@@ -358,23 +362,24 @@ export function AgentOsShell({ children }: { children: React.ReactNode }) {
               {locale === "zh" ? current.zhTitle : current.enTitle}
             </h1>
           </div>
-          <div className="hidden shrink-0 overflow-hidden rounded-md border border-agent-border md:flex">
-            {["1M", "3M", "1Y", "3Y"].map((value) => (
-              <button
-                type="button"
-                key={value}
-                onClick={() => setPeriod(value)}
-                aria-pressed={period === value}
-                className={cn(
-                  "px-2.5 py-1.5 font-data text-[10px]",
-                  period === value
-                    ? "bg-agent-mint text-agent-canvas"
-                    : "text-agent-dim hover:text-agent-text",
-                )}
-              >
-                {value}
-              </button>
-            ))}
+          <div className="hidden shrink-0 items-center overflow-hidden rounded-md border border-agent-border md:flex">
+            <ToggleGroup type="single" value={period} onValueChange={(value) => { if (value) setPeriod(value); }}
+              variant="outline" size="sm" aria-label={locale === "zh" ? "历史范围" : "History range"}
+              className="gap-0 border-0">
+              {enabledPeriods.map((value) => (
+                <ToggleGroupItem key={value} value={value} aria-label={value}
+                  className="rounded-none border-0 font-data text-[10px] data-[state=on]:bg-agent-mint data-[state=on]:text-agent-canvas">
+                  {value}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            {isMarketModule ? (
+              <TooltipProvider><Tooltip>
+                <TooltipTrigger asChild><span tabIndex={0}><Button type="button" size="sm" variant="ghost" disabled
+                  className="rounded-none font-data text-[10px]">10Y</Button></span></TooltipTrigger>
+                <TooltipContent>{locale === "zh" ? "正式历史从 2020 年开始，暂不合成 10 年数据。" : "Official history begins in 2020; no synthetic 10-year series is provided."}</TooltipContent>
+              </Tooltip></TooltipProvider>
+            ) : null}
           </div>
           <HeaderTabs current={current} period={period} />
           <div className="ml-auto flex shrink-0 items-center gap-2">

@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   ArrowUpRight,
   Bot,
+  CircleAlert,
   CircleStop,
   Loader2,
   MessageSquarePlus,
@@ -13,6 +14,7 @@ import {
 import { FormEvent, useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAgentWorkspace } from "@/components/agentos/workspace-provider";
 import { useI18n } from "@/lib/i18n/provider";
@@ -120,6 +122,20 @@ export function AgentDock({ compact = false }: { compact?: boolean }) {
         onSubmit={submit}
         className="shrink-0 border-t border-agent-border p-3"
       >
+        {workspace.sendError ? (
+          <Alert variant="destructive" className="mb-2" role="alert">
+            <CircleAlert />
+            <AlertTitle>{locale === "zh" ? "消息未发送" : "Message not sent"}</AlertTitle>
+            <AlertDescription className="flex items-center justify-between gap-2">
+              <span>{workspace.sendError.message}</span>
+              {workspace.sendError.retryable ? (
+                <Button type="button" size="sm" variant="outline" onClick={() => void workspace.send()}>
+                  {locale === "zh" ? "重试" : "Retry"}
+                </Button>
+              ) : null}
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <div className="rounded-md border border-agent-border-strong bg-agent-surface p-2 focus-within:border-agent-mint/60">
           <textarea
             value={workspace.input}

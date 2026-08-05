@@ -9,7 +9,7 @@ import { marketsApi, type FuturesCurve, type FuturesHistory, type FuturesProduct
 import { useI18n } from "@/lib/i18n/provider";
 
 const TimeSeriesChart = dynamic(() => import("@/components/agentos/market-charts").then((module) => module.TimeSeriesChart), { ssr: false });
-type Period = "1M" | "3M" | "1Y" | "3Y";
+type Period = "1M" | "3M" | "1Y" | "3Y" | "5Y";
 
 export function RatesDrilldown() {
   const { locale } = useI18n();
@@ -54,5 +54,5 @@ function localizeUnavailableReason(reason: string, locale: "zh" | "en") {
 }
 
 function periodPoints(period: Period) {
-  return ({ "1M": 22, "3M": 66, "1Y": 252, "3Y": 756 } as const)[period];
+  return ({ "1M": 22, "3M": 66, "1Y": 252, "3Y": 756, "5Y": 1260 } as const)[period];
 }

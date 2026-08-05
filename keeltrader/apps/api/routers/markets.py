@@ -155,7 +155,7 @@ async def correlations(request: Request, window: int = Query(60, ge=20, le=252),
 
 @router.get("/correlations/history")
 async def correlations_history(request: Request, window: int = Query(60, ge=20, le=252),
-                               limit: int = Query(756, ge=20, le=1200),
+                               limit: int = Query(756, ge=20, le=1300),
                                session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     return await cached_json(f"correlations:history:v1:{window}:{limit}",
                              lambda: service(session).correlation_history(window, limit), ttl=900, request=request)
@@ -167,7 +167,7 @@ async def factors(request: Request, session: AsyncSession = Depends(get_session)
 
 
 @router.get("/factors/history")
-async def factors_history(request: Request, limit: int = Query(756, ge=20, le=1200),
+async def factors_history(request: Request, limit: int = Query(756, ge=20, le=1300),
                           session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     return await cached_json(f"factors:history:v1:{limit}", lambda: service(session).factor_history(limit),
                              ttl=900, request=request)

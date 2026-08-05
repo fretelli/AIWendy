@@ -1198,7 +1198,7 @@ class TushareReadService:
         rows = await self._execute_mappings(text(f"""
             SELECT analysis_version,computed_at,source_watermarks,payload
             FROM {self.schema}.{table} {where}
-            ORDER BY computed_at DESC LIMIT 1
+            ORDER BY as_of DESC NULLS LAST,computed_at DESC LIMIT 1
         """), parameters)
         if not rows:
             return {**empty, "metadata": self._analysis_metadata(
@@ -1242,17 +1242,19 @@ class TushareReadService:
 
     async def correlation_history(self, window: int = 60, limit: int = 756) -> dict[str, Any]:
         window = max(20, min(int(window), 252))
-        limit = max(20, min(int(limit), 1200))
+        limit = max(20, min(int(limit), 1300))
         if "market_correlation_snapshot" not in queryable_tables():
             return {"metadata": self._analysis_metadata(
                 status="unavailable", reason_code="materialized_capability_unavailable", as_of=None,
                 coverage=None, methodology_key="kt_corr_v1", source_datasets=[],
             ), "window": window, "series": [], "points": []}
         rows = await self._execute_mappings(text(f"""
-            SELECT analysis_version,computed_at,payload
-            FROM {self.schema}.market_correlation_snapshot
-            WHERE window_days=:window AND methodology_key=:methodology
-            ORDER BY computed_at DESC LIMIT :limit
+            SELECT analysis_version,computed_at,payload FROM (
+              SELECT DISTINCT ON(as_of) analysis_version,as_of,computed_at,payload
+              FROM {self.schema}.market_correlation_snapshot
+              WHERE window_days=:window AND methodology_key=:methodology AND as_of IS NOT NULL
+              ORDER BY as_of DESC,computed_at DESC
+            ) snapshots ORDER BY as_of DESC LIMIT :limit
         """), {"window": window, "methodology": "kt_corr_v1", "limit": limit})
         points = []
         series = []
@@ -1279,16 +1281,19 @@ class TushareReadService:
             "synthetic_substitution": False}
 
     async def factor_history(self, limit: int = 756) -> dict[str, Any]:
-        limit = max(20, min(int(limit), 1200))
+        limit = max(20, min(int(limit), 1300))
         if "market_factor_snapshot" not in queryable_tables():
             return {"metadata": self._analysis_metadata(
                 status="unavailable", reason_code="materialized_capability_unavailable", as_of=None,
                 coverage=None, methodology_key="kt_factor_v1", source_datasets=[],
             ), "points": []}
         rows = await self._execute_mappings(text(f"""
-            SELECT analysis_version,computed_at,payload
-            FROM {self.schema}.market_factor_snapshot
-            WHERE methodology_key=:methodology ORDER BY computed_at DESC LIMIT :limit
+            SELECT analysis_version,computed_at,payload FROM (
+              SELECT DISTINCT ON(as_of) analysis_version,as_of,computed_at,payload
+              FROM {self.schema}.market_factor_snapshot
+              WHERE methodology_key=:methodology AND as_of IS NOT NULL
+              ORDER BY as_of DESC,computed_at DESC
+            ) snapshots ORDER BY as_of DESC LIMIT :limit
         """), {"methodology": "kt_factor_v1", "limit": limit})
         points = []
         for row in reversed(rows):

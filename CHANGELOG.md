@@ -7,7 +7,10 @@
 
 ## 未发布
 
-- 暂无。
+- 修复紧凑 Agent 对话发送失败时无提示且清空输入的问题；失败内容会保留，网络、限流和服务端错误可直接重试。
+- AgentOS 市场历史范围增加真实 5Y，明确禁用无正式来源的 10Y；历史接口按日期去重并返回顺序快照。
+- 放大估值表与相关矩阵的嵌入字号，并增加全屏 `+ / − / 0` 字号控制。
+- 增加 `uploaded_files` Alembic 迁移，恢复附件元数据持久化。
 
 ## 0.3.0 - 2026-07-25
 
@@ -61,7 +64,10 @@ This file records only notable changes that can be verified from the current rep
 
 ## Unreleased
 
-- None.
+- Preserve Agent prompt text and show retryable errors when compact-dock message submission fails.
+- Add a genuine 5Y AgentOS market history range, explicitly disable unsupported 10Y history, and deduplicate snapshots by date.
+- Increase valuation-table and correlation-matrix readability with fullscreen `+ / − / 0` font controls.
+- Add the missing `uploaded_files` Alembic migration for attachment metadata.
 
 ## 0.3.0 - 2026-07-25
 
