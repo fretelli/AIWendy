@@ -4,6 +4,7 @@ import path from "node:path";
 const root = path.resolve(__dirname, "..");
 const market = fs.readFileSync(path.join(root, "app/(app)/agent/market/page.tsx"), "utf8");
 const api = fs.readFileSync(path.join(root, "lib/api/agent-platform.ts"), "utf8");
+const shell = fs.readFileSync(path.join(root, "components/agentos/agentos-shell.tsx"), "utf8");
 
 test("the canonical market board uses the four approved same-screen analyses", () => {
   for (const title of ["估值分位矩阵", "大类相关性 60 日滚动", "估值分位排序 · 带时间维度", "因子收益与拥挤度"]) {
@@ -34,6 +35,13 @@ test("major market analysis charts expose zoom reset and fullscreen without chan
   expect(market).toContain("<MiniLine values={sparkline}");
   expect(market).toContain('marketsApi.macroSeries(selected!)');
   for (const range of ['"5Y"', '"10Y"', '"ALL"']) expect(market).toContain(range);
+  expect(market).toContain('"5Y": 1260');
+  expect(market).toContain("FullscreenDataView");
+  expect(market).toContain("Math.max(10, Math.min(20");
+  expect(market).toContain('event.key === "0"');
+  expect(shell).toContain('isMarketModule ? ["1M", "3M", "1Y", "3Y", "5Y"]');
+  expect(shell).toContain("正式历史从 2020 年开始");
+  expect(shell).toContain("<ToggleGroup");
 });
 
 test("market module exposes exactly two approved top-level tabs and professional drilldowns", () => {

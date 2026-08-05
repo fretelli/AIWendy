@@ -2,7 +2,10 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
+import { ApiError } from "@/lib/api/client";
+import { useI18n } from "@/lib/i18n/provider";
 import {
   agentPlatformApi,
   type AgentDefinition,
@@ -13,6 +16,7 @@ import {
 
 type NavigationHint = { route?: string; tab?: string; entity_id?: string; label?: string };
 type DockEvent = { id: string; type: string; payload: Record<string, unknown>; navigation?: NavigationHint };
+type SendError = { message: string; retryable: boolean };
 
 type AgentWorkspaceValue = {
   loading: boolean;
@@ -23,6 +27,7 @@ type AgentWorkspaceValue = {
   events: DockEvent[];
   activeRun?: AgentRun;
   input: string;
+  sendError: SendError | null;
   setInput: (value: string) => void;
   setSessionId: (value: string) => void;
   newSession: () => Promise<void>;
@@ -45,6 +50,7 @@ const ROUTE_ALLOWLIST = new Set([
 export function AgentWorkspaceProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { locale } = useI18n();
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [sessions, setSessions] = useState<AgentSession[]>([]);
@@ -54,7 +60,9 @@ export function AgentWorkspaceProvider({ children }: { children: React.ReactNode
   const [runs, setRuns] = useState<AgentRun[]>([]);
   const [events, setEvents] = useState<DockEvent[]>([]);
   const [input, setInput] = useState("");
+  const [sendError, setSendError] = useState<SendError | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
+  const sendingRef = useRef(false);
 
   const refresh = useCallback(async () => {
     const [sessionData, agentData] = await Promise.all([
@@ -154,8 +162,10 @@ export function AgentWorkspaceProvider({ children }: { children: React.ReactNode
 
   const send = useCallback(async (content?: string) => {
     const prompt = (content ?? input).trim();
-    if (!prompt || sending) return;
+    if (!prompt || sendingRef.current) return;
+    sendingRef.current = true;
     setSending(true);
+    setSendError(null);
     if (!content) setInput("");
     try {
       let target = sessionId;
@@ -170,10 +180,23 @@ export function AgentWorkspaceProvider({ children }: { children: React.ReactNode
       setRuns((current) => [...current, result.run]);
       setEvents([]);
       await loadTimeline(target);
+    } catch (error) {
+      const status = error instanceof ApiError ? error.status : null;
+      const retryable = status === null || status === 429 || status >= 500;
+      const message = retryable
+        ? locale === "zh" ? "发送失败，内容已保留，请重试。" : "Send failed. Your message was preserved; please retry."
+        : error instanceof ApiError && error.message
+          ? error.message
+          : locale === "zh" ? "请求未通过校验，请检查内容后重试。" : "The request was rejected. Review the content and try again.";
+      if (!content) setInput(prompt);
+      setSendError({ message, retryable });
+      toast.error(message);
+      console.info("agent_message_send_failed", { status, retryable });
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
-  }, [agents, createSession, input, loadTimeline, pathname, sending, sessionId]);
+  }, [agents, createSession, input, loadTimeline, locale, pathname, sessionId]);
 
   const stop = useCallback(async () => {
     if (!sessionId) return;
@@ -219,10 +242,10 @@ export function AgentWorkspaceProvider({ children }: { children: React.ReactNode
   }, [router]);
 
   const value = useMemo<AgentWorkspaceValue>(() => ({
-    loading, sending, sessions, sessionId, messages, events, activeRun, input, setInput,
+    loading, sending, sessions, sessionId, messages, events, activeRun, input, sendError, setInput,
     setSessionId: setSessionIdState, newSession: async () => { await createSession(); }, renameSession, deleteSession,
     exportSession, rerunLast, send, stop, openHint,
-  }), [activeRun, createSession, deleteSession, events, exportSession, input, loading, messages, openHint, renameSession, rerunLast, send, sending, sessionId, sessions, stop]);
+  }), [activeRun, createSession, deleteSession, events, exportSession, input, loading, messages, openHint, renameSession, rerunLast, send, sendError, sending, sessionId, sessions, stop]);
 
   return <AgentWorkspaceContext.Provider value={value}>{children}</AgentWorkspaceContext.Provider>;
 }

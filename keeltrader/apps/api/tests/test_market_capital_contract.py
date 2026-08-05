@@ -145,6 +145,10 @@ def test_agentos_market_analysis_uses_formal_versioned_methodologies():
     assert '"publication_version": publication_version()' in service
     assert '"capability_version": capability_version()' in service
     assert '"synthetic_substitution": False' in service
+    assert 'le=1300' in router
+    assert 'min(int(limit), 1300)' in service
+    assert 'DISTINCT ON(as_of)' in service
+    assert 'ORDER BY as_of DESC NULLS LAST,computed_at DESC LIMIT 1' in service
 
 
 def test_factor_returns_are_point_in_time_and_crowding_never_redistributes_missing_weights():

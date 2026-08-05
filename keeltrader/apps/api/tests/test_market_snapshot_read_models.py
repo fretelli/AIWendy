@@ -55,6 +55,24 @@ async def test_market_history_readers_filter_methodology(monkeypatch):
     assert reader._execute_mappings.await_args.args[1]["methodology"] == "kt_factor_v1"
 
 
+@pytest.mark.asyncio
+async def test_market_history_readers_deduplicate_as_of_and_allow_five_year_limit(monkeypatch):
+    monkeypatch.setattr(tushare_module, "queryable_tables", lambda: frozenset({
+        "market_correlation_snapshot", "market_factor_snapshot",
+    }))
+    reader = TushareReadService(None)
+    reader._execute_mappings = AsyncMock(return_value=[])
+    await reader.correlation_history(60, 1260)
+    correlation_query = str(reader._execute_mappings.await_args.args[0])
+    assert "DISTINCT ON(as_of)" in correlation_query
+    assert "ORDER BY as_of DESC,computed_at DESC" in correlation_query
+    assert reader._execute_mappings.await_args.args[1]["limit"] == 1260
+    await reader.factor_history(1260)
+    factor_query = str(reader._execute_mappings.await_args.args[0])
+    assert "DISTINCT ON(as_of)" in factor_query
+    assert reader._execute_mappings.await_args.args[1]["limit"] == 1260
+
+
 def test_market_cache_key_binds_both_publication_versions(monkeypatch):
     monkeypatch.setattr(market_cache, "publication_version", lambda: "p1")
     monkeypatch.setattr(market_cache, "capability_version", lambda: "c1")

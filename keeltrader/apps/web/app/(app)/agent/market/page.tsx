@@ -1,11 +1,13 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { Maximize2, Minus, Plus, RotateCcw } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import useSWR from "swr";
 
 import { DashboardPage, EmptyPanel, MiniLine, Panel } from "@/components/agentos/dashboard-ui";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { marketsApi, type CorrelationBoard, type CorrelationHistory, type FactorBoard, type FactorHistory, type MacroCatalog, type MacroMetricSummary, type MacroSeriesDetail, type ValuationBoard } from "@/lib/api/agent-platform";
@@ -20,7 +22,7 @@ const TimeSeriesChart = dynamic(() => import("@/components/agentos/market-charts
 
 type TopTab = "market" | "macro";
 type Detail = "rates" | "futures" | "options";
-type Period = "1M" | "3M" | "1Y" | "3Y";
+type Period = "1M" | "3M" | "1Y" | "3Y" | "5Y";
 
 export default function MarketPage() {
   const params = useSearchParams();
@@ -28,14 +30,14 @@ export default function MarketPage() {
   const { locale } = useI18n();
   const tab: TopTab = params.get("tab") === "macro" ? "macro" : "market";
   const detail = (["rates", "futures", "options"].includes(params.get("detail") || "") ? params.get("detail") : null) as Detail | null;
-  const period = (["1M", "3M", "1Y", "3Y"].includes(params.get("period") || "") ? params.get("period") : "1Y") as Period;
+  const period = (["1M", "3M", "1Y", "3Y", "5Y"].includes(params.get("period") || "") ? params.get("period") : "1Y") as Period;
   const showMarket = !detail && tab === "market";
   const showMacro = !detail && tab === "macro";
   const { data: valuation = null } = useSWR<ValuationBoard>(showMarket ? "markets/valuation-board" : null, marketsApi.valuationBoard);
   const { data: correlations = null } = useSWR<CorrelationBoard>(showMarket ? "markets/correlations/60" : null, () => marketsApi.correlations(60));
-  const { data: correlationHistory = null } = useSWR<CorrelationHistory>(showMarket ? `markets/correlations/60/history/${period}` : null, () => marketsApi.correlationHistory(60, periodLimit(period)));
+  const { data: correlationHistory = null, isLoading: correlationsLoading } = useSWR<CorrelationHistory>(showMarket ? `markets/correlations/60/history/${period}` : null, () => marketsApi.correlationHistory(60, periodLimit(period)));
   const { data: factors = null } = useSWR<FactorBoard>(showMarket ? "markets/factors" : null, marketsApi.factors);
-  const { data: factorHistory = null } = useSWR<FactorHistory>(showMarket ? `markets/factors/history/${period}` : null, () => marketsApi.factorHistory(periodLimit(period)));
+  const { data: factorHistory = null, isLoading: factorsLoading } = useSWR<FactorHistory>(showMarket ? `markets/factors/history/${period}` : null, () => marketsApi.factorHistory(periodLimit(period)));
   const { data: macro = null } = useSWR<MacroCatalog>(showMacro ? "markets/macro/catalog-v1" : null, marketsApi.macroCatalog);
 
   const closeDetail = () => {
@@ -45,12 +47,22 @@ export default function MarketPage() {
   };
   if (detail) return <DashboardPage className="max-w-none"><div className="mb-1"><Button variant="ghost" size="sm" onClick={closeDetail}>{locale === "zh" ? "返回市场与宏观" : "Back to Market & Macro"}</Button></div>{detail === "rates" ? <RatesDrilldown /> : detail === "futures" ? <FuturesDrilldown period={period} /> : <OptionsDrilldown />}</DashboardPage>;
   return <DashboardPage className="max-w-none gap-3 px-4 py-[22px]">
-    {tab === "market" ? <MarketBoard valuation={valuation} correlations={correlations} correlationHistory={correlationHistory} factors={factors} factorHistory={factorHistory} locale={locale} /> : <MacroBoard data={macro} locale={locale} period={period} />}
+    {tab === "market" ? <MarketBoard valuation={valuation} correlations={correlations} correlationHistory={correlationHistory} factors={factors} factorHistory={factorHistory} period={period} loading={correlationsLoading || factorsLoading} locale={locale} /> : <MacroBoard data={macro} locale={locale} period={period} />}
   </DashboardPage>;
 }
 
-function MarketBoard({ valuation, correlations, correlationHistory, factors, factorHistory, locale }: { valuation: ValuationBoard | null; correlations: CorrelationBoard | null; correlationHistory: CorrelationHistory | null; factors: FactorBoard | null; factorHistory: FactorHistory | null; locale: "zh" | "en" }) {
-  return <div className="grid min-h-[calc(100dvh-104px)] grid-rows-[minmax(390px,1.05fr)_minmax(330px,.95fr)] gap-3">
+function MarketBoard({ valuation, correlations, correlationHistory, factors, factorHistory, period, loading, locale }: { valuation: ValuationBoard | null; correlations: CorrelationBoard | null; correlationHistory: CorrelationHistory | null; factors: FactorBoard | null; factorHistory: FactorHistory | null; period: Period; loading: boolean; locale: "zh" | "en" }) {
+  const correlationDates = (correlationHistory?.points || []).map((item) => item.as_of).filter((item): item is string => Boolean(item));
+  const factorDates = (factorHistory?.points || []).map((item) => item.as_of).filter((item): item is string => Boolean(item));
+  return <div className="flex min-h-[calc(100dvh-104px)] flex-col gap-3">
+    <Alert>
+      <AlertTitle>{locale === "zh" ? `历史范围：${period}` : `History range: ${period}`}</AlertTitle>
+      <AlertDescription>
+        <span aria-live="polite">{loading ? (locale === "zh" ? "正在载入正式历史…" : "Loading formal history…") : locale === "zh" ? `相关性 ${coverageText(correlationDates)} · 因子 ${coverageText(factorDates)}` : `Correlations ${coverageText(correlationDates)} · Factors ${coverageText(factorDates)}`}</span>
+        <span className="ml-2 text-agent-dim">{locale === "zh" ? "范围用于历史下钻；矩阵与因子主板始终显示最新正式快照。" : "The range controls historical drilldowns; the matrix and factor board remain the latest formal snapshots."}</span>
+      </AlertDescription>
+    </Alert>
+    <div className="grid min-h-0 flex-1 grid-rows-[minmax(390px,1.05fr)_minmax(330px,.95fr)] gap-3">
     <div className="grid min-h-0 gap-3 xl:grid-cols-[1.6fr_1fr]">
       <ValuationMatrix data={valuation} locale={locale} />
       <CorrelationMatrix data={correlations} history={correlationHistory} locale={locale} />
@@ -58,6 +70,7 @@ function MarketBoard({ valuation, correlations, correlationHistory, factors, fac
     <div className="grid min-h-0 gap-3 xl:grid-cols-[1.35fr_1fr]">
       <ValuationRanking data={valuation} locale={locale} />
       <FactorCrowding data={factors} history={factorHistory} locale={locale} />
+    </div>
     </div>
   </div>;
 }
@@ -76,31 +89,49 @@ function ValuationMatrix({ data, locale }: { data: ValuationBoard | null; locale
 
 function CorrelationMatrix({ data, history, locale }: { data: CorrelationBoard | null; history: CorrelationHistory | null; locale: "zh" | "en" }) {
   const [pair, setPair] = useState<[number, number] | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
   const pairKey = pair && data ? `${data.series[Math.min(...pair)].key}|${data.series[Math.max(...pair)].key}` : null;
   const pairDates = pairKey ? (history?.points || []).map(item => item.as_of || "—") : [];
   const pairValues = pairKey ? (history?.points || []).map(item => item.pairs[pairKey] ?? null) : [];
   return <Panel className="min-h-0 overflow-auto">
-    <PanelTitle title={locale === "zh" ? "大类相关性 60 日滚动" : "60-Day Rolling Correlations"} note={locale === "zh" ? "小字为环比变化" : "Small figures show window-over-window change"} />
-    {data?.matrix.length ? <div className="grid gap-1" style={{ gridTemplateColumns: `68px repeat(${data.series.length}, minmax(48px,1fr))` }}>
-      <span />{data.series.map((item) => <span key={item.key} className="pb-2 text-center text-[9px] text-agent-dim">{locale === "zh" ? item.label : factorLabel(item.key, locale)}</span>)}
-      {data.series.map((row, i) => <CorrelationRow key={row.key} row={row} index={i} data={data} locale={locale} onSelect={(column) => { if (column !== i) setPair([i, column]); }} />)}
-    </div> : <DataGap title={locale === "zh" ? "相关矩阵不可用" : "Correlation matrix unavailable"} reason={data?.metadata.reason_code} locale={locale} />}
+    <PanelTitle title={locale === "zh" ? "大类相关性 60 日滚动" : "60-Day Rolling Correlations"} note={locale === "zh" ? "小字为环比变化" : "Small figures show window-over-window change"} actions={data?.matrix.length ? <Button type="button" size="icon" variant="ghost" onClick={() => setFullscreen(true)} aria-label={locale === "zh" ? "全屏查看相关矩阵" : "View correlation matrix fullscreen"}><Maximize2 /></Button> : null} />
+    {data?.matrix.length ? <CorrelationGrid data={data} locale={locale} fontSize={11} onSelect={(row, column) => { if (column !== row) setPair([row, column]); }} /> : <DataGap title={locale === "zh" ? "相关矩阵不可用" : "Correlation matrix unavailable"} reason={data?.metadata.reason_code} locale={locale} />}
+    <FullscreenDataView open={fullscreen} onOpenChange={setFullscreen} title={locale === "zh" ? "大类相关性矩阵" : "Cross-Asset Correlation Matrix"} locale={locale}>{(fontSize) => data ? <CorrelationGrid data={data} locale={locale} fontSize={fontSize} onSelect={(row, column) => { setFullscreen(false); if (column !== row) setPair([row, column]); }} /> : null}</FullscreenDataView>
     <Dialog open={Boolean(pair)} onOpenChange={(open) => { if (!open) setPair(null); }}><DialogContent className="w-[min(1100px,calc(100vw-32px))] max-w-none border-agent-border bg-agent-surface text-agent-text"><DialogHeader><DialogTitle>{pair && data ? `${data.series[pair[0]].label} ↔ ${data.series[pair[1]].label}` : "—"}</DialogTitle><DialogDescription>{locale === "zh" ? "正式 60 日滚动相关性历史" : "Formal 60-day rolling correlation history"}</DialogDescription></DialogHeader>{pairValues.length ? <TimeSeriesChart dates={pairDates} series={[{ name: locale === "zh" ? "相关系数" : "Correlation", values: pairValues }]} locale={locale} title={locale === "zh" ? "相关性历史" : "Correlation History"} height={430} /> : <DataGap title={locale === "zh" ? "相关性历史不可用" : "Correlation history unavailable"} reason={history?.metadata.reason_code} locale={locale} />}</DialogContent></Dialog>
   </Panel>;
 }
 
-function CorrelationRow({ row, index, data, locale, onSelect }: { row: CorrelationBoard["series"][number]; index: number; data: CorrelationBoard; locale: "zh" | "en"; onSelect: (column: number) => void }) {
-  return <><span className="flex items-center text-[9px] text-agent-muted">{locale === "zh" ? row.label : factorLabel(row.key, locale)}</span>{data.matrix[index].map((value, column) => {
+function CorrelationGrid({ data, locale, fontSize, onSelect }: { data: CorrelationBoard; locale: "zh" | "en"; fontSize: number; onSelect: (row: number, column: number) => void }) {
+  return <div className="grid gap-1" style={{ gridTemplateColumns: `88px repeat(${data.series.length}, minmax(64px,1fr))`, fontSize }}>
+    <span />{data.series.map((item) => <span key={item.key} className="pb-2 text-center text-agent-dim">{locale === "zh" ? item.label : factorLabel(item.key, locale)}</span>)}
+    {data.series.map((row, i) => <CorrelationRow key={row.key} row={row} index={i} data={data} locale={locale} fontSize={fontSize} onSelect={(column) => onSelect(i, column)} />)}
+  </div>;
+}
+
+function CorrelationRow({ row, index, data, locale, fontSize, onSelect }: { row: CorrelationBoard["series"][number]; index: number; data: CorrelationBoard; locale: "zh" | "en"; fontSize: number; onSelect: (column: number) => void }) {
+  return <><span className="flex items-center text-agent-muted" style={{ fontSize }}>{locale === "zh" ? row.label : factorLabel(row.key, locale)}</span>{data.matrix[index].map((value, column) => {
     const delta = data.delta_matrix[index]?.[column];
-    return <button type="button" disabled={value == null || index === column} onClick={() => onSelect(column)} key={column} className={cn("flex min-h-10 flex-col items-center justify-center rounded-sm font-data text-[9px] disabled:cursor-default", value == null || index === column ? "bg-agent-raised text-agent-dim" : value >= 0 ? "bg-agent-up/15 text-agent-text hover:ring-1 hover:ring-agent-mint" : "bg-agent-mint/10 text-agent-text hover:ring-1 hover:ring-agent-mint")}>{value == null || index === column ? "—" : value.toFixed(2)}{delta != null && index !== column ? <span className={delta >= 0 ? "text-agent-up" : "text-agent-mint"}>{delta >= 0 ? "+" : ""}{delta.toFixed(2)}</span> : null}</button>;
+    return <button type="button" disabled={value == null || index === column} onClick={() => onSelect(column)} key={column} style={{ fontSize }} className={cn("flex min-h-10 flex-col items-center justify-center rounded-sm font-data disabled:cursor-default", value == null || index === column ? "bg-agent-raised text-agent-dim" : value >= 0 ? "bg-agent-up/15 text-agent-text hover:ring-1 hover:ring-agent-mint" : "bg-agent-mint/10 text-agent-text hover:ring-1 hover:ring-agent-mint")}>{value == null || index === column ? "—" : value.toFixed(2)}{delta != null && index !== column ? <span className={delta >= 0 ? "text-agent-up" : "text-agent-mint"}>{delta >= 0 ? "+" : ""}{delta.toFixed(2)}</span> : null}</button>;
   })}</>;
 }
 
 function ValuationRanking({ data, locale }: { data: ValuationBoard | null; locale: "zh" | "en" }) {
   const items = (data?.items || []).slice(0, 9);
-  return <Panel className="min-h-0 overflow-hidden"><PanelTitle title={locale === "zh" ? "估值分位排序 · 带时间维度" : "Valuation Ranking · Time-Aware"} note={locale === "zh" ? "点表头排序 · 变化为分位百分点" : "Percentile changes in points"} />
-    {items.length ? <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-[9px]"><thead className="font-data text-agent-dim"><tr><th className="pb-2 font-normal">{locale === "zh" ? "名称 / 代码" : "Name / Code"}</th><th className="pb-2 text-right font-normal">PE</th><th className="pb-2 text-right font-normal">PE %</th><th className="pb-2 text-right font-normal">Δ1M</th><th className="pb-2 text-right font-normal">Δ3M</th><th className="pb-2 text-right font-normal">PB %</th><th className="pb-2 text-right font-normal">{locale === "zh" ? "换手" : "Turnover"}</th></tr></thead><tbody className="divide-y divide-agent-border">{items.map((item) => <tr key={`${item.source}-${item.code}`}><td className="py-2.5"><span className="block text-[11px] text-agent-text">{localizedMarketName(item.name, item.code, locale)}</span><span className="font-data text-[8px] text-agent-dim">{item.code}</span></td><NumberCell value={item.pe} /><PercentCell value={item.pe_percentile} /><SignedCell value={item.percentile_change_1m} /><SignedCell value={item.percentile_change_3m} /><PercentCell value={item.pb_percentile} /><NumberCell value={item.turnover_rate} suffix="%" /></tr>)}</tbody></table></div> : <DataGap title={locale === "zh" ? "估值排序不可用" : "Valuation ranking unavailable"} reason={data?.metadata.reason_code} locale={locale} />}
+  const [fullscreen, setFullscreen] = useState(false);
+  return <Panel className="min-h-0 overflow-hidden"><PanelTitle title={locale === "zh" ? "估值分位排序 · 带时间维度" : "Valuation Ranking · Time-Aware"} note={locale === "zh" ? "变化为分位百分点" : "Percentile changes in points"} actions={items.length ? <Button type="button" size="icon" variant="ghost" onClick={() => setFullscreen(true)} aria-label={locale === "zh" ? "全屏查看估值排序" : "View valuation ranking fullscreen"}><Maximize2 /></Button> : null} />
+    {items.length ? <ValuationTable items={items} locale={locale} fontSize={11} /> : <DataGap title={locale === "zh" ? "估值排序不可用" : "Valuation ranking unavailable"} reason={data?.metadata.reason_code} locale={locale} />}
+    <FullscreenDataView open={fullscreen} onOpenChange={setFullscreen} title={locale === "zh" ? "估值分位排序" : "Valuation Ranking"} locale={locale}>{(fontSize) => <ValuationTable items={data?.items || []} locale={locale} fontSize={fontSize} />}</FullscreenDataView>
   </Panel>;
+}
+
+function ValuationTable({ items, locale, fontSize }: { items: ValuationBoard["items"]; locale: "zh" | "en"; fontSize: number }) {
+  return <div className="overflow-auto"><table className="w-full min-w-[760px] text-left" style={{ fontSize }}><thead className="font-data text-agent-dim"><tr><th className="pb-2 font-normal">{locale === "zh" ? "名称 / 代码" : "Name / Code"}</th><th className="pb-2 text-right font-normal">PE</th><th className="pb-2 text-right font-normal">PE %</th><th className="pb-2 text-right font-normal">Δ1M</th><th className="pb-2 text-right font-normal">Δ3M</th><th className="pb-2 text-right font-normal">PB %</th><th className="pb-2 text-right font-normal">{locale === "zh" ? "换手" : "Turnover"}</th></tr></thead><tbody className="divide-y divide-agent-border">{items.map((item) => <tr key={`${item.source}-${item.code}`}><td className="py-2.5"><span className="block text-agent-text">{localizedMarketName(item.name, item.code, locale)}</span><span className="font-data text-agent-dim" style={{ fontSize: Math.max(10, fontSize - 2) }}>{item.code}</span></td><NumberCell value={item.pe} /><PercentCell value={item.pe_percentile} /><SignedCell value={item.percentile_change_1m} /><SignedCell value={item.percentile_change_3m} /><PercentCell value={item.pb_percentile} /><NumberCell value={item.turnover_rate} suffix="%" /></tr>)}</tbody></table></div>;
+}
+
+function FullscreenDataView({ open, onOpenChange, title, locale, children }: { open: boolean; onOpenChange: (open: boolean) => void; title: string; locale: "zh" | "en"; children: (fontSize: number) => ReactNode }) {
+  const [fontSize, setFontSize] = useState(14);
+  const resize = (delta: number) => setFontSize((current) => Math.max(10, Math.min(20, current + delta)));
+  return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent tabIndex={0} onKeyDown={(event) => { if (event.key === "+" || event.key === "=") resize(2); if (event.key === "-") resize(-2); if (event.key === "0") setFontSize(14); }} className="grid h-[calc(100dvh-24px)] w-[calc(100vw-24px)] max-w-none grid-rows-[auto_auto_minmax(0,1fr)] border-agent-border bg-agent-surface text-agent-text"><DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{locale === "zh" ? "使用 + / − 放大缩小，按 0 恢复默认。" : "Use + / − to resize; press 0 to reset."}</DialogDescription></DialogHeader><div className="flex items-center gap-2"><Button type="button" size="icon" variant="outline" onClick={() => resize(-2)} aria-label={locale === "zh" ? "缩小字体" : "Decrease font size"}><Minus /></Button><Button type="button" size="icon" variant="outline" onClick={() => resize(2)} aria-label={locale === "zh" ? "放大字体" : "Increase font size"}><Plus /></Button><Button type="button" size="icon" variant="outline" onClick={() => setFontSize(14)} aria-label={locale === "zh" ? "恢复默认字体" : "Reset font size"}><RotateCcw /></Button><span aria-live="polite" className="font-data text-agent-muted">{fontSize}px</span></div><div className="min-h-0 overflow-auto">{children(fontSize)}</div></DialogContent></Dialog>;
 }
 
 function FactorCrowding({ data, history, locale }: { data: FactorBoard | null; history: FactorHistory | null; locale: "zh" | "en" }) {
@@ -150,7 +181,7 @@ function MacroChartPanel({ kind, detail, range, locale }: { kind: "primary" | "m
   return <Panel tone="raised" className="min-h-[310px]"><PanelTitle title={title} note={`${series?.meta.unit || ""} · ${macroMethodLabel(series?.meta.method, locale)}`} />{rows.some(row => row.value != null) ? <TimeSeriesChart dates={rows.map(row => row.period)} series={[{ name: title, values: rows.map(row => row.value) }]} locale={locale} title={`${title} · ${range === "ALL" ? (locale === "zh" ? "全部" : "All") : range}`} height={250} /> : <EmptyPanel title={locale === "zh" ? "可比较历史不足" : "Insufficient comparable history"} detail={macroMetricExplanation(series?.meta as MacroMetricSummary | undefined, locale)} />}</Panel>;
 }
 
-function PanelTitle({ title, note }: { title: string; note?: string }) { return <div className="mb-3 flex items-baseline gap-3"><h2 className="text-sm font-medium text-agent-text">{title}</h2>{note ? <span className="font-data text-[8px] text-agent-dim">{note}</span> : null}</div>; }
+function PanelTitle({ title, note, actions }: { title: string; note?: string; actions?: ReactNode }) { return <div className="mb-3 flex items-center gap-3"><h2 className="text-sm font-medium text-agent-text">{title}</h2>{note ? <span className="font-data text-[8px] text-agent-dim">{note}</span> : null}{actions ? <div className="ml-auto">{actions}</div> : null}</div>; }
 function DataGap({ title, reason, locale }: { title: string; reason?: string; locale: "zh" | "en" }) { return <EmptyPanel title={title} detail={marketGapReason(reason, locale)} />; }
 function NumberCell({ value, suffix = "" }: { value?: number; suffix?: string }) { return <td className="py-2.5 text-right font-data text-agent-muted">{value == null ? "—" : `${Number(value).toFixed(1)}${suffix}`}</td>; }
 function PercentCell({ value }: { value?: number }) { return <td className="py-2.5 text-right font-data text-agent-muted">{value == null ? "—" : `${Math.round(Number(value) * 100)}%`}</td>; }
@@ -160,8 +191,9 @@ function factorLabel(key: string, locale: "zh" | "en") { const labels: Record<st
 function macroLabel(key: string, locale: "zh" | "en") { const labels: Record<string, [string, string]> = { gdp: ["GDP", "GDP"], cpi: ["居民消费价格", "CPI"], ppi: ["工业生产者价格", "PPI"], money_supply: ["货币供应量", "Money Supply"], social_financing: ["社会融资规模", "Social Financing"], pmi: ["采购经理指数", "PMI"], shibor: ["上海银行间同业拆放利率", "SHIBOR"], lpr: ["贷款市场报价利率", "LPR"], us_treasury: ["美国国债收益率", "US Treasury"], us_real_treasury: ["美国实际国债收益率", "US Real Treasury"] }; return labels[key]?.[locale === "zh" ? 0 : 1] || key; }
 function localizedMarketName(name: string, code: string, locale: "zh" | "en") { return locale === "en" && /[\u3400-\u9fff]/.test(name) ? code : name; }
 function periodLimit(period: Period) {
-  return ({ "1M": 31, "3M": 92, "1Y": 366, "3Y": 1096 } as const)[period];
+  return ({ "1M": 22, "3M": 66, "1Y": 252, "3Y": 756, "5Y": 1260 } as const)[period];
 }
+function coverageText(dates: string[]) { return dates.length ? `${dates[0]} → ${dates[dates.length - 1]} · ${dates.length}` : "— · 0"; }
 function sliceMacroSeries<T extends { period: string; value: number | null }>(rows: T[], frequency: string | undefined, period: MacroRange) {
   if (period === "ALL") return rows;
   const normalized = (frequency || "daily").toLowerCase();
