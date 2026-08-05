@@ -48,12 +48,12 @@ _MACRO_ANALYSIS_DEFINITIONS: dict[str, dict[str, Any]] = {
             "yoy_field": "nt_yoy", "yoy_unit": "%"},
     "ppi": {"table": "cn_ppi", "period": "month", "frequency": "monthly", "label": "工业生产者价格",
             "primary": "ppi_yoy", "primary_unit": "%", "primary_alias": "yoy",
-            "mom_field": "ppi_mp", "mom_unit": "%", "yoy_field": "ppi_yoy", "yoy_unit": "%"},
+            "mom_field": "ppi_mom", "mom_unit": "%", "yoy_field": "ppi_yoy", "yoy_unit": "%"},
     "money_supply": {"table": "cn_m", "period": "month", "frequency": "monthly", "label": "货币供应量 M2",
             "primary": "m2", "primary_unit": "亿元", "mom_field": "m2_mom", "mom_unit": "%",
             "yoy_field": "m2_yoy", "yoy_unit": "%"},
     "social_financing": {"table": "sf_month", "period": "month", "frequency": "monthly", "label": "社会融资规模增量",
-            "primary": "inc", "primary_unit": "亿元", "mom_mode": "percent", "mom_unit": "%",
+            "primary": "inc_month", "primary_unit": "亿元", "mom_mode": "percent", "mom_unit": "%",
             "yoy_mode": "percent", "yoy_unit": "%"},
     "pmi": {"table": "cn_pmi", "period": "month", "frequency": "monthly", "label": "制造业采购经理指数",
             "primary": "pmi010000", "primary_unit": "点", "mom_mode": "difference", "mom_unit": "点",
@@ -1709,7 +1709,11 @@ class TushareReadService:
         table, period = str(definition["table"]), str(definition["period"])
         fields = list(dict.fromkeys(str(definition[name]) for name in ("primary", "mom_field", "yoy_field")
                                     if definition.get(name)))
-        if not await self.table_exists(table):
+        # The capability manifest is the read allowlist and is already mounted
+        # locally. Avoid ten serial information_schema existence probes on the
+        # cold catalog path; _execute_mappings still degrades safely if a
+        # published table disappears between manifest publication and query.
+        if table not in physical_tables():
             return build_macro_analysis(key, [])
         columns = ",".join(f'"{field}"' for field in fields)
         rows = await self._execute_mappings(text(
