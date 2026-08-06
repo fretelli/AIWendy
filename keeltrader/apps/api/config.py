@@ -80,6 +80,18 @@ class Settings(BaseSettings):
     research_cloud_base_url: Optional[str] = None
     research_cloud_timeout_seconds: float = 12.0
 
+    # Optional deployment-owned content brief sink. The open-source default is
+    # fully disabled; operators provide the endpoint, credentials and mapping.
+    content_brief_sink_enabled: bool = False
+    content_brief_sink_url: Optional[str] = None
+    content_brief_sink_token: Optional[str] = None
+    content_brief_sink_workspace_id: Optional[str] = None
+    content_brief_sink_brand_profile_id: Optional[str] = None
+    content_brief_sink_source_ref_prefix: Optional[str] = None
+    content_brief_sink_actor_header: str = "X-Content-Actor"
+    content_brief_sink_actor_prefix: str = "service:keeltrader"
+    content_brief_sink_timeout_seconds: float = 8.0
+
     # ========== Auth ==========
     jwt_secret: str = Field(
         default="INSECURE-DEFAULT-CHANGE-ME-32CHARS-MIN",

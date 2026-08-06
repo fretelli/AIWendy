@@ -24,10 +24,31 @@ type User = {
   full_name: string | null
 }
 
-type RuntimeConfig = {
+export type RuntimeConfig = {
   auth_required: boolean
   deployment_mode: string
   local_only: boolean
+  content_brief_sink_enabled: boolean
+}
+
+const RuntimeConfigContext = React.createContext<RuntimeConfig | null>(null)
+
+export function RuntimeConfigProvider({
+  value,
+  children,
+}: {
+  value: RuntimeConfig | null
+  children: React.ReactNode
+}) {
+  return (
+    <RuntimeConfigContext.Provider value={value}>
+      {children}
+    </RuntimeConfigContext.Provider>
+  )
+}
+
+export function useRuntimeConfig() {
+  return React.useContext(RuntimeConfigContext)
 }
 
 export function useAuth() {

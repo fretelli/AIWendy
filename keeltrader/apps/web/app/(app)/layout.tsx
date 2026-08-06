@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useAuth } from '@/lib/auth-context';
+import { RuntimeConfigProvider, useAuth } from '@/lib/auth-context';
 import { AgentOsShell } from '@/components/agentos/agentos-shell';
 import { AgentWorkspaceProvider } from '@/components/agentos/workspace-provider';
 
@@ -13,7 +13,7 @@ export default function AppLayout({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, isLoading, authRequired } = useAuth();
+  const { user, isLoading, authRequired, runtimeConfig } = useAuth();
 
   useEffect(() => {
     if (authRequired && !isLoading && !user) {
@@ -30,9 +30,11 @@ export default function AppLayout({
   }
 
   const content = (
-    <main className="h-dvh min-h-0 overflow-hidden bg-background">
-      <AgentOsShell>{children}</AgentOsShell>
-    </main>
+    <RuntimeConfigProvider value={runtimeConfig}>
+      <main className="h-dvh min-h-0 overflow-hidden bg-background">
+        <AgentOsShell>{children}</AgentOsShell>
+      </main>
+    </RuntimeConfigProvider>
   );
   return pathname.startsWith('/agent/workspace')
     ? <AgentWorkspaceProvider>{content}</AgentWorkspaceProvider>
