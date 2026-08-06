@@ -15,6 +15,11 @@ from core.database import get_session
 from domain.user.models import User
 from services.agentos import AgentOSService
 from services.agent_platform.report_kb import ReportKBService
+from services.content_brief_sink import (
+    ContentBriefRejectedError,
+    ContentBriefSinkError,
+    submit_content_brief,
+)
 
 router = APIRouter()
 
@@ -97,6 +102,13 @@ class HypothesisCreate(BaseModel):
     status: Literal["draft", "active", "confirmed", "invalidated", "archived"] = "draft"
     review_date: date | None = None
     created_by: Literal["user", "agent"] = "user"
+
+
+class ContentBriefSubmit(BaseModel):
+    project_type: Literal["article", "social", "drama", "podcast", "course", "other"] = "article"
+    audience: str = Field(min_length=1, max_length=1000)
+    objective: str = Field(min_length=1, max_length=1000)
+    requested_channels: list[str] = Field(default_factory=list, max_length=20)
 
 
 class DecisionCreate(BaseModel):
@@ -270,6 +282,28 @@ async def revise_hypothesis(hypothesis_id: UUID, body: HypothesisCreate,
         return await service(session, user).revise_hypothesis(hypothesis_id, body.model_dump())
     except ValueError as exc:
         raise bad_request(exc) from exc
+
+
+@router.post("/hypotheses/{hypothesis_id}/content-brief")
+async def submit_hypothesis_content_brief(
+    hypothesis_id: UUID,
+    body: ContentBriefSubmit,
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
+    try:
+        hypothesis = await service(session, user).get_hypothesis(hypothesis_id)
+        return await submit_content_brief(
+            hypothesis=hypothesis,
+            request=body.model_dump(),
+            user_id=user.id,
+        )
+    except ValueError as exc:
+        raise bad_request(exc) from exc
+    except ContentBriefRejectedError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except ContentBriefSinkError as exc:
+        raise HTTPException(503, str(exc)) from exc
 
 
 @router.get("/decisions")

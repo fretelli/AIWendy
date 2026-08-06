@@ -182,6 +182,7 @@ async def runtime_config():
         "auth_required": settings.auth_required,
         "deployment_mode": settings.deployment_mode,
         "local_only": not settings.auth_required,
+        "content_brief_sink_enabled": settings.content_brief_sink_enabled,
     }
 
 

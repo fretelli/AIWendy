@@ -20,6 +20,7 @@ KeelTrader is deliberately vertical. It includes a research agent that can use a
 - Manual and CSV portfolio ingestion, immutable transactions, dated manual prices, explicit valuation completeness, and NAV history.
 - Market evidence, report search, shareholder research, consensus snapshots, and Tushare-backed strategy experiments.
 - Versioned hypotheses and decisions with evidence, falsification conditions, review dates, and attribution.
+- An optional, disabled-by-default content-brief sink can submit an exact hypothesis version to an operator-configured editorial system without granting artifact, approval, or delivery permissions.
 - Immutable bilingual research versions with real Chinese and English downloadable PDFs.
 - A persistent Research Agent dock with resumable runs and human approval boundaries.
 - Encrypted per-user BYOK credentials and explicitly authorized MCP tools.
@@ -49,6 +50,7 @@ flowchart LR
 - PostgreSQL owns application state; Alembic is the only schema-management path.
 - Redis provides cache, task queues, coordination, and worker heartbeats.
 - Dedicated workers execute resumable research and materialize opportunity snapshots.
+- Content-brief sink credentials and workspace mappings are deployment-owned; the open-source defaults make no external write.
 
 AgentOS never connects to a broker or executes orders. Missing prices, FX rates, or source data remain explicit unavailable/incomplete states; production does not synthesize portfolio values. Schema upgrades are additive, and historical migrations remain immutable.
 

@@ -684,6 +684,15 @@ class AgentOSService:
         ).order_by(ResearchHypothesis.updated_at.desc()))).all()
         return {"items": [await self._hypothesis_json(item) for item in rows]}
 
+    async def get_hypothesis(self, hypothesis_id: UUID) -> dict[str, Any]:
+        item = await self.session.scalar(select(ResearchHypothesis).where(
+            ResearchHypothesis.id == hypothesis_id,
+            ResearchHypothesis.user_id == self.user_id,
+        ))
+        if item is None:
+            raise ValueError("Research hypothesis not found")
+        return await self._hypothesis_json(item)
+
     async def create_hypothesis(self, payload: dict[str, Any]) -> dict[str, Any]:
         self._validate_evidence(payload.get("evidence", []))
         item = ResearchHypothesis(user_id=self.user_id, title=payload["title"], status=payload.get("status", "draft"),

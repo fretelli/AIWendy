@@ -171,6 +171,19 @@ export const agentOSApi = {
   nav: (accountId: string) => apiJson<{ items: Array<{ date: string; nav: number; return?: number }>; history_available: boolean }>(`/v1/agent/portfolio/accounts/${accountId}/nav`),
   hypotheses: () => apiJson<{ items: Hypothesis[] }>("/v1/agent/hypotheses"),
   createHypothesis: (body: Record<string, unknown>) => apiJson<Hypothesis>("/v1/agent/hypotheses", { method: "POST", body }),
+  submitContentBrief: (
+    hypothesisId: string,
+    body: {
+      project_type: "article" | "social" | "drama" | "podcast" | "course" | "other";
+      audience: string;
+      objective: string;
+      requested_channels: string[];
+    },
+  ) =>
+    apiJson<Record<string, unknown>>(
+      `/v1/agent/hypotheses/${hypothesisId}/content-brief`,
+      { method: "POST", body },
+    ),
   decisions: () => apiJson<{ items: Decision[] }>("/v1/agent/decisions"),
   createDecision: (body: Record<string, unknown>) => apiJson<Decision>("/v1/agent/decisions", { method: "POST", body }),
   strategyTemplates: () => apiJson<{ items: StrategyTemplate[] }>("/v1/agent/strategy-experiments/templates"),

@@ -34,6 +34,7 @@ def test_agentos_router_exposes_portfolio_research_strategy_and_download_contrac
         "/portfolio/accounts",
         "/portfolio/imports/preview",
         "/hypotheses",
+        "/hypotheses/{hypothesis_id}/content-brief",
         "/decisions",
         "/strategy-experiments",
         "/consensus",
@@ -43,6 +44,13 @@ def test_agentos_router_exposes_portfolio_research_strategy_and_download_contrac
         assert route in source
     assert "broker" not in source.lower()
     assert "place_order" not in source
+
+
+def test_runtime_config_exposes_only_the_non_secret_sink_capability() -> None:
+    source = (ROOT / "apps" / "api" / "main.py").read_text(encoding="utf-8")
+    assert '"content_brief_sink_enabled": settings.content_brief_sink_enabled' in source
+    assert "content_brief_sink_token" not in source
+    assert "content_brief_sink_url" not in source
 
 
 def test_bilingual_pdf_is_real_and_escapes_reportlab_markup() -> None:

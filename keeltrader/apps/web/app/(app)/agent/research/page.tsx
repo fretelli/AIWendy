@@ -33,6 +33,7 @@ import {
   type ResearchLibraryItem,
 } from "@/lib/api/agentos";
 import { useUrlTab } from "@/hooks/use-url-tab";
+import { useRuntimeConfig } from "@/lib/auth-context";
 import { useI18n } from "@/lib/i18n/provider";
 
 type Version = {
@@ -48,6 +49,7 @@ type Version = {
 export default function ResearchPage() {
   const params = useSearchParams();
   const { locale } = useI18n();
+  const runtimeConfig = useRuntimeConfig();
   const [tab, setTab] = useUrlTab(
     ["thesis", "record", "consensus", "library"],
     "thesis",
@@ -61,6 +63,8 @@ export default function ResearchPage() {
   const [library, setLibrary] = useState<ResearchLibraryItem[]>([]);
   const [versions, setVersions] = useState<Record<string, Version[]>>({});
   const [hypothesisOpen, setHypothesisOpen] = useState(false);
+  const [contentBriefHypothesis, setContentBriefHypothesis] =
+    useState<Hypothesis | null>(null);
   const [reportOpen, setReportOpen] = useState(params.get("report") === "1");
   const load = async () => {
     const [hypothesisData, consensusData, documentData, libraryData] =
@@ -170,6 +174,10 @@ export default function ResearchPage() {
           <HypothesisList
             items={active}
             locale={locale}
+            contentBriefEnabled={
+              runtimeConfig?.content_brief_sink_enabled ?? false
+            }
+            onContentBrief={setContentBriefHypothesis}
             emptyTitle={
               locale === "zh" ? "没有待验证假设" : "No active hypotheses"
             }
@@ -179,6 +187,10 @@ export default function ResearchPage() {
           <HypothesisList
             items={completed}
             locale={locale}
+            contentBriefEnabled={
+              runtimeConfig?.content_brief_sink_enabled ?? false
+            }
+            onContentBrief={setContentBriefHypothesis}
             emptyTitle={
               locale === "zh" ? "没有已完成判断" : "No completed judgments"
             }
@@ -259,6 +271,14 @@ export default function ResearchPage() {
         reload={load}
         locale={locale}
       />
+      {contentBriefHypothesis ? (
+        <ContentBriefDialog
+          key={contentBriefHypothesis.id}
+          hypothesis={contentBriefHypothesis}
+          close={() => setContentBriefHypothesis(null)}
+          locale={locale}
+        />
+      ) : null}
       <ReportDialog
         open={reportOpen}
         setOpen={setReportOpen}
@@ -273,10 +293,14 @@ function HypothesisList({
   items,
   locale,
   emptyTitle,
+  contentBriefEnabled,
+  onContentBrief,
 }: {
   items: Hypothesis[];
   locale: string;
   emptyTitle: string;
+  contentBriefEnabled: boolean;
+  onContentBrief: (hypothesis: Hypothesis) => void;
 }) {
   return (
     <Panel>
@@ -291,7 +315,7 @@ function HypothesisList({
           {items.map((item) => (
             <article
               key={item.id}
-              className="grid gap-3 py-4 lg:grid-cols-[150px_1fr_1fr_90px]"
+              className="grid gap-3 py-4 lg:grid-cols-[150px_1fr_1fr_120px]"
             >
               <div>
                 <div className="flex items-center gap-2">
@@ -318,10 +342,22 @@ function HypothesisList({
                   {item.falsification}
                 </p>
               </div>
-              <div className="text-right font-data text-[9px] text-agent-dim">
-                {item.evidence.length}
-                <br />
-                {locale === "zh" ? "证据" : "EVIDENCE"}
+              <div className="flex flex-col items-end gap-3 text-right font-data text-[9px] text-agent-dim">
+                <span>
+                  {item.evidence.length}
+                  <br />
+                  {locale === "zh" ? "证据" : "EVIDENCE"}
+                </span>
+                {contentBriefEnabled &&
+                !["invalidated", "archived"].includes(item.status) ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onContentBrief(item)}
+                  >
+                    {locale === "zh" ? "内容简报" : "Content brief"}
+                  </Button>
+                ) : null}
               </div>
             </article>
           ))}
@@ -337,6 +373,96 @@ function HypothesisList({
         />
       )}
     </Panel>
+  );
+}
+
+function ContentBriefDialog({
+  hypothesis,
+  close,
+  locale,
+}: {
+  hypothesis: Hypothesis;
+  close: () => void;
+  locale: string;
+}) {
+  const [audience, setAudience] = useState("");
+  const [objective, setObjective] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await agentOSApi.submitContentBrief(hypothesis.id, {
+        project_type: "article",
+        audience,
+        objective,
+        requested_channels: [],
+      });
+      close();
+      toast.success(
+        locale === "zh" ? "内容简报已提交" : "Content brief submitted",
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Submit failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) close();
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>
+            {locale === "zh" ? "提交内容简报" : "Submit content brief"}
+          </DialogTitle>
+          <DialogDescription>
+            {locale === "zh"
+              ? `提交假设 v${hypothesis.current_version} 的精确快照。接收方仍需补全证据、审核并决定是否制作。`
+              : `Submit the exact snapshot of hypothesis v${hypothesis.current_version}. The receiver must still enrich evidence, review it, and decide whether to produce it.`}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="flex flex-col gap-4">
+          <div>
+            <Label htmlFor="content-brief-audience">
+              {locale === "zh" ? "目标受众" : "Audience"}
+            </Label>
+            <Input
+              id="content-brief-audience"
+              className="mt-2"
+              value={audience}
+              onChange={(event) => setAudience(event.target.value)}
+              maxLength={1000}
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="content-brief-objective">
+              {locale === "zh" ? "内容目标" : "Objective"}
+            </Label>
+            <Textarea
+              id="content-brief-objective"
+              className="mt-2"
+              value={objective}
+              onChange={(event) => setObjective(event.target.value)}
+              maxLength={1000}
+              required
+            />
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={saving}>
+              {locale === "zh" ? "提交简报" : "Submit brief"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
