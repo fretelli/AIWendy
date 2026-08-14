@@ -7,11 +7,12 @@ import type { ValuationBoard } from "@/lib/api/agent-platform";
 
 const COLORS = { grid: "#1A222A", text: "#8A97A3", dim: "#5C6873", mint: "#5FE3B5", amber: "#E8A34D", up: "#FF5A52", blue: "#67A8FF" };
 
-export function ValuationScatterChart({ items, locale, title, asOf }: {
+export function ValuationScatterChart({ items, locale, title, asOf, onSelect }: {
   items: ValuationBoard["items"];
   locale: "zh" | "en";
   title: string;
   asOf?: string;
+  onSelect?: (item: ValuationBoard["items"][number]) => void;
 }) {
   const option = useMemo<EChartsCoreOption>(() => {
     const data = items.map((item, index) => {
@@ -71,6 +72,7 @@ export function ValuationScatterChart({ items, locale, title, asOf }: {
       ],
       series: [{
         type: "scatter", data,
+        cursor: "pointer",
         symbolSize: (value: Array<number | null>) => value[2] == null ? 13 : 13 + Number(value[2]) * .17,
         label: { show: true, color: COLORS.text, fontSize: 10, formatter: (params: { data?: { name?: string } }) => params.data?.name || "" },
         labelLayout: { hideOverlap: true, moveOverlap: "shiftY" },
@@ -79,7 +81,11 @@ export function ValuationScatterChart({ items, locale, title, asOf }: {
       }],
     };
   }, [items, locale]);
-  return <InteractiveChart option={option} title={title} description={`${asOf || "—"} · ${items.length} points`} locale={locale} height={310} zoomMode="xy" />;
+  return <InteractiveChart option={option} title={title} description={`${asOf || "—"} · ${items.length} points`} locale={locale} height={310} zoomMode="xy" onItemClick={(params) => {
+    const selected = params.data as { code?: string; universe?: string } | undefined;
+    const item = items.find(value => value.code === selected?.code && value.universe === selected?.universe);
+    if (item) onSelect?.(item);
+  }} />;
 }
 
 export function TimeSeriesChart({ dates, series, locale, title, height = 300 }: {

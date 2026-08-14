@@ -46,6 +46,8 @@ def test_active_route_prefixes_are_mounted(client):
         "/api/v1/markets/capabilities",
         "/api/v1/markets/capital",
         "/api/v1/markets/valuation-board",
+        "/api/v1/markets/valuation/history",
+        "/api/v1/markets/valuation/held-industries",
         "/api/v1/markets/correlations",
         "/api/v1/markets/correlations/history",
         "/api/v1/markets/factors",

@@ -4,7 +4,9 @@ import asyncio
 import hashlib
 import json
 import time
+from collections import defaultdict
 from datetime import date
+from decimal import Decimal
 from typing import Any, Awaitable, Callable, Literal
 from uuid import UUID
 
@@ -21,6 +23,7 @@ from core.cache_service import get_cache_service
 from core.database import get_session
 from core.logging import get_logger
 from domain.user.models import User
+from domain.agentos.models import PortfolioAccount, PortfolioInstrument, PortfolioTransaction
 from domain.agent_platform.models import MarketOpportunityRefreshState
 from services.agent_platform.tushare import TushareReadService
 from services.agent_platform.opportunities import OpportunityService, plan_payload
@@ -144,7 +147,83 @@ async def market_capital(session: AsyncSession = Depends(get_session), user: Use
 
 @router.get("/valuation-board")
 async def valuation_board(request: Request, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
-    return await cached_json("valuation-board:v4", service(session).valuation_snapshot, request=request)
+    return await cached_json("valuation-board:v5", service(session).valuation_snapshot, request=request)
+
+
+@router.get("/valuation/history")
+async def valuation_history(request: Request, code: str = Query(..., min_length=1, max_length=20),
+                            universe: Literal["broad", "sw_l1"] = Query(...),
+                            limit: int = Query(252, ge=1, le=1300),
+                            session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
+    normalized = code.strip().upper()
+    return await cached_json(
+        f"valuation:history:v1:{universe}:{normalized}:{limit}",
+        lambda: service(session).valuation_history(normalized, universe, limit), ttl=60, request=request,
+    )
+
+
+def _a_share_provider_symbol(instrument: PortfolioInstrument) -> str | None:
+    if instrument.market.upper() != "CN" or instrument.instrument_type != "stock":
+        return None
+    value = str(instrument.provider_symbol or instrument.symbol or "").strip().upper()
+    if value.endswith((".SH", ".SZ", ".BJ")):
+        return value
+    if len(value) == 6 and value.isdigit():
+        suffix = "SH" if value[0] in {"5", "6", "9"} else "BJ" if value[0] in {"4", "8"} else "SZ"
+        return f"{value}.{suffix}"
+    return value or None
+
+
+async def _held_a_share_symbols(session: AsyncSession, user_id: UUID) -> list[str]:
+    rows = (await session.execute(select(
+        PortfolioTransaction, PortfolioInstrument,
+    ).join(PortfolioAccount, PortfolioAccount.id == PortfolioTransaction.account_id).outerjoin(
+        PortfolioInstrument, PortfolioInstrument.id == PortfolioTransaction.instrument_id,
+    ).where(
+        PortfolioTransaction.user_id == user_id,
+        PortfolioAccount.user_id == user_id,
+        PortfolioAccount.status == "active",
+    ).order_by(
+        PortfolioTransaction.account_id, PortfolioTransaction.trade_date, PortfolioTransaction.created_at,
+    ))).all()
+    positions: dict[tuple[UUID, UUID], Decimal] = defaultdict(Decimal)
+    instruments: dict[tuple[UUID, UUID], PortfolioInstrument] = {}
+    for transaction, instrument in rows:
+        if instrument is None:
+            continue
+        key = (transaction.account_id, instrument.id)
+        quantity = Decimal(transaction.quantity)
+        if instrument.direction == "short" and transaction.transaction_type in {"buy", "sell"}:
+            quantity = -abs(quantity) if transaction.transaction_type == "buy" else abs(quantity)
+        elif transaction.transaction_type in {"sell", "reduced", "close", "redeem"}:
+            quantity = -abs(quantity)
+        elif transaction.transaction_type in {"buy", "opening", "increased", "subscribe"}:
+            quantity = abs(quantity)
+        positions[key] += quantity
+        instruments[key] = instrument
+    return sorted({symbol for key, quantity in positions.items() if quantity != 0
+                   if (symbol := _a_share_provider_symbol(instruments[key])) is not None})
+
+
+@router.get("/valuation/held-industries")
+async def valuation_held_industries(session: AsyncSession = Depends(get_session),
+                                    user: User = Depends(get_current_user)):
+    """Map the user's non-zero active-account A-share positions to the published SW L1 map."""
+    symbols = await _held_a_share_symbols(session, user.id)
+    payload = await service(session).valuation_snapshot(include_membership=True)
+    membership = payload.pop("membership_map", {})
+    mapped = {symbol: membership[symbol] for symbol in symbols if symbol in membership}
+    missing = [symbol for symbol in symbols if symbol not in membership]
+    industries = {str(value["code"]): {"code": str(value["code"]), "name": str(value.get("name") or value["code"])}
+                  for value in mapped.values()}
+    total = len(symbols)
+    return {
+        "metadata": payload.get("metadata") or {},
+        "industry_codes": sorted(industries), "industries": list(industries.values()),
+        "position_symbols": symbols, "mapped_symbols": mapped, "missing_symbols": missing,
+        "coverage": len(mapped) / total if total else 0.0,
+        "covered": len(mapped), "eligible": total,
+    }
 
 
 @router.get("/correlations")

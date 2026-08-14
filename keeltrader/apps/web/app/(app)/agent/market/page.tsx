@@ -10,7 +10,7 @@ import { DashboardPage, EmptyPanel, MiniLine, Panel } from "@/components/agentos
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { marketsApi, type CorrelationBoard, type CorrelationHistory, type FactorBoard, type FactorHistory, type MacroCatalog, type MacroMetricSummary, type MacroSeriesDetail, type ValuationBoard } from "@/lib/api/agent-platform";
+import { marketsApi, type CorrelationBoard, type CorrelationHistory, type FactorBoard, type FactorHistory, type HeldIndustries, type MacroCatalog, type MacroMetricSummary, type MacroSeriesDetail, type ValuationBoard, type ValuationItem } from "@/lib/api/agent-platform";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +19,7 @@ const FuturesDrilldown = dynamic(() => import("@/components/agentos/market-drill
 const OptionsDrilldown = dynamic(() => import("@/components/agentos/market-drilldowns").then((module) => module.OptionsDrilldown));
 const ValuationScatterChart = dynamic(() => import("@/components/agentos/market-charts").then((module) => module.ValuationScatterChart), { ssr: false });
 const TimeSeriesChart = dynamic(() => import("@/components/agentos/market-charts").then((module) => module.TimeSeriesChart), { ssr: false });
+const ValuationDrilldown = dynamic(() => import("@/components/agentos/valuation-drilldown").then((module) => module.ValuationDrilldown), { ssr: false });
 
 type TopTab = "market" | "macro";
 type Detail = "rates" | "futures" | "options";
@@ -52,6 +53,7 @@ export default function MarketPage() {
 }
 
 function MarketBoard({ valuation, correlations, correlationHistory, factors, factorHistory, period, loading, locale }: { valuation: ValuationBoard | null; correlations: CorrelationBoard | null; correlationHistory: CorrelationHistory | null; factors: FactorBoard | null; factorHistory: FactorHistory | null; period: Period; loading: boolean; locale: "zh" | "en" }) {
+  const [selectedValuation, setSelectedValuation] = useState<ValuationItem | null>(null);
   const correlationDates = (correlationHistory?.points || []).map((item) => item.as_of).filter((item): item is string => Boolean(item));
   const factorDates = (factorHistory?.points || []).map((item) => item.as_of).filter((item): item is string => Boolean(item));
   return <div className="flex min-h-[calc(100dvh-104px)] flex-col gap-3">
@@ -64,25 +66,29 @@ function MarketBoard({ valuation, correlations, correlationHistory, factors, fac
     </Alert>
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(390px,1.05fr)_minmax(330px,.95fr)] gap-3">
     <div className="grid min-h-0 gap-3 xl:grid-cols-[1.6fr_1fr]">
-      <ValuationMatrix data={valuation} locale={locale} />
+      <ValuationMatrix data={valuation} locale={locale} onSelect={setSelectedValuation} />
       <CorrelationMatrix data={correlations} history={correlationHistory} locale={locale} />
     </div>
     <div className="grid min-h-0 gap-3 xl:grid-cols-[1.35fr_1fr]">
-      <ValuationRanking data={valuation} locale={locale} />
+      <ValuationRanking data={valuation} locale={locale} onSelect={setSelectedValuation} />
       <FactorCrowding data={factors} history={factorHistory} locale={locale} />
     </div>
     </div>
+    {selectedValuation ? <ValuationDrilldown key={`${selectedValuation.universe}-${selectedValuation.code}`} item={selectedValuation} locale={locale} onClose={() => setSelectedValuation(null)} /> : null}
   </div>;
 }
 
-function ValuationMatrix({ data, locale }: { data: ValuationBoard | null; locale: "zh" | "en" }) {
+function ValuationMatrix({ data, locale, onSelect }: { data: ValuationBoard | null; locale: "zh" | "en"; onSelect: (item: ValuationItem) => void }) {
   const [kind, setKind] = useState<"all" | "broad" | "industry" | "held">("all");
+  const { data: held = null, isLoading: heldLoading } = useSWR<HeldIndustries>(kind === "held" ? "markets/valuation/held-industries" : null, marketsApi.heldIndustries);
   const isV2 = data?.metadata.methodology_key === "kt_valuation_percentile_v2";
-  const scopedItems = (isV2 ? data?.items || [] : []).filter((item) => kind === "all" || (kind === "broad" ? item.universe === "broad" : kind === "industry" ? item.universe === "sw_l1" : false));
+  const heldCodes = new Set(held?.industry_codes || []);
+  const scopedItems = (isV2 ? data?.items || [] : []).filter((item) => kind === "all" || (kind === "broad" ? item.universe === "broad" : kind === "industry" ? item.universe === "sw_l1" : item.universe === "sw_l1" && heldCodes.has(item.code)));
   const items = scopedItems.filter((item) => item.percentile_change_3m != null && item.pe_percentile != null);
   return <Panel className="flex min-h-0 flex-col overflow-hidden">
-    <div className="mb-2 flex flex-wrap items-baseline gap-3"><PanelTitle title={locale === "zh" ? "估值分位矩阵" : "Valuation Percentile Matrix"} note={locale === "zh" ? "纵轴 PE 分位 · 横轴 Δ3M · 气泡 = 正式拥挤度；行业名悬停查看" : "PE percentile · Δ3M · bubble = formal crowding; hover for industry labels"} /><div className="ml-auto flex flex-wrap gap-1">{([['all', '全部', 'All'], ['broad', '宽基指数', 'Broad Indices'], ['industry', '申万一级', 'SW Level 1'], ['held', '我的持仓行业', 'Held Industries']] as const).map(([value, zh, en]) => <Button key={value} type="button" size="sm" variant={kind === value ? "secondary" : "outline"} onClick={() => setKind(value)}>{locale === "zh" ? zh : en}</Button>)}</div></div>
-    {items.length ? <ValuationScatterChart items={items.map(item => ({ ...item, name: localizedMarketName(item.name, item.code, locale) }))} locale={locale} title={locale === "zh" ? "估值分位矩阵" : "Valuation Percentile Matrix"} asOf={data?.metadata.as_of} /> : <DataGap title={kind === "held" ? (locale === "zh" ? "持仓行业映射不可用" : "Held-industry mapping unavailable") : (locale === "zh" ? "估值矩阵不可用" : "Valuation matrix unavailable")} reason={kind === "held" ? "held_industry_mapping_unavailable" : isV2 ? data?.metadata.reason_code : "valuation_v2_pending"} locale={locale} />}
+    <div className="mb-2 flex flex-wrap items-baseline gap-3"><PanelTitle title={locale === "zh" ? "估值分位矩阵" : "Valuation Percentile Matrix"} note={locale === "zh" ? "纵轴 PE 分位 · 横轴 Δ3M · 气泡 = 正式拥挤度；悬停查看，点击下钻" : "PE percentile · Δ3M · bubble = formal crowding; hover to inspect, click to drill down"} /><div className="ml-auto flex flex-wrap gap-1">{([['all', '全部', 'All'], ['broad', '宽基指数', 'Broad Indices'], ['industry', '申万一级', 'SW Level 1'], ['held', '我的持仓行业', 'Held Industries']] as const).map(([value, zh, en]) => <Button key={value} type="button" size="sm" variant={kind === value ? "secondary" : "outline"} onClick={() => setKind(value)}>{locale === "zh" ? zh : en}</Button>)}</div></div>
+    {kind === "held" && heldLoading ? <EmptyPanel title={locale === "zh" ? "正在映射持仓行业" : "Mapping held industries"} detail={locale === "zh" ? "只读取活跃账户的非零 A 股持仓。" : "Only non-zero A-share positions in active accounts are read."} /> : items.length ? <ValuationScatterChart items={items.map(item => ({ ...item, name: localizedMarketName(item.name, item.code, locale) }))} locale={locale} title={locale === "zh" ? "估值分位矩阵" : "Valuation Percentile Matrix"} asOf={data?.metadata.as_of} onSelect={onSelect} /> : <DataGap title={kind === "held" ? (locale === "zh" ? "持仓行业映射不可用" : "Held-industry mapping unavailable") : (locale === "zh" ? "估值矩阵不可用" : "Valuation matrix unavailable")} reason={kind === "held" ? "held_industry_mapping_unavailable" : isV2 ? data?.metadata.reason_code : "valuation_v2_pending"} locale={locale} />}
+    {kind === "held" && held?.eligible ? <p className="mt-1 text-[9px] text-agent-dim">{locale === "zh" ? `持仓映射覆盖 ${held.covered}/${held.eligible}${held.missing_symbols.length ? `；缺失 ${held.missing_symbols.join("、")}` : ""}` : `Position mapping coverage ${held.covered}/${held.eligible}${held.missing_symbols.length ? `; missing ${held.missing_symbols.join(", ")}` : ""}`}</p> : null}
     {items.some(item => item.crowding_status !== "available") ? <p className="mt-1 text-[9px] text-agent-amber">{locale === "zh" ? "部分或全部拥挤度尚未达到正式方法覆盖门槛，气泡保持中性，不使用成交活跃度代理。" : "Some crowding values do not meet the formal methodology threshold; neutral bubbles are shown without activity proxies."}</p> : null}
   </Panel>;
 }
@@ -115,17 +121,17 @@ function CorrelationRow({ row, index, data, locale, fontSize, onSelect }: { row:
   })}</>;
 }
 
-function ValuationRanking({ data, locale }: { data: ValuationBoard | null; locale: "zh" | "en" }) {
+function ValuationRanking({ data, locale, onSelect }: { data: ValuationBoard | null; locale: "zh" | "en"; onSelect: (item: ValuationItem) => void }) {
   const items = (data?.items || []).slice(0, 9);
   const [fullscreen, setFullscreen] = useState(false);
   return <Panel className="min-h-0 overflow-hidden"><PanelTitle title={locale === "zh" ? "估值分位排序 · 带时间维度" : "Valuation Ranking · Time-Aware"} note={locale === "zh" ? "变化为分位百分点" : "Percentile changes in points"} actions={items.length ? <Button type="button" size="icon" variant="ghost" onClick={() => setFullscreen(true)} aria-label={locale === "zh" ? "全屏查看估值排序" : "View valuation ranking fullscreen"}><Maximize2 /></Button> : null} />
-    {items.length ? <ValuationTable items={items} locale={locale} fontSize={11} /> : <DataGap title={locale === "zh" ? "估值排序不可用" : "Valuation ranking unavailable"} reason={data?.metadata.reason_code} locale={locale} />}
-    <FullscreenDataView open={fullscreen} onOpenChange={setFullscreen} title={locale === "zh" ? "估值分位排序" : "Valuation Ranking"} locale={locale}>{(fontSize) => <ValuationTable items={data?.items || []} locale={locale} fontSize={fontSize} />}</FullscreenDataView>
+    {items.length ? <ValuationTable items={items} locale={locale} fontSize={11} onSelect={onSelect} /> : <DataGap title={locale === "zh" ? "估值排序不可用" : "Valuation ranking unavailable"} reason={data?.metadata.reason_code} locale={locale} />}
+    <FullscreenDataView open={fullscreen} onOpenChange={setFullscreen} title={locale === "zh" ? "估值分位排序" : "Valuation Ranking"} locale={locale}>{(fontSize) => <ValuationTable items={data?.items || []} locale={locale} fontSize={fontSize} onSelect={(item) => { setFullscreen(false); onSelect(item); }} />}</FullscreenDataView>
   </Panel>;
 }
 
-function ValuationTable({ items, locale, fontSize }: { items: ValuationBoard["items"]; locale: "zh" | "en"; fontSize: number }) {
-  return <div className="overflow-auto"><table className="w-full min-w-[760px] text-left" style={{ fontSize }}><thead className="font-data text-agent-dim"><tr><th className="pb-2 font-normal">{locale === "zh" ? "名称 / 代码" : "Name / Code"}</th><th className="pb-2 text-right font-normal">PE</th><th className="pb-2 text-right font-normal">PE %</th><th className="pb-2 text-right font-normal">Δ1M</th><th className="pb-2 text-right font-normal">Δ3M</th><th className="pb-2 text-right font-normal">PB %</th><th className="pb-2 text-right font-normal">{locale === "zh" ? "换手" : "Turnover"}</th></tr></thead><tbody className="divide-y divide-agent-border">{items.map((item) => <tr key={`${item.source}-${item.code}`}><td className="py-2.5"><span className="block text-agent-text">{localizedMarketName(item.name, item.code, locale)}</span><span className="font-data text-agent-dim" style={{ fontSize: Math.max(10, fontSize - 2) }}>{item.code}</span></td><NumberCell value={item.pe} /><PercentCell value={item.pe_percentile} /><SignedCell value={item.percentile_change_1m} /><SignedCell value={item.percentile_change_3m} /><PercentCell value={item.pb_percentile} /><NumberCell value={item.turnover_rate} suffix="%" /></tr>)}</tbody></table></div>;
+function ValuationTable({ items, locale, fontSize, onSelect }: { items: ValuationBoard["items"]; locale: "zh" | "en"; fontSize: number; onSelect: (item: ValuationItem) => void }) {
+  return <div className="overflow-auto"><table className="w-full min-w-[760px] text-left" style={{ fontSize }}><thead className="font-data text-agent-dim"><tr><th className="pb-2 font-normal">{locale === "zh" ? "名称 / 代码" : "Name / Code"}</th><th className="pb-2 text-right font-normal">PE</th><th className="pb-2 text-right font-normal">PE %</th><th className="pb-2 text-right font-normal">Δ1M</th><th className="pb-2 text-right font-normal">Δ3M</th><th className="pb-2 text-right font-normal">PB %</th><th className="pb-2 text-right font-normal">{locale === "zh" ? "换手" : "Turnover"}</th></tr></thead><tbody className="divide-y divide-agent-border">{items.map((item) => <tr key={`${item.source}-${item.code}`}><td className="py-2.5"><button type="button" onClick={() => onSelect(item)} className="rounded-sm text-left hover:text-agent-mint focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-agent-mint" aria-label={locale === "zh" ? `查看${localizedMarketName(item.name, item.code, locale)}估值详情` : `View valuation details for ${localizedMarketName(item.name, item.code, locale)}`}><span className="block text-agent-text">{localizedMarketName(item.name, item.code, locale)}</span><span className="font-data text-agent-dim" style={{ fontSize: Math.max(10, fontSize - 2) }}>{item.code}</span></button></td><NumberCell value={item.pe} /><PercentCell value={item.pe_percentile} /><SignedCell value={item.percentile_change_1m} /><SignedCell value={item.percentile_change_3m} /><PercentCell value={item.pb_percentile} /><NumberCell value={item.turnover_rate} suffix="%" /></tr>)}</tbody></table></div>;
 }
 
 function FullscreenDataView({ open, onOpenChange, title, locale, children }: { open: boolean; onOpenChange: (open: boolean) => void; title: string; locale: "zh" | "en"; children: (fontSize: number) => ReactNode }) {

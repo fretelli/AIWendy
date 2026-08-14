@@ -51,6 +51,7 @@ echarts.use([
 ]);
 
 export type ChartZoomMode = "none" | "x" | "xy";
+export type ChartItemClick = { data?: unknown; seriesType?: string; seriesName?: string; dataIndex?: number };
 
 export function InteractiveChart({
   option,
@@ -60,6 +61,7 @@ export function InteractiveChart({
   height = 300,
   zoomMode = "x",
   className,
+  onItemClick,
 }: {
   option: EChartsCoreOption;
   title: string;
@@ -68,10 +70,19 @@ export function InteractiveChart({
   height?: number;
   zoomMode?: ChartZoomMode;
   className?: string;
+  onItemClick?: (params: ChartItemClick) => void;
 }) {
   const embeddedRef = useRef<EChartsType | null>(null);
   const fullscreenRef = useRef<EChartsType | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const fullscreenStateRef = useRef(fullscreen);
+  const itemClickRef = useRef(onItemClick);
+  useEffect(() => { fullscreenStateRef.current = fullscreen; }, [fullscreen]);
+  useEffect(() => { itemClickRef.current = onItemClick; }, [onItemClick]);
+  const chartClickRef = useRef((params: ChartItemClick) => {
+    if (fullscreenStateRef.current) setFullscreen(false);
+    itemClickRef.current?.(params);
+  });
   const [status, setStatus] = useState("");
   const labels = locale === "zh"
     ? { zoomIn: "放大", zoomOut: "缩小", reset: "复位", expand: "全屏查看", hint: "Ctrl 或 Command + 滚轮缩放，拖拽平移，双击复位" }
@@ -120,7 +131,7 @@ export function InteractiveChart({
   return <>
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
       <ChartToolbar labels={labels} zoomMode={zoomMode} onAction={operate} onExpand={() => setFullscreen(true)} />
-      <ChartCanvas chartRef={embeddedRef} option={option} title={title} height={height} zoomMode={zoomMode} fullscreen={false} onKeyDown={onKeyDown} onReset={() => operate("reset")} />
+      <ChartCanvas chartRef={embeddedRef} option={option} title={title} height={height} zoomMode={zoomMode} fullscreen={false} onKeyDown={onKeyDown} onReset={() => operate("reset")} onItemClickRef={chartClickRef} />
       <p className="mt-1 font-data text-[8px] text-agent-dim">{labels.hint}</p>
       <span className="sr-only" aria-live="polite">{status}</span>
     </div>
@@ -131,7 +142,7 @@ export function InteractiveChart({
           <DialogDescription>{description || labels.hint}</DialogDescription>
         </DialogHeader>
         <ChartToolbar labels={labels} zoomMode={zoomMode} onAction={operate} />
-        <ChartCanvas chartRef={fullscreenRef} option={option} title={title} height={Math.max(420, typeof window === "undefined" ? 680 : window.innerHeight - 170)} zoomMode={zoomMode} fullscreen onKeyDown={onKeyDown} onReset={() => operate("reset")} />
+        <ChartCanvas chartRef={fullscreenRef} option={option} title={title} height={Math.max(420, typeof window === "undefined" ? 680 : window.innerHeight - 170)} zoomMode={zoomMode} fullscreen onKeyDown={onKeyDown} onReset={() => operate("reset")} onItemClickRef={chartClickRef} />
       </DialogContent>
     </Dialog>
   </>;
@@ -153,7 +164,7 @@ function ChartToolbar({ labels, zoomMode, onAction, onExpand }: {
   </div>;
 }
 
-function ChartCanvas({ chartRef, option, title, height, zoomMode, fullscreen, onKeyDown, onReset }: {
+function ChartCanvas({ chartRef, option, title, height, zoomMode, fullscreen, onKeyDown, onReset, onItemClickRef }: {
   chartRef: React.MutableRefObject<EChartsType | null>;
   option: EChartsCoreOption;
   title: string;
@@ -162,6 +173,7 @@ function ChartCanvas({ chartRef, option, title, height, zoomMode, fullscreen, on
   fullscreen: boolean;
   onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
   onReset: () => void;
+  onItemClickRef: React.MutableRefObject<(params: ChartItemClick) => void>;
 }) {
   const host = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -178,14 +190,17 @@ function ChartCanvas({ chartRef, option, title, height, zoomMode, fullscreen, on
       preventDefaultMouseMove: fullscreen,
     })) } as EChartsCoreOption;
     chart.setOption(next, { notMerge: true });
+    const onClick = (params: ChartItemClick) => onItemClickRef.current(params);
+    chart.on("click", onClick);
     const observer = new ResizeObserver(() => chart.resize());
     observer.observe(node);
     return () => {
       observer.disconnect();
       chartRef.current = null;
+      chart.off("click", onClick);
       chart.dispose();
     };
-  }, [chartRef, fullscreen, option]);
+  }, [chartRef, fullscreen, onItemClickRef, option]);
   return <div
     ref={host}
     data-interactive-chart={title}

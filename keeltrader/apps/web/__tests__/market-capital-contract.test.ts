@@ -20,6 +20,8 @@ test("the canonical market board uses the four approved same-screen analyses", (
   expect(market).toContain('data?.metadata.methodology_key === "kt_valuation_percentile_v2"');
   expect(market).toContain("historical_coverage_partial");
   expect(api).toContain("valuationBoard: ()");
+  expect(api).toContain("valuationHistory: (code: string");
+  expect(api).toContain("heldIndustries: ()");
   expect(api).toContain("correlations: (window = 60)");
   expect(api).toContain("factors: ()");
 });
@@ -39,6 +41,10 @@ test("major market analysis charts expose zoom reset and fullscreen without chan
   expect(market).toContain("FullscreenDataView");
   expect(market).toContain("Math.max(10, Math.min(20");
   expect(market).toContain('event.key === "0"');
+  expect(interactive).toContain('chart.on("click"');
+  expect(interactive).toContain("itemClickRef.current");
+  expect(market).toContain("ValuationDrilldown");
+  expect(market).toContain("onSelect={setSelectedValuation}");
   expect(shell).toContain('isMarketModule ? ["1M", "3M", "1Y", "3Y", "5Y"]');
   expect(shell).toContain("正式历史从 2020 年开始");
   expect(shell).toContain("<ToggleGroup");
