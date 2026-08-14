@@ -1218,11 +1218,64 @@ class TushareReadService:
         payload["metadata"] = metadata
         return payload
 
-    async def valuation_snapshot(self) -> dict[str, Any]:
-        return await self._market_analysis_snapshot(
+    async def valuation_snapshot(self, include_membership: bool = False) -> dict[str, Any]:
+        payload = await self._market_analysis_snapshot(
             "market_valuation_snapshot", "kt_valuation_percentile_v2",
             {"items": [], "percentile_window": "5Y", "synthetic_substitution": False},
         )
+        if not include_membership:
+            payload.pop("membership_map", None)
+        return payload
+
+    async def valuation_history(self, code: str, universe: str, limit: int = 252) -> dict[str, Any]:
+        limit = max(1, min(int(limit), 1300))
+        if universe not in {"broad", "sw_l1"}:
+            raise ValueError("Unsupported valuation universe")
+        if "market_valuation_snapshot" not in queryable_tables():
+            return {"metadata": self._analysis_metadata(
+                status="unavailable", reason_code="materialized_capability_unavailable", as_of=None,
+                coverage=None, methodology_key="kt_valuation_percentile_v2", source_datasets=[],
+            ), "code": code, "universe": universe, "points": [], "requested_limit": limit}
+        rows = await self._execute_mappings(text(f"""
+            WITH snapshots AS (
+              SELECT DISTINCT ON(as_of) analysis_version,as_of,computed_at,payload
+              FROM {self.schema}.market_valuation_snapshot
+              WHERE methodology_key=:methodology AND as_of IS NOT NULL
+              ORDER BY as_of DESC,computed_at DESC
+            ), limited AS (
+              SELECT * FROM snapshots ORDER BY as_of DESC LIMIT :limit
+            )
+            SELECT limited.analysis_version,limited.as_of,item
+            FROM limited CROSS JOIN LATERAL jsonb_array_elements(limited.payload->'items') item
+            WHERE item->>'code'=:code AND item->>'universe'=:universe
+            ORDER BY limited.as_of
+        """), {"methodology": "kt_valuation_percentile_v2", "limit": limit,
+                 "code": code, "universe": universe})
+        points: list[dict[str, Any]] = []
+        for row in rows:
+            item = dict(row.get("item") or {})
+            points.append({
+                "as_of": str(item.get("trade_date") or row.get("as_of")),
+                "analysis_version": row.get("analysis_version"),
+                **{key: item.get(key) for key in (
+                    "pe", "pb", "pe_percentile", "pb_percentile", "activity_percentile",
+                    "crowding_percentile", "crowding_status", "crowding_reason",
+                    "crowding_coverage", "percentile_change_1m", "percentile_change_3m",
+                )},
+            })
+        latest = points[-1]["as_of"] if points else None
+        backfill_partial = len(points) < limit
+        return {
+            "metadata": self._analysis_metadata(
+                status="partial" if points and backfill_partial else "available" if points else "unavailable",
+                reason_code="historical_backfill_in_progress" if points and backfill_partial else None if points else "materialized_snapshot_pending",
+                as_of=latest, coverage=len(points) / limit if limit else None,
+                methodology_key="kt_valuation_percentile_v2", source_datasets=["market_valuation_snapshot"],
+            ),
+            "code": code, "universe": universe, "points": points, "requested_limit": limit,
+            "available_start": points[0]["as_of"] if points else None,
+            "available_end": latest, "point_in_time": True, "synthetic_substitution": False,
+        }
 
     async def correlation_snapshot(self, window: int = 60) -> dict[str, Any]:
         window = max(20, min(int(window), 252))

@@ -7,6 +7,8 @@
 
 ## 未发布
 
+- 升级 ECharts、Nano ID、PyPDF 与 Pydantic AI 依赖，修复发布审计发现的 XSS、拒绝服务和 PDF 解析漏洞。
+- 估值分位矩阵和排序表支持鼠标、全屏与键盘下钻，提供 1M–5Y PE/PB、历史分位、拥挤覆盖、前十大成分与方法说明；新增真实“我的持仓行业”筛选，历史不足时明确显示补录范围且不插值。
 - 修复紧凑 Agent 对话发送失败时无提示且清空输入的问题；失败内容会保留，网络、限流和服务端错误可直接重试。
 - AgentOS 市场历史范围增加真实 5Y，明确禁用无正式来源的 10Y；历史接口按日期去重并返回顺序快照。
 - 放大估值表与相关矩阵的嵌入字号，并增加全屏 `+ / − / 0` 字号控制。
@@ -64,6 +66,8 @@ This file records only notable changes that can be verified from the current rep
 
 ## Unreleased
 
+- Upgrade ECharts, Nano ID, PyPDF, and Pydantic AI dependencies to resolve release-audit XSS, denial-of-service, and PDF parsing advisories.
+- Add mouse, fullscreen and keyboard valuation drilldowns with 1M–5Y PE/PB, percentiles, crowding coverage, top constituents and methodology; make Held Industries use real non-zero active-account A-share positions and disclose partial backfill without interpolation.
 - Preserve Agent prompt text and show retryable errors when compact-dock message submission fails.
 - Add a genuine 5Y AgentOS market history range, explicitly disable unsupported 10Y history, and deduplicate snapshots by date.
 - Increase valuation-table and correlation-matrix readability with fullscreen `+ / − / 0` font controls.
