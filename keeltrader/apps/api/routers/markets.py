@@ -157,7 +157,7 @@ async def valuation_history(request: Request, code: str = Query(..., min_length=
                             session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     normalized = code.strip().upper()
     return await cached_json(
-        f"valuation:history:v1:{universe}:{normalized}:{limit}",
+        f"valuation:history:v2:{universe}:{normalized}:{limit}",
         lambda: service(session).valuation_history(normalized, universe, limit), ttl=60, request=request,
     )
 

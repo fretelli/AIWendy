@@ -13,8 +13,12 @@ test("valuation drilldown is lazy, range-aware and honest about partial history"
   expect(market).toContain("查看${localizedMarketName");
   for (const range of ["1M", "3M", "1Y", "3Y", "5Y"]) expect(drilldown).toContain(`"${range}"`);
   expect(drilldown).toContain("历史补录中");
+  expect(drilldown).toContain("available_points_total");
+  expect(drilldown).toContain("keepPreviousData: true");
+  expect(drilldown).toContain("补录中");
   expect(drilldown).toContain("不插值、不合成");
   expect(drilldown).toContain("top_constituents");
   expect(api).toContain("ValuationHistory");
+  expect(api).toContain("available_points_total: number");
   expect(api).toContain("HeldIndustries");
 });
