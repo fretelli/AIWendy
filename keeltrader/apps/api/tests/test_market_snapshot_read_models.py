@@ -41,15 +41,19 @@ async def test_valuation_history_reads_only_versioned_snapshots(monkeypatch):
     reader = TushareReadService(None)
     reader._execute_mappings = AsyncMock(return_value=[{
         "analysis_version": "v1", "as_of": "2026-08-01",
+        "available_points_total": 9,
         "item": {"code": "801010.SI", "universe": "sw_l1", "trade_date": "2026-08-01",
                  "pe": 12.3, "pb": 1.5, "pe_percentile": .4},
     }])
     result = await reader.valuation_history("801010.SI", "sw_l1", 1260)
     assert result["points"][0]["pe"] == 12.3
     assert result["available_start"] == "2026-08-01"
+    assert result["available_points_total"] == 9
+    assert result["metadata"]["coverage"] == 9 / 1260
     query = str(reader._execute_mappings.await_args.args[0])
     assert "market_valuation_snapshot" in query
     assert "DISTINCT ON(as_of)" in query
+    assert "COUNT(*) OVER()" in query
     assert reader._execute_mappings.await_args.args[1]["limit"] == 1260
 
 

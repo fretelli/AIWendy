@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { marketsApi, type ValuationHistory, type ValuationItem } from "@/lib/api/agent-platform";
 
 type Range = "1M" | "3M" | "1Y" | "3Y" | "5Y";
+const RANGES: Range[] = ["1M", "3M", "1Y", "3Y", "5Y"];
+const RANGE_LIMITS: Record<Range, number> = { "1M": 22, "3M": 66, "1Y": 252, "3Y": 756, "5Y": 1260 };
 
 export function ValuationDrilldown({ item, locale, onClose }: {
   item: ValuationItem;
@@ -18,21 +20,30 @@ export function ValuationDrilldown({ item, locale, onClose }: {
 }) {
   const [range, setRange] = useState<Range>("1Y");
   const universe = item.universe === "broad" ? "broad" : "sw_l1";
-  const limit = ({ "1M": 22, "3M": 66, "1Y": 252, "3Y": 756, "5Y": 1260 } as const)[range];
-  const { data: history = null, isLoading, error } = useSWR<ValuationHistory>(
+  const limit = RANGE_LIMITS[range];
+  const { data: history = null, isLoading, isValidating, error } = useSWR<ValuationHistory>(
     `markets/valuation/history/${universe}/${item.code}/${limit}`,
     () => marketsApi.valuationHistory(item.code, universe, limit),
+    { keepPreviousData: true },
   );
   const points = history?.points || [];
   const dates = points.map(point => point.as_of);
-  const partial = history?.metadata.status === "partial" || points.length < limit;
+  const availablePoints = history?.available_points_total;
+  const visiblePoints = availablePoints == null ? points.length : Math.min(availablePoints, limit);
+  const partial = history?.metadata.status === "partial" || (availablePoints != null && availablePoints < limit);
   return <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
     <DialogContent className="h-[min(920px,calc(100dvh-24px))] w-[min(1280px,calc(100vw-24px))] max-w-none overflow-y-auto border-agent-border bg-agent-surface text-agent-text">
       <DialogHeader>
         <DialogTitle>{item.name} <span className="font-data text-sm text-agent-dim">{item.code}</span></DialogTitle>
         <DialogDescription>{locale === "zh" ? "点时估值、历史分位、拥挤度与可审计成分" : "Point-in-time valuation, percentiles, crowding and auditable constituents"}</DialogDescription>
       </DialogHeader>
-      <div className="flex flex-wrap gap-1 border-b border-agent-border pb-3">{(["1M", "3M", "1Y", "3Y", "5Y"] as Range[]).map(value => <Button key={value} type="button" size="sm" variant={range === value ? "secondary" : "outline"} onClick={() => setRange(value)}>{value}</Button>)}</div>
+      <div className="flex flex-wrap items-stretch gap-1 border-b border-agent-border pb-3">{RANGES.map(value => {
+        const target = RANGE_LIMITS[value];
+        const completed = availablePoints != null && availablePoints >= target;
+        const progress = availablePoints == null ? `…/${target}` : `${Math.min(availablePoints, target)}/${target}`;
+        const status = completed ? progress : `${progress} · ${locale === "zh" ? "补录中" : "Backfilling"}`;
+        return <Button key={value} type="button" size="sm" variant={range === value ? "secondary" : "outline"} onClick={() => setRange(value)} aria-label={`${value} ${status}`} className="h-auto min-w-[72px] flex-col gap-1 px-2 py-1.5"><span>{value}</span><span className={completed ? "font-data text-[8px] text-agent-muted" : "font-data text-[8px] text-agent-amber"}>{status}</span></Button>;
+      })}{isValidating && !isLoading ? <span aria-live="polite" className="self-center pl-2 text-[9px] text-agent-dim">{locale === "zh" ? "正在切换…" : "Switching…"}</span> : null}</div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         <Metric label="PE" value={number(item.pe)} />
         <Metric label="PB" value={number(item.pb)} />
@@ -43,7 +54,7 @@ export function ValuationDrilldown({ item, locale, onClose }: {
         <Metric label={locale === "zh" ? "拥挤度" : "Crowding"} value={percent(item.crowding_percentile)} />
         <Metric label={locale === "zh" ? "拥挤覆盖" : "Crowding coverage"} value={percent(item.crowding_coverage)} />
       </div>
-      {partial && points.length ? <p className="rounded-sm border border-agent-amber/30 bg-agent-amber/5 px-3 py-2 text-[10px] text-agent-amber">{locale === "zh" ? `历史补录中；当前真实可用范围 ${history?.available_start || dates[0]} → ${history?.available_end || dates[dates.length - 1]}，不插值、不合成。` : `History backfill in progress. Real available range: ${history?.available_start || dates[0]} → ${history?.available_end || dates[dates.length - 1]}; no interpolation or synthesis.`}</p> : null}
+      {partial && points.length ? <p className="rounded-sm border border-agent-amber/30 bg-agent-amber/5 px-3 py-2 text-[10px] text-agent-amber">{locale === "zh" ? `${range} 历史补录中；当前 ${visiblePoints}/${limit} 个交易日，真实可用范围 ${history?.available_start || dates[0]} → ${history?.available_end || dates[dates.length - 1]}，不插值、不合成。` : `${range} history backfill in progress: ${visiblePoints}/${limit} trading days. Real available range: ${history?.available_start || dates[0]} → ${history?.available_end || dates[dates.length - 1]}; no interpolation or synthesis.`}</p> : null}
       {isLoading ? <EmptyPanel title={locale === "zh" ? "正在读取估值历史" : "Loading valuation history"} detail={locale === "zh" ? "只读取已发布的版本化快照。" : "Only published versioned snapshots are read."} /> : error || !points.length ? <EmptyPanel title={locale === "zh" ? "估值历史暂不可用" : "Valuation history unavailable"} detail={locale === "zh" ? "历史快照正在补录；当前值和方法信息仍可查看。" : "Historical snapshots are being backfilled; current values and methodology remain available."} /> : <div className="grid gap-3 lg:grid-cols-2">
         <TimeSeriesChart dates={dates} series={[{ name: "PE", values: points.map(point => point.pe ?? null) }, { name: "PB", values: points.map(point => point.pb ?? null) }]} locale={locale} title={locale === "zh" ? `PE / PB 历史 · ${range}` : `PE / PB History · ${range}`} height={300} />
         <TimeSeriesChart dates={dates} series={[{ name: locale === "zh" ? "PE 分位" : "PE percentile", values: points.map(point => point.pe_percentile == null ? null : point.pe_percentile * 100) }, { name: locale === "zh" ? "PB 分位" : "PB percentile", values: points.map(point => point.pb_percentile == null ? null : point.pb_percentile * 100) }, { name: locale === "zh" ? "拥挤度" : "Crowding", values: points.map(point => point.crowding_percentile == null ? null : point.crowding_percentile * 100) }]} locale={locale} title={locale === "zh" ? `历史分位 / 拥挤度 · ${range}` : `Percentiles / Crowding · ${range}`} height={300} />

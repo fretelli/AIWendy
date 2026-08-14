@@ -45,7 +45,7 @@ flowchart LR
 - `keeltrader/apps/web/`: Next.js App Router frontend.
 - `keeltrader/apps/api/`: FastAPI API and research services.
 - AgentOS web routes live under `/agent`; its authenticated API is mounted under `/api/v1/agent`.
-- Read-only capability discovery is available at `GET /api/v1/markets/capabilities`; valuation history and private held-industry mapping use `GET /api/v1/markets/valuation/history` and `GET /api/v1/markets/valuation/held-industries`; macro summaries remain on `/api/v1/markets/macro/series`; portfolio evidence lives under `/api/v1/agent/portfolio/accounts/{id}`.
+- Read-only capability discovery is available at `GET /api/v1/markets/capabilities`; valuation history uses `GET /api/v1/markets/valuation/history` and reports `available_points_total` independently of the requested range so clients can show honest backfill progress; private held-industry mapping uses `GET /api/v1/markets/valuation/held-industries`; macro summaries remain on `/api/v1/markets/macro/series`; portfolio evidence lives under `/api/v1/agent/portfolio/accounts/{id}`.
 - `domain/agentos` owns portfolio, hypothesis, decision, strategy, consensus, and document-version records.
 - PostgreSQL owns application state; Alembic is the only schema-management path.
 - Redis provides cache, task queues, coordination, and worker heartbeats.
