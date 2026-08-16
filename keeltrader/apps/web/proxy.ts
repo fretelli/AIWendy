@@ -21,6 +21,17 @@ const AUTH_REQUIRED = process.env.NEXT_PUBLIC_AUTH_REQUIRED !== '0';
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
+  if (
+    pathname.startsWith('/_next/static/') &&
+    request.method !== 'GET' &&
+    request.method !== 'HEAD'
+  ) {
+    return new NextResponse(null, {
+      status: 405,
+      headers: { Allow: 'GET, HEAD' },
+    });
+  }
+
   // Skip public files and excluded paths
   if (
     PUBLIC_FILE.test(pathname) ||
@@ -106,6 +117,7 @@ function detectLocaleFromHeader(acceptLanguage: string): Locale | null {
 
 export const config = {
   matcher: [
+    '/_next/static/:path*',
     /*
      * Match all request paths except for the ones starting with:
      * - api (API routes)
