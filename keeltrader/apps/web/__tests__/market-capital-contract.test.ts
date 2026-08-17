@@ -5,6 +5,7 @@ const root = path.resolve(__dirname, "..");
 const market = fs.readFileSync(path.join(root, "app/(app)/agent/market/page.tsx"), "utf8");
 const api = fs.readFileSync(path.join(root, "lib/api/agent-platform.ts"), "utf8");
 const shell = fs.readFileSync(path.join(root, "components/agentos/agentos-shell.tsx"), "utf8");
+const drilldowns = fs.readFileSync(path.join(root, "components/agentos/market-drilldowns.tsx"), "utf8");
 
 test("the canonical market board uses the four approved same-screen analyses", () => {
   for (const title of ["估值分位矩阵", "大类相关性 60 日滚动", "估值分位排序 · 带时间维度", "因子收益与拥挤度"]) {
@@ -45,9 +46,16 @@ test("major market analysis charts expose zoom reset and fullscreen without chan
   expect(interactive).toContain("itemClickRef.current");
   expect(market).toContain("ValuationDrilldown");
   expect(market).toContain("onSelect={setSelectedValuation}");
-  expect(shell).toContain('isMarketModule ? ["1M", "3M", "1Y", "3Y", "5Y"]');
-  expect(shell).toContain("正式历史从 2020 年开始");
-  expect(shell).toContain("<ToggleGroup");
+  expect(shell).toContain("!isMarketModule ? <div");
+  expect(shell).toContain('item.href === "/agent/market" ? item.href');
+  expect(shell).toContain('current.href !== "/agent/market"');
+  expect(shell).not.toContain("正式历史从 2020 年开始");
+  expect(market).toContain('pair ? `markets/correlations/60/history/${range}` : null');
+  expect(market).toContain('selected ? `markets/factors/history/${range}` : null');
+  expect(market).toContain("范围只控制当前图表");
+  expect(market).not.toContain("范围用于历史下钻");
+  expect(drilldowns).toContain("当前期货历史范围");
+  expect(drilldowns).toContain('useState<HistoryRange>("1Y")');
 });
 
 test("market module exposes exactly two approved top-level tabs and professional drilldowns", () => {

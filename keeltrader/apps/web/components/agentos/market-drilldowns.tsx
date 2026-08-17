@@ -5,11 +5,13 @@ import { useEffect, useState } from "react";
 
 import { EmptyPanel, Panel, SectionTitle, StatusDot } from "@/components/agentos/dashboard-ui";
 import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { marketsApi, type FuturesCurve, type FuturesHistory, type FuturesProduct, type OptionSeries, type OptionsChain, type RatesCatalog } from "@/lib/api/agent-platform";
 import { useI18n } from "@/lib/i18n/provider";
 
 const TimeSeriesChart = dynamic(() => import("@/components/agentos/market-charts").then((module) => module.TimeSeriesChart), { ssr: false });
-type Period = "1M" | "3M" | "1Y" | "3Y" | "5Y";
+const HISTORY_RANGES = ["1M", "3M", "1Y", "3Y", "5Y"] as const;
+type HistoryRange = (typeof HISTORY_RANGES)[number];
 
 export function RatesDrilldown() {
   const { locale } = useI18n();
@@ -20,16 +22,17 @@ export function RatesDrilldown() {
   </Panel>;
 }
 
-export function FuturesDrilldown({ period = "1Y" }: { period?: Period }) {
+export function FuturesDrilldown() {
   const { locale } = useI18n();
   const [items, setItems] = useState<FuturesProduct[]>([]);
   const [selected, setSelected] = useState<string>();
+  const [range, setRange] = useState<HistoryRange>("1Y");
   const [history, setHistory] = useState<FuturesHistory>();
   const [curve, setCurve] = useState<FuturesCurve>();
   useEffect(() => { void marketsApi.futuresProducts().then((data) => { setItems(data.items); setSelected(data.items[0]?.product_code); }); }, []);
   useEffect(() => { if (!selected) return; void Promise.all([marketsApi.futuresHistory(selected), marketsApi.futuresCurve(selected)]).then(([nextHistory, nextCurve]) => { setHistory(nextHistory); setCurve(nextCurve); }); }, [selected]);
-  const visibleHistory = history?.history.slice(-periodPoints(period)) || [];
-  return <div className="grid gap-3 xl:grid-cols-[280px_1fr]"><Panel><SectionTitle title={locale === "zh" ? "期货品种" : "Futures Products"} en="PUBLISHED CONTRACTS" /><div className="flex max-h-[430px] flex-col gap-1 overflow-y-auto">{items.map((item) => <Button key={item.product_code} variant={selected === item.product_code ? "secondary" : "ghost"} className="justify-between" onClick={() => setSelected(item.product_code)}><span>{item.product_code}</span><span className="font-data text-[9px] text-agent-dim">{item.trade_date}</span></Button>)}</div></Panel><Panel><SectionTitle title={selected || (locale === "zh" ? "期限结构" : "Term Structure")} en="HISTORY · CURVE" />{visibleHistory.length ? <><TimeSeriesChart dates={visibleHistory.map((item) => item.trade_date)} series={[{ name: locale === "zh" ? "结算价 / 收盘价" : "Settlement / Close", values: visibleHistory.map((item) => item.settle ?? item.close ?? null) }]} locale={locale} title={`${selected || "—"} · ${period}`} height={320} /><div className="mt-4 grid gap-2 md:grid-cols-3">{curve?.items.slice(0, 12).map((item) => <div key={item.contract_code} className="rounded border border-agent-border bg-agent-raised p-3"><p className="text-xs text-agent-text">{item.contract_code}</p><p className="mt-2 font-data text-sm text-agent-blue">{item.settle ?? item.close ?? "—"}</p><p className="mt-1 text-[9px] text-agent-dim">{locale === "zh" ? "持仓量" : "Open interest"} {item.oi ?? "—"}</p></div>)}</div></> : <EmptyPanel title={locale === "zh" ? "选择有历史的品种" : "Select a product with history"} detail={locale === "zh" ? "只展示原始期货行情与可审计合约映射。" : "Only raw futures data and audited contract mappings are shown."} />}</Panel></div>;
+  const visibleHistory = history?.history.slice(-periodPoints(range)) || [];
+  return <div className="grid gap-3 xl:grid-cols-[280px_1fr]"><Panel><SectionTitle title={locale === "zh" ? "期货品种" : "Futures Products"} en="PUBLISHED CONTRACTS" /><div className="flex max-h-[430px] flex-col gap-1 overflow-y-auto">{items.map((item) => <Button key={item.product_code} variant={selected === item.product_code ? "secondary" : "ghost"} className="justify-between" onClick={() => setSelected(item.product_code)}><span>{item.product_code}</span><span className="font-data text-[9px] text-agent-dim">{item.trade_date}</span></Button>)}</div></Panel><Panel><SectionTitle title={selected || (locale === "zh" ? "期限结构" : "Term Structure")} en="HISTORY · CURVE" /><ToggleGroup type="single" value={range} onValueChange={(value) => { if (value) setRange(value as HistoryRange); }} variant="outline" size="sm" aria-label={locale === "zh" ? "当前期货历史范围" : "Current futures history range"} className="mb-3 flex-wrap justify-start">{HISTORY_RANGES.map((value) => <ToggleGroupItem key={value} value={value} aria-label={value} className="font-data text-[10px] data-[state=on]:bg-agent-mint data-[state=on]:text-agent-canvas">{value}</ToggleGroupItem>)}</ToggleGroup>{visibleHistory.length ? <><TimeSeriesChart dates={visibleHistory.map((item) => item.trade_date)} series={[{ name: locale === "zh" ? "结算价 / 收盘价" : "Settlement / Close", values: visibleHistory.map((item) => item.settle ?? item.close ?? null) }]} locale={locale} title={`${selected || "—"} · ${range}`} height={320} /><div className="mt-4 grid gap-2 md:grid-cols-3">{curve?.items.slice(0, 12).map((item) => <div key={item.contract_code} className="rounded border border-agent-border bg-agent-raised p-3"><p className="text-xs text-agent-text">{item.contract_code}</p><p className="mt-2 font-data text-sm text-agent-blue">{item.settle ?? item.close ?? "—"}</p><p className="mt-1 text-[9px] text-agent-dim">{locale === "zh" ? "持仓量" : "Open interest"} {item.oi ?? "—"}</p></div>)}</div></> : <EmptyPanel title={locale === "zh" ? "选择有历史的品种" : "Select a product with history"} detail={locale === "zh" ? "只展示原始期货行情与可审计合约映射。" : "Only raw futures data and audited contract mappings are shown."} />}</Panel></div>;
 }
 
 export function OptionsDrilldown() {
@@ -53,6 +56,6 @@ function localizeUnavailableReason(reason: string, locale: "zh" | "en") {
   return known[reason] || "该正式数据源当前不可用。";
 }
 
-function periodPoints(period: Period) {
+function periodPoints(period: HistoryRange) {
   return ({ "1M": 22, "3M": 66, "1Y": 252, "3Y": 756, "5Y": 1260 } as const)[period];
 }
