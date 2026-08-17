@@ -40,40 +40,117 @@ _MARKET_DOMAIN_CACHE_SECONDS = 600
 
 
 _MACRO_ANALYSIS_DEFINITIONS: dict[str, dict[str, Any]] = {
-    "gdp": {"table": "cn_gdp", "period": "quarter", "frequency": "quarterly", "label": "国内生产总值",
-            "primary": "gdp", "primary_unit": "亿元", "mom_mode": "not_applicable",
-            "mom_reason": "official_qoq_unavailable", "yoy_field": "gdp_yoy", "yoy_unit": "%"},
-    "cpi": {"table": "cn_cpi", "period": "month", "frequency": "monthly", "label": "居民消费价格",
-            "primary": "nt_val", "primary_unit": "指数", "mom_field": "nt_mom", "mom_unit": "%",
-            "yoy_field": "nt_yoy", "yoy_unit": "%"},
-    "ppi": {"table": "cn_ppi", "period": "month", "frequency": "monthly", "label": "工业生产者价格",
+    "gdp": {"domain": "macro", "theme": "growth", "table": "cn_gdp", "period": "quarter", "frequency": "quarterly", "label": "国内生产总值同比",
+            "primary": "gdp_yoy", "primary_unit": "%", "primary_alias": "yoy",
+            "mom_mode": "difference", "mom_months": 3, "mom_unit": "个百分点",
+            "yoy_mode": "not_applicable", "yoy_reason": "headline_is_official_yoy"},
+    "cpi": {"domain": "macro", "theme": "prices", "table": "cn_cpi", "period": "month", "frequency": "monthly", "label": "居民消费价格同比",
+            "primary": "nt_yoy", "primary_unit": "%", "primary_alias": "yoy",
+            "mom_field": "nt_mom", "mom_unit": "%", "yoy_mode": "not_applicable",
+            "yoy_reason": "headline_is_official_yoy"},
+    "ppi": {"domain": "macro", "theme": "prices", "table": "cn_ppi", "period": "month", "frequency": "monthly", "label": "工业生产者价格同比",
             "primary": "ppi_yoy", "primary_unit": "%", "primary_alias": "yoy",
-            "mom_field": "ppi_mom", "mom_unit": "%", "yoy_field": "ppi_yoy", "yoy_unit": "%"},
-    "money_supply": {"table": "cn_m", "period": "month", "frequency": "monthly", "label": "货币供应量 M2",
-            "primary": "m2", "primary_unit": "亿元", "mom_field": "m2_mom", "mom_unit": "%",
-            "yoy_field": "m2_yoy", "yoy_unit": "%"},
-    "social_financing": {"table": "sf_month", "period": "month", "frequency": "monthly", "label": "社会融资规模增量",
-            "primary": "inc_month", "primary_unit": "亿元", "mom_mode": "percent", "mom_unit": "%",
-            "yoy_mode": "percent", "yoy_unit": "%"},
-    "pmi": {"table": "cn_pmi", "period": "month", "frequency": "monthly", "label": "制造业采购经理指数",
+            "mom_field": "ppi_mom", "mom_unit": "%", "yoy_mode": "not_applicable",
+            "yoy_reason": "headline_is_official_yoy"},
+    "money_supply": {"domain": "macro", "theme": "credit", "table": "cn_m", "period": "month", "frequency": "monthly", "label": "M2 同比",
+            "primary": "m2_yoy", "primary_unit": "%", "primary_alias": "yoy",
+            "mom_mode": "difference", "mom_unit": "个百分点", "yoy_mode": "not_applicable",
+            "yoy_reason": "headline_is_official_yoy"},
+    "social_financing": {"domain": "macro", "theme": "credit", "table": "sf_month", "period": "month", "frequency": "monthly", "label": "社会融资规模增量",
+            "primary": "inc_month", "primary_unit": "亿元", "mom_mode": "not_applicable",
+            "mom_reason": "seasonal_monthly_flow", "yoy_mode": "percent", "yoy_unit": "%",
+            "percentile_mode": "same_calendar_month", "minimum_samples": 5},
+    "pmi": {"domain": "macro", "theme": "sentiment", "table": "cn_pmi", "period": "month", "frequency": "monthly", "label": "制造业 PMI",
             "primary": "pmi010000", "primary_unit": "点", "mom_mode": "difference", "mom_unit": "点",
             "yoy_mode": "difference", "yoy_unit": "点"},
-    "shibor": {"table": "shibor", "period": "date", "frequency": "daily", "label": "SHIBOR 3M",
+    "industrial_production_yoy": {"domain": "macro", "theme": "growth", "table": "macro_release_series", "series_key": "industrial_production_yoy", "period": "period", "frequency": "monthly", "label": "规模以上工业增加值同比", "primary": "actual_value", "primary_unit": "%", "primary_alias": "yoy", "mom_mode": "difference", "mom_unit": "个百分点", "yoy_mode": "not_applicable", "yoy_reason": "headline_is_official_yoy", "minimum_samples": 12},
+    "retail_sales_yoy": {"domain": "macro", "theme": "growth", "table": "macro_release_series", "series_key": "retail_sales_yoy", "period": "period", "frequency": "monthly", "label": "社会消费品零售总额同比", "primary": "actual_value", "primary_unit": "%", "primary_alias": "yoy", "mom_mode": "difference", "mom_unit": "个百分点", "yoy_mode": "not_applicable", "yoy_reason": "headline_is_official_yoy", "minimum_samples": 12},
+    "fixed_asset_investment_ytd_yoy": {"domain": "macro", "theme": "growth", "table": "macro_release_series", "series_key": "fixed_asset_investment_ytd_yoy", "period": "period", "frequency": "monthly", "label": "固定资产投资累计同比", "primary": "actual_value", "primary_unit": "%", "primary_alias": "yoy", "mom_mode": "difference", "mom_unit": "个百分点", "yoy_mode": "not_applicable", "yoy_reason": "ytd_growth_series", "minimum_samples": 12},
+    "urban_unemployment_rate": {"domain": "macro", "theme": "sentiment", "table": "macro_release_series", "series_key": "urban_unemployment_rate", "period": "period", "frequency": "monthly", "label": "城镇调查失业率", "primary": "actual_value", "primary_unit": "%", "mom_mode": "difference", "mom_unit": "个百分点", "yoy_mode": "difference", "yoy_unit": "个百分点", "minimum_samples": 12},
+    "exports_usd_yoy": {"domain": "macro", "theme": "external", "table": "macro_release_series", "series_key": "exports_usd_yoy", "period": "period", "frequency": "monthly", "label": "出口同比（美元计价）", "primary": "actual_value", "primary_unit": "%", "primary_alias": "yoy", "mom_mode": "difference", "mom_unit": "个百分点", "yoy_mode": "not_applicable", "yoy_reason": "headline_is_official_yoy", "minimum_samples": 12},
+    "imports_usd_yoy": {"domain": "macro", "theme": "external", "table": "macro_release_series", "series_key": "imports_usd_yoy", "period": "period", "frequency": "monthly", "label": "进口同比（美元计价）", "primary": "actual_value", "primary_unit": "%", "primary_alias": "yoy", "mom_mode": "difference", "mom_unit": "个百分点", "yoy_mode": "not_applicable", "yoy_reason": "headline_is_official_yoy", "minimum_samples": 12},
+    "trade_balance_usd": {"domain": "macro", "theme": "external", "table": "macro_release_series", "series_key": "trade_balance_usd", "period": "period", "frequency": "monthly", "label": "贸易差额", "primary": "actual_value", "primary_unit": "十亿美元", "mom_mode": "difference", "mom_unit": "十亿美元", "yoy_mode": "difference", "yoy_unit": "十亿美元", "minimum_samples": 12},
+    "fx_reserves_usd": {"domain": "macro", "theme": "external", "table": "macro_release_series", "series_key": "fx_reserves_usd", "period": "period", "frequency": "monthly", "label": "外汇储备", "primary": "actual_value", "primary_unit": "十亿美元", "mom_mode": "difference", "mom_unit": "十亿美元", "yoy_mode": "difference", "yoy_unit": "十亿美元", "minimum_samples": 12},
+    "new_rmb_loans": {"domain": "macro", "theme": "credit", "table": "macro_release_series", "series_key": "new_rmb_loans", "period": "period", "frequency": "monthly", "label": "新增人民币贷款", "primary": "actual_value", "primary_unit": "亿元", "mom_mode": "not_applicable", "mom_reason": "seasonal_monthly_flow", "yoy_mode": "percent", "yoy_unit": "%", "percentile_mode": "same_calendar_month", "minimum_samples": 5},
+    "shibor": {"domain": "rates", "table": "shibor", "period": "date", "frequency": "daily", "label": "SHIBOR 3M",
             "primary": "3m", "primary_unit": "%", "mom_mode": "basis_points", "mom_unit": "bp",
             "yoy_mode": "basis_points", "yoy_unit": "bp"},
-    "lpr": {"table": "lpr", "period": "date", "frequency": "monthly", "label": "LPR 1Y",
+    "lpr": {"domain": "rates", "table": "lpr", "period": "date", "frequency": "monthly", "label": "LPR 1Y",
             "primary": "1y", "primary_unit": "%", "mom_mode": "basis_points", "mom_unit": "bp",
             "yoy_mode": "basis_points", "yoy_unit": "bp"},
-    "us_treasury": {"table": "us_tycr", "period": "date", "frequency": "daily", "label": "美国国债收益率 10Y",
+    "us_treasury": {"domain": "rates", "table": "us_tycr", "period": "date", "frequency": "daily", "label": "美国国债收益率 10Y",
             "primary": "y10", "primary_unit": "%", "mom_mode": "basis_points", "mom_unit": "bp",
             "yoy_mode": "basis_points", "yoy_unit": "bp"},
-    "us_real_treasury": {"table": "us_trycr", "period": "date", "frequency": "daily", "label": "美国实际国债收益率 10Y",
+    "us_real_treasury": {"domain": "rates", "table": "us_trycr", "period": "date", "frequency": "daily", "label": "美国实际国债收益率 10Y",
             "primary": "y10", "primary_unit": "%", "mom_mode": "basis_points", "mom_unit": "bp",
             "yoy_mode": "basis_points", "yoy_unit": "bp"},
 }
 
 _RATES_ANALYSIS_ALIASES = {
     "shibor": "shibor", "lpr": "lpr", "us_nominal": "us_treasury", "us_real": "us_real_treasury",
+}
+
+_PMI_FIELD_LABELS = {
+    "pmi010000": "制造业 PMI", "pmi010100": "大型企业 PMI", "pmi010200": "中型企业 PMI", "pmi010300": "小型企业 PMI",
+    "pmi010400": "生产指数", "pmi010401": "大型企业生产指数", "pmi010402": "中型企业生产指数", "pmi010403": "小型企业生产指数",
+    "pmi010500": "新订单指数", "pmi010501": "大型企业新订单", "pmi010502": "中型企业新订单", "pmi010503": "小型企业新订单",
+    "pmi010600": "供应商配送时间", "pmi010601": "大型企业配送时间", "pmi010602": "中型企业配送时间", "pmi010603": "小型企业配送时间",
+    "pmi010700": "原材料库存", "pmi010701": "大型企业原材料库存", "pmi010702": "中型企业原材料库存", "pmi010703": "小型企业原材料库存",
+    "pmi010800": "制造业从业人员", "pmi010801": "大型企业从业人员", "pmi010802": "中型企业从业人员", "pmi010803": "小型企业从业人员",
+    "pmi010900": "新出口订单", "pmi011000": "进口指数", "pmi011100": "采购量", "pmi011200": "主要原材料购进价格",
+    "pmi011300": "出厂价格", "pmi011400": "产成品库存", "pmi011500": "在手订单", "pmi011600": "生产经营活动预期",
+    "pmi011700": "装备制造业 PMI", "pmi011800": "高技术制造业 PMI", "pmi011900": "基础原材料制造业 PMI", "pmi012000": "消费品制造业 PMI",
+    "pmi020100": "非制造业商务活动", "pmi020101": "建筑业商务活动", "pmi020102": "服务业商务活动",
+    "pmi020200": "非制造业新订单", "pmi020201": "建筑业新订单", "pmi020202": "服务业新订单",
+    "pmi020300": "非制造业投入品价格", "pmi020301": "建筑业投入品价格", "pmi020302": "服务业投入品价格",
+    "pmi020400": "非制造业销售价格", "pmi020401": "建筑业销售价格", "pmi020402": "服务业销售价格",
+    "pmi020500": "非制造业从业人员", "pmi020501": "建筑业从业人员", "pmi020502": "服务业从业人员",
+    "pmi020600": "非制造业业务活动预期", "pmi020601": "建筑业活动预期", "pmi020602": "服务业活动预期",
+    "pmi020700": "非制造业新出口订单", "pmi020800": "非制造业在手订单", "pmi020900": "非制造业存货",
+    "pmi021000": "非制造业供应商配送时间", "pmi030000": "综合 PMI 产出指数",
+}
+
+_MACRO_FIELD_CATALOG: dict[str, list[dict[str, str]]] = {
+    "gdp": [
+        {"key": "gdp_yoy", "label": "GDP 同比", "unit": "%", "group": "总量"},
+        {"key": "gdp", "label": "GDP 年内累计", "unit": "亿元", "group": "总量"},
+        {"key": "pi_yoy", "label": "第一产业同比", "unit": "%", "group": "三次产业"},
+        {"key": "pi", "label": "第一产业年内累计", "unit": "亿元", "group": "三次产业"},
+        {"key": "si_yoy", "label": "第二产业同比", "unit": "%", "group": "三次产业"},
+        {"key": "si", "label": "第二产业年内累计", "unit": "亿元", "group": "三次产业"},
+        {"key": "ti_yoy", "label": "第三产业同比", "unit": "%", "group": "三次产业"},
+        {"key": "ti", "label": "第三产业年内累计", "unit": "亿元", "group": "三次产业"},
+    ],
+    "cpi": [
+        {"key": "nt_yoy", "label": "全国同比", "unit": "%", "group": "全国"},
+        {"key": "nt_mom", "label": "全国环比", "unit": "%", "group": "全国"},
+        {"key": "nt_val", "label": "全国当月指数", "unit": "指数", "group": "全国"},
+        {"key": "nt_accu", "label": "全国累计指数", "unit": "指数", "group": "全国"},
+        {"key": "town_yoy", "label": "城市同比", "unit": "%", "group": "城乡"},
+        {"key": "town_mom", "label": "城市环比", "unit": "%", "group": "城乡"},
+        {"key": "town_val", "label": "城市当月指数", "unit": "指数", "group": "城乡"},
+        {"key": "town_accu", "label": "城市累计指数", "unit": "指数", "group": "城乡"},
+        {"key": "cnt_yoy", "label": "农村同比", "unit": "%", "group": "城乡"},
+        {"key": "cnt_mom", "label": "农村环比", "unit": "%", "group": "城乡"},
+        {"key": "cnt_val", "label": "农村当月指数", "unit": "指数", "group": "城乡"},
+        {"key": "cnt_accu", "label": "农村累计指数", "unit": "指数", "group": "城乡"},
+    ],
+    "ppi": [
+        {"key": "ppi_yoy", "label": "PPI 同比", "unit": "%", "group": "价格"},
+        {"key": "ppi_mom", "label": "PPI 环比", "unit": "%", "group": "价格"},
+        {"key": "ppi_accu", "label": "PPI 累计同比", "unit": "%", "group": "价格"},
+    ],
+    "money_supply": [
+        *({"key": f"m{level}{suffix}", "label": f"M{level}{label}", "unit": unit, "group": f"M{level}"}
+          for level in (0, 1, 2) for suffix, label, unit in (("_yoy", " 同比", "%"), ("_mom", " 环比", "%"), ("", " 余额", "亿元"))),
+    ],
+    "social_financing": [
+        {"key": "inc_month", "label": "当月增量", "unit": "亿元", "group": "社会融资"},
+        {"key": "inc_cumval", "label": "年内累计增量", "unit": "亿元", "group": "社会融资"},
+        {"key": "stk_endval", "label": "存量", "unit": "亿元", "group": "社会融资"},
+    ],
+    "pmi": [{"key": key, "label": label, "unit": "点", "group": "非制造业" if key.startswith("pmi02") else "综合" if key == "pmi030000" else "制造业"}
+            for key, label in _PMI_FIELD_LABELS.items()],
 }
 
 
@@ -177,10 +254,13 @@ def build_macro_analysis(key: str, source_rows: list[dict[str, Any]]) -> dict[st
         return ({"unit": unit, "method": "calculated", "formula": formulas[str(mode)]},
                 calculated_rows(str(mode), months))
 
-    mom_meta, mom_rows = metric("mom", 1)
+    mom_months = int(definition.get("mom_months") or 1)
+    mom_meta, mom_rows = metric("mom", mom_months)
     yoy_meta, yoy_rows = metric("yoy", 12)
-    minimum = {"quarterly": 8, "monthly": 24, "daily": 252}.get(frequency, 24)
+    minimum = int(definition.get("minimum_samples") or
+                  {"quarterly": 8, "monthly": 24, "daily": 252}.get(frequency, 24))
     percentile_rows: list[dict[str, Any]] = []
+    percentile_mode = str(definition.get("percentile_mode") or "trailing_10y")
     active: deque[tuple[date, float]] = deque()
     ranked: list[float] = []
     first_valid_date = next((parsed for parsed, row in zip(parsed_dates, primary_rows)
@@ -192,11 +272,17 @@ def build_macro_analysis(key: str, source_rows: list[dict[str, Any]]) -> dict[st
                                     "window_complete": False})
             continue
         cutoff = _shift_months(parsed, -120)
-        while active and active[0][0] < cutoff:
-            _old_date, old_value = active.popleft()
-            ranked.pop(bisect_left(ranked, old_value))
-        active.append((parsed, current))
-        insort(ranked, current)
+        if percentile_mode == "same_calendar_month":
+            comparable = [candidate["value"] for candidate, candidate_date in zip(primary_rows, parsed_dates)
+                          if candidate_date is not None and cutoff <= candidate_date <= parsed
+                          and candidate_date.month == parsed.month and candidate["value"] is not None]
+            ranked = sorted(float(value) for value in comparable)
+        else:
+            while active and active[0][0] < cutoff:
+                _old_date, old_value = active.popleft()
+                ranked.pop(bisect_left(ranked, old_value))
+            active.append((parsed, current))
+            insort(ranked, current)
         left, right = bisect_left(ranked, current), bisect_right(ranked, current)
         percentile = (((left + right - 1) / 2) / (len(ranked) - 1) * 100) if len(ranked) >= minimum and len(ranked) > 1 else None
         complete = bool(first_valid_date and first_valid_date <= cutoff)
@@ -205,7 +291,10 @@ def build_macro_analysis(key: str, source_rows: list[dict[str, Any]]) -> dict[st
 
     primary_meta = {"unit": definition["primary_unit"], "method": "official", "source_field": primary_field,
                     "formula": "official_source_field"}
-    percentile_meta = {"unit": "%", "method": "calculated", "formula": "percent_rank_inc_trailing_10_calendar_years",
+    percentile_formula = ("percent_rank_inc_same_calendar_month_trailing_10_years"
+                          if percentile_mode == "same_calendar_month"
+                          else "percent_rank_inc_trailing_10_calendar_years")
+    percentile_meta = {"unit": "%", "method": "calculated", "formula": percentile_formula,
                        "window": "10Y", "minimum_samples": minimum}
     series = {
         "primary": {"meta": primary_meta, "rows": primary_rows},
@@ -216,11 +305,12 @@ def build_macro_analysis(key: str, source_rows: list[dict[str, Any]]) -> dict[st
     summary = {name: _latest_metric(value["meta"], value["rows"]) for name, value in series.items()}
     return {
         "available": summary["primary"]["value"] is not None, "key": key, "label": definition["label"],
+        "domain": definition.get("domain"), "theme": definition.get("theme"),
         "table": definition["table"], "frequency": frequency, "period_field": definition["period"],
         "primary_field": primary_field, "primary_alias": definition.get("primary_alias"),
         "start": primary_rows[0]["period"] if primary_rows else None,
         "end": primary_rows[-1]["period"] if primary_rows else None, "points": len(primary_rows),
-        "source": f"tushare.{definition['table']}", "methodology_key": "kt_macro_analysis_v1",
+        "source": f"tushare.{definition['table']}", "methodology_key": "kt_macro_analysis_v2",
         "summary": summary, "series": series,
         "sparkline": {"periods": [row["period"] for row in primary_rows[-60:]],
                       "values": [row["value"] for row in primary_rows[-60:]]},
@@ -1784,21 +1874,66 @@ class TushareReadService:
         # cold catalog path; _execute_mappings still degrades safely if a
         # published table disappears between manifest publication and query.
         if table not in physical_tables():
-            return build_macro_analysis(key, [])
-        columns = ",".join(f'"{field}"' for field in fields)
-        rows = await self._execute_mappings(text(
-            f'SELECT {period} AS period,{columns} FROM {self.schema}.{table} ORDER BY {period} ASC'
-        ), {})
+            detail = build_macro_analysis(key, [])
+            detail["field_catalog"] = _MACRO_FIELD_CATALOG.get(key, [])
+            detail["reason_code"] = "capability_unavailable"
+            detail["quality"] = {
+                "source_type": "eco_cal_gated" if definition.get("series_key") else "structured",
+                "status": "unavailable",
+                **({"coverage_points": 0, "minimum_samples": int(definition.get("minimum_samples") or 12)}
+                   if definition.get("series_key") else {}),
+            }
+            return detail
+        if definition.get("series_key"):
+            rows = await self._execute_mappings(text(f"""
+                SELECT period,actual_value,previous_value,forecast_value,release_date,release_time,
+                       event_name,quality_state
+                FROM {self.schema}.macro_release_series
+                WHERE series_key=:series_key
+                ORDER BY period ASC
+            """), {"series_key": definition["series_key"]})
+        else:
+            columns = ",".join(f'"{field}"' for field in fields)
+            rows = await self._execute_mappings(text(
+                f'SELECT {period} AS period,{columns} FROM {self.schema}.{table} ORDER BY {period} ASC'
+            ), {})
         detail = build_macro_analysis(key, rows)
         detail["source"] = f"{self.schema}.{table}"
         detail["recent_source_rows"] = rows[-12:]
+        detail["field_catalog"] = _MACRO_FIELD_CATALOG.get(key, [])
+        if definition.get("series_key"):
+            minimum = int(definition.get("minimum_samples") or 12)
+            covered = sum(1 for row in rows if _number(row.get("actual_value")) is not None)
+            detail["quality"] = {
+                "source_type": "eco_cal_gated",
+                "coverage_points": covered,
+                "minimum_samples": minimum,
+                "status": "available" if covered >= minimum else "insufficient_release_coverage",
+            }
+            detail["available"] = detail["available"] and covered >= minimum
+            if not detail["available"]:
+                detail["reason_code"] = "insufficient_release_coverage"
+            latest = next((row for row in reversed(rows) if _number(row.get("actual_value")) is not None), None)
+            if latest:
+                actual, forecast = _number(latest.get("actual_value")), _number(latest.get("forecast_value"))
+                detail["latest_release"] = {
+                    "release_date": str(latest.get("release_date")) if latest.get("release_date") else None,
+                    "release_time": str(latest.get("release_time")) if latest.get("release_time") else None,
+                    "event_name": latest.get("event_name"), "quality_state": latest.get("quality_state"),
+                    "actual": actual, "forecast": forecast,
+                    "surprise": round(actual - forecast, 6) if actual is not None and forecast is not None else None,
+                }
+        else:
+            detail["quality"] = {"source_type": "structured", "status": "available" if detail["available"] else "unavailable"}
         return detail
 
     async def macro_catalog(self) -> dict[str, Any]:
         """Return lightweight audited summaries; full history remains lazy-loaded."""
-        tables = [str(item["table"]) for item in _MACRO_ANALYSIS_DEFINITIONS.values()]
+        definitions = {key: item for key, item in _MACRO_ANALYSIS_DEFINITIONS.items()
+                       if item.get("domain") == "macro"}
+        tables = list(dict.fromkeys(str(item["table"]) for item in definitions.values()))
         fields_task = asyncio.create_task(self._numeric_fields(tables))
-        details = await asyncio.gather(*(self._macro_detail(key) for key in _MACRO_ANALYSIS_DEFINITIONS))
+        details = await asyncio.gather(*(self._macro_detail(key) for key in definitions))
         fields_by_table = await fields_task
         items = []
         for detail in details:
@@ -1806,19 +1941,31 @@ class TushareReadService:
             items.append({key: value for key, value in detail.items() if key not in {"series", "recent_source_rows"}} | {
                 "fields": fields_by_table.get(table, []),
             })
+        items.append({
+            "key": "fiscal", "label": "财政收支", "domain": "macro", "theme": "fiscal",
+            "available": False, "reason_code": "provider_dataset_unavailable",
+            "reason": "严格 Tushare 数据范围内暂无可靠连续财政收支序列，不使用市场代理或合成数据。",
+            "fields": [], "field_catalog": [], "quality": {"source_type": "unavailable", "status": "unavailable"},
+        })
         return {"available": any(item["available"] for item in items), "items": items,
                 "methodology": {"raw_history": True, "local_transforms": True,
-                                "methodology_key": "kt_macro_analysis_v1", "percentile_window": "10Y"}}
+                                "methodology_key": "kt_macro_analysis_v2", "percentile_window": "10Y",
+                                "structured_source_priority": True, "eco_cal_gated_fallback": True,
+                                "synthetic_substitution": False}}
 
     async def macro_series(self, key: str, field: str | None = None) -> dict[str, Any]:
-        definition = self.macro_definitions().get(key)
-        if not definition:
+        source_definition = _MACRO_ANALYSIS_DEFINITIONS.get(key)
+        if not source_definition or source_definition.get("domain") != "macro":
             raise ValueError("Unknown macro series")
+        definition = self.macro_definitions()[key]
         table, period, frequency, label = definition
         if field is None:
             return await self._macro_detail(key)
+        if source_definition.get("series_key"):
+            raise ValueError("Event macro series does not expose arbitrary fields")
         fields = (await self._numeric_fields([table])).get(table, [])
-        if field not in fields:
+        catalog = {item["key"]: item for item in _MACRO_FIELD_CATALOG.get(key, [])}
+        if field not in fields or field not in catalog:
             raise ValueError("Unknown macro source field")
         rows, recent = await asyncio.gather(
             self._execute_mappings(text(
@@ -1829,6 +1976,7 @@ class TushareReadService:
             ), {}),
         )
         return {"available": bool(rows), "key": key, "label": label, "field": field,
+                "field_meta": catalog[field],
                 "frequency": frequency, "period_field": period, "source": f"{self.schema}.{table}",
                 "start": str(rows[0]["period"]) if rows else None,
                 "end": str(rows[-1]["period"]) if rows else None, "points": len(rows),
