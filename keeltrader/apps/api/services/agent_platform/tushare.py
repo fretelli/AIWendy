@@ -1220,8 +1220,9 @@ class TushareReadService:
 
     async def valuation_snapshot(self, include_membership: bool = False) -> dict[str, Any]:
         payload = await self._market_analysis_snapshot(
-            "market_valuation_snapshot", "kt_valuation_percentile_v2",
-            {"items": [], "percentile_window": "5Y", "synthetic_substitution": False},
+            "market_valuation_snapshot", "kt_valuation_percentile_v3",
+            {"items": [], "percentile_window": "5Y", "cross_universe_comparable": False,
+             "synthetic_substitution": False},
         )
         if not include_membership:
             payload.pop("membership_map", None)
@@ -1234,9 +1235,9 @@ class TushareReadService:
         if "market_valuation_snapshot" not in queryable_tables():
             return {"metadata": self._analysis_metadata(
                 status="unavailable", reason_code="materialized_capability_unavailable", as_of=None,
-                coverage=None, methodology_key="kt_valuation_percentile_v2", source_datasets=[],
+                coverage=None, methodology_key="kt_valuation_percentile_v3", source_datasets=[],
             ), "code": code, "universe": universe, "points": [], "requested_limit": limit,
-                "available_points_total": 0}
+                "available_points_total": 0, "methodology": {}, "cross_universe_comparable": False}
         rows = await self._execute_mappings(text(f"""
             WITH snapshots AS (
               SELECT DISTINCT ON(as_of) analysis_version,as_of,computed_at,payload
@@ -1244,7 +1245,7 @@ class TushareReadService:
               WHERE methodology_key=:methodology AND as_of IS NOT NULL
               ORDER BY as_of DESC,computed_at DESC
             ), matching AS (
-              SELECT snapshots.analysis_version,snapshots.as_of,item
+              SELECT snapshots.analysis_version,snapshots.as_of,snapshots.payload->'methodology' AS methodology,item
               FROM snapshots CROSS JOIN LATERAL jsonb_array_elements(snapshots.payload->'items') item
               WHERE item->>'code'=:code AND item->>'universe'=:universe
             ), counted AS (
@@ -1253,10 +1254,10 @@ class TushareReadService:
             ), limited AS (
               SELECT * FROM counted ORDER BY as_of DESC LIMIT :limit
             )
-            SELECT limited.analysis_version,limited.as_of,limited.item,limited.available_points_total
+            SELECT limited.analysis_version,limited.as_of,limited.methodology,limited.item,limited.available_points_total
             FROM limited
             ORDER BY limited.as_of
-        """), {"methodology": "kt_valuation_percentile_v2", "limit": limit,
+        """), {"methodology": "kt_valuation_percentile_v3", "limit": limit,
                  "code": code, "universe": universe})
         points: list[dict[str, Any]] = []
         for row in rows:
@@ -1268,6 +1269,7 @@ class TushareReadService:
                     "pe", "pb", "pe_percentile", "pb_percentile", "activity_percentile",
                     "crowding_percentile", "crowding_status", "crowding_reason",
                     "crowding_coverage", "percentile_change_1m", "percentile_change_3m",
+                    "pe_basis", "pe_source_field", "pb_basis", "pb_source_field", "comparison_group",
                 )},
             })
         latest = points[-1]["as_of"] if points else None
@@ -1278,12 +1280,13 @@ class TushareReadService:
                 status="partial" if points and backfill_partial else "available" if points else "unavailable",
                 reason_code="historical_backfill_in_progress" if points and backfill_partial else None if points else "materialized_snapshot_pending",
                 as_of=latest, coverage=min(available_points_total, limit) / limit if limit else None,
-                methodology_key="kt_valuation_percentile_v2", source_datasets=["market_valuation_snapshot"],
+                methodology_key="kt_valuation_percentile_v3", source_datasets=["market_valuation_snapshot"],
             ),
             "code": code, "universe": universe, "points": points, "requested_limit": limit,
             "available_points_total": available_points_total,
             "available_start": points[0]["as_of"] if points else None,
-            "available_end": latest, "point_in_time": True, "synthetic_substitution": False,
+            "available_end": latest, "methodology": dict(rows[-1].get("methodology") or {}) if rows else {},
+            "cross_universe_comparable": False, "point_in_time": True, "synthetic_substitution": False,
         }
 
     async def correlation_snapshot(self, window: int = 60) -> dict[str, Any]:

@@ -18,7 +18,11 @@ test("the canonical market board uses the four approved same-screen analyses", (
   expect(market).toContain("item.percentile_change_3m != null");
   expect(market).toContain('item.universe === "broad"');
   expect(market).toContain('item.universe === "sw_l1"');
-  expect(market).toContain('data?.metadata.methodology_key === "kt_valuation_percentile_v2"');
+  expect(market).toContain('valuation?.metadata.methodology_key === "kt_valuation_percentile_v3"');
+  expect(market).toContain('useState<ValuationScope>("broad")');
+  expect(market).not.toContain("['all', '全部', 'All']");
+  expect(market).toContain("PE-TTM");
+  expect(market).toContain("PE（申万源口径）");
   expect(market).toContain("historical_coverage_partial");
   expect(api).toContain("valuationBoard: ()");
   expect(api).toContain("valuationHistory: (code: string");
@@ -64,5 +68,5 @@ test("market module exposes exactly two approved top-level tabs and professional
   expect(market).not.toContain("<Secondary");
   expect(market).not.toContain("<MetricCard");
   for (const detail of ["rates", "futures", "options"]) expect(market).toContain(`"${detail}"`);
-  for (const filter of ["全部", "宽基指数", "申万一级", "我的持仓行业"]) expect(market).toContain(filter);
+  for (const filter of ["宽基指数", "申万一级", "我的持仓行业"]) expect(market).toContain(filter);
 });
