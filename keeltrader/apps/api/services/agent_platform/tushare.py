@@ -72,16 +72,16 @@ _MACRO_ANALYSIS_DEFINITIONS: dict[str, dict[str, Any]] = {
     "trade_balance_usd": {"domain": "macro", "theme": "external", "table": "macro_release_series", "series_key": "trade_balance_usd", "period": "period", "frequency": "monthly", "label": "贸易差额", "primary": "actual_value", "primary_unit": "十亿美元", "mom_mode": "difference", "mom_unit": "十亿美元", "yoy_mode": "difference", "yoy_unit": "十亿美元", "minimum_samples": 12},
     "fx_reserves_usd": {"domain": "macro", "theme": "external", "table": "macro_release_series", "series_key": "fx_reserves_usd", "period": "period", "frequency": "monthly", "label": "外汇储备", "primary": "actual_value", "primary_unit": "十亿美元", "mom_mode": "difference", "mom_unit": "十亿美元", "yoy_mode": "difference", "yoy_unit": "十亿美元", "minimum_samples": 12},
     "new_rmb_loans": {"domain": "macro", "theme": "credit", "table": "macro_release_series", "series_key": "new_rmb_loans", "period": "period", "frequency": "monthly", "label": "新增人民币贷款", "primary": "actual_value", "primary_unit": "亿元", "mom_mode": "not_applicable", "mom_reason": "seasonal_monthly_flow", "yoy_mode": "percent", "yoy_unit": "%", "percentile_mode": "same_calendar_month", "minimum_samples": 5},
-    "shibor": {"domain": "rates", "table": "shibor", "period": "date", "frequency": "daily", "label": "SHIBOR 3M",
+    "shibor": {"domain": "rates", "theme": "rates", "table": "shibor", "period": "date", "frequency": "daily", "label": "SHIBOR 3M",
             "primary": "3m", "primary_unit": "%", "mom_mode": "basis_points", "mom_unit": "bp",
             "yoy_mode": "basis_points", "yoy_unit": "bp"},
-    "lpr": {"domain": "rates", "table": "lpr", "period": "date", "frequency": "monthly", "label": "LPR 1Y",
+    "lpr": {"domain": "rates", "theme": "rates", "table": "lpr", "period": "date", "frequency": "monthly", "label": "LPR 1Y",
             "primary": "1y", "primary_unit": "%", "mom_mode": "basis_points", "mom_unit": "bp",
             "yoy_mode": "basis_points", "yoy_unit": "bp"},
-    "us_treasury": {"domain": "rates", "table": "us_tycr", "period": "date", "frequency": "daily", "label": "美国国债收益率 10Y",
+    "us_treasury": {"domain": "rates", "theme": "rates", "table": "us_tycr", "period": "date", "frequency": "daily", "label": "美国国债收益率 10Y",
             "primary": "y10", "primary_unit": "%", "mom_mode": "basis_points", "mom_unit": "bp",
             "yoy_mode": "basis_points", "yoy_unit": "bp"},
-    "us_real_treasury": {"domain": "rates", "table": "us_trycr", "period": "date", "frequency": "daily", "label": "美国实际国债收益率 10Y",
+    "us_real_treasury": {"domain": "rates", "theme": "rates", "table": "us_trycr", "period": "date", "frequency": "daily", "label": "美国实际国债收益率 10Y",
             "primary": "y10", "primary_unit": "%", "mom_mode": "basis_points", "mom_unit": "bp",
             "yoy_mode": "basis_points", "yoy_unit": "bp"},
 }
@@ -187,6 +187,28 @@ def _shift_months(value: date, months: int) -> date:
     year, month_index = divmod(total, 12)
     month = month_index + 1
     return date(year, month, min(value.day, calendar.monthrange(year, month)[1]))
+
+
+def macro_freshness(period: Any, frequency: str, today: date | None = None) -> dict[str, Any]:
+    """Classify source freshness without hiding auditable historical data."""
+    parsed = _period_date(period, frequency)
+    if parsed is None:
+        return {"freshness_state": "unknown", "latest_period": str(period) if period else None}
+    normalized = frequency.lower()
+    if "quarter" in normalized:
+        period_end = _shift_months(parsed, 3) - timedelta(days=1)
+        max_lag_days = 75
+    elif "month" in normalized:
+        period_end = _shift_months(parsed, 1) - timedelta(days=1)
+        max_lag_days = 62
+    else:
+        period_end = parsed
+        max_lag_days = 10
+    lag_days = max(0, ((today or date.today()) - period_end).days)
+    return {
+        "freshness_state": "current" if lag_days <= max_lag_days else "stale",
+        "latest_period": str(period), "lag_days": lag_days, "max_lag_days": max_lag_days,
+    }
 
 
 def _latest_metric(meta: dict[str, Any], rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1901,6 +1923,7 @@ class TushareReadService:
         detail["source"] = f"{self.schema}.{table}"
         detail["recent_source_rows"] = rows[-12:]
         detail["field_catalog"] = _MACRO_FIELD_CATALOG.get(key, [])
+        freshness = macro_freshness(detail.get("end"), str(definition["frequency"]))
         if definition.get("series_key"):
             minimum = int(definition.get("minimum_samples") or 12)
             covered = sum(1 for row in rows if _number(row.get("actual_value")) is not None)
@@ -1909,6 +1932,7 @@ class TushareReadService:
                 "coverage_points": covered,
                 "minimum_samples": minimum,
                 "status": "available" if covered >= minimum else "insufficient_release_coverage",
+                **freshness,
             }
             detail["available"] = detail["available"] and covered >= minimum
             if not detail["available"]:
@@ -1924,13 +1948,19 @@ class TushareReadService:
                     "surprise": round(actual - forecast, 6) if actual is not None and forecast is not None else None,
                 }
         else:
-            detail["quality"] = {"source_type": "structured", "status": "available" if detail["available"] else "unavailable"}
+            detail["quality"] = {
+                "source_type": "structured", "status": "available" if detail["available"] else "unavailable",
+                **freshness,
+            }
+        if detail["available"] and freshness.get("freshness_state") == "stale":
+            detail["quality"]["status"] = "stale"
+            detail["reason_code"] = "stale_source_data"
         return detail
 
     async def macro_catalog(self) -> dict[str, Any]:
         """Return lightweight audited summaries; full history remains lazy-loaded."""
         definitions = {key: item for key, item in _MACRO_ANALYSIS_DEFINITIONS.items()
-                       if item.get("domain") == "macro"}
+                       if item.get("domain") in {"macro", "rates"}}
         tables = list(dict.fromkeys(str(item["table"]) for item in definitions.values()))
         fields_task = asyncio.create_task(self._numeric_fields(tables))
         details = await asyncio.gather(*(self._macro_detail(key) for key in definitions))
@@ -1955,7 +1985,7 @@ class TushareReadService:
 
     async def macro_series(self, key: str, field: str | None = None) -> dict[str, Any]:
         source_definition = _MACRO_ANALYSIS_DEFINITIONS.get(key)
-        if not source_definition or source_definition.get("domain") != "macro":
+        if not source_definition or source_definition.get("domain") not in {"macro", "rates"}:
             raise ValueError("Unknown macro series")
         definition = self.macro_definitions()[key]
         table, period, frequency, label = definition

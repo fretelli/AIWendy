@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from services.agent_platform.tushare import TushareReadService, build_macro_analysis
+from services.agent_platform.tushare import TushareReadService, build_macro_analysis, macro_freshness
 
 
 def test_cpi_headline_is_official_yoy_and_percentile_uses_that_series():
@@ -97,7 +97,7 @@ def test_money_supply_headline_is_m2_yoy_and_credit_percentile_is_same_calendar_
 
 
 @pytest.mark.asyncio
-async def test_macro_catalog_excludes_rates_and_keeps_fiscal_gap_explicit():
+async def test_macro_catalog_preserves_rates_and_keeps_fiscal_gap_explicit():
     reader = TushareReadService(None)
     requested = []
 
@@ -111,12 +111,22 @@ async def test_macro_catalog_excludes_rates_and_keeps_fiscal_gap_explicit():
     reader._macro_detail = detail
     reader._numeric_fields = fields
     catalog = await reader.macro_catalog()
-    assert "shibor" not in requested
-    assert "lpr" not in requested
+    assert "shibor" in requested
+    assert "lpr" in requested
+    assert "us_treasury" in requested
+    assert "us_real_treasury" in requested
     fiscal = next(item for item in catalog["items"] if item["key"] == "fiscal")
     assert fiscal["available"] is False
     assert fiscal["reason_code"] == "provider_dataset_unavailable"
     assert catalog["methodology"]["synthetic_substitution"] is False
+
+
+def test_macro_freshness_marks_old_monthly_and_quarterly_data_stale():
+    assert macro_freshness("202607", "monthly", date(2026, 8, 17))["freshness_state"] == "current"
+    stale_month = macro_freshness("202510", "monthly", date(2026, 8, 17))
+    assert stale_month["freshness_state"] == "stale"
+    assert stale_month["lag_days"] > stale_month["max_lag_days"]
+    assert macro_freshness("2026Q1", "quarterly", date(2026, 8, 17))["freshness_state"] == "stale"
 
 
 @pytest.mark.asyncio
