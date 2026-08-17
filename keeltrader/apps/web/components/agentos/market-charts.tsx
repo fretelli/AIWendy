@@ -7,10 +7,11 @@ import type { ValuationBoard } from "@/lib/api/agent-platform";
 
 const COLORS = { grid: "#1A222A", text: "#8A97A3", dim: "#5C6873", mint: "#5FE3B5", amber: "#E8A34D", up: "#FF5A52", blue: "#67A8FF" };
 
-export function ValuationScatterChart({ items, locale, title, asOf, onSelect }: {
+export function ValuationScatterChart({ items, locale, title, peLabel, asOf, onSelect }: {
   items: ValuationBoard["items"];
   locale: "zh" | "en";
   title: string;
+  peLabel: string;
   asOf?: string;
   onSelect?: (item: ValuationBoard["items"][number]) => void;
 }) {
@@ -53,7 +54,7 @@ export function ValuationScatterChart({ items, locale, title, asOf, onSelect }: 
             ? (locale === "zh" ? "正式组件覆盖率低于 80%" : "Formal component coverage is below 80%")
             : item?.crowdingReason;
           const reason = reasonText ? `<br/><span style="color:${COLORS.amber}">${reasonText}</span>` : "";
-          return `${item?.name || "—"}<br/><span style="color:${COLORS.dim}">${item?.code || ""}</span><br/>PE ${locale === "zh" ? "分位" : "percentile"} ${Number(values[1] || 0).toFixed(0)}%<br/>Δ3M ${Number(values[0] || 0) >= 0 ? "+" : ""}${Number(values[0] || 0).toFixed(1)} pct<br/>${locale === "zh" ? "拥挤度" : "Crowding"} ${crowding}<br/>${locale === "zh" ? "覆盖率" : "Coverage"} ${coverage}${coverageCount}${reason}`;
+          return `${item?.name || "—"}<br/><span style="color:${COLORS.dim}">${item?.code || ""}</span><br/>${peLabel} ${locale === "zh" ? "五年分位" : "5Y percentile"} ${Number(values[1] || 0).toFixed(0)}%<br/>Δ3M ${Number(values[0] || 0) >= 0 ? "+" : ""}${Number(values[0] || 0).toFixed(1)} pct<br/>${locale === "zh" ? "独立拥挤度" : "Independent crowding"} ${crowding}<br/>${locale === "zh" ? "覆盖率" : "Coverage"} ${coverage}${coverageCount}${reason}`;
         },
       },
       xAxis: {
@@ -62,7 +63,7 @@ export function ValuationScatterChart({ items, locale, title, asOf, onSelect }: 
         axisLine: { lineStyle: { color: COLORS.grid } }, splitLine: { lineStyle: { color: COLORS.grid, type: "dashed" } },
       },
       yAxis: {
-        type: "value", min: 0, max: 100, name: locale === "zh" ? "PE 分位" : "PE percentile",
+        type: "value", min: 0, max: 100, name: locale === "zh" ? `${peLabel} 五年分位` : `${peLabel} 5Y percentile`,
         axisLabel: { color: COLORS.dim, fontSize: 9, formatter: "{value}%" }, nameTextStyle: { color: COLORS.dim, fontSize: 9 },
         axisLine: { lineStyle: { color: COLORS.grid } }, splitLine: { lineStyle: { color: COLORS.grid, type: "dashed" } },
       },
@@ -80,7 +81,7 @@ export function ValuationScatterChart({ items, locale, title, asOf, onSelect }: 
         markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: COLORS.grid }, data: [{ xAxis: 0 }, { yAxis: 50 }] },
       }],
     };
-  }, [items, locale]);
+  }, [items, locale, peLabel]);
   return <InteractiveChart option={option} title={title} description={`${asOf || "—"} · ${items.length} points`} locale={locale} height={310} zoomMode="xy" onItemClick={(params) => {
     const selected = params.data as { code?: string; universe?: string } | undefined;
     const item = items.find(value => value.code === selected?.code && value.universe === selected?.universe);

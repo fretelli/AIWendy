@@ -147,7 +147,7 @@ async def market_capital(session: AsyncSession = Depends(get_session), user: Use
 
 @router.get("/valuation-board")
 async def valuation_board(request: Request, session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
-    return await cached_json("valuation-board:v5", service(session).valuation_snapshot, request=request)
+    return await cached_json("valuation-board:v6", service(session).valuation_snapshot, request=request)
 
 
 @router.get("/valuation/history")
@@ -157,7 +157,7 @@ async def valuation_history(request: Request, code: str = Query(..., min_length=
                             session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     normalized = code.strip().upper()
     return await cached_json(
-        f"valuation:history:v2:{universe}:{normalized}:{limit}",
+        f"valuation:history:v3:{universe}:{normalized}:{limit}",
         lambda: service(session).valuation_history(normalized, universe, limit), ttl=60, request=request,
     )
 

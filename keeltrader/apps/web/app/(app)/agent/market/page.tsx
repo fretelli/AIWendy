@@ -23,6 +23,7 @@ const ValuationDrilldown = dynamic(() => import("@/components/agentos/valuation-
 
 type TopTab = "market" | "macro";
 type Detail = "rates" | "futures" | "options";
+type ValuationScope = "broad" | "industry" | "held";
 const HISTORY_RANGES = ["1M", "3M", "1Y", "3Y", "5Y"] as const;
 type HistoryRange = (typeof HISTORY_RANGES)[number];
 const MACRO_RANGES = [...HISTORY_RANGES, "10Y", "ALL"] as const;
@@ -54,14 +55,22 @@ export default function MarketPage() {
 
 function MarketBoard({ valuation, correlations, factors, locale }: { valuation: ValuationBoard | null; correlations: CorrelationBoard | null; factors: FactorBoard | null; locale: "zh" | "en" }) {
   const [selectedValuation, setSelectedValuation] = useState<ValuationItem | null>(null);
+  const [valuationScope, setValuationScope] = useState<ValuationScope>("broad");
+  const { data: held = null, isLoading: heldLoading } = useSWR<HeldIndustries>(valuationScope === "held" ? "markets/valuation/held-industries" : null, marketsApi.heldIndustries);
+  const isV3 = valuation?.metadata.methodology_key === "kt_valuation_percentile_v3";
+  const heldCodes = new Set(held?.industry_codes || []);
+  const valuationItems = (isV3 ? valuation?.items || [] : []).filter((item) => valuationScope === "broad"
+    ? item.universe === "broad"
+    : item.universe === "sw_l1" && (valuationScope === "industry" || heldCodes.has(item.code)));
   return <div className="flex min-h-[calc(100dvh-104px)] flex-col gap-3">
+    <Panel className="flex flex-wrap items-center gap-3 py-2.5"><span className="text-[10px] text-agent-muted">{locale === "zh" ? "估值比较范围" : "Valuation comparison scope"}</span><ToggleGroup type="single" value={valuationScope} onValueChange={(value) => { if (value) setValuationScope(value as ValuationScope); }} variant="outline" size="sm" aria-label={locale === "zh" ? "估值比较范围" : "Valuation comparison scope"}>{([['broad', '宽基指数', 'Broad Indices'], ['industry', '申万一级', 'SW Level 1'], ['held', '我的持仓行业', 'Held Industries']] as const).map(([value, zh, en]) => <ToggleGroupItem key={value} value={value}>{locale === "zh" ? zh : en}</ToggleGroupItem>)}</ToggleGroup><span className="text-[9px] text-agent-dim">{valuationScope === "broad" ? (locale === "zh" ? "PE-TTM；仅在宽基组内比较" : "PE-TTM; broad-group comparison only") : (locale === "zh" ? "PE（申万源口径）；仅在申万一级组内比较" : "PE (SW source basis); SW L1 comparison only")}</span></Panel>
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(390px,1.05fr)_minmax(330px,.95fr)] gap-3">
     <div className="grid min-h-0 gap-3 xl:grid-cols-[1.6fr_1fr]">
-      <ValuationMatrix data={valuation} locale={locale} onSelect={setSelectedValuation} />
+      <ValuationMatrix data={valuation} items={valuationItems} scope={valuationScope} held={held} heldLoading={heldLoading} locale={locale} onSelect={setSelectedValuation} />
       <CorrelationMatrix data={correlations} locale={locale} />
     </div>
     <div className="grid min-h-0 gap-3 xl:grid-cols-[1.35fr_1fr]">
-      <ValuationRanking data={valuation} locale={locale} onSelect={setSelectedValuation} />
+      <ValuationRanking data={valuation} items={valuationItems} scope={valuationScope} locale={locale} onSelect={setSelectedValuation} />
       <FactorCrowding data={factors} locale={locale} />
     </div>
     </div>
@@ -69,17 +78,14 @@ function MarketBoard({ valuation, correlations, factors, locale }: { valuation: 
   </div>;
 }
 
-function ValuationMatrix({ data, locale, onSelect }: { data: ValuationBoard | null; locale: "zh" | "en"; onSelect: (item: ValuationItem) => void }) {
-  const [kind, setKind] = useState<"all" | "broad" | "industry" | "held">("all");
-  const { data: held = null, isLoading: heldLoading } = useSWR<HeldIndustries>(kind === "held" ? "markets/valuation/held-industries" : null, marketsApi.heldIndustries);
-  const isV2 = data?.metadata.methodology_key === "kt_valuation_percentile_v2";
-  const heldCodes = new Set(held?.industry_codes || []);
-  const scopedItems = (isV2 ? data?.items || [] : []).filter((item) => kind === "all" || (kind === "broad" ? item.universe === "broad" : kind === "industry" ? item.universe === "sw_l1" : item.universe === "sw_l1" && heldCodes.has(item.code)));
+function ValuationMatrix({ data, items: scopedItems, scope, held, heldLoading, locale, onSelect }: { data: ValuationBoard | null; items: ValuationItem[]; scope: ValuationScope; held: HeldIndustries | null; heldLoading: boolean; locale: "zh" | "en"; onSelect: (item: ValuationItem) => void }) {
   const items = scopedItems.filter((item) => item.percentile_change_3m != null && item.pe_percentile != null);
+  const peLabel = valuationPeLabel(scope, locale);
   return <Panel className="flex min-h-0 flex-col overflow-hidden">
-    <div className="mb-2 flex flex-wrap items-baseline gap-3"><PanelTitle title={locale === "zh" ? "估值分位矩阵" : "Valuation Percentile Matrix"} note={locale === "zh" ? "纵轴 PE 分位 · 横轴 Δ3M · 气泡 = 正式拥挤度；悬停查看，点击下钻" : "PE percentile · Δ3M · bubble = formal crowding; hover to inspect, click to drill down"} /><div className="ml-auto flex flex-wrap gap-1">{([['all', '全部', 'All'], ['broad', '宽基指数', 'Broad Indices'], ['industry', '申万一级', 'SW Level 1'], ['held', '我的持仓行业', 'Held Industries']] as const).map(([value, zh, en]) => <Button key={value} type="button" size="sm" variant={kind === value ? "secondary" : "outline"} onClick={() => setKind(value)}>{locale === "zh" ? zh : en}</Button>)}</div></div>
-    {kind === "held" && heldLoading ? <EmptyPanel title={locale === "zh" ? "正在映射持仓行业" : "Mapping held industries"} detail={locale === "zh" ? "只读取活跃账户的非零 A 股持仓。" : "Only non-zero A-share positions in active accounts are read."} /> : items.length ? <ValuationScatterChart items={items.map(item => ({ ...item, name: localizedMarketName(item.name, item.code, locale) }))} locale={locale} title={locale === "zh" ? "估值分位矩阵" : "Valuation Percentile Matrix"} asOf={data?.metadata.as_of} onSelect={onSelect} /> : <DataGap title={kind === "held" ? (locale === "zh" ? "持仓行业映射不可用" : "Held-industry mapping unavailable") : (locale === "zh" ? "估值矩阵不可用" : "Valuation matrix unavailable")} reason={kind === "held" ? "held_industry_mapping_unavailable" : isV2 ? data?.metadata.reason_code : "valuation_v2_pending"} locale={locale} />}
-    {kind === "held" && held?.eligible ? <p className="mt-1 text-[9px] text-agent-dim">{locale === "zh" ? `持仓映射覆盖 ${held.covered}/${held.eligible}${held.missing_symbols.length ? `；缺失 ${held.missing_symbols.join("、")}` : ""}` : `Position mapping coverage ${held.covered}/${held.eligible}${held.missing_symbols.length ? `; missing ${held.missing_symbols.join(", ")}` : ""}`}</p> : null}
+    <PanelTitle title={locale === "zh" ? "估值分位矩阵" : "Valuation Percentile Matrix"} note={locale === "zh" ? `纵轴 ${peLabel}五年分位 · 横轴同口径 Δ3M · 气泡 = 独立拥挤度` : `${peLabel} 5Y percentile · same-basis Δ3M · bubble = independent crowding`} />
+    {scope === "held" && heldLoading ? <EmptyPanel title={locale === "zh" ? "正在映射持仓行业" : "Mapping held industries"} detail={locale === "zh" ? "只读取活跃账户的非零 A 股持仓。" : "Only non-zero A-share positions in active accounts are read."} /> : items.length ? <ValuationScatterChart items={items.map(item => ({ ...item, name: localizedMarketName(item.name, item.code, locale) }))} locale={locale} title={locale === "zh" ? "估值分位矩阵" : "Valuation Percentile Matrix"} peLabel={peLabel} asOf={data?.metadata.as_of} onSelect={onSelect} /> : <DataGap title={scope === "held" ? (locale === "zh" ? "持仓行业映射不可用" : "Held-industry mapping unavailable") : (locale === "zh" ? "估值矩阵不可用" : "Valuation matrix unavailable")} reason={scope === "held" ? "held_industry_mapping_unavailable" : data?.metadata.reason_code || "valuation_v3_pending"} locale={locale} />}
+    {scope === "held" && held?.eligible ? <p className="mt-1 text-[9px] text-agent-dim">{locale === "zh" ? `持仓映射覆盖 ${held.covered}/${held.eligible}${held.missing_symbols.length ? `；缺失 ${held.missing_symbols.join("、")}` : ""}` : `Position mapping coverage ${held.covered}/${held.eligible}${held.missing_symbols.length ? `; missing ${held.missing_symbols.join(", ")}` : ""}`}</p> : null}
+    <p className="mt-1 text-[9px] text-agent-dim">{locale === "zh" ? "气泡拥挤度是独立模型，不由页面展示的 PE 推导；其估值扩张组件按个股 pe_ttm → pb → ps_ttm 取值。" : "Bubble crowding is an independent model, not derived from displayed PE; its stock-level valuation-expansion input falls back pe_ttm → pb → ps_ttm."}</p>
     {items.some(item => item.crowding_status !== "available") ? <p className="mt-1 text-[9px] text-agent-amber">{locale === "zh" ? "部分或全部拥挤度尚未达到正式方法覆盖门槛，气泡保持中性，不使用成交活跃度代理。" : "Some crowding values do not meet the formal methodology threshold; neutral bubbles are shown without activity proxies."}</p> : null}
   </Panel>;
 }
@@ -118,17 +124,18 @@ function CorrelationRow({ row, index, data, locale, fontSize, onSelect }: { row:
   })}</>;
 }
 
-function ValuationRanking({ data, locale, onSelect }: { data: ValuationBoard | null; locale: "zh" | "en"; onSelect: (item: ValuationItem) => void }) {
-  const items = (data?.items || []).slice(0, 9);
+function ValuationRanking({ data, items: scopedItems, scope, locale, onSelect }: { data: ValuationBoard | null; items: ValuationItem[]; scope: ValuationScope; locale: "zh" | "en"; onSelect: (item: ValuationItem) => void }) {
+  const items = scopedItems.slice(0, 9);
   const [fullscreen, setFullscreen] = useState(false);
-  return <Panel className="min-h-0 overflow-hidden"><PanelTitle title={locale === "zh" ? "估值分位排序 · 带时间维度" : "Valuation Ranking · Time-Aware"} note={locale === "zh" ? "变化为分位百分点" : "Percentile changes in points"} actions={items.length ? <Button type="button" size="icon" variant="ghost" onClick={() => setFullscreen(true)} aria-label={locale === "zh" ? "全屏查看估值排序" : "View valuation ranking fullscreen"}><Maximize2 /></Button> : null} />
-    {items.length ? <ValuationTable items={items} locale={locale} fontSize={11} onSelect={onSelect} /> : <DataGap title={locale === "zh" ? "估值排序不可用" : "Valuation ranking unavailable"} reason={data?.metadata.reason_code} locale={locale} />}
-    <FullscreenDataView open={fullscreen} onOpenChange={setFullscreen} title={locale === "zh" ? "估值分位排序" : "Valuation Ranking"} locale={locale}>{(fontSize) => <ValuationTable items={data?.items || []} locale={locale} fontSize={fontSize} onSelect={(item) => { setFullscreen(false); onSelect(item); }} />}</FullscreenDataView>
+  return <Panel className="min-h-0 overflow-hidden"><PanelTitle title={locale === "zh" ? "估值分位排序 · 带时间维度" : "Valuation Ranking · Time-Aware"} note={locale === "zh" ? `${valuationPeLabel(scope, locale)}五年分位；变化为分位百分点` : `${valuationPeLabel(scope, locale)} 5Y percentile; changes in points`} actions={items.length ? <Button type="button" size="icon" variant="ghost" onClick={() => setFullscreen(true)} aria-label={locale === "zh" ? "全屏查看估值排序" : "View valuation ranking fullscreen"}><Maximize2 /></Button> : null} />
+    {items.length ? <ValuationTable items={items} scope={scope} locale={locale} fontSize={11} onSelect={onSelect} /> : <DataGap title={locale === "zh" ? "估值排序不可用" : "Valuation ranking unavailable"} reason={data?.metadata.reason_code} locale={locale} />}
+    <FullscreenDataView open={fullscreen} onOpenChange={setFullscreen} title={locale === "zh" ? "估值分位排序" : "Valuation Ranking"} locale={locale}>{(fontSize) => <ValuationTable items={scopedItems} scope={scope} locale={locale} fontSize={fontSize} onSelect={(item) => { setFullscreen(false); onSelect(item); }} />}</FullscreenDataView>
   </Panel>;
 }
 
-function ValuationTable({ items, locale, fontSize, onSelect }: { items: ValuationBoard["items"]; locale: "zh" | "en"; fontSize: number; onSelect: (item: ValuationItem) => void }) {
-  return <div className="overflow-auto"><table className="w-full min-w-[760px] text-left" style={{ fontSize }}><thead className="font-data text-agent-dim"><tr><th className="pb-2 font-normal">{locale === "zh" ? "名称 / 代码" : "Name / Code"}</th><th className="pb-2 text-right font-normal">PE</th><th className="pb-2 text-right font-normal">PE %</th><th className="pb-2 text-right font-normal">Δ1M</th><th className="pb-2 text-right font-normal">Δ3M</th><th className="pb-2 text-right font-normal">PB %</th><th className="pb-2 text-right font-normal">{locale === "zh" ? "换手" : "Turnover"}</th></tr></thead><tbody className="divide-y divide-agent-border">{items.map((item) => <tr key={`${item.source}-${item.code}`}><td className="py-2.5"><button type="button" onClick={() => onSelect(item)} className="rounded-sm text-left hover:text-agent-mint focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-agent-mint" aria-label={locale === "zh" ? `查看${localizedMarketName(item.name, item.code, locale)}估值详情` : `View valuation details for ${localizedMarketName(item.name, item.code, locale)}`}><span className="block text-agent-text">{localizedMarketName(item.name, item.code, locale)}</span><span className="font-data text-agent-dim" style={{ fontSize: Math.max(10, fontSize - 2) }}>{item.code}</span></button></td><NumberCell value={item.pe} /><PercentCell value={item.pe_percentile} /><SignedCell value={item.percentile_change_1m} /><SignedCell value={item.percentile_change_3m} /><PercentCell value={item.pb_percentile} /><NumberCell value={item.turnover_rate} suffix="%" /></tr>)}</tbody></table></div>;
+function ValuationTable({ items, scope, locale, fontSize, onSelect }: { items: ValuationBoard["items"]; scope: ValuationScope; locale: "zh" | "en"; fontSize: number; onSelect: (item: ValuationItem) => void }) {
+  const peLabel = valuationPeLabel(scope, locale);
+  return <div className="overflow-auto"><table className="w-full min-w-[800px] text-left" style={{ fontSize }}><thead className="font-data text-agent-dim"><tr><th className="pb-2 font-normal">{locale === "zh" ? "名称 / 代码" : "Name / Code"}</th><th className="pb-2 text-right font-normal">{peLabel}</th><th className="pb-2 text-right font-normal">{peLabel} %</th><th className="pb-2 text-right font-normal">Δ1M</th><th className="pb-2 text-right font-normal">Δ3M</th><th className="pb-2 text-right font-normal">{locale === "zh" ? "PB（源口径）%" : "PB (source basis) %"}</th><th className="pb-2 text-right font-normal">{locale === "zh" ? "换手" : "Turnover"}</th></tr></thead><tbody className="divide-y divide-agent-border">{items.map((item) => <tr key={`${item.source}-${item.code}`}><td className="py-2.5"><button type="button" onClick={() => onSelect(item)} className="rounded-sm text-left hover:text-agent-mint focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-agent-mint" aria-label={locale === "zh" ? `查看${localizedMarketName(item.name, item.code, locale)}估值详情` : `View valuation details for ${localizedMarketName(item.name, item.code, locale)}`}><span className="block text-agent-text">{localizedMarketName(item.name, item.code, locale)}</span><span className="font-data text-agent-dim" style={{ fontSize: Math.max(10, fontSize - 2) }}>{item.code}</span></button></td><NumberCell value={item.pe} /><PercentCell value={item.pe_percentile} /><SignedCell value={item.percentile_change_1m} /><SignedCell value={item.percentile_change_3m} /><PercentCell value={item.pb_percentile} /><NumberCell value={item.turnover_rate} suffix="%" /></tr>)}</tbody></table></div>;
 }
 
 function FullscreenDataView({ open, onOpenChange, title, locale, children }: { open: boolean; onOpenChange: (open: boolean) => void; title: string; locale: "zh" | "en"; children: (fontSize: number) => ReactNode }) {
@@ -208,6 +215,7 @@ function formatSigned(value?: number | null) { return value == null ? "—" : `$
 function factorLabel(key: string, locale: "zh" | "en") { const labels: Record<string, [string, string]> = { value: ["价值", "Value"], momentum: ["动量", "Momentum"], low_vol: ["低波", "Low Vol"], quality: ["质量", "Quality"], growth: ["成长", "Growth"], size: ["规模", "Size"], dividend: ["红利", "Dividend"], cn_equity: ["A股", "CN Equity"], hk_equity: ["港股", "HK Equity"], us_equity: ["美股", "US Equity"], bond: ["债券", "Bonds"], commodity: ["商品", "Commodities"], fx: ["外汇", "FX"] }; return labels[key]?.[locale === "zh" ? 0 : 1] || key; }
 function macroLabel(key: string, locale: "zh" | "en") { const labels: Record<string, [string, string]> = { gdp: ["GDP", "GDP"], cpi: ["居民消费价格", "CPI"], ppi: ["工业生产者价格", "PPI"], money_supply: ["货币供应量", "Money Supply"], social_financing: ["社会融资规模", "Social Financing"], pmi: ["采购经理指数", "PMI"], shibor: ["上海银行间同业拆放利率", "SHIBOR"], lpr: ["贷款市场报价利率", "LPR"], us_treasury: ["美国国债收益率", "US Treasury"], us_real_treasury: ["美国实际国债收益率", "US Real Treasury"] }; return labels[key]?.[locale === "zh" ? 0 : 1] || key; }
 function localizedMarketName(name: string, code: string, locale: "zh" | "en") { return locale === "en" && /[\u3400-\u9fff]/.test(name) ? code : name; }
+function valuationPeLabel(scope: ValuationScope, locale: "zh" | "en") { return scope === "broad" ? "PE-TTM" : locale === "zh" ? "PE（申万源口径）" : "PE (SW source basis)"; }
 function periodLimit(period: HistoryRange) {
   return ({ "1M": 22, "3M": 66, "1Y": 252, "3Y": 756, "5Y": 1260 } as const)[period];
 }

@@ -19,7 +19,7 @@ async def test_snapshot_reader_preserves_payload_and_adds_materialization_metada
         "analysis_version": "analysis-v1",
         "computed_at": "2026-08-03T10:00:00Z",
         "source_watermarks": {"sw_daily": "2026-08-01"},
-        "payload": {"metadata": {"status": "available", "methodology_key": "kt_valuation_percentile_v2",
+        "payload": {"metadata": {"status": "available", "methodology_key": "kt_valuation_percentile_v3",
                                   "source_datasets": ["sw_daily"]},
                     "items": [{"code": "801010.SI"}], "membership_map": {"000001.SZ": {"code": "801780.SI"}},
                     "percentile_window": "5Y",
@@ -32,7 +32,7 @@ async def test_snapshot_reader_preserves_payload_and_adds_materialization_metada
     assert result["metadata"]["publication_version"] == "publication-v1"
     assert result["metadata"]["source_watermarks"] == {"sw_daily": "2026-08-01"}
     query_parameters = reader._execute_mappings.await_args.args[1]
-    assert query_parameters["methodology"] == "kt_valuation_percentile_v2"
+    assert query_parameters["methodology"] == "kt_valuation_percentile_v3"
 
 
 @pytest.mark.asyncio
@@ -41,20 +41,28 @@ async def test_valuation_history_reads_only_versioned_snapshots(monkeypatch):
     reader = TushareReadService(None)
     reader._execute_mappings = AsyncMock(return_value=[{
         "analysis_version": "v1", "as_of": "2026-08-01",
-        "available_points_total": 9,
+        "available_points_total": 9, "methodology": {"cross_universe_comparable": False},
         "item": {"code": "801010.SI", "universe": "sw_l1", "trade_date": "2026-08-01",
-                 "pe": 12.3, "pb": 1.5, "pe_percentile": .4},
+                 "pe": 12.3, "pb": 1.5, "pe_percentile": .4,
+                 "pe_basis": "provider_defined", "pe_source_field": "sw_daily.pe",
+                 "pb_basis": "provider_defined", "pb_source_field": "sw_daily.pb",
+                 "comparison_group": "sw_l1_provider_pe"},
     }])
     result = await reader.valuation_history("801010.SI", "sw_l1", 1260)
     assert result["points"][0]["pe"] == 12.3
     assert result["available_start"] == "2026-08-01"
     assert result["available_points_total"] == 9
     assert result["metadata"]["coverage"] == 9 / 1260
+    assert result["methodology"]["cross_universe_comparable"] is False
+    assert result["cross_universe_comparable"] is False
+    assert result["points"][0]["pe_source_field"] == "sw_daily.pe"
+    assert result["points"][0]["comparison_group"] == "sw_l1_provider_pe"
     query = str(reader._execute_mappings.await_args.args[0])
     assert "market_valuation_snapshot" in query
     assert "DISTINCT ON(as_of)" in query
     assert "COUNT(*) OVER()" in query
     assert reader._execute_mappings.await_args.args[1]["limit"] == 1260
+    assert reader._execute_mappings.await_args.args[1]["methodology"] == "kt_valuation_percentile_v3"
 
 
 @pytest.mark.asyncio

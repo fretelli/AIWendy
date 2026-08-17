@@ -138,6 +138,9 @@ def test_agentos_market_analysis_uses_formal_versioned_methodologies():
     assert "market_snapshot_prewarm_loop" in worker
     for methodology in ("kt_valuation_percentile_v1", "kt_corr_v1", "kt_factor_v1", "kt_crowding_v1"):
         assert methodology in service
+    assert "kt_valuation_percentile_v3" in service
+    assert '"cross_universe_comparable": False' in service
+    assert '"pe_basis", "pe_source_field", "pb_basis", "pb_source_field", "comparison_group"' in service
     assert "INTERVAL '5 years'" in service
     assert "crowding_percentile" in service
     assert 'reason_code="historical_coverage_partial"' in service
