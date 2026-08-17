@@ -508,7 +508,9 @@ export type MacroCatalog = {
   items: Array<{
     key: string;
     label: string;
-    table: string | null;
+    table?: string | null;
+    domain?: "macro" | "rates";
+    theme?: "growth" | "prices" | "credit" | "sentiment" | "external" | "fiscal" | string;
     frequency?: string;
     period_field?: string;
     available: boolean;
@@ -518,14 +520,22 @@ export type MacroCatalog = {
     points?: number;
     source?: string;
     unavailable_reason?: string;
+    reason?: string;
+    reason_code?: string;
     primary_field?: string;
     primary_alias?: string;
     methodology_key?: string;
     summary?: MacroAnalysisSummary;
     sparkline?: { periods: string[]; values: Array<number | null> };
+    field_catalog?: MacroFieldMeta[];
+    quality?: MacroQuality;
+    latest_release?: MacroLatestRelease;
   }>;
-  methodology: { raw?: true; local_transforms?: boolean; raw_history?: boolean; synthetic_prices?: boolean; methodology_key?: string; percentile_window?: string };
+  methodology: { raw?: true; local_transforms?: boolean; raw_history?: boolean; synthetic_prices?: boolean; methodology_key?: string; percentile_window?: string; structured_source_priority?: boolean; eco_cal_gated_fallback?: boolean; synthetic_substitution?: boolean };
 };
+export type MacroFieldMeta = { key: string; label: string; unit: string; group: string };
+export type MacroQuality = { source_type: "structured" | "eco_cal_gated" | "unavailable" | string; status: string; coverage_points?: number; minimum_samples?: number };
+export type MacroLatestRelease = { release_date?: string | null; release_time?: string | null; event_name?: string | null; quality_state?: string | null; actual?: number | null; forecast?: number | null; surprise?: number | null };
 export type MacroMetricMethod = "official" | "calculated" | "not_applicable";
 export type MacroMetricSummary = {
   value: number | null;
@@ -548,6 +558,7 @@ export type MacroSeriesDetail = {
   key: string;
   label: string;
   field?: string;
+  field_meta?: MacroFieldMeta;
   frequency: string;
   period_field: string;
   source: string;
@@ -566,6 +577,10 @@ export type MacroSeriesDetail = {
     rows: MacroAnalysisPoint[];
   }>;
   sparkline?: { periods: string[]; values: Array<number | null> };
+  field_catalog?: MacroFieldMeta[];
+  quality?: MacroQuality;
+  latest_release?: MacroLatestRelease;
+  reason_code?: string;
 };
 export type RatesCatalog = MacroCatalog;
 export type RatesSeries = {

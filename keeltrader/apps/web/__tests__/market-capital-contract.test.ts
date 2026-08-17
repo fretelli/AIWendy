@@ -70,3 +70,19 @@ test("market module exposes exactly two approved top-level tabs and professional
   for (const detail of ["rates", "futures", "options"]) expect(market).toContain(`"${detail}"`);
   for (const filter of ["宽基指数", "申万一级", "我的持仓行业"]) expect(market).toContain(filter);
 });
+
+test("macro v2 is thematic, professionally labeled, and exposes gated subseries drilldown", () => {
+  for (const theme of ["增长与需求", "物价", "信用与货币", "景气与就业", "外贸与外储", "财政"]) {
+    expect(market).toContain(theme);
+  }
+  for (const headline of ["GDP 同比", "CPI 同比", "M2 同比", "社会融资增量", "制造业 PMI"]) {
+    expect(market).toContain(headline);
+  }
+  expect(market).toContain("未接入 · 不使用代理");
+  expect(market).toContain("Tushare eco_cal · 覆盖门禁");
+  expect(market).toContain("仅开放显式字段白名单");
+  expect(market).toContain("年内累计值只用于观察规模和结构");
+  expect(market).toContain("marketsApi.macroSeries(selected!, selectedField!)");
+  expect(api).toContain("field_catalog?: MacroFieldMeta[]");
+  expect(api).toContain("latest_release?: MacroLatestRelease");
+});
