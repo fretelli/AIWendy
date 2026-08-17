@@ -18,7 +18,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   agentOSApi,
   type AgentOSOverview,
@@ -189,7 +188,7 @@ function ModuleNavigation({
         return (
           <Link
             key={item.href}
-            href={`${item.href}?period=${period}`}
+            href={item.href === "/agent/market" ? item.href : `${item.href}?period=${period}`}
             onClick={close}
             className={cn(
               mobile
@@ -237,7 +236,7 @@ function HeaderTabs({
     >
       {current.tabs.map((tab) => {
         const query = new URLSearchParams();
-        query.set("period", period);
+        if (current.href !== "/agent/market") query.set("period", period);
         query.set("tab", tab.value);
         return (
           <Link
@@ -274,7 +273,7 @@ export function AgentOsShell({ children }: { children: React.ReactNode }) {
   const [agentOpen, setAgentOpen] = useState(false);
   const current = useMemo(() => activeModule(pathname), [pathname]);
   const isMarketModule = pathname.startsWith("/agent/market");
-  const enabledPeriods = isMarketModule ? ["1M", "3M", "1Y", "3Y", "5Y"] : ["1M", "3M", "1Y", "3Y"];
+  const enabledPeriods = ["1M", "3M", "1Y", "3Y"];
   const period = enabledPeriods.includes(
     searchParams.get("period") || "",
   )
@@ -362,7 +361,7 @@ export function AgentOsShell({ children }: { children: React.ReactNode }) {
               {locale === "zh" ? current.zhTitle : current.enTitle}
             </h1>
           </div>
-          <div className="hidden shrink-0 items-center overflow-hidden rounded-md border border-agent-border md:flex">
+          {!isMarketModule ? <div className="hidden shrink-0 items-center overflow-hidden rounded-md border border-agent-border md:flex">
             <ToggleGroup type="single" value={period} onValueChange={(value) => { if (value) setPeriod(value); }}
               variant="outline" size="sm" aria-label={locale === "zh" ? "历史范围" : "History range"}
               className="gap-0 border-0">
@@ -373,14 +372,7 @@ export function AgentOsShell({ children }: { children: React.ReactNode }) {
                 </ToggleGroupItem>
               ))}
             </ToggleGroup>
-            {isMarketModule ? (
-              <TooltipProvider><Tooltip>
-                <TooltipTrigger asChild><span tabIndex={0}><Button type="button" size="sm" variant="ghost" disabled
-                  className="rounded-none font-data text-[10px]">10Y</Button></span></TooltipTrigger>
-                <TooltipContent>{locale === "zh" ? "正式历史从 2020 年开始，暂不合成 10 年数据。" : "Official history begins in 2020; no synthetic 10-year series is provided."}</TooltipContent>
-              </Tooltip></TooltipProvider>
-            ) : null}
-          </div>
+          </div> : null}
           <HeaderTabs current={current} period={period} />
           <div className="ml-auto flex shrink-0 items-center gap-2">
             <div className="hidden items-center gap-2 font-data text-[9px] text-agent-muted xl:flex">

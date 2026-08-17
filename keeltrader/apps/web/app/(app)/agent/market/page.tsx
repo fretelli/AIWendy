@@ -3,13 +3,13 @@
 import dynamic from "next/dynamic";
 import { Maximize2, Minus, Plus, RotateCcw } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactNode, useState } from "react";
 import useSWR from "swr";
 
 import { DashboardPage, EmptyPanel, MiniLine, Panel } from "@/components/agentos/dashboard-ui";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { marketsApi, type CorrelationBoard, type CorrelationHistory, type FactorBoard, type FactorHistory, type HeldIndustries, type MacroCatalog, type MacroMetricSummary, type MacroSeriesDetail, type ValuationBoard, type ValuationItem } from "@/lib/api/agent-platform";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
@@ -23,7 +23,9 @@ const ValuationDrilldown = dynamic(() => import("@/components/agentos/valuation-
 
 type TopTab = "market" | "macro";
 type Detail = "rates" | "futures" | "options";
-type Period = "1M" | "3M" | "1Y" | "3Y" | "5Y";
+const HISTORY_RANGES = ["1M", "3M", "1Y", "3Y", "5Y"] as const;
+type HistoryRange = (typeof HISTORY_RANGES)[number];
+const MACRO_RANGES = [...HISTORY_RANGES, "10Y", "ALL"] as const;
 
 export default function MarketPage() {
   const params = useSearchParams();
@@ -31,47 +33,36 @@ export default function MarketPage() {
   const { locale } = useI18n();
   const tab: TopTab = params.get("tab") === "macro" ? "macro" : "market";
   const detail = (["rates", "futures", "options"].includes(params.get("detail") || "") ? params.get("detail") : null) as Detail | null;
-  const period = (["1M", "3M", "1Y", "3Y", "5Y"].includes(params.get("period") || "") ? params.get("period") : "1Y") as Period;
   const showMarket = !detail && tab === "market";
   const showMacro = !detail && tab === "macro";
   const { data: valuation = null } = useSWR<ValuationBoard>(showMarket ? "markets/valuation-board" : null, marketsApi.valuationBoard);
   const { data: correlations = null } = useSWR<CorrelationBoard>(showMarket ? "markets/correlations/60" : null, () => marketsApi.correlations(60));
-  const { data: correlationHistory = null, isLoading: correlationsLoading } = useSWR<CorrelationHistory>(showMarket ? `markets/correlations/60/history/${period}` : null, () => marketsApi.correlationHistory(60, periodLimit(period)));
   const { data: factors = null } = useSWR<FactorBoard>(showMarket ? "markets/factors" : null, marketsApi.factors);
-  const { data: factorHistory = null, isLoading: factorsLoading } = useSWR<FactorHistory>(showMarket ? `markets/factors/history/${period}` : null, () => marketsApi.factorHistory(periodLimit(period)));
   const { data: macro = null } = useSWR<MacroCatalog>(showMacro ? "markets/macro/catalog-v1" : null, marketsApi.macroCatalog);
 
   const closeDetail = () => {
     const next = new URLSearchParams(params.toString());
     next.delete("detail");
+    next.delete("period");
     router.replace(`/agent/market?${next}`);
   };
-  if (detail) return <DashboardPage className="max-w-none"><div className="mb-1"><Button variant="ghost" size="sm" onClick={closeDetail}>{locale === "zh" ? "返回市场与宏观" : "Back to Market & Macro"}</Button></div>{detail === "rates" ? <RatesDrilldown /> : detail === "futures" ? <FuturesDrilldown period={period} /> : <OptionsDrilldown />}</DashboardPage>;
+  if (detail) return <DashboardPage className="max-w-none"><div className="mb-1"><Button variant="ghost" size="sm" onClick={closeDetail}>{locale === "zh" ? "返回市场与宏观" : "Back to Market & Macro"}</Button></div>{detail === "rates" ? <RatesDrilldown /> : detail === "futures" ? <FuturesDrilldown /> : <OptionsDrilldown />}</DashboardPage>;
   return <DashboardPage className="max-w-none gap-3 px-4 py-[22px]">
-    {tab === "market" ? <MarketBoard valuation={valuation} correlations={correlations} correlationHistory={correlationHistory} factors={factors} factorHistory={factorHistory} period={period} loading={correlationsLoading || factorsLoading} locale={locale} /> : <MacroBoard data={macro} locale={locale} period={period} />}
+    {tab === "market" ? <MarketBoard valuation={valuation} correlations={correlations} factors={factors} locale={locale} /> : <MacroBoard data={macro} locale={locale} />}
   </DashboardPage>;
 }
 
-function MarketBoard({ valuation, correlations, correlationHistory, factors, factorHistory, period, loading, locale }: { valuation: ValuationBoard | null; correlations: CorrelationBoard | null; correlationHistory: CorrelationHistory | null; factors: FactorBoard | null; factorHistory: FactorHistory | null; period: Period; loading: boolean; locale: "zh" | "en" }) {
+function MarketBoard({ valuation, correlations, factors, locale }: { valuation: ValuationBoard | null; correlations: CorrelationBoard | null; factors: FactorBoard | null; locale: "zh" | "en" }) {
   const [selectedValuation, setSelectedValuation] = useState<ValuationItem | null>(null);
-  const correlationDates = (correlationHistory?.points || []).map((item) => item.as_of).filter((item): item is string => Boolean(item));
-  const factorDates = (factorHistory?.points || []).map((item) => item.as_of).filter((item): item is string => Boolean(item));
   return <div className="flex min-h-[calc(100dvh-104px)] flex-col gap-3">
-    <Alert>
-      <AlertTitle>{locale === "zh" ? `历史范围：${period}` : `History range: ${period}`}</AlertTitle>
-      <AlertDescription>
-        <span aria-live="polite">{loading ? (locale === "zh" ? "正在载入正式历史…" : "Loading formal history…") : locale === "zh" ? `相关性 ${coverageText(correlationDates)} · 因子 ${coverageText(factorDates)}` : `Correlations ${coverageText(correlationDates)} · Factors ${coverageText(factorDates)}`}</span>
-        <span className="ml-2 text-agent-dim">{locale === "zh" ? "范围用于历史下钻；矩阵与因子主板始终显示最新正式快照。" : "The range controls historical drilldowns; the matrix and factor board remain the latest formal snapshots."}</span>
-      </AlertDescription>
-    </Alert>
     <div className="grid min-h-0 flex-1 grid-rows-[minmax(390px,1.05fr)_minmax(330px,.95fr)] gap-3">
     <div className="grid min-h-0 gap-3 xl:grid-cols-[1.6fr_1fr]">
       <ValuationMatrix data={valuation} locale={locale} onSelect={setSelectedValuation} />
-      <CorrelationMatrix data={correlations} history={correlationHistory} locale={locale} />
+      <CorrelationMatrix data={correlations} locale={locale} />
     </div>
     <div className="grid min-h-0 gap-3 xl:grid-cols-[1.35fr_1fr]">
       <ValuationRanking data={valuation} locale={locale} onSelect={setSelectedValuation} />
-      <FactorCrowding data={factors} history={factorHistory} locale={locale} />
+      <FactorCrowding data={factors} locale={locale} />
     </div>
     </div>
     {selectedValuation ? <ValuationDrilldown key={`${selectedValuation.universe}-${selectedValuation.code}`} item={selectedValuation} locale={locale} onClose={() => setSelectedValuation(null)} /> : null}
@@ -93,9 +84,15 @@ function ValuationMatrix({ data, locale, onSelect }: { data: ValuationBoard | nu
   </Panel>;
 }
 
-function CorrelationMatrix({ data, history, locale }: { data: CorrelationBoard | null; history: CorrelationHistory | null; locale: "zh" | "en" }) {
+function CorrelationMatrix({ data, locale }: { data: CorrelationBoard | null; locale: "zh" | "en" }) {
   const [pair, setPair] = useState<[number, number] | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [range, setRange] = useState<HistoryRange>("1Y");
+  const { data: history = null, isLoading, isValidating, error } = useSWR<CorrelationHistory>(
+    pair ? `markets/correlations/60/history/${range}` : null,
+    () => marketsApi.correlationHistory(60, periodLimit(range)),
+    { keepPreviousData: true },
+  );
   const pairKey = pair && data ? `${data.series[Math.min(...pair)].key}|${data.series[Math.max(...pair)].key}` : null;
   const pairDates = pairKey ? (history?.points || []).map(item => item.as_of || "—") : [];
   const pairValues = pairKey ? (history?.points || []).map(item => item.pairs[pairKey] ?? null) : [];
@@ -103,7 +100,7 @@ function CorrelationMatrix({ data, history, locale }: { data: CorrelationBoard |
     <PanelTitle title={locale === "zh" ? "大类相关性 60 日滚动" : "60-Day Rolling Correlations"} note={locale === "zh" ? "小字为环比变化" : "Small figures show window-over-window change"} actions={data?.matrix.length ? <Button type="button" size="icon" variant="ghost" onClick={() => setFullscreen(true)} aria-label={locale === "zh" ? "全屏查看相关矩阵" : "View correlation matrix fullscreen"}><Maximize2 /></Button> : null} />
     {data?.matrix.length ? <CorrelationGrid data={data} locale={locale} fontSize={11} onSelect={(row, column) => { if (column !== row) setPair([row, column]); }} /> : <DataGap title={locale === "zh" ? "相关矩阵不可用" : "Correlation matrix unavailable"} reason={data?.metadata.reason_code} locale={locale} />}
     <FullscreenDataView open={fullscreen} onOpenChange={setFullscreen} title={locale === "zh" ? "大类相关性矩阵" : "Cross-Asset Correlation Matrix"} locale={locale}>{(fontSize) => data ? <CorrelationGrid data={data} locale={locale} fontSize={fontSize} onSelect={(row, column) => { setFullscreen(false); if (column !== row) setPair([row, column]); }} /> : null}</FullscreenDataView>
-    <Dialog open={Boolean(pair)} onOpenChange={(open) => { if (!open) setPair(null); }}><DialogContent className="w-[min(1100px,calc(100vw-32px))] max-w-none border-agent-border bg-agent-surface text-agent-text"><DialogHeader><DialogTitle>{pair && data ? `${data.series[pair[0]].label} ↔ ${data.series[pair[1]].label}` : "—"}</DialogTitle><DialogDescription>{locale === "zh" ? "正式 60 日滚动相关性历史" : "Formal 60-day rolling correlation history"}</DialogDescription></DialogHeader>{pairValues.length ? <TimeSeriesChart dates={pairDates} series={[{ name: locale === "zh" ? "相关系数" : "Correlation", values: pairValues }]} locale={locale} title={locale === "zh" ? "相关性历史" : "Correlation History"} height={430} /> : <DataGap title={locale === "zh" ? "相关性历史不可用" : "Correlation history unavailable"} reason={history?.metadata.reason_code} locale={locale} />}</DialogContent></Dialog>
+    <Dialog open={Boolean(pair)} onOpenChange={(open) => { if (!open) setPair(null); }}><DialogContent className="w-[min(1100px,calc(100vw-32px))] max-w-none border-agent-border bg-agent-surface text-agent-text"><DialogHeader><DialogTitle>{pair && data ? `${data.series[pair[0]].label} ↔ ${data.series[pair[1]].label}` : "—"}</DialogTitle><DialogDescription>{locale === "zh" ? "正式 60 日滚动相关性历史；范围只控制当前图表。" : "Formal 60-day rolling correlation history; the range controls this chart only."}</DialogDescription></DialogHeader><HistoryRangeToggle value={range} values={HISTORY_RANGES} onChange={(value) => setRange(value as HistoryRange)} locale={locale} busy={isValidating && !isLoading} />{isLoading ? <EmptyPanel title={locale === "zh" ? "正在读取相关性历史" : "Loading correlation history"} detail={locale === "zh" ? "只加载当前下钻范围。" : "Only the current drilldown range is loaded."} /> : error || !pairValues.length ? <DataGap title={locale === "zh" ? "相关性历史不可用" : "Correlation history unavailable"} reason={history?.metadata.reason_code} locale={locale} /> : <TimeSeriesChart dates={pairDates} series={[{ name: locale === "zh" ? "相关系数" : "Correlation", values: pairValues }]} locale={locale} title={`${locale === "zh" ? "相关性历史" : "Correlation History"} · ${range}`} height={430} />}</DialogContent></Dialog>
   </Panel>;
 }
 
@@ -140,22 +137,28 @@ function FullscreenDataView({ open, onOpenChange, title, locale, children }: { o
   return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent tabIndex={0} onKeyDown={(event) => { if (event.key === "+" || event.key === "=") resize(2); if (event.key === "-") resize(-2); if (event.key === "0") setFontSize(14); }} className="grid h-[calc(100dvh-24px)] w-[calc(100vw-24px)] max-w-none grid-rows-[auto_auto_minmax(0,1fr)] border-agent-border bg-agent-surface text-agent-text"><DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{locale === "zh" ? "使用 + / − 放大缩小，按 0 恢复默认。" : "Use + / − to resize; press 0 to reset."}</DialogDescription></DialogHeader><div className="flex items-center gap-2"><Button type="button" size="icon" variant="outline" onClick={() => resize(-2)} aria-label={locale === "zh" ? "缩小字体" : "Decrease font size"}><Minus /></Button><Button type="button" size="icon" variant="outline" onClick={() => resize(2)} aria-label={locale === "zh" ? "放大字体" : "Increase font size"}><Plus /></Button><Button type="button" size="icon" variant="outline" onClick={() => setFontSize(14)} aria-label={locale === "zh" ? "恢复默认字体" : "Reset font size"}><RotateCcw /></Button><span aria-live="polite" className="font-data text-agent-muted">{fontSize}px</span></div><div className="min-h-0 overflow-auto">{children(fontSize)}</div></DialogContent></Dialog>;
 }
 
-function FactorCrowding({ data, history, locale }: { data: FactorBoard | null; history: FactorHistory | null; locale: "zh" | "en" }) {
+function FactorCrowding({ data, locale }: { data: FactorBoard | null; locale: "zh" | "en" }) {
   const [selected, setSelected] = useState<string | null>(null);
+  const [range, setRange] = useState<HistoryRange>("1Y");
+  const { data: history = null, isLoading, isValidating, error } = useSWR<FactorHistory>(
+    selected ? `markets/factors/history/${range}` : null,
+    () => marketsApi.factorHistory(periodLimit(range)),
+    { keepPreviousData: true },
+  );
   const selectedDates = (history?.points || []).map(item => item.as_of || "—");
   const selectedValues = (history?.points || []).map(item => item.factors.find(factor => factor.key === selected)?.crowding ?? null);
   return <Panel className="min-h-0 overflow-auto"><PanelTitle title={locale === "zh" ? "因子收益与拥挤度" : "Factor Returns & Crowding"} note={`kt_factor_v1 · ${data?.crowding.methodology_key || "kt_crowding_v2"}`} />
     {data?.factors.length ? <div className="flex flex-col gap-2">{data.factors.map((factor) => { const crowding = factor.crowding; return <button type="button" onClick={() => setSelected(factor.key)} key={factor.key} className="grid grid-cols-[96px_1fr_48px] items-center gap-2 rounded-sm text-left hover:bg-agent-raised"><div><p className="text-[10px] text-agent-text">{factorLabel(factor.key, locale)}</p><p className="mt-1 font-data text-[8px] text-agent-dim">{formatSigned(factor.returns["1M"])} · {formatSigned(factor.returns["3M"])} · {formatSigned(factor.returns["1Y"])}</p></div><div className="h-1.5 overflow-hidden rounded bg-agent-border"><span className={cn("block h-full", crowding != null && crowding >= .75 ? "bg-agent-up" : crowding != null && crowding >= .5 ? "bg-agent-amber" : "bg-agent-mint")} style={{ width: `${Math.max(0, Math.min(100, Number(crowding || 0) * 100))}%` }} /></div><span className="text-right font-data text-[9px] text-agent-muted">{crowding == null ? "—" : `${Math.round(crowding * 100)}%`}</span></button>; })}</div> : <DataGap title={locale === "zh" ? "因子收益不可用" : "Factor returns unavailable"} reason={data?.metadata.reason_code} locale={locale} />}
     {data && data.crowding.status !== "available" ? <p className="mt-3 text-[9px] leading-4 text-agent-amber">{crowdingCoverageNote(data, locale)}</p> : null}
-    <Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open) setSelected(null); }}><DialogContent className="w-[min(1100px,calc(100vw-32px))] max-w-none border-agent-border bg-agent-surface text-agent-text"><DialogHeader><DialogTitle>{selected ? factorLabel(selected, locale) : "—"}</DialogTitle><DialogDescription>{locale === "zh" ? "正式拥挤度历史；历史快照不足时保持空缺" : "Formal crowding history; missing snapshots remain blank"}</DialogDescription></DialogHeader>{selectedValues.some(value => value != null) ? <TimeSeriesChart dates={selectedDates} series={[{ name: locale === "zh" ? "拥挤度" : "Crowding", values: selectedValues.map(value => value == null ? null : value * 100) }]} locale={locale} title={locale === "zh" ? "因子拥挤度历史" : "Factor Crowding History"} height={430} /> : <DataGap title={locale === "zh" ? "因子历史不可用" : "Factor history unavailable"} reason={history?.metadata.reason_code} locale={locale} />}</DialogContent></Dialog>
+    <Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open) setSelected(null); }}><DialogContent className="w-[min(1100px,calc(100vw-32px))] max-w-none border-agent-border bg-agent-surface text-agent-text"><DialogHeader><DialogTitle>{selected ? factorLabel(selected, locale) : "—"}</DialogTitle><DialogDescription>{locale === "zh" ? "正式拥挤度历史；范围只控制当前图表，缺失快照保持空缺。" : "Formal crowding history; the range controls this chart only and missing snapshots remain blank."}</DialogDescription></DialogHeader><HistoryRangeToggle value={range} values={HISTORY_RANGES} onChange={(value) => setRange(value as HistoryRange)} locale={locale} busy={isValidating && !isLoading} />{isLoading ? <EmptyPanel title={locale === "zh" ? "正在读取因子历史" : "Loading factor history"} detail={locale === "zh" ? "只加载当前下钻范围。" : "Only the current drilldown range is loaded."} /> : error || !selectedValues.some(value => value != null) ? <DataGap title={locale === "zh" ? "因子历史不可用" : "Factor history unavailable"} reason={history?.metadata.reason_code} locale={locale} /> : <TimeSeriesChart dates={selectedDates} series={[{ name: locale === "zh" ? "拥挤度" : "Crowding", values: selectedValues.map(value => value == null ? null : value * 100) }]} locale={locale} title={`${locale === "zh" ? "因子拥挤度历史" : "Factor Crowding History"} · ${range}`} height={430} />}</DialogContent></Dialog>
   </Panel>;
 }
 
-type MacroRange = Period | "5Y" | "10Y" | "ALL";
+type MacroRange = HistoryRange | "10Y" | "ALL";
 
-function MacroBoard({ data, locale, period }: { data: MacroCatalog | null; locale: "zh" | "en"; period: Period }) {
+function MacroBoard({ data, locale }: { data: MacroCatalog | null; locale: "zh" | "en" }) {
   const [selected, setSelected] = useState<string | null>(null);
-  const [range, setRange] = useState<MacroRange>(period);
+  const [range, setRange] = useState<MacroRange>("1Y");
   const rows = data?.items || [];
   const selectedRow = rows.find(row => row.key === selected);
   const { data: detail = null, isLoading, error } = useSWR<MacroSeriesDetail>(
@@ -166,9 +169,9 @@ function MacroBoard({ data, locale, period }: { data: MacroCatalog | null; local
     {rows.length ? <div className="overflow-x-auto"><div className="min-w-[980px]"><div className="grid grid-cols-[minmax(170px,1.4fr)_105px_92px_92px_105px_minmax(160px,1fr)_145px] gap-2 border-b border-agent-border pb-2 font-data text-[8px] text-agent-dim"><span>{locale === "zh" ? "指标 / 正式来源" : "Indicator / Source"}</span><span className="text-right">{locale === "zh" ? "最新值" : "Latest"}</span><span className="text-right">{locale === "zh" ? "环比" : "MoM"}</span><span className="text-right">{locale === "zh" ? "同比" : "YoY"}</span><span className="text-right">{locale === "zh" ? "近10年分位" : "10Y Percentile"}</span><span>{locale === "zh" ? "主值趋势" : "Primary Trend"}</span><span className="text-right">{locale === "zh" ? "原始数据范围" : "Raw Coverage"}</span></div>{rows.map((row) => {
       const summary = row.summary;
       const sparkline = (row.sparkline?.values || []).filter((value): value is number => typeof value === "number");
-      return <button type="button" onClick={() => { setSelected(row.key); setRange(period); }} key={row.key} className="grid min-h-[76px] w-full grid-cols-[minmax(170px,1.4fr)_105px_92px_92px_105px_minmax(160px,1fr)_145px] items-center gap-2 border-b border-agent-border text-left text-[9px] transition-colors hover:bg-agent-raised focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-agent-mint"><div><p className="text-[11px] text-agent-text">{macroLabel(row.key, locale)}</p><p className="mt-1 font-data text-[8px] text-agent-dim">{row.source || row.table}</p></div><MacroMetricCell metric={summary?.primary} locale={locale} emphasis /><MacroMetricCell metric={summary?.mom} locale={locale} signed /><MacroMetricCell metric={summary?.yoy} locale={locale} signed /><MacroMetricCell metric={summary?.percentile_10y} locale={locale} percentile /><div className="h-9">{sparkline.length > 1 ? <MiniLine values={sparkline} color="var(--agent-blue)" height={38} /> : <span className="font-data text-agent-dim">—</span>}</div><span className="text-right font-data text-agent-dim">{row.start || "—"} → {row.end || "—"}</span></button>;
+      return <button type="button" onClick={() => setSelected(row.key)} key={row.key} className="grid min-h-[76px] w-full grid-cols-[minmax(170px,1.4fr)_105px_92px_92px_105px_minmax(160px,1fr)_145px] items-center gap-2 border-b border-agent-border text-left text-[9px] transition-colors hover:bg-agent-raised focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-agent-mint"><div><p className="text-[11px] text-agent-text">{macroLabel(row.key, locale)}</p><p className="mt-1 font-data text-[8px] text-agent-dim">{row.source || row.table}</p></div><MacroMetricCell metric={summary?.primary} locale={locale} emphasis /><MacroMetricCell metric={summary?.mom} locale={locale} signed /><MacroMetricCell metric={summary?.yoy} locale={locale} signed /><MacroMetricCell metric={summary?.percentile_10y} locale={locale} percentile /><div className="h-9">{sparkline.length > 1 ? <MiniLine values={sparkline} color="var(--agent-blue)" height={38} /> : <span className="font-data text-agent-dim">—</span>}</div><span className="text-right font-data text-agent-dim">{row.start || "—"} → {row.end || "—"}</span></button>;
     })}</div></div> : <DataGap title={locale === "zh" ? "宏观数据不可用" : "Macro data unavailable"} locale={locale} />}
-  </Panel><Panel className="grid grid-cols-[70px_1fr] items-start gap-4 py-3"><span className="font-data text-[9px] text-agent-mint">METHOD<br/>{locale === "zh" ? "口径" : "READ"}</span><p className="text-[10px] leading-5 text-agent-muted">{locale === "zh" ? "环比、同比优先读取官方字段；社融、PMI 与利率只做透明且单位安全的计算。历史分位基于主值滚动十年，样本不足十年时明确标记实际窗口。" : "Official changes are preferred. Social financing, PMI and rates use transparent unit-safe calculations. Percentiles use the primary series over a rolling ten-year window."}</p></Panel><Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open) setSelected(null); }}><DialogContent className="h-[min(900px,calc(100dvh-24px))] w-[min(1380px,calc(100vw-24px))] max-w-none overflow-y-auto border-agent-border bg-agent-surface text-agent-text"><DialogHeader><DialogTitle>{selected ? macroLabel(selected, locale) : "—"}</DialogTitle><DialogDescription>{selectedRow ? `${selectedRow.source || selectedRow.table} · ${selectedRow.start || "—"} → ${selectedRow.end || "—"} · ${selectedRow.points || 0} ${locale === "zh" ? "个原始观测" : "raw observations"}` : ""}</DialogDescription></DialogHeader><div className="flex flex-wrap gap-1 border-b border-agent-border pb-3">{(["1M", "3M", "1Y", "3Y", "5Y", "10Y", "ALL"] as MacroRange[]).map(value => <Button key={value} type="button" size="sm" variant={range === value ? "secondary" : "outline"} onClick={() => setRange(value)}>{value === "ALL" ? (locale === "zh" ? "全部" : "All") : value}</Button>)}</div>{isLoading ? <EmptyPanel title={locale === "zh" ? "正在读取正式历史" : "Loading formal history"} detail={locale === "zh" ? "只加载当前指标，不再下载全部宏观表。" : "Only the selected indicator is loaded."} /> : error || !detail?.series ? <DataGap title={locale === "zh" ? "宏观序列不可用" : "Macro series unavailable"} locale={locale} /> : <div className="grid gap-3 lg:grid-cols-2"><MacroChartPanel kind="primary" detail={detail} range={range} locale={locale} /><MacroChartPanel kind="mom" detail={detail} range={range} locale={locale} /><MacroChartPanel kind="yoy" detail={detail} range={range} locale={locale} /><MacroChartPanel kind="percentile_10y" detail={detail} range={range} locale={locale} /></div>}</DialogContent></Dialog></div>;
+  </Panel><Panel className="grid grid-cols-[70px_1fr] items-start gap-4 py-3"><span className="font-data text-[9px] text-agent-mint">METHOD<br/>{locale === "zh" ? "口径" : "READ"}</span><p className="text-[10px] leading-5 text-agent-muted">{locale === "zh" ? "环比、同比优先读取官方字段；社融、PMI 与利率只做透明且单位安全的计算。历史分位基于主值滚动十年，样本不足十年时明确标记实际窗口。" : "Official changes are preferred. Social financing, PMI and rates use transparent unit-safe calculations. Percentiles use the primary series over a rolling ten-year window."}</p></Panel><Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open) setSelected(null); }}><DialogContent className="h-[min(900px,calc(100dvh-24px))] w-[min(1380px,calc(100vw-24px))] max-w-none overflow-y-auto border-agent-border bg-agent-surface text-agent-text"><DialogHeader><DialogTitle>{selected ? macroLabel(selected, locale) : "—"}</DialogTitle><DialogDescription>{selectedRow ? `${selectedRow.source || selectedRow.table} · ${selectedRow.start || "—"} → ${selectedRow.end || "—"} · ${selectedRow.points || 0} ${locale === "zh" ? "个原始观测" : "raw observations"}` : ""}</DialogDescription></DialogHeader><HistoryRangeToggle value={range} values={MACRO_RANGES} onChange={(value) => setRange(value as MacroRange)} locale={locale} />{isLoading ? <EmptyPanel title={locale === "zh" ? "正在读取正式历史" : "Loading formal history"} detail={locale === "zh" ? "只加载当前指标，不再下载全部宏观表。" : "Only the selected indicator is loaded."} /> : error || !detail?.series ? <DataGap title={locale === "zh" ? "宏观序列不可用" : "Macro series unavailable"} locale={locale} /> : <div className="grid gap-3 lg:grid-cols-2"><MacroChartPanel kind="primary" detail={detail} range={range} locale={locale} /><MacroChartPanel kind="mom" detail={detail} range={range} locale={locale} /><MacroChartPanel kind="yoy" detail={detail} range={range} locale={locale} /><MacroChartPanel kind="percentile_10y" detail={detail} range={range} locale={locale} /></div>}</DialogContent></Dialog></div>;
 }
 
 function MacroMetricCell({ metric, locale, emphasis = false, signed = false, percentile = false }: { metric?: MacroMetricSummary; locale: "zh" | "en"; emphasis?: boolean; signed?: boolean; percentile?: boolean }) {
@@ -187,6 +190,15 @@ function MacroChartPanel({ kind, detail, range, locale }: { kind: "primary" | "m
   return <Panel tone="raised" className="min-h-[310px]"><PanelTitle title={title} note={`${series?.meta.unit || ""} · ${macroMethodLabel(series?.meta.method, locale)}`} />{rows.some(row => row.value != null) ? <TimeSeriesChart dates={rows.map(row => row.period)} series={[{ name: title, values: rows.map(row => row.value) }]} locale={locale} title={`${title} · ${range === "ALL" ? (locale === "zh" ? "全部" : "All") : range}`} height={250} /> : <EmptyPanel title={locale === "zh" ? "可比较历史不足" : "Insufficient comparable history"} detail={macroMetricExplanation(series?.meta as MacroMetricSummary | undefined, locale)} />}</Panel>;
 }
 
+function HistoryRangeToggle({ value, values, onChange, locale, busy = false }: { value: string; values: readonly string[]; onChange: (value: string) => void; locale: "zh" | "en"; busy?: boolean }) {
+  return <div className="flex flex-wrap items-center gap-2 border-b border-agent-border pb-3">
+    <ToggleGroup type="single" value={value} onValueChange={(next) => { if (next) onChange(next); }} variant="outline" size="sm" aria-label={locale === "zh" ? "当前图表范围" : "Current chart range"} className="flex-wrap justify-start">
+      {values.map((item) => <ToggleGroupItem key={item} value={item} aria-label={item} className="font-data text-[10px] data-[state=on]:bg-agent-mint data-[state=on]:text-agent-canvas">{item === "ALL" ? (locale === "zh" ? "全部" : "All") : item}</ToggleGroupItem>)}
+    </ToggleGroup>
+    {busy ? <span aria-live="polite" className="text-[9px] text-agent-dim">{locale === "zh" ? "正在切换…" : "Switching…"}</span> : null}
+  </div>;
+}
+
 function PanelTitle({ title, note, actions }: { title: string; note?: string; actions?: ReactNode }) { return <div className="mb-3 flex items-center gap-3"><h2 className="text-sm font-medium text-agent-text">{title}</h2>{note ? <span className="font-data text-[8px] text-agent-dim">{note}</span> : null}{actions ? <div className="ml-auto">{actions}</div> : null}</div>; }
 function DataGap({ title, reason, locale }: { title: string; reason?: string; locale: "zh" | "en" }) { return <EmptyPanel title={title} detail={marketGapReason(reason, locale)} />; }
 function NumberCell({ value, suffix = "" }: { value?: number; suffix?: string }) { return <td className="py-2.5 text-right font-data text-agent-muted">{value == null ? "—" : `${Number(value).toFixed(1)}${suffix}`}</td>; }
@@ -196,10 +208,9 @@ function formatSigned(value?: number | null) { return value == null ? "—" : `$
 function factorLabel(key: string, locale: "zh" | "en") { const labels: Record<string, [string, string]> = { value: ["价值", "Value"], momentum: ["动量", "Momentum"], low_vol: ["低波", "Low Vol"], quality: ["质量", "Quality"], growth: ["成长", "Growth"], size: ["规模", "Size"], dividend: ["红利", "Dividend"], cn_equity: ["A股", "CN Equity"], hk_equity: ["港股", "HK Equity"], us_equity: ["美股", "US Equity"], bond: ["债券", "Bonds"], commodity: ["商品", "Commodities"], fx: ["外汇", "FX"] }; return labels[key]?.[locale === "zh" ? 0 : 1] || key; }
 function macroLabel(key: string, locale: "zh" | "en") { const labels: Record<string, [string, string]> = { gdp: ["GDP", "GDP"], cpi: ["居民消费价格", "CPI"], ppi: ["工业生产者价格", "PPI"], money_supply: ["货币供应量", "Money Supply"], social_financing: ["社会融资规模", "Social Financing"], pmi: ["采购经理指数", "PMI"], shibor: ["上海银行间同业拆放利率", "SHIBOR"], lpr: ["贷款市场报价利率", "LPR"], us_treasury: ["美国国债收益率", "US Treasury"], us_real_treasury: ["美国实际国债收益率", "US Real Treasury"] }; return labels[key]?.[locale === "zh" ? 0 : 1] || key; }
 function localizedMarketName(name: string, code: string, locale: "zh" | "en") { return locale === "en" && /[\u3400-\u9fff]/.test(name) ? code : name; }
-function periodLimit(period: Period) {
+function periodLimit(period: HistoryRange) {
   return ({ "1M": 22, "3M": 66, "1Y": 252, "3Y": 756, "5Y": 1260 } as const)[period];
 }
-function coverageText(dates: string[]) { return dates.length ? `${dates[0]} → ${dates[dates.length - 1]} · ${dates.length}` : "— · 0"; }
 function sliceMacroSeries<T extends { period: string; value: number | null }>(rows: T[], frequency: string | undefined, period: MacroRange) {
   if (period === "ALL") return rows;
   const normalized = (frequency || "daily").toLowerCase();
