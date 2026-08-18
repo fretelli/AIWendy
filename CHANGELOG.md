@@ -7,6 +7,8 @@
 
 ## 未发布
 
+- 04 市场模块新增可交互利率与收益率工作台，接入 SHIBOR、LPR、USD LIBOR/HIBOR 历史、美国短期国债、长期国债和实际长期平均利率，并明确标注 LIBOR/HIBOR 的历史截止日期。
+- 中国宏观指标接入经济发布日程，展示下一次计划发布时间、等待源端实际值状态以及最新正式值。
 - 升级 ECharts、Nano ID、PyPDF 与 Pydantic AI 依赖，修复发布审计发现的 XSS、拒绝服务和 PDF 解析漏洞。
 - 估值分位矩阵和排序表支持鼠标、全屏与键盘下钻，提供 1M–5Y PE/PB、历史分位、拥挤覆盖、前十大成分与方法说明；新增真实“我的持仓行业”筛选，历史不足时明确显示补录范围且不插值。
 - 修复紧凑 Agent 对话发送失败时无提示且清空输入的问题；失败内容会保留，网络、限流和服务端错误可直接重试。
@@ -66,6 +68,8 @@ This file records only notable changes that can be verified from the current rep
 
 ## Unreleased
 
+- Add an interactive rates and yields workspace to Market module 04 with SHIBOR, LPR, historical USD LIBOR/HIBOR, US Treasury bills, long-term Treasury rates, and the real long-term average rate, including explicit historical cutoffs for LIBOR/HIBOR.
+- Integrate the China economic release calendar into macro indicators with the next scheduled release, awaiting-source-value state, and latest formal value.
 - Upgrade ECharts, Nano ID, PyPDF, and Pydantic AI dependencies to resolve release-audit XSS, denial-of-service, and PDF parsing advisories.
 - Add mouse, fullscreen and keyboard valuation drilldowns with 1M–5Y PE/PB, percentiles, crowding coverage, top constituents and methodology; make Held Industries use real non-zero active-account A-share positions and disclose partial backfill without interpolation.
 - Preserve Agent prompt text and show retryable errors when compact-dock message submission fails.
