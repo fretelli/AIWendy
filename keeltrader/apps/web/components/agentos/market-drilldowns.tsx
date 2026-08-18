@@ -26,7 +26,7 @@ export function RatesDrilldown() {
   useEffect(() => {
     if (!item?.available || !field) return;
     void marketsApi.ratesSeries(item.key, field).then(setSeries).catch(() => setSeries(undefined));
-    if (["shibor", "hibor", "libor_usd", "us_nominal", "us_real", "us_short", "us_long"].includes(item.key)) void marketsApi.ratesCurve(item.key).then(setCurve).catch(() => setCurve(undefined));
+    if (["shibor", "hibor", "libor_usd", "us_nominal", "us_real", "us_short", "us_long", "us_real_long_average"].includes(item.key)) void marketsApi.ratesCurve(item.key).then(setCurve).catch(() => setCurve(undefined));
   }, [field, item?.available, item?.key]);
   const chooseRate = (key: string) => {
     const next = catalog?.items.find((entry) => entry.key === key);
