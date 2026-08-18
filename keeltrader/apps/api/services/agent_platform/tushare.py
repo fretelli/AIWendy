@@ -2138,6 +2138,7 @@ class TushareReadService:
             "libor_usd": ("libor", "date", "curr_type='USD'"),
             "us_nominal": ("us_tycr", "date", None), "us_real": ("us_trycr", "date", None),
             "us_short": ("us_tbr", "date", None), "us_long": ("us_tltr", "date", None),
+            "us_real_long_average": ("us_trltr", "date", None),
         }
         if key == "china_cash_treasury":
             return {"available": False, "key": key, "unavailable_reason": "中国现券国债收益率曲线未接入；不进行替代推算。", "points": []}

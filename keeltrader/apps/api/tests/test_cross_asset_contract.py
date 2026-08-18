@@ -56,8 +56,9 @@ async def test_latest_market_dates_are_bound_as_native_dates():
         return [{"date": "2026-07-21", "on": 1.2}]
 
     reader._execute_mappings = rates_execute  # type: ignore[method-assign]
-    curve = await reader.rates_curve("shibor")
-    assert curve["date"] == "2026-07-21"
+    for rate_key in ("shibor", "us_real_long_average"):
+        curve = await reader.rates_curve(rate_key)
+        assert curve["date"] == "2026-07-21"
 
     for method_name in ("options_surface", "options_exposures"):
         async def option_execute(query, params):
