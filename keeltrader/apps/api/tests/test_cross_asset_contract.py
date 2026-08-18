@@ -30,6 +30,15 @@ def test_china_cash_treasury_gap_is_explicit_not_synthetic():
     assert "gross OI-weighted sensitivity; not dealer net positioning" in source
 
 
+def test_extended_provider_native_rate_contract_is_exposed():
+    definitions = TushareReadService.rates_definitions()
+    assert definitions["libor_usd"][0] == "libor"
+    assert definitions["hibor"][0] == "hibor"
+    assert definitions["us_short"][0] == "us_tbr"
+    assert definitions["us_long"][0] == "us_tltr"
+    assert definitions["us_real_long_average"][0] == "us_trltr"
+
+
 @pytest.mark.asyncio
 async def test_latest_market_dates_are_bound_as_native_dates():
     reader = TushareReadService(None)

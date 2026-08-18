@@ -530,12 +530,14 @@ export type MacroCatalog = {
     field_catalog?: MacroFieldMeta[];
     quality?: MacroQuality;
     latest_release?: MacroLatestRelease;
+    next_release?: MacroNextRelease;
   }>;
   methodology: { raw?: true; local_transforms?: boolean; raw_history?: boolean; synthetic_prices?: boolean; methodology_key?: string; percentile_window?: string; structured_source_priority?: boolean; eco_cal_gated_fallback?: boolean; synthetic_substitution?: boolean };
 };
 export type MacroFieldMeta = { key: string; label: string; unit: string; group: string };
 export type MacroQuality = { source_type: "structured" | "eco_cal_gated" | "unavailable" | string; status: string; coverage_points?: number; minimum_samples?: number; freshness_state?: "current" | "stale" | "unknown" | string; latest_period?: string | null; lag_days?: number; max_lag_days?: number };
 export type MacroLatestRelease = { release_date?: string | null; release_time?: string | null; event_name?: string | null; quality_state?: string | null; actual?: number | null; forecast?: number | null; surprise?: number | null };
+export type MacroNextRelease = { release_date?: string | null; release_time?: string | null; event_name?: string | null; forecast?: string | null; status: "scheduled" | "awaiting_source_value" | string };
 export type MacroMetricMethod = "official" | "calculated" | "not_applicable";
 export type MacroMetricSummary = {
   value: number | null;
@@ -580,9 +582,16 @@ export type MacroSeriesDetail = {
   field_catalog?: MacroFieldMeta[];
   quality?: MacroQuality;
   latest_release?: MacroLatestRelease;
+  next_release?: MacroNextRelease;
   reason_code?: string;
 };
-export type RatesCatalog = MacroCatalog;
+export type RateCatalogItem = {
+  key: string; label: string; table?: string; frequency: string; period_field?: string;
+  available: boolean; fields: string[]; start?: string; end?: string; points: number;
+  source?: string; primary_field?: string; freshness_state?: string; freshness_note?: string;
+  unavailable_reason?: string;
+};
+export type RatesCatalog = { available: boolean; items: RateCatalogItem[]; methodology: { raw_history: true; synthetic_prices: false } };
 export type RatesSeries = {
   available: boolean;
   key: string;

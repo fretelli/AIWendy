@@ -90,6 +90,24 @@ _RATES_ANALYSIS_ALIASES = {
     "shibor": "shibor", "lpr": "lpr", "us_nominal": "us_treasury", "us_real": "us_real_treasury",
 }
 
+_MACRO_RELEASE_PATTERNS = {
+    "gdp": r"^中国GDP",
+    "cpi": r"^中国CPI",
+    "ppi": r"^中国PPI",
+    "money_supply": r"中国.*货币供应",
+    "social_financing": r"中国.*社会融资",
+    "pmi": r"^中国官方制造业PMI",
+    "industrial_production_yoy": r"^中国规模以上工业增加值年率",
+    "retail_sales_yoy": r"^中国社会消费品零售总额年率",
+    "fixed_asset_investment_ytd_yoy": r"^中国城镇固定资产投资年率-YTD",
+    "urban_unemployment_rate": r"^中国失业率",
+    "exports_usd_yoy": r"^中国出口年率-美元计价",
+    "imports_usd_yoy": r"^中国进口年率-美元计价",
+    "trade_balance_usd": r"^中国贸易帐\(美元\)",
+    "fx_reserves_usd": r"^中国外汇储备\(美元\)",
+    "new_rmb_loans": r"^中国新增人民币贷款",
+}
+
 _PMI_FIELD_LABELS = {
     "pmi010000": "制造业 PMI", "pmi010100": "大型企业 PMI", "pmi010200": "中型企业 PMI", "pmi010300": "小型企业 PMI",
     "pmi010400": "生产指数", "pmi010401": "大型企业生产指数", "pmi010402": "中型企业生产指数", "pmi010403": "小型企业生产指数",
@@ -1955,6 +1973,27 @@ class TushareReadService:
         if detail["available"] and freshness.get("freshness_state") == "stale":
             detail["quality"]["status"] = "stale"
             detail["reason_code"] = "stale_source_data"
+        release_pattern = _MACRO_RELEASE_PATTERNS.get(key)
+        if release_pattern and "eco_cal_event_revision" in physical_tables():
+            scheduled = await self._execute_mappings(text(f"""
+                SELECT release_date,release_time,event_name,forecast_raw
+                FROM (
+                    SELECT DISTINCT ON(event_key) *
+                    FROM {self.schema}.eco_cal_event_revision
+                    WHERE country='中国' AND actual_raw IS NULL
+                    ORDER BY event_key,last_seen_at DESC
+                ) latest
+                WHERE event_name ~ :pattern AND release_date >= CURRENT_DATE-1
+                ORDER BY release_date ASC,release_time ASC NULLS LAST LIMIT 1
+            """), {"pattern": release_pattern})
+            if scheduled:
+                row = scheduled[0]
+                detail["next_release"] = {
+                    "release_date": str(row.get("release_date")) if row.get("release_date") else None,
+                    "release_time": row.get("release_time"), "event_name": row.get("event_name"),
+                    "forecast": row.get("forecast_raw"),
+                    "status": "awaiting_source_value" if str(row.get("release_date")) <= date.today().isoformat() else "scheduled",
+                }
         return detail
 
     async def macro_catalog(self) -> dict[str, Any]:
@@ -2018,9 +2057,14 @@ class TushareReadService:
             "shibor": ("shibor", "date", "daily", "SHIBOR"),
             "shibor_quotes": ("shibor_quote", "date", "daily", "SHIBOR 报价行"),
             "lpr": ("lpr", "date", "monthly", "LPR"),
+            "libor_usd": ("libor", "date", "historical", "USD LIBOR（历史）"),
+            "hibor": ("hibor", "date", "historical", "HIBOR（Tushare 历史）"),
             "repo": ("repo_daily", "trade_date", "daily", "银行间质押式回购"),
             "us_nominal": ("us_tycr", "date", "daily", "美国国债名义收益率"),
             "us_real": ("us_trycr", "date", "daily", "美国国债实际收益率"),
+            "us_short": ("us_tbr", "date", "daily", "美国短期国债利率"),
+            "us_long": ("us_tltr", "date", "daily", "美国国债长期利率"),
+            "us_real_long_average": ("us_trltr", "date", "daily", "美国国债实际长期利率平均值"),
         }
 
     async def rates_catalog(self) -> dict[str, Any]:
@@ -2045,6 +2089,16 @@ class TushareReadService:
                           "start": str(meta.get("start")) if meta.get("start") else None,
                           "end": str(meta.get("end")) if meta.get("end") else None,
                           "points": int(meta.get("points") or 0), "source": f"{self.schema}.{table}"}
+            item["primary_field"] = {
+                "shibor": "3m", "lpr": "1y", "libor_usd": "3m", "hibor": "3m",
+                "repo": "avg_rate", "us_nominal": "y10", "us_real": "y10",
+                "us_short": "w13_ce", "us_long": "ltc", "us_real_long_average": "ltr_avg",
+            }.get(key, fields[0] if fields else None)
+            if key in {"libor_usd", "hibor"}:
+                item["freshness_state"] = "historical_source_ended"
+                item["freshness_note"] = "Tushare 源端最后更新于 2020-06-24；只作为官方历史，不延长或合成。"
+            else:
+                item["freshness_state"] = macro_freshness(item["end"], frequency).get("freshness_state")
             if key in analysis:
                 item.update({"summary": analysis[key]["summary"], "primary_field": analysis[key]["primary_field"],
                              "methodology_key": analysis[key]["methodology_key"]})
@@ -2068,6 +2122,7 @@ class TushareReadService:
         catalog = await self.rates_catalog(); meta = next(item for item in catalog["items"] if item["key"] == key)
         if field not in meta["fields"]: raise ValueError("Unknown rates source field")
         filters, params = [], {}
+        if table == "libor": filters.append("curr_type='USD'")
         if table == "shibor_quote" and bank: filters.append("bank=:bank"); params["bank"] = bank
         if table == "repo_daily" and maturity: filters.append("repo_maturity=:maturity"); params["maturity"] = maturity
         where = " WHERE " + " AND ".join(filters) if filters else ""
@@ -2078,18 +2133,25 @@ class TushareReadService:
                 "end": str(rows[-1]["period"]) if rows else None, "points": len(rows), "raw": True, "rows": rows}
 
     async def rates_curve(self, key: str, curve_date: date | None = None) -> dict[str, Any]:
-        definitions = {"shibor": ("shibor", "date"), "us_nominal": ("us_tycr", "date"), "us_real": ("us_trycr", "date")}
+        definitions = {
+            "shibor": ("shibor", "date", None), "hibor": ("hibor", "date", None),
+            "libor_usd": ("libor", "date", "curr_type='USD'"),
+            "us_nominal": ("us_tycr", "date", None), "us_real": ("us_trycr", "date", None),
+            "us_short": ("us_tbr", "date", None), "us_long": ("us_tltr", "date", None),
+        }
         if key == "china_cash_treasury":
             return {"available": False, "key": key, "unavailable_reason": "中国现券国债收益率曲线未接入；不进行替代推算。", "points": []}
         if key not in definitions: raise ValueError("Unknown curve")
-        table, period = definitions[key]; chosen = curve_date
+        table, period, fixed_filter = definitions[key]; chosen = curve_date
         if chosen is None:
             latest = await self._execute_mappings(text(f"SELECT MAX({period}) value FROM {self.schema}.{table}"), {})
             chosen = latest[0].get("value") if latest else None
         if isinstance(chosen, str):
             chosen = date.fromisoformat(chosen)
-        row = await self._execute_mappings(text(f"SELECT * FROM {self.schema}.{table} WHERE {period}=:chosen LIMIT 1"), {"chosen": chosen}) if chosen else []
-        points = [{"tenor": k, "value": v} for k, v in (row[0].items() if row else []) if k not in {period,"created_at","updated_at"} and v is not None]
+        where = f"{period}=:chosen" + (f" AND {fixed_filter}" if fixed_filter else "")
+        row = await self._execute_mappings(text(f"SELECT * FROM {self.schema}.{table} WHERE {where} LIMIT 1"), {"chosen": chosen}) if chosen else []
+        excluded = {period, "created_at", "updated_at", "curr_type", "e_factor"}
+        points = [{"tenor": k, "value": v} for k, v in (row[0].items() if row else []) if k not in excluded and v is not None]
         return {"available": bool(points), "key": key, "date": str(chosen) if chosen else None,
                 "source": f"{self.schema}.{table}", "raw": True, "points": points}
 
