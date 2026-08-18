@@ -1,8 +1,19 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
-from services.agent_platform.opportunities import SourceUnavailable, _candidate, _domain_candidates, _options_candidates, _stable_hash
+from services.agent_platform.opportunities import (
+    PUBLICATION_WATERMARK_KEY,
+    SourceUnavailable,
+    _candidate,
+    _domain_publication_watermark,
+    _domain_candidates,
+    _options_candidates,
+    _publication_is_unchanged,
+    _refresh_resource_lock,
+    _stable_hash,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -101,6 +112,47 @@ def test_snapshots_are_immutable_and_refresh_worker_is_isolated():
     assert "existing_snapshot" in service
     assert "MarketOpportunitySnapshot.snapshot_fingerprint == snapshot_fingerprint" in service
     assert "desc(MarketOpportunitySnapshot.id)" in service
+
+
+def test_unchanged_successful_publication_skips_heavy_refresh():
+    state = SimpleNamespace(
+        status="ok",
+        source_watermark={PUBLICATION_WATERMARK_KEY: "datasets:abc"},
+    )
+    assert _publication_is_unchanged(state, "datasets:abc")
+    assert not _publication_is_unchanged(state, "datasets:def")
+
+
+def test_domain_publication_watermark_ignores_unrelated_datasets(monkeypatch):
+    payload = {
+        "available": True,
+        "version": "global-1",
+        "datasets": [
+            {"key": "futures_daily", "actual_as_of": "2026-08-17", "last_success_at": "a", "points": 10, "state": "current"},
+            {"key": "futures_mapping", "actual_as_of": "2026-08-17", "last_success_at": "a", "points": 5, "state": "current"},
+            {"key": "stock_daily", "actual_as_of": "2026-08-17", "last_success_at": "a", "points": 20, "state": "current"},
+        ],
+    }
+    monkeypatch.setattr(
+        "services.agent_platform.opportunities.read_publication_status",
+        lambda: payload,
+    )
+    first = _domain_publication_watermark("futures")
+    payload["datasets"][2]["last_success_at"] = "b"
+    assert _domain_publication_watermark("futures") == first
+    payload["datasets"][0]["last_success_at"] = "b"
+    assert _domain_publication_watermark("futures") != first
+
+
+def test_optional_resource_lock_is_nonblocking(monkeypatch, tmp_path):
+    lock_path = tmp_path / "shared-resource.lock"
+    lock_path.touch()
+    lock_path.chmod(0o444)
+    monkeypatch.setenv("OPPORTUNITY_RESOURCE_LOCK_FILE", str(lock_path))
+    with _refresh_resource_lock() as first:
+        assert first
+        with _refresh_resource_lock() as second:
+            assert not second
 
 
 def test_opportunity_detector_has_no_rank_percentile_or_execution_path():

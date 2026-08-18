@@ -10,10 +10,17 @@ import hashlib
 import json
 import os
 import time
+from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 from uuid import UUID
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - optional on non-POSIX development hosts
+    fcntl = None
 
 from sqlalchemy import delete, desc, or_, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -36,6 +43,7 @@ from domain.agent_platform.models import (
     MarketOpportunityRefreshState,
     MarketOpportunitySnapshot,
 )
+from services.agent_platform.publication_status import read_publication_status
 from services.agent_platform.tushare import TushareReadService
 
 logger = get_logger(__name__)
@@ -43,6 +51,16 @@ GLOBAL_DOMAINS = ("macro", "rates", "capital", "futures", "options")
 PRIVATE_DOMAINS = ("company", "holder")
 ACTIVE_STATES = {"new", "active", "changed", "challenged", "invalidated", "stale"}
 OPPORTUNITY_REFRESH_LOCK = 731_904_221
+PUBLICATION_WATERMARK_KEY = "_publication_watermark"
+DOMAIN_PUBLICATION_DATASETS = {
+    "rates": ("repo_daily", "futures_daily", "futures_mapping", "stock_daily"),
+    "capital": (
+        "stock_daily", "fund_nav", "margin", "margin_detail", "moneyflow_proxy",
+        "stock_moneyflow", "hk_hold", "top_inst",
+    ),
+    "futures": ("futures_daily", "futures_mapping"),
+    "options": ("options_daily", "options_series", "option_analytics"),
+}
 
 
 class SourceUnavailable(RuntimeError):
@@ -56,6 +74,72 @@ def _number(value: Any) -> float | None:
 def _stable_hash(value: Any, length: int = 40) -> str:
     payload = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:length]
+
+
+def _domain_publication_watermark(domain: str) -> str | None:
+    """Return a source-specific publication identity without scanning market tables."""
+    payload = read_publication_status()
+    if not payload.get("available"):
+        return None
+    keys = DOMAIN_PUBLICATION_DATASETS.get(domain)
+    if not keys:
+        version = str(payload.get("version") or "").strip()
+        return f"global:{version}" if version else None
+    datasets = {
+        str(item.get("key") or ""): item
+        for item in payload.get("datasets") or []
+        if isinstance(item, dict)
+    }
+    identity = []
+    for key in keys:
+        item = datasets.get(key) or {}
+        identity.append({
+            "key": key,
+            "actual_as_of": item.get("actual_as_of"),
+            "last_success_at": item.get("last_success_at"),
+            "points": item.get("points"),
+            "state": item.get("state"),
+            "coverage_ratio": item.get("coverage_ratio"),
+            "unavailable_reason": item.get("unavailable_reason"),
+        })
+    return f"datasets:{_stable_hash(identity, 64)}"
+
+
+def _publication_is_unchanged(state: MarketOpportunityRefreshState | None, watermark: str | None) -> bool:
+    if state is None or state.status != "ok" or not watermark:
+        return False
+    previous = state.source_watermark if isinstance(state.source_watermark, dict) else {}
+    return previous.get(PUBLICATION_WATERMARK_KEY) == watermark
+
+
+@contextmanager
+def _refresh_resource_lock():
+    """Optionally coordinate refreshes with deployment-owned shared resource locks."""
+    lock_path = os.environ.get("OPPORTUNITY_RESOURCE_LOCK_FILE", "").strip()
+    if not lock_path:
+        yield True
+        return
+    if fcntl is None:
+        logger.warning("opportunity_resource_lock_unavailable", path=lock_path, reason="fcntl_unavailable")
+        yield False
+        return
+    handle = None
+    try:
+        # The deployment may expose a root-owned lock file read-only to this
+        # non-root container. Linux flock only needs an open descriptor.
+        handle = Path(lock_path).open("r")
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except (OSError, BlockingIOError) as exc:
+        if handle is not None:
+            handle.close()
+        logger.info("opportunity_refresh_skipped", reason="resource_lock_busy", path=lock_path, error=str(exc))
+        yield False
+        return
+    try:
+        yield True
+    finally:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()
 
 
 def _jsonable(value: Any) -> Any:
@@ -502,31 +586,42 @@ async def _refresh_opportunities_unlocked() -> dict[str, int]:
     totals: dict[str, int] = {}
     for domain in GLOBAL_DOMAINS:
         started = time.perf_counter(); now = datetime.now(UTC)
+        publication_watermark = _domain_publication_watermark(domain)
         async with async_session() as session:
             state = await session.get(MarketOpportunityRefreshState, domain)
-            if state is None:
-                state = MarketOpportunityRefreshState(domain=domain); session.add(state)
-            state.status, state.last_started_at = "running", now; await session.commit()
-            try:
-                candidates = await _domain_candidates(domain, TushareReadService(session))
-                total = await _materialize_domain(session, domain, candidates, scope="global")
-                state = await session.get(MarketOpportunityRefreshState, domain)
-                state.status, state.last_succeeded_at, state.last_error = "ok", datetime.now(UTC), None
-                state.candidates_seen = total; state.duration_ms = int((time.perf_counter() - started) * 1000)
-                state.source_watermark = {card["subject_key"]: card["source_dates"] for card in candidates}
-                await session.commit(); totals[domain] = total
-            except SourceUnavailable as exc:
-                await session.rollback(); state = await session.get(MarketOpportunityRefreshState, domain)
-                if state is None: state = MarketOpportunityRefreshState(domain=domain); session.add(state)
-                state.status, state.last_error = "unavailable", str(exc)[:2000]
-                state.duration_ms = int((time.perf_counter() - started) * 1000); await session.commit()
-                totals[domain] = 0
-            except Exception as exc:
-                await session.rollback(); state = await session.get(MarketOpportunityRefreshState, domain)
-                if state is None: state = MarketOpportunityRefreshState(domain=domain); session.add(state)
-                state.status, state.last_error = "failed", str(exc)[:2000]
-                state.duration_ms = int((time.perf_counter() - started) * 1000); await session.commit()
-                logger.exception("opportunity_domain_refresh_failed", domain=domain, error=str(exc))
+            if _publication_is_unchanged(state, publication_watermark):
+                totals[domain] = int(state.candidates_seen or 0)
+                logger.info("opportunity_domain_refresh_skipped", domain=domain, reason="publication_unchanged")
+                continue
+            with _refresh_resource_lock() as resource_acquired:
+                if not resource_acquired:
+                    totals[domain] = int(state.candidates_seen or 0) if state is not None else 0
+                    continue
+                if state is None:
+                    state = MarketOpportunityRefreshState(domain=domain); session.add(state)
+                state.status, state.last_started_at = "running", now; await session.commit()
+                try:
+                    candidates = await _domain_candidates(domain, TushareReadService(session))
+                    total = await _materialize_domain(session, domain, candidates, scope="global")
+                    state = await session.get(MarketOpportunityRefreshState, domain)
+                    state.status, state.last_succeeded_at, state.last_error = "ok", datetime.now(UTC), None
+                    state.candidates_seen = total; state.duration_ms = int((time.perf_counter() - started) * 1000)
+                    state.source_watermark = {card["subject_key"]: card["source_dates"] for card in candidates}
+                    if publication_watermark:
+                        state.source_watermark[PUBLICATION_WATERMARK_KEY] = publication_watermark
+                    await session.commit(); totals[domain] = total
+                except SourceUnavailable as exc:
+                    await session.rollback(); state = await session.get(MarketOpportunityRefreshState, domain)
+                    if state is None: state = MarketOpportunityRefreshState(domain=domain); session.add(state)
+                    state.status, state.last_error = "unavailable", str(exc)[:2000]
+                    state.duration_ms = int((time.perf_counter() - started) * 1000); await session.commit()
+                    totals[domain] = 0
+                except Exception as exc:
+                    await session.rollback(); state = await session.get(MarketOpportunityRefreshState, domain)
+                    if state is None: state = MarketOpportunityRefreshState(domain=domain); session.add(state)
+                    state.status, state.last_error = "failed", str(exc)[:2000]
+                    state.duration_ms = int((time.perf_counter() - started) * 1000); await session.commit()
+                    logger.exception("opportunity_domain_refresh_failed", domain=domain, error=str(exc))
     private_started = time.perf_counter()
     try:
         async with async_session() as session:

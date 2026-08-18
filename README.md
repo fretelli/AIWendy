@@ -49,7 +49,7 @@ flowchart LR
 - `domain/agentos` owns portfolio, hypothesis, decision, strategy, consensus, and document-version records.
 - PostgreSQL owns application state; Alembic is the only schema-management path.
 - Redis provides cache, task queues, coordination, and worker heartbeats.
-- Dedicated workers execute resumable research and materialize opportunity snapshots.
+- Dedicated workers execute resumable research and materialize opportunity snapshots; opportunity refreshes skip unchanged publication watermarks, and operators may set `OPPORTUNITY_RESOURCE_LOCK_FILE` to coordinate expensive refreshes with an external shared lock.
 - Content-brief sink credentials and workspace mappings are deployment-owned; the open-source defaults make no external write.
 
 AgentOS never connects to a broker or executes orders. Missing prices, FX rates, or source data remain explicit unavailable/incomplete states; production does not synthesize portfolio values. Schema upgrades are additive, and historical migrations remain immutable.
