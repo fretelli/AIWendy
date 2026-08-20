@@ -128,6 +128,32 @@ _PMI_FIELD_LABELS = {
     "pmi021000": "非制造业供应商配送时间", "pmi030000": "综合 PMI 产出指数",
 }
 
+_PPI_FIELD_DIMENSIONS = (
+    ("", "工业生产者出厂价格", "总指数"),
+    ("_mp", "生产资料", "生产资料"),
+    ("_mp_qm", "采掘工业", "生产资料"),
+    ("_mp_rm", "原材料工业", "生产资料"),
+    ("_mp_p", "加工工业", "生产资料"),
+    ("_cg", "生活资料", "生活资料"),
+    ("_cg_f", "食品", "生活资料"),
+    ("_cg_c", "衣着", "生活资料"),
+    ("_cg_adu", "一般日用品", "生活资料"),
+    ("_cg_dcg", "耐用消费品", "生活资料"),
+)
+
+_PPI_FIELD_MEASURES = (
+    ("yoy", "同比"),
+    ("mom", "环比"),
+    ("accu", "累计同比"),
+)
+
+_HISTORICAL_RATE_NOTES = {
+    "libor_usd": "Tushare 源端最后更新于 2020-06-24；只作为官方历史，不延长或合成。",
+    "hibor": "Tushare 源端最后更新于 2020-06-24；只作为官方历史，不延长或合成。",
+    "wenzhou_private": "Tushare 温州指数历史截至 2023-03-08；只展示源端历史，不延长或合成。",
+    "guangzhou_private": "Tushare 广州指数历史截至 2019-03-04；只展示源端历史，不延长或合成。",
+}
+
 _MACRO_FIELD_CATALOG: dict[str, list[dict[str, str]]] = {
     "gdp": [
         {"key": "gdp_yoy", "label": "GDP 同比", "unit": "%", "group": "总量"},
@@ -154,9 +180,14 @@ _MACRO_FIELD_CATALOG: dict[str, list[dict[str, str]]] = {
         {"key": "cnt_accu", "label": "农村累计指数", "unit": "指数", "group": "城乡"},
     ],
     "ppi": [
-        {"key": "ppi_yoy", "label": "PPI 同比", "unit": "%", "group": "价格"},
-        {"key": "ppi_mom", "label": "PPI 环比", "unit": "%", "group": "价格"},
-        {"key": "ppi_accu", "label": "PPI 累计同比", "unit": "%", "group": "价格"},
+        {
+            "key": f"ppi{dimension}_{measure}",
+            "label": f"{label}{measure_label}",
+            "unit": "%",
+            "group": group,
+        }
+        for dimension, label, group in _PPI_FIELD_DIMENSIONS
+        for measure, measure_label in _PPI_FIELD_MEASURES
     ],
     "money_supply": [
         *({"key": f"m{level}{suffix}", "label": f"M{level}{label}", "unit": unit, "group": f"M{level}"}
@@ -2065,6 +2096,8 @@ class TushareReadService:
             "us_short": ("us_tbr", "date", "daily", "美国短期国债利率"),
             "us_long": ("us_tltr", "date", "daily", "美国国债长期利率"),
             "us_real_long_average": ("us_trltr", "date", "daily", "美国国债实际长期利率平均值"),
+            "wenzhou_private": ("wz_index", "date", "historical", "温州民间融资综合利率（历史）"),
+            "guangzhou_private": ("gz_index", "date", "historical", "广州民间借贷利率（历史）"),
         }
 
     async def rates_catalog(self) -> dict[str, Any]:
@@ -2093,10 +2126,11 @@ class TushareReadService:
                 "shibor": "3m", "lpr": "1y", "libor_usd": "3m", "hibor": "3m",
                 "repo": "avg_rate", "us_nominal": "y10", "us_real": "y10",
                 "us_short": "w13_ce", "us_long": "ltc", "us_real_long_average": "ltr_avg",
+                "wenzhou_private": "comp_rate", "guangzhou_private": "m1_rate",
             }.get(key, fields[0] if fields else None)
-            if key in {"libor_usd", "hibor"}:
+            if key in _HISTORICAL_RATE_NOTES:
                 item["freshness_state"] = "historical_source_ended"
-                item["freshness_note"] = "Tushare 源端最后更新于 2020-06-24；只作为官方历史，不延长或合成。"
+                item["freshness_note"] = _HISTORICAL_RATE_NOTES[key]
             else:
                 item["freshness_state"] = macro_freshness(item["end"], frequency).get("freshness_state")
             if key in analysis:

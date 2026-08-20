@@ -2,7 +2,30 @@ from datetime import date
 
 import pytest
 
-from services.agent_platform.tushare import TushareReadService, build_macro_analysis, macro_freshness
+from services.agent_platform.tushare import (
+    _MACRO_FIELD_CATALOG,
+    TushareReadService,
+    build_macro_analysis,
+    macro_freshness,
+)
+
+
+PPI_SOURCE_FIELDS = {
+    f"ppi{dimension}_{measure}"
+    for dimension in (
+        "",
+        "_mp",
+        "_mp_qm",
+        "_mp_rm",
+        "_mp_p",
+        "_cg",
+        "_cg_f",
+        "_cg_c",
+        "_cg_adu",
+        "_cg_dcg",
+    )
+    for measure in ("yoy", "mom", "accu")
+}
 
 
 def test_cpi_headline_is_official_yoy_and_percentile_uses_that_series():
@@ -75,6 +98,18 @@ def test_gdp_headline_and_sequential_change_are_official_yoy_percentage_points()
     assert ppi["summary"]["yoy"]["status"] == "not_applicable"
 
 
+def test_ppi_drilldown_exposes_every_authorized_numeric_provider_field():
+    fields = {item["key"] for item in _MACRO_FIELD_CATALOG["ppi"]}
+    assert fields == PPI_SOURCE_FIELDS
+    assert len(fields) == 30
+    assert next(item for item in _MACRO_FIELD_CATALOG["ppi"] if item["key"] == "ppi_mp_qm_yoy") == {
+        "key": "ppi_mp_qm_yoy",
+        "label": "采掘工业同比",
+        "unit": "%",
+        "group": "生产资料",
+    }
+
+
 def test_money_supply_headline_is_m2_yoy_and_credit_percentile_is_same_calendar_month():
     money = build_macro_analysis("money_supply", [
         {"period": "202501", "m2": 3000000, "m2_yoy": 7.0},
@@ -119,6 +154,16 @@ async def test_macro_catalog_preserves_rates_and_keeps_fiscal_gap_explicit():
     assert fiscal["available"] is False
     assert fiscal["reason_code"] == "provider_dataset_unavailable"
     assert catalog["methodology"]["synthetic_substitution"] is False
+
+
+def test_rates_catalog_registers_authorized_private_lending_history():
+    definitions = TushareReadService.rates_definitions()
+    assert definitions["wenzhou_private"] == (
+        "wz_index", "date", "historical", "温州民间融资综合利率（历史）",
+    )
+    assert definitions["guangzhou_private"] == (
+        "gz_index", "date", "historical", "广州民间借贷利率（历史）",
+    )
 
 
 def test_macro_freshness_marks_old_monthly_and_quarterly_data_stale():

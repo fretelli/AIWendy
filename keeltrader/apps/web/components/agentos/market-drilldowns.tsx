@@ -11,14 +11,16 @@ import { useI18n } from "@/lib/i18n/provider";
 
 const TimeSeriesChart = dynamic(() => import("@/components/agentos/market-charts").then((module) => module.TimeSeriesChart), { ssr: false });
 const HISTORY_RANGES = ["1M", "3M", "1Y", "3Y", "5Y"] as const;
+const RATE_HISTORY_RANGES = [...HISTORY_RANGES, "10Y", "ALL"] as const;
 type HistoryRange = (typeof HISTORY_RANGES)[number];
+type RateHistoryRange = (typeof RATE_HISTORY_RANGES)[number];
 
 export function RatesDrilldown() {
   const { locale } = useI18n();
   const [catalog, setCatalog] = useState<RatesCatalog | null>(null);
   const [selected, setSelected] = useState<string>();
   const [field, setField] = useState<string>();
-  const [range, setRange] = useState<HistoryRange>("1Y");
+  const [range, setRange] = useState<RateHistoryRange>("1Y");
   const [series, setSeries] = useState<RatesSeries>();
   const [curve, setCurve] = useState<RatesCurve>();
   useEffect(() => { void marketsApi.ratesCatalog().then((data) => { const initial = data.items.find((entry) => entry.available); setCatalog(data); setSelected(initial?.key); setField(initial?.primary_field && initial.fields.includes(initial.primary_field) ? initial.primary_field : initial?.fields[0]); }).catch(() => setCatalog(null)); }, []);
@@ -35,13 +37,20 @@ export function RatesDrilldown() {
   };
   const visible = series?.rows.slice(-periodPoints(range)) || [];
   return <div className="grid gap-3"><Panel><SectionTitle title={locale === "zh" ? "利率与收益率" : "Rates & Yields"} en="PROVIDER-NATIVE SERIES" />
-    {catalog?.items.length ? <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{catalog.items.map((entry) => <button type="button" onClick={() => chooseRate(entry.key)} key={entry.key} className={`rounded-md border bg-agent-raised p-3 text-left ${selected === entry.key ? "border-agent-mint" : "border-agent-border"}`}><div className="flex items-center gap-2"><StatusDot status={entry.available ? "complete" : "unavailable"} /><span className="text-xs text-agent-text">{entry.label}</span></div><p className="mt-3 font-data text-[9px] text-agent-dim">{entry.start || "—"} → {entry.end || "—"} · {entry.points || 0} {locale === "zh" ? "个观测值" : "points"}</p>{entry.freshness_note ? <p className="mt-2 text-[9px] leading-4 text-agent-amber">{locale === "zh" ? entry.freshness_note : "Provider history ends on 2020-06-24; no synthetic continuation."}</p> : null}{entry.unavailable_reason ? <p className="mt-2 text-[10px] leading-5 text-agent-amber">{localizeUnavailableReason(entry.unavailable_reason, locale)}</p> : null}</button>)}</div> : <EmptyPanel title={locale === "zh" ? "利率目录不可用" : "Rates catalog unavailable"} detail={locale === "zh" ? "yc_cb 等缺失来源会保持明确不可用，不使用期货或合成曲线。" : "Missing sources such as yc_cb remain explicitly unavailable without futures or synthetic substitutes."} />}
-  </Panel>{item?.available ? <Panel><SectionTitle title={item.label} en="HISTORY · LATEST CURVE" /><div className="mb-3 flex flex-wrap gap-2"><ToggleGroup type="single" value={field} onValueChange={(value) => { if (value) setField(value); }} variant="outline" size="sm" aria-label={locale === "zh" ? "利率字段" : "Rate field"}>{item.fields.map((value) => <ToggleGroupItem key={value} value={value} className="font-data text-[9px]">{rateFieldLabel(value, locale)}</ToggleGroupItem>)}</ToggleGroup><ToggleGroup type="single" value={range} onValueChange={(value) => { if (value) setRange(value as HistoryRange); }} variant="outline" size="sm" aria-label={locale === "zh" ? "历史范围" : "History range"}>{HISTORY_RANGES.map((value) => <ToggleGroupItem key={value} value={value} className="font-data text-[9px]">{value}</ToggleGroupItem>)}</ToggleGroup></div>{visible.length ? <TimeSeriesChart dates={visible.map((row) => row.period)} series={[{ name: rateFieldLabel(field || "", locale), values: visible.map((row) => row.value) }]} locale={locale} title={`${item.label} · ${range}`} height={340} /> : <EmptyPanel title={locale === "zh" ? "该字段没有历史" : "No history for this field"} detail="" />}{curve?.points.length ? <div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">{curve.points.map((point) => <div key={point.tenor} className="rounded border border-agent-border bg-agent-raised p-2"><p className="font-data text-[9px] text-agent-dim">{rateFieldLabel(point.tenor, locale)}</p><p className="mt-1 font-data text-sm text-agent-blue">{Number(point.value).toFixed(3)}%</p></div>)}</div> : null}</Panel> : null}</div>;
+    {catalog?.items.length ? <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{catalog.items.map((entry) => <button type="button" onClick={() => chooseRate(entry.key)} key={entry.key} className={`rounded-md border bg-agent-raised p-3 text-left ${selected === entry.key ? "border-agent-mint" : "border-agent-border"}`}><div className="flex items-center gap-2"><StatusDot status={entry.available ? "complete" : "unavailable"} /><span className="text-xs text-agent-text">{entry.label}</span></div><p className="mt-3 font-data text-[9px] text-agent-dim">{entry.start || "—"} → {entry.end || "—"} · {entry.points || 0} {locale === "zh" ? "个观测值" : "points"}</p>{entry.freshness_note ? <p className="mt-2 text-[9px] leading-4 text-agent-amber">{historicalSourceNote(entry, locale)}</p> : null}{entry.unavailable_reason ? <p className="mt-2 text-[10px] leading-5 text-agent-amber">{localizeUnavailableReason(entry.unavailable_reason, locale)}</p> : null}</button>)}</div> : <EmptyPanel title={locale === "zh" ? "利率目录不可用" : "Rates catalog unavailable"} detail={locale === "zh" ? "yc_cb 等缺失来源会保持明确不可用，不使用期货或合成曲线。" : "Missing sources such as yc_cb remain explicitly unavailable without futures or synthetic substitutes."} />}
+  </Panel>{item?.available ? <Panel><SectionTitle title={item.label} en="HISTORY · LATEST CURVE" /><div className="mb-3 flex flex-wrap gap-2"><ToggleGroup type="single" value={field} onValueChange={(value) => { if (value) setField(value); }} variant="outline" size="sm" aria-label={locale === "zh" ? "利率字段" : "Rate field"}>{item.fields.map((value) => <ToggleGroupItem key={value} value={value} className="font-data text-[9px]">{rateFieldLabel(value, locale)}</ToggleGroupItem>)}</ToggleGroup><ToggleGroup type="single" value={range} onValueChange={(value) => { if (value) setRange(value as RateHistoryRange); }} variant="outline" size="sm" aria-label={locale === "zh" ? "历史范围" : "History range"}>{RATE_HISTORY_RANGES.map((value) => <ToggleGroupItem key={value} value={value} className="font-data text-[9px]">{value}</ToggleGroupItem>)}</ToggleGroup></div>{visible.length ? <TimeSeriesChart dates={visible.map((row) => row.period)} series={[{ name: rateFieldLabel(field || "", locale), values: visible.map((row) => row.value) }]} locale={locale} title={`${item.label} · ${range}`} height={340} /> : <EmptyPanel title={locale === "zh" ? "该字段没有历史" : "No history for this field"} detail="" />}{curve?.points.length ? <div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">{curve.points.map((point) => <div key={point.tenor} className="rounded border border-agent-border bg-agent-raised p-2"><p className="font-data text-[9px] text-agent-dim">{rateFieldLabel(point.tenor, locale)}</p><p className="mt-1 font-data text-sm text-agent-blue">{Number(point.value).toFixed(3)}%</p></div>)}</div> : null}</Panel> : null}</div>;
 }
 
 function rateFieldLabel(field: string, locale: "zh" | "en") {
-  const zh: Record<string, string> = { on: "隔夜", "1w": "1周", "2w": "2周", "1m": "1月", "2m": "2月", "3m": "3月", "6m": "6月", "9m": "9月", "12m": "12月", "1y": "1年", "5y": "5年", m1: "1月", m2: "2月", m3: "3月", m6: "6月", y1: "1年", y2: "2年", y3: "3年", y5: "5年", y7: "7年", y10: "10年", y20: "20年", y30: "30年", w4_bd: "4周贴现", w4_ce: "4周票息等价", w8_bd: "8周贴现", w8_ce: "8周票息等价", w13_bd: "13周贴现", w13_ce: "13周票息等价", w17_bd: "17周贴现", w17_ce: "17周票息等价", w26_bd: "26周贴现", w26_ce: "26周票息等价", w52_bd: "52周贴现", w52_ce: "52周票息等价", ltc: "长期复合利率", cmt: "20年CMT", ltr_avg: "10年以上实际平均利率" };
+  const zh: Record<string, string> = { on: "隔夜", "1w": "1周", "2w": "2周", "1m": "1月", "2m": "2月", "3m": "3月", "6m": "6月", "9m": "9月", "12m": "12月", "1y": "1年", "5y": "5年", m1: "1月", m2: "2月", m3: "3月", m6: "6月", y1: "1年", y2: "2年", y3: "3年", y5: "5年", y7: "7年", y10: "10年", y20: "20年", y30: "30年", comp_rate: "综合利率", center_rate: "民间借贷服务中心", micro_rate: "小额贷款公司", cm_rate: "民间资本管理公司", sdb_rate: "社会直接借贷", om_rate: "其他市场主体", aa_rate: "农村互助会", d10_rate: "10天", m1_rate: "1月", m3_rate: "3月", m6_rate: "6月", m12_rate: "12月", long_rate: "长期", w4_bd: "4周贴现", w4_ce: "4周票息等价", w8_bd: "8周贴现", w8_ce: "8周票息等价", w13_bd: "13周贴现", w13_ce: "13周票息等价", w17_bd: "17周贴现", w17_ce: "17周票息等价", w26_bd: "26周贴现", w26_ce: "26周票息等价", w52_bd: "52周贴现", w52_ce: "52周票息等价", ltc: "长期复合利率", cmt: "20年CMT", ltr_avg: "10年以上实际平均利率" };
   return locale === "zh" ? zh[field] || field : field.toUpperCase();
+}
+
+function historicalSourceNote(entry: RatesCatalog["items"][number], locale: "zh" | "en") {
+  if (locale === "zh") return entry.freshness_note;
+  if (entry.key === "wenzhou_private") return "Provider history ends on 2023-03-08; no synthetic continuation.";
+  if (entry.key === "guangzhou_private") return "Provider history ends on 2019-03-04; no synthetic continuation.";
+  return "Provider history ends on 2020-06-24; no synthetic continuation.";
 }
 
 export function FuturesDrilldown() {
@@ -78,6 +87,6 @@ function localizeUnavailableReason(reason: string, locale: "zh" | "en") {
   return known[reason] || "该正式数据源当前不可用。";
 }
 
-function periodPoints(period: HistoryRange) {
-  return ({ "1M": 22, "3M": 66, "1Y": 252, "3Y": 756, "5Y": 1260 } as const)[period];
+function periodPoints(period: HistoryRange | RateHistoryRange) {
+  return ({ "1M": 22, "3M": 66, "1Y": 252, "3Y": 756, "5Y": 1260, "10Y": 2520, ALL: Number.MAX_SAFE_INTEGER } as const)[period];
 }
