@@ -202,6 +202,15 @@ _MACRO_FIELD_CATALOG: dict[str, list[dict[str, str]]] = {
             for key, label in _PMI_FIELD_LABELS.items()],
 }
 
+_MACRO_FEATURED_FIELDS: dict[str, tuple[str, ...]] = {
+    "gdp": ("pi_yoy", "si_yoy", "ti_yoy"),
+    "cpi": ("town_yoy", "cnt_yoy"),
+    "ppi": ("ppi_mp_yoy", "ppi_cg_yoy"),
+    "money_supply": ("m0_yoy", "m1_yoy", "m2_yoy"),
+    "social_financing": ("inc_month", "inc_cumval", "stk_endval"),
+    "pmi": ("pmi010000", "pmi020100", "pmi030000"),
+}
+
 
 def _number(value: Any) -> float | None:
     if value is None:
@@ -211,6 +220,23 @@ def _number(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return numeric if math.isfinite(numeric) else None
+
+
+def build_macro_featured_fields(key: str, source_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return a small, explicit latest-period structure strip for macro cards."""
+    featured = _MACRO_FEATURED_FIELDS.get(key, ())
+    if not featured:
+        return []
+    latest = next((dict(row) for row in reversed(source_rows) if row.get("period") is not None), None)
+    if latest is None:
+        return []
+    metadata = {item["key"]: item for item in _MACRO_FIELD_CATALOG.get(key, [])}
+    period = str(latest.get("period"))
+    return [
+        {**metadata[field], "value": _number(latest.get(field)), "period": period}
+        for field in featured
+        if field in metadata
+    ]
 
 
 def _period_date(value: Any, frequency: str) -> date | None:
@@ -1940,6 +1966,7 @@ class TushareReadService:
         table, period = str(definition["table"]), str(definition["period"])
         fields = list(dict.fromkeys(str(definition[name]) for name in ("primary", "mom_field", "yoy_field")
                                     if definition.get(name)))
+        fields.extend(field for field in _MACRO_FEATURED_FIELDS.get(key, ()) if field not in fields)
         # The capability manifest is the read allowlist and is already mounted
         # locally. Avoid ten serial information_schema existence probes on the
         # cold catalog path; _execute_mappings still degrades safely if a
@@ -1947,6 +1974,7 @@ class TushareReadService:
         if table not in physical_tables():
             detail = build_macro_analysis(key, [])
             detail["field_catalog"] = _MACRO_FIELD_CATALOG.get(key, [])
+            detail["featured_fields"] = []
             detail["reason_code"] = "capability_unavailable"
             detail["quality"] = {
                 "source_type": "eco_cal_gated" if definition.get("series_key") else "structured",
@@ -1972,6 +2000,7 @@ class TushareReadService:
         detail["source"] = f"{self.schema}.{table}"
         detail["recent_source_rows"] = rows[-12:]
         detail["field_catalog"] = _MACRO_FIELD_CATALOG.get(key, [])
+        detail["featured_fields"] = build_macro_featured_fields(key, rows)
         freshness = macro_freshness(detail.get("end"), str(definition["frequency"]))
         if definition.get("series_key"):
             minimum = int(definition.get("minimum_samples") or 12)

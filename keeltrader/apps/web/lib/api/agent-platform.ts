@@ -528,6 +528,7 @@ export type MacroCatalog = {
     summary?: MacroAnalysisSummary;
     sparkline?: { periods: string[]; values: Array<number | null> };
     field_catalog?: MacroFieldMeta[];
+    featured_fields?: MacroFeaturedField[];
     quality?: MacroQuality;
     latest_release?: MacroLatestRelease;
     next_release?: MacroNextRelease;
@@ -535,6 +536,7 @@ export type MacroCatalog = {
   methodology: { raw?: true; local_transforms?: boolean; raw_history?: boolean; synthetic_prices?: boolean; methodology_key?: string; percentile_window?: string; structured_source_priority?: boolean; eco_cal_gated_fallback?: boolean; synthetic_substitution?: boolean };
 };
 export type MacroFieldMeta = { key: string; label: string; unit: string; group: string };
+export type MacroFeaturedField = MacroFieldMeta & { value: number | null; period: string };
 export type MacroQuality = { source_type: "structured" | "eco_cal_gated" | "unavailable" | string; status: string; coverage_points?: number; minimum_samples?: number; freshness_state?: "current" | "stale" | "unknown" | string; latest_period?: string | null; lag_days?: number; max_lag_days?: number };
 export type MacroLatestRelease = { release_date?: string | null; release_time?: string | null; event_name?: string | null; quality_state?: string | null; actual?: number | null; forecast?: number | null; surprise?: number | null };
 export type MacroNextRelease = { release_date?: string | null; release_time?: string | null; event_name?: string | null; forecast?: string | null; status: "scheduled" | "awaiting_source_value" | string };
@@ -580,6 +582,7 @@ export type MacroSeriesDetail = {
   }>;
   sparkline?: { periods: string[]; values: Array<number | null> };
   field_catalog?: MacroFieldMeta[];
+  featured_fields?: MacroFeaturedField[];
   quality?: MacroQuality;
   latest_release?: MacroLatestRelease;
   next_release?: MacroNextRelease;

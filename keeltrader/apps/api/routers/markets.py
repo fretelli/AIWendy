@@ -255,7 +255,7 @@ async def factors_history(request: Request, limit: int = Query(756, ge=20, le=13
 @router.get("/macro/series")
 async def macro_catalog(session: AsyncSession = Depends(get_session), user: User = Depends(get_current_user)):
     reader = service(session)
-    return await cached_json("macro:catalog:v2", reader.macro_catalog)
+    return await cached_json("macro:catalog:v3", reader.macro_catalog)
 
 
 @router.get("/rates/catalog")
@@ -301,7 +301,7 @@ async def macro_series(key: str, field: str | None = None, session: AsyncSession
                        user: User = Depends(get_current_user)):
     reader = service(session)
     try:
-        return await cached_json(f"macro:{key}:{field or 'analysis-v2'}", lambda: reader.macro_series(key, field))
+        return await cached_json(f"macro:{key}:{field or 'analysis-v3'}", lambda: reader.macro_series(key, field))
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
 
