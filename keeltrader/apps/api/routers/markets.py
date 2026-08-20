@@ -297,11 +297,19 @@ async def bond_convertibles(code: str | None = None, limit: int = Query(200, ge=
 
 
 @router.get("/macro/series/{key}")
-async def macro_series(key: str, field: str | None = None, session: AsyncSession = Depends(get_session),
-                       user: User = Depends(get_current_user)):
+async def macro_series(
+    key: str,
+    field: str | None = None,
+    history_window: Literal["5Y", "10Y", "20Y", "ALL"] = "10Y",
+    session: AsyncSession = Depends(get_session),
+    user: User = Depends(get_current_user),
+):
     reader = service(session)
     try:
-        return await cached_json(f"macro:{key}:{field or 'analysis-v3'}", lambda: reader.macro_series(key, field))
+        return await cached_json(
+            f"macro:{key}:{field or f'analysis-v4:{history_window}'}",
+            lambda: reader.macro_series(key, field, history_window),
+        )
     except ValueError as exc:
         raise HTTPException(404, str(exc)) from exc
 

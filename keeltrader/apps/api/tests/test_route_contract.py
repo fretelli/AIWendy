@@ -61,6 +61,14 @@ def test_active_route_prefixes_are_mounted(client):
     assert expected_paths <= paths
 
 
+def test_macro_history_position_window_is_an_explicit_api_contract(client):
+    operation = client.app.openapi()["paths"]["/api/v1/markets/macro/series/{key}"]["get"]
+    parameter = next(item for item in operation["parameters"] if item["name"] == "history_window")
+
+    assert parameter["schema"]["default"] == "10Y"
+    assert parameter["schema"]["enum"] == ["5Y", "10Y", "20Y", "ALL"]
+
+
 def test_legacy_routers_are_not_accidentally_exposed(client):
     paths = route_paths(client.app)
 

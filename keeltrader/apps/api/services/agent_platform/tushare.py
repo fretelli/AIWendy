@@ -38,6 +38,13 @@ _MARKET_CAPITAL_CACHE_SECONDS = 300
 _market_domain_cache: dict[str, tuple[float, Any]] = {}
 _MARKET_DOMAIN_CACHE_SECONDS = 600
 
+_HISTORICAL_POSITION_WINDOWS: dict[str, int | None] = {
+    "5Y": 5,
+    "10Y": 10,
+    "20Y": 20,
+    "ALL": None,
+}
+
 
 _MACRO_ANALYSIS_DEFINITIONS: dict[str, dict[str, Any]] = {
     "gdp": {"domain": "macro", "theme": "growth", "table": "cn_gdp", "period": "quarter", "frequency": "quarterly", "label": "国内生产总值同比",
@@ -294,8 +301,14 @@ def _latest_metric(meta: dict[str, Any], rows: list[dict[str, Any]]) -> dict[str
             **({key: latest[key] for key in ("sample_count", "window_complete") if key in latest} if latest else {})}
 
 
-def build_macro_analysis(key: str, source_rows: list[dict[str, Any]]) -> dict[str, Any]:
+def build_macro_analysis(
+    key: str,
+    source_rows: list[dict[str, Any]],
+    history_window: str = "10Y",
+) -> dict[str, Any]:
     """Build auditable primary, change and rolling-percentile series from official rows."""
+    if history_window not in _HISTORICAL_POSITION_WINDOWS:
+        raise ValueError("Unknown historical position window")
     definition = _MACRO_ANALYSIS_DEFINITIONS[key]
     frequency = str(definition["frequency"])
     primary_field = str(definition["primary"])
@@ -356,8 +369,9 @@ def build_macro_analysis(key: str, source_rows: list[dict[str, Any]]) -> dict[st
     yoy_meta, yoy_rows = metric("yoy", 12)
     minimum = int(definition.get("minimum_samples") or
                   {"quarterly": 8, "monthly": 24, "daily": 252}.get(frequency, 24))
-    percentile_rows: list[dict[str, Any]] = []
+    historical_position_rows: list[dict[str, Any]] = []
     percentile_mode = str(definition.get("percentile_mode") or "trailing_10y")
+    window_years = _HISTORICAL_POSITION_WINDOWS[history_window]
     active: deque[tuple[date, float]] = deque()
     ranked: list[float] = []
     first_valid_date = next((parsed for parsed, row in zip(parsed_dates, primary_rows)
@@ -365,39 +379,48 @@ def build_macro_analysis(key: str, source_rows: list[dict[str, Any]]) -> dict[st
     for parsed, row in zip(parsed_dates, primary_rows):
         current = row["value"]
         if parsed is None or current is None:
-            percentile_rows.append({"period": row["period"], "value": None, "sample_count": len(ranked),
-                                    "window_complete": False})
+            historical_position_rows.append({"period": row["period"], "value": None,
+                                             "sample_count": len(ranked), "window_complete": False})
             continue
-        cutoff = _shift_months(parsed, -120)
+        cutoff = _shift_months(parsed, -(window_years * 12)) if window_years is not None else None
         if percentile_mode == "same_calendar_month":
             comparable = [candidate["value"] for candidate, candidate_date in zip(primary_rows, parsed_dates)
-                          if candidate_date is not None and cutoff <= candidate_date <= parsed
+                          if candidate_date is not None and candidate_date <= parsed
+                          and (cutoff is None or cutoff < candidate_date)
                           and candidate_date.month == parsed.month and candidate["value"] is not None]
             ranked = sorted(float(value) for value in comparable)
         else:
-            while active and active[0][0] < cutoff:
+            while cutoff is not None and active and active[0][0] <= cutoff:
                 _old_date, old_value = active.popleft()
                 ranked.pop(bisect_left(ranked, old_value))
             active.append((parsed, current))
             insort(ranked, current)
         left, right = bisect_left(ranked, current), bisect_right(ranked, current)
         percentile = (((left + right - 1) / 2) / (len(ranked) - 1) * 100) if len(ranked) >= minimum and len(ranked) > 1 else None
-        complete = bool(first_valid_date and first_valid_date <= cutoff)
-        percentile_rows.append({"period": row["period"], "value": round(percentile, 6) if percentile is not None else None,
-                                "sample_count": len(ranked), "window_complete": complete})
+        complete = (len(ranked) >= minimum if cutoff is None
+                    else bool(first_valid_date and first_valid_date <= cutoff))
+        historical_position_rows.append({
+            "period": row["period"], "value": round(percentile, 6) if percentile is not None else None,
+            "sample_count": len(ranked), "window_complete": complete,
+        })
 
     primary_meta = {"unit": definition["primary_unit"], "method": "official", "source_field": primary_field,
                     "formula": "official_source_field"}
-    percentile_formula = ("percent_rank_inc_same_calendar_month_trailing_10_years"
-                          if percentile_mode == "same_calendar_month"
-                          else "percent_rank_inc_trailing_10_calendar_years")
+    if window_years is None:
+        percentile_formula = ("percent_rank_inc_same_calendar_month_expanding_history"
+                              if percentile_mode == "same_calendar_month"
+                              else "percent_rank_inc_expanding_history")
+    else:
+        percentile_formula = (f"percent_rank_inc_same_calendar_month_trailing_{window_years}_years"
+                              if percentile_mode == "same_calendar_month"
+                              else f"percent_rank_inc_trailing_{window_years}_calendar_years")
     percentile_meta = {"unit": "%", "method": "calculated", "formula": percentile_formula,
-                       "window": "10Y", "minimum_samples": minimum}
+                       "window": history_window, "minimum_samples": minimum}
     series = {
         "primary": {"meta": primary_meta, "rows": primary_rows},
         "mom": {"meta": mom_meta, "rows": mom_rows},
         "yoy": {"meta": yoy_meta, "rows": yoy_rows},
-        "percentile_10y": {"meta": percentile_meta, "rows": percentile_rows},
+        "historical_position": {"meta": percentile_meta, "rows": historical_position_rows},
     }
     summary = {name: _latest_metric(value["meta"], value["rows"]) for name, value in series.items()}
     return {
@@ -407,7 +430,7 @@ def build_macro_analysis(key: str, source_rows: list[dict[str, Any]]) -> dict[st
         "primary_field": primary_field, "primary_alias": definition.get("primary_alias"),
         "start": primary_rows[0]["period"] if primary_rows else None,
         "end": primary_rows[-1]["period"] if primary_rows else None, "points": len(primary_rows),
-        "source": f"tushare.{definition['table']}", "methodology_key": "kt_macro_analysis_v2",
+        "source": f"tushare.{definition['table']}", "methodology_key": "kt_macro_analysis_v3",
         "summary": summary, "series": series,
         "sparkline": {"periods": [row["period"] for row in primary_rows[-60:]],
                       "values": [row["value"] for row in primary_rows[-60:]]},
@@ -1961,7 +1984,7 @@ class TushareReadService:
                 result.setdefault(str(row["table_name"]), []).append(str(row["column_name"]))
         return result
 
-    async def _macro_detail(self, key: str) -> dict[str, Any]:
+    async def _macro_detail(self, key: str, history_window: str = "10Y") -> dict[str, Any]:
         definition = _MACRO_ANALYSIS_DEFINITIONS[key]
         table, period = str(definition["table"]), str(definition["period"])
         fields = list(dict.fromkeys(str(definition[name]) for name in ("primary", "mom_field", "yoy_field")
@@ -1972,7 +1995,7 @@ class TushareReadService:
         # cold catalog path; _execute_mappings still degrades safely if a
         # published table disappears between manifest publication and query.
         if table not in physical_tables():
-            detail = build_macro_analysis(key, [])
+            detail = build_macro_analysis(key, [], history_window)
             detail["field_catalog"] = _MACRO_FIELD_CATALOG.get(key, [])
             detail["featured_fields"] = []
             detail["reason_code"] = "capability_unavailable"
@@ -1996,7 +2019,7 @@ class TushareReadService:
             rows = await self._execute_mappings(text(
                 f'SELECT {period} AS period,{columns} FROM {self.schema}.{table} ORDER BY {period} ASC'
             ), {})
-        detail = build_macro_analysis(key, rows)
+        detail = build_macro_analysis(key, rows, history_window)
         detail["source"] = f"{self.schema}.{table}"
         detail["recent_source_rows"] = rows[-12:]
         detail["field_catalog"] = _MACRO_FIELD_CATALOG.get(key, [])
@@ -2078,18 +2101,25 @@ class TushareReadService:
         })
         return {"available": any(item["available"] for item in items), "items": items,
                 "methodology": {"raw_history": True, "local_transforms": True,
-                                "methodology_key": "kt_macro_analysis_v2", "percentile_window": "10Y",
+                                "methodology_key": "kt_macro_analysis_v3",
+                                "historical_position_windows": list(_HISTORICAL_POSITION_WINDOWS),
+                                "default_historical_position_window": "10Y",
                                 "structured_source_priority": True, "eco_cal_gated_fallback": True,
                                 "synthetic_substitution": False}}
 
-    async def macro_series(self, key: str, field: str | None = None) -> dict[str, Any]:
+    async def macro_series(
+        self,
+        key: str,
+        field: str | None = None,
+        history_window: str = "10Y",
+    ) -> dict[str, Any]:
         source_definition = _MACRO_ANALYSIS_DEFINITIONS.get(key)
         if not source_definition or source_definition.get("domain") not in {"macro", "rates"}:
             raise ValueError("Unknown macro series")
         definition = self.macro_definitions()[key]
         table, period, frequency, label = definition
         if field is None:
-            return await self._macro_detail(key)
+            return await self._macro_detail(key, history_window)
         if source_definition.get("series_key"):
             raise ValueError("Event macro series does not expose arbitrary fields")
         fields = (await self._numeric_fields([table])).get(table, [])
