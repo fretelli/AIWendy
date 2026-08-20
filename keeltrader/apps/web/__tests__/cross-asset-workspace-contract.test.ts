@@ -13,12 +13,16 @@ test("market module is evidence-first and refuses synthetic substitutes", () => 
 });
 
 test("rates drilldown exposes official history and US Treasury term datasets", () => {
-  for (const key of ["libor_usd", "hibor", "us_short", "us_long", "us_real_long_average"]) {
+  for (const key of ["libor_usd", "hibor", "us_short", "us_long", "us_real_long_average", "wenzhou_private", "guangzhou_private"]) {
     expect(drilldowns).toContain(key);
   }
   expect(drilldowns).toContain("Provider history ends on 2020-06-24");
+  expect(drilldowns).toContain("Provider history ends on 2023-03-08");
+  expect(drilldowns).toContain("Provider history ends on 2019-03-04");
   expect(drilldowns).toContain("长期复合利率");
   expect(drilldowns).toContain("10年以上实际平均利率");
+  expect(drilldowns).toContain('const RATE_HISTORY_RANGES = [...HISTORY_RANGES, "10Y", "ALL"]');
+  expect(drilldowns).toContain("民间借贷服务中心");
 });
 
 test("legacy cross-asset routes redirect to canonical market tabs", () => {
