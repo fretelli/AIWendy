@@ -4,7 +4,9 @@ import pytest
 
 from services.agent_platform.tushare import (
     _MACRO_FIELD_CATALOG,
+    _MACRO_FEATURED_FIELDS,
     TushareReadService,
+    build_macro_featured_fields,
     build_macro_analysis,
     macro_freshness,
 )
@@ -96,6 +98,22 @@ def test_gdp_headline_and_sequential_change_are_official_yoy_percentage_points()
     assert ppi["primary_alias"] == "yoy"
     assert ppi["summary"]["primary"]["value"] == pytest.approx(-1.2)
     assert ppi["summary"]["yoy"]["status"] == "not_applicable"
+
+
+def test_macro_featured_fields_are_allowlisted_and_use_the_latest_official_period():
+    for key, featured in _MACRO_FEATURED_FIELDS.items():
+        allowed = {item["key"] for item in _MACRO_FIELD_CATALOG[key]}
+        assert set(featured) <= allowed
+
+    result = build_macro_featured_fields("gdp", [
+        {"period": "2026Q1", "pi_yoy": 3.5, "si_yoy": 3.8, "ti_yoy": 5.0},
+        {"period": "2026Q2", "pi_yoy": 3.7, "si_yoy": 3.9, "ti_yoy": 5.2},
+    ])
+    assert [(item["key"], item["value"], item["period"]) for item in result] == [
+        ("pi_yoy", 3.7, "2026Q2"),
+        ("si_yoy", 3.9, "2026Q2"),
+        ("ti_yoy", 5.2, "2026Q2"),
+    ]
 
 
 def test_ppi_drilldown_exposes_every_authorized_numeric_provider_field():

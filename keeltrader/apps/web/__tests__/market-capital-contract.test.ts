@@ -3,6 +3,7 @@ import path from "node:path";
 
 const root = path.resolve(__dirname, "..");
 const market = fs.readFileSync(path.join(root, "app/(app)/agent/market/page.tsx"), "utf8");
+const macroCard = fs.readFileSync(path.join(root, "components/agentos/macro-card.tsx"), "utf8");
 const api = fs.readFileSync(path.join(root, "lib/api/agent-platform.ts"), "utf8");
 const shell = fs.readFileSync(path.join(root, "components/agentos/agentos-shell.tsx"), "utf8");
 const drilldowns = fs.readFileSync(path.join(root, "components/agentos/market-drilldowns.tsx"), "utf8");
@@ -39,7 +40,7 @@ test("major market analysis charts expose zoom reset and fullscreen without chan
   }
   expect(charts).toContain('zoomMode="xy"');
   expect(charts).toContain('zoomMode="x"');
-  expect(market).toContain("<MiniLine values={sparkline}");
+  expect(macroCard).toContain("<MiniLine values={sparkline}");
   expect(market).toContain('marketsApi.macroSeries(selected!)');
   for (const range of ['"5Y"', '"10Y"', '"ALL"']) expect(market).toContain(range);
   expect(market).toContain('"5Y": 1260');
@@ -71,20 +72,29 @@ test("market module exposes exactly two approved top-level tabs and professional
   for (const filter of ["宽基指数", "申万一级", "我的持仓行业"]) expect(market).toContain(filter);
 });
 
-test("macro v2 is thematic, professionally labeled, and exposes gated subseries drilldown", () => {
+test("macro v3 is thematic, exposes structure on cards, and uses one focused drilldown chart", () => {
   for (const theme of ["增长与需求", "物价", "信用与货币", "景气与就业", "外贸与外储", "利率与收益率", "财政"]) {
     expect(market).toContain(theme);
   }
   for (const headline of ["GDP 同比", "CPI 同比", "M2 同比", "社会融资增量", "制造业 PMI"]) {
-    expect(market).toContain(headline);
+    expect(macroCard).toContain(headline);
   }
-  expect(market).toContain("未接入 · 不使用代理");
-  expect(market).toContain("Tushare eco_cal · 覆盖门禁");
-  expect(market).toContain("已滞后");
+  expect(macroCard).toContain("未接入 · 不使用代理");
+  expect(macroCard).toContain("Tushare eco_cal · 覆盖门禁");
+  expect(macroCard).toContain("已滞后");
   expect(market).toContain("宽基覆盖");
-  expect(market).toContain("仅开放显式字段白名单");
+  expect(market).toContain("官方字段白名单");
   expect(market).toContain("年内累计值只用于观察规模和结构");
   expect(market).toContain("marketsApi.macroSeries(selected!, selectedField!)");
+  expect(macroCard).toContain("结构快照");
+  expect(market).toContain("总览分析");
+  expect(market).toContain("细分结构");
+  expect(macroCard).toContain("查看全部");
+  expect(macroCard).toContain("进入完整利率工作台");
+  expect(market).toContain('detail=rates&period=1Y');
+  expect(market).toContain("<MacroChartPanel kind={kind}");
+  expect(market).not.toContain('<MacroChartPanel kind="primary"');
   expect(api).toContain("field_catalog?: MacroFieldMeta[]");
+  expect(api).toContain("featured_fields?: MacroFeaturedField[]");
   expect(api).toContain("latest_release?: MacroLatestRelease");
 });
