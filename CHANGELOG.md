@@ -7,6 +7,7 @@
 
 ## 未发布
 
+- 04 宏观六类完整结构化卡片直接展示关键细分结构；GDP 可见第一、第二、第三产业同比并可直接进入对应官方字段历史。下钻改为单图聚焦分析，PPI/PMI 大目录支持分组搜索，利率卡片进入完整利率工作台。
 - 04 市场模块新增可交互利率与收益率工作台，接入 SHIBOR、LPR、USD LIBOR/HIBOR 历史、美国短期国债、长期国债和实际长期平均利率，并明确标注 LIBOR/HIBOR 的历史截止日期。
 - 中国宏观指标接入经济发布日程，展示下一次计划发布时间、等待源端实际值状态以及最新正式值。
 - 升级 ECharts、Nano ID、PyPDF 与 Pydantic AI 依赖，修复发布审计发现的 XSS、拒绝服务和 PDF 解析漏洞。
@@ -68,6 +69,7 @@ This file records only notable changes that can be verified from the current rep
 
 ## Unreleased
 
+- Surface key provider-native structures directly on all six complete module-04 macro cards. GDP shows primary, secondary, and tertiary industry YoY with exact-field history links; drilldown now uses one focused chart, large PPI/PMI catalogs are searchable by group, and rate cards open the complete rates workspace.
 - Add an interactive rates and yields workspace to Market module 04 with SHIBOR, LPR, historical USD LIBOR/HIBOR, US Treasury bills, long-term Treasury rates, and the real long-term average rate, including explicit historical cutoffs for LIBOR/HIBOR.
 - Integrate the China economic release calendar into macro indicators with the next scheduled release, awaiting-source-value state, and latest formal value.
 - Upgrade ECharts, Nano ID, PyPDF, and Pydantic AI dependencies to resolve release-audit XSS, denial-of-service, and PDF parsing advisories.
