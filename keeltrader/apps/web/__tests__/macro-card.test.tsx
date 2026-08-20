@@ -14,7 +14,7 @@ const gdp: MacroCatalog["items"][number] = {
   fields: ["gdp", "gdp_yoy", "pi", "pi_yoy", "si", "si_yoy", "ti", "ti_yoy"],
   end: "2026Q2",
   source: "tushare.cn_gdp",
-  summary: { primary: metric, mom: metric, yoy: metric, percentile_10y: metric },
+  summary: { primary: metric, mom: metric, yoy: metric, historical_position: { ...metric, window: "10Y" } },
   field_catalog: [
     { key: "pi_yoy", label: "第一产业同比", unit: "%", group: "产业结构" },
     { key: "si_yoy", label: "第二产业同比", unit: "%", group: "产业结构" },

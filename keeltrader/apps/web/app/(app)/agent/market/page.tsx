@@ -11,7 +11,7 @@ import { MacroCard, macroLabel, macroSourceNote } from "@/components/agentos/mac
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { marketsApi, type CorrelationBoard, type CorrelationHistory, type FactorBoard, type FactorHistory, type HeldIndustries, type MacroCatalog, type MacroMetricSummary, type MacroSeriesDetail, type ValuationBoard, type ValuationItem } from "@/lib/api/agent-platform";
+import { marketsApi, type CorrelationBoard, type CorrelationHistory, type FactorBoard, type FactorHistory, type HeldIndustries, type HistoricalPositionWindow, type MacroCatalog, type MacroMetricSummary, type MacroSeriesDetail, type ValuationBoard, type ValuationItem } from "@/lib/api/agent-platform";
 import { useI18n } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +28,7 @@ type ValuationScope = "broad" | "industry" | "held";
 const HISTORY_RANGES = ["1M", "3M", "1Y", "3Y", "5Y"] as const;
 type HistoryRange = (typeof HISTORY_RANGES)[number];
 const MACRO_RANGES = [...HISTORY_RANGES, "10Y", "ALL"] as const;
+const HISTORICAL_POSITION_WINDOWS: HistoricalPositionWindow[] = ["5Y", "10Y", "20Y", "ALL"];
 
 export default function MarketPage() {
   const params = useSearchParams();
@@ -164,19 +165,20 @@ function FactorCrowding({ data, locale }: { data: FactorBoard | null; locale: "z
 
 type MacroRange = HistoryRange | "10Y" | "ALL";
 type MacroMode = "analysis" | "structure";
-type MacroAnalysisKind = "primary" | "mom" | "yoy" | "percentile_10y";
+type MacroAnalysisKind = "primary" | "mom" | "yoy" | "historical_position";
 
 function MacroBoard({ data, locale, onOpenRates }: { data: MacroCatalog | null; locale: "zh" | "en"; onOpenRates: () => void }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [selectedField, setSelectedField] = useState<string | null>(null);
   const [mode, setMode] = useState<MacroMode>("analysis");
   const [analysisKind, setAnalysisKind] = useState<MacroAnalysisKind>("primary");
+  const [historyWindow, setHistoryWindow] = useState<HistoricalPositionWindow>("10Y");
   const [range, setRange] = useState<MacroRange>("1Y");
   const rows = data?.items || [];
   const selectedRow = rows.find(row => row.key === selected);
-  const { data: detail = null, isLoading, error } = useSWR<MacroSeriesDetail>(
-    selected ? `markets/macro/series/${selected}/analysis-v3` : null,
-    () => marketsApi.macroSeries(selected!),
+  const { data: detail = null, isLoading, isValidating, error } = useSWR<MacroSeriesDetail>(
+    selected ? `markets/macro/series/${selected}/analysis-v4/${historyWindow}` : null,
+    () => marketsApi.macroSeries(selected!, undefined, historyWindow),
   );
   const { data: fieldDetail = null, isLoading: fieldLoading } = useSWR<MacroSeriesDetail>(
     selected && selectedField ? `markets/macro/series/${selected}/field/${selectedField}` : null,
@@ -193,8 +195,8 @@ function MacroBoard({ data, locale, onOpenRates }: { data: MacroCatalog | null; 
     {rows.length ? <div className="grid gap-3 xl:grid-cols-2">{themes.map(theme => <section key={theme} className="rounded-sm border border-agent-border bg-agent-raised/30 p-3"><div className="mb-2 flex items-center justify-between"><h3 className="text-[11px] font-medium text-agent-text">{macroThemeLabel(theme, locale)}</h3><span className="font-data text-[8px] text-agent-dim">{rows.filter(row => row.theme === theme && row.available).length}/{rows.filter(row => row.theme === theme).length}</span></div><div className="grid gap-2 sm:grid-cols-2">{rows.filter(row => row.theme === theme).map(row => {
       return <MacroCard key={row.key} row={row} locale={locale} onOpenAnalysis={() => row.domain === "rates" ? onOpenRates() : openAnalysis(row.key)} onOpenField={(field) => openField(row.key, field)} onOpenAll={() => row.domain === "rates" ? onOpenRates() : openStructureForRow(row, openField)} />;
     })}</div></section>)}</div> : <DataGap title={locale === "zh" ? "宏观数据不可用" : "Macro data unavailable"} locale={locale} />}
-  </Panel><Panel className="grid grid-cols-[70px_1fr] items-start gap-4 py-3"><span className="font-data text-[9px] text-agent-mint">METHOD<br/>{locale === "zh" ? "口径" : "READ"}</span><p className="text-[10px] leading-5 text-agent-muted">{locale === "zh" ? "主序列与关键结构直接同屏展示；点击第一、第二、第三产业等结构值即可查看该官方字段历史。社融等季节性流量不做误导性月环比，历史分位只与过去十年同历月比较；未接入项不使用代理或合成。" : "Headline series and key structures appear together. Select a structure value to open that exact official field history. Seasonal credit flows avoid misleading MoM comparisons; unavailable data is never proxied or synthesized."}</p></Panel>
-    <Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open) { setSelected(null); setSelectedField(null); setMode("analysis"); setAnalysisKind("primary"); } }}><DialogContent className="h-[min(920px,calc(100dvh-24px))] w-[min(1180px,calc(100vw-24px))] max-w-none overflow-y-auto border-agent-border bg-agent-surface text-agent-text"><DialogHeader><DialogTitle>{selected ? macroLabel(selected, locale) : "—"}</DialogTitle><DialogDescription>{selectedRow ? `${macroSourceNote(selectedRow, locale)} · ${selectedRow.start || "—"} → ${selectedRow.end || "—"} · ${selectedRow.points || 0} ${locale === "zh" ? "个观测" : "observations"}` : ""}</DialogDescription></DialogHeader><div className="flex flex-wrap items-center justify-between gap-3 border-b border-agent-border pb-3"><ToggleGroup type="single" value={mode} onValueChange={(value) => { if (value === "analysis") setMode("analysis"); if (value === "structure") openStructure(); }} variant="outline" size="sm" aria-label={locale === "zh" ? "宏观下钻模式" : "Macro drilldown mode"}><ToggleGroupItem value="analysis">{locale === "zh" ? "总览分析" : "Overview Analysis"}</ToggleGroupItem><ToggleGroupItem value="structure">{locale === "zh" ? "细分结构" : "Detailed Structure"}</ToggleGroupItem></ToggleGroup><HistoryRangeToggle value={range} values={MACRO_RANGES} onChange={(value) => setRange(value as MacroRange)} locale={locale} compact /></div>{isLoading ? <EmptyPanel title={locale === "zh" ? "正在读取正式历史" : "Loading formal history"} detail={locale === "zh" ? "只加载当前指标。" : "Only the selected indicator is loaded."} /> : error || !detail?.series ? <DataGap title={locale === "zh" ? "宏观序列不可用" : "Macro series unavailable"} reason={detail?.reason_code} locale={locale} /> : mode === "analysis" ? <MacroAnalysisView detail={detail} kind={analysisKind} setKind={setAnalysisKind} range={range} locale={locale} /> : <MacroFieldDrilldown detail={detail} fieldDetail={fieldDetail} selectedField={selectedField} setSelectedField={setSelectedField} range={range} locale={locale} loading={fieldLoading} />}</DialogContent></Dialog>
+  </Panel><Panel className="grid grid-cols-[70px_1fr] items-start gap-4 py-3"><span className="font-data text-[9px] text-agent-mint">METHOD<br/>{locale === "zh" ? "口径" : "READ"}</span><p className="text-[10px] leading-5 text-agent-muted">{locale === "zh" ? "主序列与关键结构直接同屏展示；点击第一、第二、第三产业等结构值即可查看该官方字段历史。历史位置可切换5年、10年、20年或截至当时全部历史，展示范围只控制图表横轴；社融等季节性流量只与同历月比较，未接入项不使用代理或合成。" : "Headline series and key structures appear together. Historical position can use a 5Y, 10Y, 20Y, or expanding benchmark while the display range controls only the chart axis. Seasonal flows compare the same calendar month; unavailable data is never proxied or synthesized."}</p></Panel>
+    <Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open) { setSelected(null); setSelectedField(null); setMode("analysis"); setAnalysisKind("primary"); setHistoryWindow("10Y"); } }}><DialogContent className="h-[min(920px,calc(100dvh-24px))] w-[min(1180px,calc(100vw-24px))] max-w-none overflow-y-auto border-agent-border bg-agent-surface text-agent-text"><DialogHeader><DialogTitle>{selected ? macroLabel(selected, locale) : "—"}</DialogTitle><DialogDescription>{selectedRow ? `${macroSourceNote(selectedRow, locale)} · ${selectedRow.start || "—"} → ${selectedRow.end || "—"} · ${selectedRow.points || 0} ${locale === "zh" ? "个观测" : "observations"}` : ""}</DialogDescription></DialogHeader><div className="flex flex-wrap items-end justify-between gap-3 border-b border-agent-border pb-3"><ToggleGroup type="single" value={mode} onValueChange={(value) => { if (value === "analysis") setMode("analysis"); if (value === "structure") openStructure(); }} variant="outline" size="sm" aria-label={locale === "zh" ? "宏观下钻模式" : "Macro drilldown mode"}><ToggleGroupItem value="analysis">{locale === "zh" ? "总览分析" : "Overview Analysis"}</ToggleGroupItem><ToggleGroupItem value="structure">{locale === "zh" ? "细分结构" : "Detailed Structure"}</ToggleGroupItem></ToggleGroup><div><p className="mb-1 font-data text-[8px] text-agent-dim">{locale === "zh" ? "展示范围" : "DISPLAY RANGE"}</p><HistoryRangeToggle value={range} values={MACRO_RANGES} onChange={(value) => setRange(value as MacroRange)} locale={locale} compact /></div></div>{isLoading ? <EmptyPanel title={locale === "zh" ? "正在读取正式历史" : "Loading formal history"} detail={locale === "zh" ? "只加载当前指标。" : "Only the selected indicator is loaded."} /> : error || !detail?.series ? <DataGap title={locale === "zh" ? "宏观序列不可用" : "Macro series unavailable"} reason={detail?.reason_code} locale={locale} /> : mode === "analysis" ? <MacroAnalysisView detail={detail} kind={analysisKind} setKind={setAnalysisKind} historyWindow={historyWindow} setHistoryWindow={setHistoryWindow} historyLoading={isValidating} range={range} locale={locale} /> : <MacroFieldDrilldown detail={detail} fieldDetail={fieldDetail} selectedField={selectedField} setSelectedField={setSelectedField} range={range} locale={locale} loading={fieldLoading} />}</DialogContent></Dialog>
   </div>;
 }
 
@@ -203,9 +205,16 @@ function openStructureForRow(row: MacroCatalog["items"][number], openField: (key
   if (field) openField(row.key, field);
 }
 
-function MacroAnalysisView({ detail, kind, setKind, range, locale }: { detail: MacroSeriesDetail; kind: MacroAnalysisKind; setKind: (kind: MacroAnalysisKind) => void; range: MacroRange; locale: "zh" | "en" }) {
-  const choices: Array<[MacroAnalysisKind, string, string]> = [["primary", "主值", "Primary"], ["mom", "环比", "MoM"], ["yoy", "同比", "YoY"], ["percentile_10y", "10Y 分位", "10Y percentile"]];
-  return <div className="mt-3"><ToggleGroup type="single" value={kind} onValueChange={(value) => { if (value) setKind(value as MacroAnalysisKind); }} variant="outline" size="sm" aria-label={locale === "zh" ? "分析指标" : "Analysis metric"} className="mb-3 flex-wrap justify-start">{choices.map(([value, zh, en]) => <ToggleGroupItem key={value} value={value}>{locale === "zh" ? zh : en}</ToggleGroupItem>)}</ToggleGroup><MacroChartPanel kind={kind} detail={detail} range={range} locale={locale} />{detail.latest_release ? <Panel tone="raised" className="mt-3"><PanelTitle title={locale === "zh" ? "最新发布与预期差" : "Latest Release & Surprise"} note={detail.latest_release.quality_state || undefined} /><div className="grid gap-3 text-[10px] sm:grid-cols-4"><MacroReleaseValue label={locale === "zh" ? "实际" : "Actual"} value={detail.latest_release.actual} /><MacroReleaseValue label={locale === "zh" ? "预期" : "Forecast"} value={detail.latest_release.forecast} /><MacroReleaseValue label={locale === "zh" ? "预期差" : "Surprise"} value={detail.latest_release.surprise} /><div><p className="text-agent-dim">{locale === "zh" ? "发布日期" : "Released"}</p><p className="mt-1 font-data text-agent-muted">{detail.latest_release.release_date || "—"}</p></div></div></Panel> : null}</div>;
+function MacroAnalysisView({ detail, kind, setKind, historyWindow, setHistoryWindow, historyLoading, range, locale }: { detail: MacroSeriesDetail; kind: MacroAnalysisKind; setKind: (kind: MacroAnalysisKind) => void; historyWindow: HistoricalPositionWindow; setHistoryWindow: (window: HistoricalPositionWindow) => void; historyLoading: boolean; range: MacroRange; locale: "zh" | "en" }) {
+  const primaryLabel: [string, string] = detail.primary_alias === "yoy" ? ["同比走势", "YoY trend"] : ["主值走势", "Primary trend"];
+  const choices: Array<[MacroAnalysisKind, string, string]> = [
+    ["primary", ...primaryLabel],
+    ["mom", detail.key === "gdp" ? "较上季变化" : "较上月变化", detail.key === "gdp" ? "Change vs prior quarter" : "Change vs prior month"],
+    ["yoy", "较上年变化", "Change vs prior year"],
+    ["historical_position", "历史位置", "Historical position"],
+  ];
+  const visibleChoices = choices.filter(([value]) => value === "primary" || value === "historical_position" || detail.summary?.[value]?.method !== "not_applicable");
+  return <div className="mt-3"><ToggleGroup type="single" value={kind} onValueChange={(value) => { if (value) setKind(value as MacroAnalysisKind); }} variant="outline" size="sm" aria-label={locale === "zh" ? "分析指标" : "Analysis metric"} className="mb-3 flex-wrap justify-start">{visibleChoices.map(([value, zh, en]) => <ToggleGroupItem key={value} value={value}>{locale === "zh" ? zh : en}</ToggleGroupItem>)}</ToggleGroup>{kind === "historical_position" ? <div className="mb-3 flex flex-wrap items-end justify-between gap-3 rounded-sm border border-agent-border bg-agent-raised/35 p-3"><div><p className="font-data text-[8px] text-agent-dim">{locale === "zh" ? "历史比较基准" : "HISTORICAL BENCHMARK"}</p><p className="mt-1 max-w-[620px] text-[9px] leading-4 text-agent-muted">{locale === "zh" ? "每个时点只与其此前所选长度的历史比较；上方展示范围只控制图表横轴。" : "Each point only uses the selected amount of prior history; the display range above controls only the chart axis."}</p></div><HistoryRangeToggle value={historyWindow} values={HISTORICAL_POSITION_WINDOWS} onChange={(value) => setHistoryWindow(value as HistoricalPositionWindow)} locale={locale} busy={historyLoading} compact /></div> : null}<MacroChartPanel kind={kind} detail={detail} range={range} locale={locale} />{detail.latest_release ? <Panel tone="raised" className="mt-3"><PanelTitle title={locale === "zh" ? "最新发布与预期差" : "Latest Release & Surprise"} note={detail.latest_release.quality_state || undefined} /><div className="grid gap-3 text-[10px] sm:grid-cols-4"><MacroReleaseValue label={locale === "zh" ? "实际" : "Actual"} value={detail.latest_release.actual} /><MacroReleaseValue label={locale === "zh" ? "预期" : "Forecast"} value={detail.latest_release.forecast} /><MacroReleaseValue label={locale === "zh" ? "预期差" : "Surprise"} value={detail.latest_release.surprise} /><div><p className="text-agent-dim">{locale === "zh" ? "发布日期" : "Released"}</p><p className="mt-1 font-data text-agent-muted">{detail.latest_release.release_date || "—"}</p></div></div></Panel> : null}</div>;
 }
 
 function MacroFieldDrilldown({ detail, fieldDetail, selectedField, setSelectedField, range, locale, loading }: { detail: MacroSeriesDetail; fieldDetail: MacroSeriesDetail | null; selectedField: string | null; setSelectedField: (field: string | null) => void; range: MacroRange; locale: "zh" | "en"; loading: boolean }) {
@@ -224,7 +233,8 @@ function MacroReleaseValue({ label, value }: { label: string; value?: number | n
 function MacroChartPanel({ kind, detail, range, locale }: { kind: MacroAnalysisKind; detail: MacroSeriesDetail; range: MacroRange; locale: "zh" | "en" }) {
   const series = detail.series?.[kind];
   const rows = sliceMacroSeries(series?.rows || [], detail.frequency, range);
-  const labels: Record<typeof kind, [string, string]> = { primary: [detail.primary_alias === "yoy" ? "官方主值（同比）" : "主值", "Primary"], mom: ["环比", "MoM"], yoy: ["同比", "YoY"], percentile_10y: ["近10年历史分位", "10Y Historical Percentile"] };
+  const historicalWindow = series?.meta.window === "ALL" ? (locale === "zh" ? "截至当时全部历史" : "expanding history") : `${series?.meta.window || "10Y"} ${locale === "zh" ? "滚动基准" : "rolling benchmark"}`;
+  const labels: Record<typeof kind, [string, string]> = { primary: [detail.primary_alias === "yoy" ? "官方同比走势" : "官方主值走势", "Official primary trend"], mom: [detail.key === "gdp" ? "较上季变化" : "较上月变化", detail.key === "gdp" ? "Change vs prior quarter" : "Change vs prior month"], yoy: ["较上年变化", "Change vs prior year"], historical_position: [`历史位置（${historicalWindow}）`, `Historical position (${historicalWindow})`] };
   const title = labels[kind][locale === "zh" ? 0 : 1];
   if (series?.meta.method === "not_applicable") return <Panel tone="raised" className="min-h-[310px]"><PanelTitle title={title} note={locale === "zh" ? "不适用" : "Not applicable"} /><EmptyPanel title={locale === "zh" ? "该指标没有可靠官方环比口径" : "No reliable official MoM measure"} detail={locale === "zh" ? "保持不适用，不使用累计值反推或代理数据。" : "No cumulative-value inference or proxy is used."} /></Panel>;
   return <Panel tone="raised" className="min-h-[310px]"><PanelTitle title={title} note={`${series?.meta.unit || ""} · ${macroMethodLabel(series?.meta.method, locale)}`} />{rows.some(row => row.value != null) ? <TimeSeriesChart dates={rows.map(row => row.period)} series={[{ name: title, values: rows.map(row => row.value) }]} locale={locale} title={`${title} · ${range === "ALL" ? (locale === "zh" ? "全部" : "All") : range}`} height={250} /> : <EmptyPanel title={locale === "zh" ? "可比较历史不足" : "Insufficient comparable history"} detail={macroMetricExplanation(series?.meta as MacroMetricSummary | undefined, locale)} />}</Panel>;
@@ -274,7 +284,7 @@ function macroMetricExplanation(metric: MacroMetricSummary | undefined, locale: 
   if (metric.method === "not_applicable") return locale === "zh" ? "该口径不适用；不使用代理或反推值。" : "Not applicable; no proxy or inferred value is used.";
   const method = macroMethodLabel(metric.method, locale);
   const field = metric.source_field ? `${locale === "zh" ? "字段" : "field"} ${metric.source_field}` : metric.formula || "";
-  const sample = metric.sample_count ? ` · ${metric.sample_count} ${locale === "zh" ? "个样本" : "samples"}${metric.window_complete === false ? (locale === "zh" ? "（不足完整10年）" : " (partial 10Y window)") : ""}` : "";
+  const sample = metric.sample_count ? ` · ${metric.sample_count} ${locale === "zh" ? "个样本" : "samples"}${metric.window_complete === false ? (locale === "zh" ? `（不足完整${metric.window || "历史"}）` : ` (partial ${metric.window || "history"} window)`) : ""}` : "";
   return `${method}${field ? ` · ${field}` : ""}${sample}`;
 }
 function crowdingCoverageNote(data: FactorBoard, locale: "zh" | "en") {

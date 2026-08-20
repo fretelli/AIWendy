@@ -533,8 +533,9 @@ export type MacroCatalog = {
     latest_release?: MacroLatestRelease;
     next_release?: MacroNextRelease;
   }>;
-  methodology: { raw?: true; local_transforms?: boolean; raw_history?: boolean; synthetic_prices?: boolean; methodology_key?: string; percentile_window?: string; structured_source_priority?: boolean; eco_cal_gated_fallback?: boolean; synthetic_substitution?: boolean };
+  methodology: { raw?: true; local_transforms?: boolean; raw_history?: boolean; synthetic_prices?: boolean; methodology_key?: string; historical_position_windows?: HistoricalPositionWindow[]; default_historical_position_window?: HistoricalPositionWindow; structured_source_priority?: boolean; eco_cal_gated_fallback?: boolean; synthetic_substitution?: boolean };
 };
+export type HistoricalPositionWindow = "5Y" | "10Y" | "20Y" | "ALL";
 export type MacroFieldMeta = { key: string; label: string; unit: string; group: string };
 export type MacroFeaturedField = MacroFieldMeta & { value: number | null; period: string };
 export type MacroQuality = { source_type: "structured" | "eco_cal_gated" | "unavailable" | string; status: string; coverage_points?: number; minimum_samples?: number; freshness_state?: "current" | "stale" | "unknown" | string; latest_period?: string | null; lag_days?: number; max_lag_days?: number };
@@ -555,7 +556,7 @@ export type MacroMetricSummary = {
   sample_count?: number;
   window_complete?: boolean;
 };
-export type MacroAnalysisSummary = Record<"primary" | "mom" | "yoy" | "percentile_10y", MacroMetricSummary>;
+export type MacroAnalysisSummary = Record<"primary" | "mom" | "yoy" | "historical_position", MacroMetricSummary>;
 export type MacroAnalysisPoint = { period: string; value: number | null; sample_count?: number; window_complete?: boolean };
 export type MacroSeriesDetail = {
   available: boolean;
@@ -576,7 +577,7 @@ export type MacroSeriesDetail = {
   primary_alias?: string;
   methodology_key?: string;
   summary?: MacroAnalysisSummary;
-  series?: Record<"primary" | "mom" | "yoy" | "percentile_10y", {
+  series?: Record<"primary" | "mom" | "yoy" | "historical_position", {
     meta: Omit<MacroMetricSummary, "value" | "as_of">;
     rows: MacroAnalysisPoint[];
   }>;
@@ -1142,10 +1143,13 @@ export const marketsApi = {
   factors: () => apiJson<FactorBoard>(`${marketsBase}/factors`),
   factorHistory: (limit = 756) => apiJson<FactorHistory>(`${marketsBase}/factors/history?limit=${limit}`),
   macroCatalog: () => apiJson<MacroCatalog>(`${marketsBase}/macro/series`),
-  macroSeries: (key: string, field?: string) =>
-    apiJson<MacroSeriesDetail>(
-      `${marketsBase}/macro/series/${encodeURIComponent(key)}${field ? `?field=${encodeURIComponent(field)}` : ""}`,
-    ),
+  macroSeries: (key: string, field?: string, historyWindow: HistoricalPositionWindow = "10Y") => {
+    const query = new URLSearchParams();
+    if (field) query.set("field", field);
+    if (!field) query.set("history_window", historyWindow);
+    const suffix = query.size ? `?${query.toString()}` : "";
+    return apiJson<MacroSeriesDetail>(`${marketsBase}/macro/series/${encodeURIComponent(key)}${suffix}`);
+  },
   futuresProducts: () =>
     apiJson<{
       available: boolean;

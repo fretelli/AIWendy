@@ -45,8 +45,8 @@ def test_cpi_headline_is_official_yoy_and_percentile_uses_that_series():
     assert result["summary"]["mom"]["method"] == "official"
     assert result["summary"]["mom"]["value"] == pytest.approx(.12)
     assert result["summary"]["yoy"]["status"] == "not_applicable"
-    assert result["summary"]["percentile_10y"]["value"] == 100
-    assert result["summary"]["percentile_10y"]["window_complete"] is True
+    assert result["summary"]["historical_position"]["value"] == 100
+    assert result["summary"]["historical_position"]["window_complete"] is True
 
 
 def test_social_financing_avoids_misleading_mom_and_pmi_uses_unit_safe_calculations():
@@ -143,10 +143,32 @@ def test_money_supply_headline_is_m2_yoy_and_credit_percentile_is_same_calendar_
             {"period": f"{year}02", "inc_month": 1000 + year - 2017},
         ])
     social = build_macro_analysis("social_financing", social_rows)
-    latest = social["series"]["percentile_10y"]["rows"][-1]
+    latest = social["series"]["historical_position"]["rows"][-1]
     assert latest["sample_count"] == 10
     assert latest["value"] == 100
-    assert social["series"]["percentile_10y"]["meta"]["formula"] == "percent_rank_inc_same_calendar_month_trailing_10_years"
+    assert social["series"]["historical_position"]["meta"]["formula"] == "percent_rank_inc_same_calendar_month_trailing_10_years"
+
+
+def test_historical_position_windows_are_strict_and_never_use_future_rows():
+    rows = []
+    for year in range(2000, 2027):
+        for month in range(1, 13):
+            rows.append({"period": f"{year}{month:02d}", "nt_yoy": year + month / 100, "nt_mom": 0})
+
+    expected_counts = {"5Y": 60, "10Y": 120, "20Y": 240, "ALL": len(rows)}
+    for window, expected in expected_counts.items():
+        result = build_macro_analysis("cpi", rows, window)
+        position = result["series"]["historical_position"]
+        assert position["meta"]["window"] == window
+        assert position["rows"][-1]["sample_count"] == expected
+        assert position["rows"][-1]["value"] == 100
+
+    through_2020 = [row for row in rows if row["period"] <= "202012"]
+    base = build_macro_analysis("cpi", through_2020, "10Y")
+    extended = build_macro_analysis("cpi", rows, "10Y")
+    assert base["series"]["historical_position"]["rows"][-1] == next(
+        row for row in extended["series"]["historical_position"]["rows"] if row["period"] == "202012"
+    )
 
 
 @pytest.mark.asyncio

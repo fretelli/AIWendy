@@ -41,7 +41,7 @@ test("major market analysis charts expose zoom reset and fullscreen without chan
   expect(charts).toContain('zoomMode="xy"');
   expect(charts).toContain('zoomMode="x"');
   expect(macroCard).toContain("<MiniLine values={sparkline}");
-  expect(market).toContain('marketsApi.macroSeries(selected!)');
+  expect(market).toContain('marketsApi.macroSeries(selected!, undefined, historyWindow)');
   for (const range of ['"5Y"', '"10Y"', '"ALL"']) expect(market).toContain(range);
   expect(market).toContain('"5Y": 1260');
   expect(market).toContain("FullscreenDataView");
@@ -72,7 +72,7 @@ test("market module exposes exactly two approved top-level tabs and professional
   for (const filter of ["宽基指数", "申万一级", "我的持仓行业"]) expect(market).toContain(filter);
 });
 
-test("macro v3 is thematic, exposes structure on cards, and uses one focused drilldown chart", () => {
+test("macro v4 separates display range from a selectable point-in-time historical benchmark", () => {
   for (const theme of ["增长与需求", "物价", "信用与货币", "景气与就业", "外贸与外储", "利率与收益率", "财政"]) {
     expect(market).toContain(theme);
   }
@@ -89,6 +89,14 @@ test("macro v3 is thematic, exposes structure on cards, and uses one focused dri
   expect(macroCard).toContain("结构快照");
   expect(market).toContain("总览分析");
   expect(market).toContain("细分结构");
+  expect(market).toContain("展示范围");
+  expect(market).toContain("历史比较基准");
+  expect(market).toContain("每个时点只与其此前所选长度的历史比较");
+  expect(market).toContain('const HISTORICAL_POSITION_WINDOWS: HistoricalPositionWindow[] = ["5Y", "10Y", "20Y", "ALL"]');
+  expect(market).toContain('value === "primary" || value === "historical_position"');
+  expect(api).toContain('history_window');
+  expect(api).toContain('"historical_position"');
+  expect(macroCard).toContain("历史位置 ·");
   expect(macroCard).toContain("查看全部");
   expect(macroCard).toContain("进入完整利率工作台");
   expect(market).toContain('detail=rates&period=1Y');
