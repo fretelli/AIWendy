@@ -1,14 +1,14 @@
 # ========== Core ==========
-fastapi==0.139.0
-uvicorn[standard]==0.42.0
-pydantic==2.12.5
-pydantic-settings==2.14.2
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.4
+pydantic-settings==2.15.0
 
 # ========== Database ==========
-sqlalchemy==2.0.30
-alembic==1.13.1
-asyncpg==0.29.0
-pgvector==0.2.5
+sqlalchemy==2.0.52
+alembic==1.19.1
+asyncpg==0.31.0
+pgvector==0.5.0
 
 # ========== Redis ==========
 redis==5.0.4
@@ -16,11 +16,11 @@ redis==5.0.4
 # ========== LLM ==========
 openai==2.29.0
 anthropic==0.85.0
-pydantic-ai-slim==2.0.0b6
+pydantic-ai-slim==2.32.1
 
 # ========== MCP ==========
 mcp==1.28.1
-sse-starlette==3.0.3
+sse-starlette==3.4.8
 
 # ========== HTTP ==========
 httpx==0.28.1
@@ -28,21 +28,21 @@ httpx==0.28.1
 # ========== Auth ==========
 PyJWT==2.13.0
 passlib[bcrypt]==1.7.4
-python-multipart==0.0.31
+python-multipart==0.0.32
 email-validator==2.3.0
 
 # ========== Utils ==========
-python-dotenv==1.2.2
+python-dotenv==1.2.3
 structlog==24.1.0
 tenacity==8.2.3
 aiofiles==24.1.0
-numpy==2.4.3
-scikit-learn==1.8.0
-scipy==1.17.1
+numpy==2.5.2
+scikit-learn==1.9.0
+scipy==1.18.0
 
 # ========== File Processing ==========
-pypdf==6.15.0
+pypdf==6.16.1
 reportlab==4.4.10
-python-docx==1.1.2
+python-docx==1.2.0
 openpyxl==3.1.5
 python-pptx==1.0.2
