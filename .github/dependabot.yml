@@ -8,7 +8,7 @@ updates:
       day: monday
       time: "09:00"
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
     groups:
       web-minor-patch:
         patterns:
@@ -28,7 +28,7 @@ updates:
       day: monday
       time: "09:30"
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
     groups:
       api-minor-patch:
         patterns:
@@ -48,7 +48,7 @@ updates:
       day: monday
       time: "10:00"
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
     groups:
       web-container-minor-patch:
         patterns:
@@ -68,7 +68,7 @@ updates:
       day: monday
       time: "10:15"
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
     groups:
       api-container-minor-patch:
         patterns:
@@ -88,7 +88,7 @@ updates:
       day: monday
       time: "10:25"
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 3
+    open-pull-requests-limit: 0
     groups:
       selfhost-containers:
         patterns:
@@ -105,7 +105,7 @@ updates:
       day: monday
       time: "10:30"
       timezone: Asia/Shanghai
-    open-pull-requests-limit: 1
+    open-pull-requests-limit: 0
     groups:
       github-actions:
         patterns:
