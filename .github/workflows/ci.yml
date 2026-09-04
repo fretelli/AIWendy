@@ -37,6 +37,7 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: keeltrader/apps/web/package-lock.json
+      - run: npm install --global npm@11.6.4
       - run: npm ci
         working-directory: keeltrader/apps/web
       - run: make check-security-defaults
