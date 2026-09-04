@@ -24,7 +24,7 @@ from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from config import get_settings
-from services.agent_platform.capabilities import physical_tables, queryable_tables
+from services.agent_platform.capabilities import capability_status, physical_tables, queryable_tables
 from services.agent_platform.capabilities import capability_version
 from services.agent_platform.publication_status import publication_version
 
@@ -565,6 +565,9 @@ class TushareReadService:
 
     async def table_exists(self, table: str) -> bool:
         """Return whether a synchronized Tushare table exists in the current DB."""
+        status = capability_status(table)
+        if status is not None and status.get("physical") and not status.get("available"):
+            return False
         if table not in physical_tables():
             raise ValueError(f"Tushare table is not allowlisted: {table}")
         cached = self._table_exists_cache.get(table)
@@ -583,6 +586,19 @@ class TushareReadService:
             exists = bool((await session.execute(q, {"schema": self.schema, "table": table})).scalar())
         self._table_exists_cache[table] = exists
         return exists
+
+    def _options_unavailable(self, **payload: Any) -> dict[str, Any] | None:
+        status = capability_status("opt_daily") or capability_status("opt_basic")
+        if status and status.get("available"):
+            return None
+        reason = (status or {}).get("unavailable_reason") or "Option market data is unavailable."
+        return {
+            "available": False,
+            "reason_code": (status or {}).get("reason_code") or "source_unavailable",
+            "unavailable_reason": reason,
+            "last_synced_date": (status or {}).get("updated_through"),
+            **payload,
+        }
 
     async def _execute_mappings(self, query, params: dict[str, Any]) -> list[dict[str, Any]]:
         """Execute a read query and degrade gracefully when upstream tables are absent."""
@@ -2339,6 +2355,12 @@ class TushareReadService:
                 "fut_code": fut_code, "trade_date": str(chosen) if chosen else None, "items": rows, "raw": True}
 
     async def options_series(self) -> dict[str, Any]:
+        unavailable = self._options_unavailable(items=[], history_meta={
+            "scope": "retained_history", "raw": True, "start_date": None,
+            "end_date": None, "backfill_target": "retired", "source": "tushare options (retained)",
+        })
+        if unavailable:
+            return unavailable
         cached = _market_domain_cache.get("options_series")
         if cached and time.monotonic() - cached[0] < _MARKET_DOMAIN_CACHE_SECONDS:
             return copy.deepcopy(cached[1])
@@ -2381,6 +2403,12 @@ class TushareReadService:
         return result
 
     async def options_history(self, opt_code: str) -> dict[str, Any]:
+        unavailable = self._options_unavailable(opt_code=opt_code, history=[], history_meta={
+            "scope": "retained_history", "raw_aggregation": True, "start_date": None,
+            "end_date": None, "points": 0, "source": "tushare.opt_series_daily (retained)",
+        })
+        if unavailable:
+            return unavailable
         rows = await self._execute_mappings(text(f"""
             SELECT trade_date,call_vol AS call_volume,put_vol AS put_volume,
                    call_amount,put_amount,total_amount,call_oi,put_oi,
@@ -2412,6 +2440,11 @@ class TushareReadService:
                 "methodology": "商品期货没有唯一且可通用的现货序列；仅展示交易所合约与主力映射。"}
 
     async def option_underlying(self, opt_code: str) -> dict[str, Any]:
+        unavailable = self._options_unavailable(
+            opt_code=opt_code, relationship="unavailable", code=None, series_available=False,
+        )
+        if unavailable:
+            return unavailable
         financial = {
             "IO": ("index", "000300.SH", "沪深300指数", "index_daily"),
             "HO": ("index", "000016.SH", "上证50指数", "index_daily"),
@@ -2469,6 +2502,13 @@ class TushareReadService:
     async def options_chain(self, opt_code: str, trade_date: date | None = None,
                             maturity: date | None = None, limit: int = 300, offset: int = 0) -> dict[str, Any]:
         limit, offset = max(1, min(limit, 500)), max(0, offset)
+        unavailable = self._options_unavailable(
+            opt_code=opt_code, trade_date=str(trade_date) if trade_date else None,
+            maturity=str(maturity) if maturity else None, items=[], total=0,
+            limit=limit, offset=offset, raw=True,
+        )
+        if unavailable:
+            return unavailable
         chosen = trade_date
         if chosen is None:
             latest = await self._execute_mappings(text(f"""
@@ -2540,6 +2580,12 @@ class TushareReadService:
                 "limit": limit, "offset": offset, "raw": True}
 
     async def options_surface(self, opt_code: str, trade_date: date | None = None) -> dict[str, Any]:
+        unavailable = self._options_unavailable(
+            opt_code=opt_code, trade_date=str(trade_date) if trade_date else None,
+            items=[], source=f"{self.schema}.option_analytics_daily (retained)",
+        )
+        if unavailable:
+            return unavailable
         if not await self.table_exists("option_analytics_daily"):
             return {"available": False, "opt_code": opt_code, "items": [], "reason": "analytics table unavailable"}
         chosen = trade_date
@@ -2559,6 +2605,12 @@ class TushareReadService:
                 "methodology": {"interpolation": False, "raw_contract_points": True}}
 
     async def options_exposures(self, opt_code: str, trade_date: date | None = None) -> dict[str, Any]:
+        unavailable = self._options_unavailable(
+            opt_code=opt_code, trade_date=str(trade_date) if trade_date else None,
+            items=[], source=f"{self.schema}.option_analytics_daily (retained)",
+        )
+        if unavailable:
+            return unavailable
         if not await self.table_exists("option_analytics_daily"):
             return {"available": False, "opt_code": opt_code, "items": [], "reason": "analytics table unavailable"}
         chosen = trade_date
