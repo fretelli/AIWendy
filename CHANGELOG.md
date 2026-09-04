@@ -7,6 +7,9 @@
 
 ## 未发布
 
+## 0.8.9 - 2026-09-04
+
+- 期权结构化数据能力改为运营方容量停用：保留历史物理表，但市场 API 不再查询期权表，并以 HTTP 200 返回明确的 unavailable 状态。
 - 04 宏观“历史位置”支持5年、10年、20年和截至当时全部历史四种点时比较基准，并与图表展示范围明确分离；修复滚动窗口边界多计一期，同时隐藏主值已为同比时重复且不适用的同比分析入口。
 - 04 宏观六类完整结构化卡片直接展示关键细分结构；GDP 可见第一、第二、第三产业同比并可直接进入对应官方字段历史。下钻改为单图聚焦分析，PPI/PMI 大目录支持分组搜索，利率卡片进入完整利率工作台。
 - 04 市场模块新增可交互利率与收益率工作台，接入 SHIBOR、LPR、USD LIBOR/HIBOR 历史、美国短期国债、长期国债和实际长期平均利率，并明确标注 LIBOR/HIBOR 的历史截止日期。
@@ -70,6 +73,9 @@ This file records only notable changes that can be verified from the current rep
 
 ## Unreleased
 
+## 0.8.9 - 2026-09-04
+
+- Mark structured option data as operator-disabled for capacity reasons: retain historical physical tables, stop querying them from market APIs, and return an explicit unavailable state with HTTP 200.
 - Let module-04 macro historical position switch among point-in-time 5Y, 10Y, 20Y, and expanding-history benchmarks independently of the chart display range. Fix the rolling-window boundary overcount and hide the duplicate inapplicable YoY analysis when the headline is already an official YoY series.
 - Surface key provider-native structures directly on all six complete module-04 macro cards. GDP shows primary, secondary, and tertiary industry YoY with exact-field history links; drilldown now uses one focused chart, large PPI/PMI catalogs are searchable by group, and rate cards open the complete rates workspace.
 - Add an interactive rates and yields workspace to Market module 04 with SHIBOR, LPR, historical USD LIBOR/HIBOR, US Treasury bills, long-term Treasury rates, and the real long-term average rate, including explicit historical cutoffs for LIBOR/HIBOR.
