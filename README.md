@@ -24,7 +24,7 @@ KeelTrader is deliberately vertical. It includes a research agent that can use a
 - Immutable bilingual research versions with real Chinese and English downloadable PDFs.
 - A persistent Research Agent dock with resumable runs and human approval boundaries.
 - Encrypted per-user BYOK credentials and explicitly authorized MCP tools.
-- Immutable releases with container digests, SBOMs, provenance, and signatures.
+- Manually authorized releases bound to the verified protected-branch head, with immutable version tags, container digests, SBOMs, provenance, and keyless image signatures.
 
 KeelTrader does not place or cancel orders, connect to exchanges, execute arbitrary code, or promise investment returns. Historical database migrations remain so existing installations can upgrade safely.
 
