@@ -1,13 +1,14 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing signed tag to publish
+        description: SemVer release tag, for example v0.8.9
+        required: true
+        type: string
+      release_sha:
+        description: Exact 40-character v2 commit SHA to release
         required: true
         type: string
 
@@ -17,11 +18,86 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAMESPACE: ghcr.io/fretelli/keeltrader
-  RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+  RELEASE_TAG: ${{ inputs.release_tag }}
 
 jobs:
+  authorize:
+    name: Authorize protected release
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      checks: read
+      contents: read
+    outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          ref: v2
+      - name: Validate release identity
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ inputs.release_sha }}
+          WORKFLOW_REF: ${{ github.ref }}
+          WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          die() { printf 'release identity error: %s\n' "$*" >&2; exit 1; }
+
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+            die "release_tag must match vMAJOR.MINOR.PATCH"
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]] ||
+            die "release_sha must be a full lowercase Git SHA"
+          [[ "$WORKFLOW_REF" == "refs/heads/v2" ]] ||
+            die "workflow must be dispatched from v2"
+
+          git fetch --force origin refs/heads/v2:refs/remotes/origin/v2
+          current_v2="$(git rev-parse refs/remotes/origin/v2)"
+          [[ "$RELEASE_SHA" == "$WORKFLOW_SHA" ]] ||
+            die "release_sha does not match the dispatched workflow revision"
+          [[ "$RELEASE_SHA" == "$current_v2" ]] ||
+            die "release_sha is not the current protected v2 head"
+
+          verified="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${RELEASE_SHA}" --jq '.commit.verification.verified')"
+          [[ "$verified" == "true" ]] ||
+            die "release commit is not verified by GitHub"
+
+          check_runs="$(gh api -H 'Accept: application/vnd.github+json' "repos/${GITHUB_REPOSITORY}/commits/${RELEASE_SHA}/check-runs?per_page=100")"
+          required_checks=(
+            "Repository governance"
+            "Web (lint + type-check + test + build)"
+            "API (Docker pytest)"
+            "Security gate"
+            "Self-host gate"
+          )
+          for check_name in "${required_checks[@]}"; do
+            conclusion="$(jq -r --arg name "$check_name" '[.check_runs[] | select(.name == $name)] |
+               sort_by(.completed_at) | last | .conclusion // ""' <<<"$check_runs")"
+            [[ "$conclusion" == "success" ]] ||
+              die "required check is not successful: $check_name"
+          done
+
+          version="${RELEASE_TAG#v}"
+          grep -Eq "^## ${version} - [0-9]{4}-[0-9]{2}-[0-9]{2}$" CHANGELOG.md ||
+            die "CHANGELOG.md does not contain the release heading"
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+            git fetch --force origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
+            tag_sha="$(git rev-list -n 1 "$RELEASE_TAG")"
+            [[ "$tag_sha" == "$RELEASE_SHA" ]] ||
+              die "existing release tag points to another commit"
+            if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${RELEASE_TAG}" >/dev/null 2>&1; then
+              die "release already exists"
+            fi
+          fi
+
+          printf 'sha=%s\n' "$RELEASE_SHA" >> "$GITHUB_OUTPUT"
+
   test:
     name: Release tests
+    needs: authorize
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:
@@ -30,36 +106,27 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 0
-      - name: Fetch annotated release tag
-        working-directory: ${{ github.workspace }}
-        run: git fetch --force origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
-      - name: Verify signed release tag
-        working-directory: ${{ github.workspace }}
-        run: |
-          git checkout --detach "${RELEASE_TAG}^{commit}"
-          git config gpg.format ssh
-          git config gpg.ssh.allowedSignersFile .github/allowed_signers
-          git verify-tag "$RELEASE_TAG"
+          ref: ${{ needs.authorize.outputs.source_sha }}
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: keeltrader/apps/web/package-lock.json
+      - run: npm install --global npm@11.6.4
       - run: npm ci
         working-directory: keeltrader/apps/web
-      - run: make check-security-defaults audit-root check-web check-api-static check-api
+      - run: make check-security-defaults audit-root check-web audit-web check-api-static check-api
 
   images:
     name: Publish ${{ matrix.image }} image
-    needs: test
+    needs: [authorize, test]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
-      contents: read
-      packages: write
-      id-token: write
       attestations: write
+      contents: read
+      id-token: write
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -80,18 +147,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 0
-      - name: Fetch annotated release tag
-        run: git fetch --force origin "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
-      - name: Verify signed release tag
-        run: |
-          git checkout --detach "${RELEASE_TAG}^{commit}"
-          git config gpg.format ssh
-          git config gpg.ssh.allowedSignersFile .github/allowed_signers
-          git verify-tag "$RELEASE_TAG"
-      - name: Resolve verified source revision
-        id: source
-        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          ref: ${{ needs.authorize.outputs.source_sha }}
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
       - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
@@ -106,7 +162,6 @@ jobs:
           tags: |
             type=semver,pattern={{version}},value=${{ env.RELEASE_TAG }}
             type=semver,pattern={{major}}.{{minor}},value=${{ env.RELEASE_TAG }}
-            type=sha,enable=${{ github.event_name == 'push' }}
       - name: Build and push
         id: build
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
@@ -119,7 +174,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: |
             ${{ steps.meta.outputs.labels }}
-            org.opencontainers.image.revision=${{ steps.source.outputs.sha }}
+            org.opencontainers.image.revision=${{ needs.authorize.outputs.source_sha }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
           provenance: mode=max
@@ -158,7 +213,7 @@ jobs:
 
   release:
     name: Create GitHub Release
-    needs: images
+    needs: [authorize, images]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -174,6 +229,7 @@ jobs:
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ needs.authorize.outputs.source_sha }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: release-assets/*
