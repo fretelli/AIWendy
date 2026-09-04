@@ -57,5 +57,29 @@ def physical_tables() -> frozenset[str]:
     return frozenset(tables)
 
 
+def classified_tables() -> frozenset[str]:
+    """Return every valid physical table, including retained unavailable data."""
+    manifest = read_capability_manifest()
+    return frozenset(
+        str(item.get("table"))
+        for item in manifest.get("capabilities", [])
+        if item.get("physical") and item.get("table") and _IDENT.match(str(item.get("table")))
+    )
+
+
+def capability_status(table: str) -> dict[str, Any] | None:
+    """Return the manifest entry for a classified physical table."""
+    if not _IDENT.match(table):
+        return None
+    return next(
+        (
+            dict(item)
+            for item in read_capability_manifest().get("capabilities", [])
+            if item.get("physical") and item.get("table") == table
+        ),
+        None,
+    )
+
+
 def capability_version() -> str:
     return str(read_capability_manifest().get("version") or "unavailable")
