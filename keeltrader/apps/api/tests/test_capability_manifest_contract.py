@@ -44,6 +44,8 @@ class CapabilityManifestContractTests(unittest.TestCase):
                     {"table": "daily_basic", "physical": True, "available": True, "exposure": "typed_api"},
                     {"table": "fund_nav", "physical": True, "available": True, "exposure": "agent_query"},
                     {"table": "trade_cal", "physical": True, "available": True, "exposure": "internal"},
+                    {"table": "opt_basic", "physical": True, "available": False, "exposure": "typed_api",
+                     "reason_code": "operator_disabled_capacity"},
                     {"table": "bad-name;drop", "physical": True, "available": True, "exposure": "agent_query"},
                 ],
             }), encoding="utf-8")
@@ -53,6 +55,8 @@ class CapabilityManifestContractTests(unittest.TestCase):
                     capabilities.physical_tables(),
                     frozenset({"daily_basic", "fund_nav", "trade_cal"}),
                 )
+                self.assertIn("opt_basic", capabilities.classified_tables())
+                self.assertFalse(capabilities.capability_status("opt_basic")["available"])
 
 
 if __name__ == "__main__":

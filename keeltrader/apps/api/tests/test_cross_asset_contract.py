@@ -9,6 +9,36 @@ from services.agent_platform.tushare import TushareReadService
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.asyncio
+async def test_retired_options_return_compatible_unavailable_without_sql(monkeypatch):
+    monkeypatch.setattr(
+        "services.agent_platform.tushare.capability_status",
+        lambda _table: {
+            "available": False,
+            "reason_code": "operator_disabled_capacity",
+            "unavailable_reason": "Option synchronization is disabled.",
+            "updated_through": "2026-09-03",
+        },
+    )
+    reader = TushareReadService(None)
+
+    async def fail_execute(*_args, **_kwargs):
+        raise AssertionError("retired option endpoints must not query the database")
+
+    reader._execute_mappings = fail_execute  # type: ignore[method-assign]
+    payloads = [
+        await reader.options_series(),
+        await reader.options_history("IO"),
+        await reader.options_chain("IO"),
+        await reader.option_underlying("IO"),
+        await reader.options_surface("IO"),
+        await reader.options_exposures("IO"),
+    ]
+    assert all(item["available"] is False for item in payloads)
+    assert all(item["reason_code"] == "operator_disabled_capacity" for item in payloads)
+    assert all(item["last_synced_date"] == "2026-09-03" for item in payloads)
+
+
 def test_cross_asset_routes_and_human_only_execution_contract():
     markets = (ROOT / "routers/markets.py").read_text()
     opportunities = (ROOT / "services/agent_platform/opportunities.py").read_text()
@@ -40,7 +70,7 @@ def test_extended_provider_native_rate_contract_is_exposed():
 
 
 @pytest.mark.asyncio
-async def test_latest_market_dates_are_bound_as_native_dates():
+async def test_latest_market_dates_are_bound_as_native_dates(monkeypatch):
     reader = TushareReadService(None)
 
     async def table_exists(_table: str) -> bool:
@@ -60,6 +90,10 @@ async def test_latest_market_dates_are_bound_as_native_dates():
         curve = await reader.rates_curve(rate_key)
         assert curve["date"] == "2026-07-21"
 
+    monkeypatch.setattr(
+        "services.agent_platform.tushare.capability_status",
+        lambda _table: {"physical": True, "available": True},
+    )
     for method_name in ("options_surface", "options_exposures"):
         async def option_execute(query, params):
             sql = str(query)

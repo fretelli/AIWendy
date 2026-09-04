@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { EmptyPanel, Panel, SectionTitle, StatusDot } from "@/components/agentos/dashboard-ui";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { marketsApi, type FuturesCurve, type FuturesHistory, type FuturesProduct, type OptionSeries, type OptionsChain, type RatesCatalog, type RatesCurve, type RatesSeries } from "@/lib/api/agent-platform";
+import { marketsApi, type FuturesCurve, type FuturesHistory, type FuturesProduct, type OptionsChain, type OptionsSeriesResponse, type RatesCatalog, type RatesCurve, type RatesSeries } from "@/lib/api/agent-platform";
 import { useI18n } from "@/lib/i18n/provider";
 
 const TimeSeriesChart = dynamic(() => import("@/components/agentos/market-charts").then((module) => module.TimeSeriesChart), { ssr: false });
@@ -68,11 +68,13 @@ export function FuturesDrilldown() {
 
 export function OptionsDrilldown() {
   const { locale } = useI18n();
-  const [items, setItems] = useState<OptionSeries[]>([]);
+  const [catalog, setCatalog] = useState<OptionsSeriesResponse>();
   const [selected, setSelected] = useState<string>();
   const [chain, setChain] = useState<OptionsChain>();
-  useEffect(() => { void marketsApi.optionsCatalog().then((data) => { setItems(data.items); setSelected(data.items[0]?.opt_code); }); }, []);
-  useEffect(() => { if (!selected) return; void marketsApi.optionsChain(selected, { limit: 120 }).then(setChain); }, [selected]);
+  useEffect(() => { void marketsApi.optionsCatalog().then((data) => { setCatalog(data); setSelected(data.available ? data.items[0]?.opt_code : undefined); }); }, []);
+  useEffect(() => { if (!catalog?.available || !selected) return; void marketsApi.optionsChain(selected, { limit: 120 }).then(setChain); }, [catalog?.available, selected]);
+  const items = catalog?.items || [];
+  if (catalog && !catalog.available) return <Panel><SectionTitle title={locale === "zh" ? "期权数据已停用" : "Options data retired"} en="AVAILABLE = FALSE" /><EmptyPanel title={locale === "zh" ? "期权同步与分析已停止" : "Options synchronization is disabled"} detail={locale === "zh" ? `为降低存储 I/O，期权数据停止更新；历史表保留但不在线查询。最后同步：${catalog.last_synced_date || "—"}` : `${catalog.unavailable_reason || "Options data is unavailable."} Last synchronized: ${catalog.last_synced_date || "—"}`} /></Panel>;
   return <div className="grid gap-3 xl:grid-cols-[280px_1fr]"><Panel><SectionTitle title={locale === "zh" ? "期权底层" : "Option Underlyings"} en="AUDITED MAPPING" /><div className="flex max-h-[430px] flex-col gap-1 overflow-y-auto">{items.map((item) => <Button key={item.opt_code} variant={selected === item.opt_code ? "secondary" : "ghost"} className="justify-between" onClick={() => setSelected(item.opt_code)}><span>{item.opt_code}</span><span className="font-data text-[9px] text-agent-dim">{item.active_contracts}</span></Button>)}</div></Panel><Panel><SectionTitle title={selected || (locale === "zh" ? "期权链" : "Option Chain")} en="IV · GREEKS · RAW QUOTES" />{chain?.items.length ? <div className="overflow-x-auto"><table className="w-full text-left text-[10px]"><thead className="font-data text-agent-dim"><tr><th className="p-2">{locale === "zh" ? "合约" : "Contract"}</th><th className="p-2">{locale === "zh" ? "认购/认沽" : "Call/Put"}</th><th className="p-2">{locale === "zh" ? "行权价" : "Strike"}</th><th className="p-2">{locale === "zh" ? "到期日" : "Maturity"}</th><th className="p-2 text-right">{locale === "zh" ? "结算价" : "Settlement"}</th><th className="p-2 text-right">{locale === "zh" ? "持仓量" : "Open interest"}</th></tr></thead><tbody>{chain.items.map((item) => <tr key={item.ts_code} className="border-t border-agent-border"><td className="p-2 text-agent-text">{item.ts_code}</td><td className="p-2 text-agent-muted">{item.call_put}</td><td className="p-2 font-data">{item.exercise_price ?? "—"}</td><td className="p-2 font-data text-agent-dim">{item.maturity_date}</td><td className="p-2 text-right font-data">{item.settle ?? item.close ?? "—"}</td><td className="p-2 text-right font-data">{item.oi ?? "—"}</td></tr>)}</tbody></table></div> : <EmptyPanel title={locale === "zh" ? "期权链不可用" : "Option chain unavailable"} detail={locale === "zh" ? "不会使用演示波动率曲面或 Greeks。" : "No demo volatility surface or Greeks are substituted."} />}</Panel></div>;
 }
 

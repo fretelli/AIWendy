@@ -407,9 +407,12 @@ export type OptionSeries = {
 };
 export type OptionsSeriesResponse = {
   available: boolean;
+  reason_code?: string;
+  unavailable_reason?: string;
+  last_synced_date?: string;
   items: OptionSeries[];
   history_meta: {
-    scope: "current_available";
+    scope: "current_available" | "retained_history";
     raw: true;
     start_date?: string;
     end_date?: string;
@@ -419,6 +422,9 @@ export type OptionsSeriesResponse = {
 };
 export type OptionsHistory = {
   available: boolean;
+  reason_code?: string;
+  unavailable_reason?: string;
+  last_synced_date?: string;
   opt_code: string;
   history: Array<{
     trade_date: string;
@@ -432,7 +438,7 @@ export type OptionsHistory = {
     put_contracts?: number;
   }>;
   history_meta: {
-    scope: "current_available";
+    scope: "current_available" | "retained_history";
     raw_aggregation: true;
     start_date?: string;
     end_date?: string;
@@ -442,6 +448,9 @@ export type OptionsHistory = {
 };
 export type OptionsChain = {
   available: boolean;
+  reason_code?: string;
+  unavailable_reason?: string;
+  last_synced_date?: string;
   opt_code: string;
   trade_date?: string;
   maturity?: string;
