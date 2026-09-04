@@ -1,6 +1,8 @@
 name: Self-host clean room
 
 on:
+  push:
+    branches: [v2]
   pull_request:
     branches: [v2]
   schedule:
